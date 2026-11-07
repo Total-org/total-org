@@ -224,6 +224,30 @@ export function invoiceCtx(m: DraftMasters, kind: VoucherKind): InvoiceContext {
   }
 }
 
+/** The payload the invoice editor saves for this form state — the ONE mapping the drafting
+ *  rehearsal and the approval queue's Approve (main/ai/queue.ts) share: GST / Round Off ledgers
+ *  the editor would create on first use are created (inside the caller's transaction), the bill
+ *  name follows the number. */
+export function invoiceSavePayload(m: DraftMasters, kind: VoucherKind, voucherTypeId: number, state: InvoiceFormState, number: string): VoucherInputParsed {
+  const ctx = invoiceCtx(m, kind)
+  const taxLedgers = ensureTaxLedgers(m.db, m, requiredTaxLedgers(computeInvoice(state, ctx)), taxLedgerIdsFrom(m.ledgers, taxSideOf(kind)))
+  const built = buildInvoicePayload({ ...state, number, billName: state.billName || number }, ctx, voucherTypeId, taxLedgers)
+  if (!built.ok) throw new Error(built.error)
+  return built.payload as VoucherInputParsed
+}
+
+/** The payload the accounting editor saves for this form state (the party derived as the form
+ *  does) — shared by the drafting rehearsal and the approval queue's Approve. */
+export function accountingSavePayload(m: DraftMasters, type: VoucherType, state: AccountingFormState): VoucherInputParsed {
+  const isPartyOrTds = (id: number): boolean => {
+    const l = m.ledgers.find((x) => x.id === id)
+    return !!l && (isParty(m, l) || l.tdsSectionId != null)
+  }
+  const built = buildAccountingPayload(state, { kind: type.kind, voucherTypeId: type.id, derivedPartyId: derivePartyId(state.rows, isPartyOrTds, null) })
+  if (!built.ok) throw new Error(built.error)
+  return built.payload as VoucherInputParsed
+}
+
 // ---------- accounting: payment / receipt / contra / journal ----------
 
 export interface AccountingDraftInput {
@@ -339,13 +363,7 @@ function accountingResult(
     date, number: '', rows, narration: input.narration?.trim() ?? '', instrumentNo: input.instrumentNo?.trim() ?? '',
     billRefs: refs, advanceReceipt: false, optional: false, tds: null, tcs: null, original: null
   }
-  const isPartyOrTds = (id: number): boolean => {
-    const l = m.ledgers.find((x) => x.id === id)
-    return !!l && (isParty(m, l) || l.tdsSectionId != null)
-  }
-  const derived = derivePartyId(rows, isPartyOrTds, null)
-  const built = buildAccountingPayload(state, { kind: type.kind, voucherTypeId: type.id, derivedPartyId: derived })
-  if (!built.ok) throw new Error(built.error)
+  const built = { payload: accountingSavePayload(m, type, state) }
   // The 5.1 tool carried `reference` straight onto the voucher; the accounting form passes the
   // stored reference through `original`, so a new draft keeps it the same way.
   const payload: VoucherInputParsed = { ...built.payload, reference: input.reference?.trim() || null }
@@ -650,14 +668,10 @@ export function buildInvoiceDraft(w: DraftWork, input: InvoiceDraftInput): Built
   const need = requiredTaxLedgers(computed)
   for (const k of need) if (taxHave[k] == null) w.assume(`No ${k === 'roundOff' ? 'Round Off' : k.toUpperCase()} ledger yet — the editor creates it when you save`)
   const rehearsed = rehearse(m.db, () => {
-    const taxLedgers = ensureTaxLedgers(m.db, m, need, taxHave)
-    const number = rehearsalNumber(w, type, date)
-    const built = buildInvoicePayload({ ...state, number, billName: state.billName || number }, ctx, type.id, taxLedgers)
-    if (!built.ok) throw new Error(built.error)
-    const parsed = precheck(m.db, built.payload, kind)
+    const parsed = precheck(m.db, invoiceSavePayload(m, kind, type.id, state, rehearsalNumber(w, type, date)), kind)
     const res = saveVoucher(m.db, parsed)
     saveWarnings(w, res.warnings)
-    return built.payload
+    return parsed
   })
   // Ledger lines for the 5.1 fields: only ledgers that already exist (a tax ledger the editor will
   // create has no id outside the rehearsal).

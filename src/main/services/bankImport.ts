@@ -667,6 +667,23 @@ export function createVouchersFromLines(db: DB, bankLedgerId: number, items: Cre
  * Refused (returned, never thrown — the user's save stands) when the line is gone, ignored or
  * already matched, or the voucher no longer agrees with it (another bank account, side or amount).
  */
+/** Why a statement line can no longer be accounted for by a new entry (null = still open): gone
+ *  from the import, ignored, or matched to an entry. */
+function statementLineGone(db: DB, line: Pick<LineRow, 'id' | 'ignoredAt'> | null): string | null {
+  if (!line) return 'the statement line is no longer imported'
+  if (line.ignoredAt) return 'the statement line was ignored meanwhile'
+  if (isMatched(db, line.id)) return 'the statement line was matched meanwhile'
+  return null
+}
+
+/** Phase 3b: the approval queue asks before saving a bank-line draft (statementLineGone's words). */
+export function statementLineOpen(db: DB, bankLedgerId: number, statementLineId: number): string | null {
+  const line = db.prepare('SELECT id, ignored_at AS ignoredAt FROM bank_statement_lines WHERE id = ? AND bank_ledger_id = ?').get(statementLineId, bankLedgerId) as
+    | { id: number; ignoredAt: string | null }
+    | undefined
+  return statementLineGone(db, line ?? null)
+}
+
 export function reconcileSavedDraft(db: DB, bankLedgerId: number, statementLineId: number, voucherId: number): { ok: true } | { ok: false; reason: string } {
   const line = db
     .prepare(
@@ -674,9 +691,8 @@ export function reconcileSavedDraft(db: DB, bankLedgerId: number, statementLineI
               l.deposit, l.withdrawal, l.balance, l.ignored_at AS ignoredAt FROM bank_statement_lines l WHERE l.id = ? AND l.bank_ledger_id = ?`
     )
     .get(statementLineId, bankLedgerId) as LineRow | undefined
-  if (!line) return { ok: false, reason: 'the statement line is no longer imported' }
-  if (line.ignoredAt) return { ok: false, reason: 'the statement line was ignored meanwhile' }
-  if (isMatched(db, line.id)) return { ok: false, reason: 'the statement line was matched meanwhile' }
+  const gone = statementLineGone(db, line ?? null)
+  if (gone || !line) return { ok: false, reason: gone ?? 'the statement line is no longer imported' }
   const entries = db
     .prepare(
       `SELECT vl.id, vl.dr_cr AS drCr, vl.amount, vl.bank_date AS bankDate, v.date FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id

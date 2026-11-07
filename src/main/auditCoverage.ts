@@ -480,7 +480,7 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   // Phase 3b: the approval queue (a read over drafts / capture items / memory suggestions) and its
   // Approve — voucher:save's save (+ a GST ledger the editor creates on first use) or simple:post's.
   'ai:queue': QUERY,
-  'ai:queue:approve': a('voucher', 'ledger', 'ai_draft', 'ai_memory', 'attachment', 'capture_item', 'voucher_line', 'bank_statement_line', 'bank_learned_rule', 'simple_intent', 'manufacture'),
+  'ai:queue:approve': a('voucher', 'ledger', 'ai_draft', 'attachment', 'capture_item', 'voucher_line', 'bank_statement_line', 'bank_learned_rule', 'simple_intent', 'manufacture'),
   // ---------- document capture (WP 5.4, ai/capture/ipc.ts) ----------
   'capture:pick': a('capture_item'),
   'capture:addFiles': a('capture_item'),

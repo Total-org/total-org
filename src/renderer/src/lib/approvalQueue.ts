@@ -1,7 +1,7 @@
 // Phase 3b — the approval queue's renderer half, shared by the accountant screen
 // (screens/ApprovalQueue.tsx) and the simple one (simple/queue/ApprovalQueue.tsx): the list, and
-// Approve / Edit / Discard / Approve all. Approve is ai:queue:approve (main saves through
-// voucher:save's / simple:post's own save); Discard is the proposal's own discard (ai:draft:discard,
+// Approve / Edit / Discard / Approve all. Approve is ai:queue:approve for a draft (main saves
+// through voucher:save's / simple:post's own save), ai:memory:setStatus for a memory; Discard is the proposal's own discard (ai:draft:discard,
 // memory → archived); Edit opens the proposal where a person finishes it.
 import { useCallback, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -67,7 +67,19 @@ export function useQueueActions(): {
     []
   )
   const refresh = useCallback(() => queryClient.invalidateQueries(), [queryClient])
-  const approveOne = useCallback((p: QueueProposal) => run(p.key, () => aiApi.approveProposal(p.key, today)), [run, today])
+    // A memory suggestion is accepted through its own channel (no posting right needed); every
+  // draft through ai:queue:approve (main saves it through voucher:save's / simple:post's save).
+  const approveOne = useCallback(
+    (p: QueueProposal) =>
+      run(p.key, async () => {
+        if (p.type === 'memory') {
+          const m = await aiApi.setMemoryStatus(p.id, 'active')
+          return { key: p.key, voucherIds: [], memoryId: m.id }
+        }
+        return aiApi.approveProposal(p.key, today)
+      }),
+    [run, today]
+  )
   const approve = useCallback(
     async (p: QueueProposal) => {
       const r = await approveOne(p)

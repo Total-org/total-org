@@ -3,29 +3,38 @@
 //   - ai_drafts (status open): chat drafts, captured bills (source capture), bank-line categories
 //     (capture + payload.bankLine), GSTR-2B fixes (source assistant), Ask Total offers
 //     (payload.origin 'ask-total');
-//   - capture_items still being read or waiting for answers (no draft yet);
+//   - capture_items still being read or waiting for answers (no open draft);
 //   - ai_memory rows the assistant suggested.
 // Approving never adds a posting path: a draft's stored editor form state is turned into the
-// payload with the editor's own shared mapping (voucherEdit — the same functions the WP 5.3
-// rehearsal used) and saved by the caller through voucher:save's save (ipc.ts), which consumes the
-// draft in the same transaction; an Ask Total offer posts through simple:post's postIntent.
+// payload with the editor's own shared mapping (drafting/builders invoiceSavePayload /
+// accountingSavePayload — the functions the WP 5.3 rehearsal uses) INSIDE voucher:save's own save
+// (ipc.ts saveVoucherRequest), which consumes the draft in the same transaction; an Ask Total
+// offer posts through simple:post's postIntent. Approve posts only what the queue showed: the
+// figures are rebuilt from today's masters and compared with the draft's (`queue_changed`
+// otherwise); a captured bill the reader flagged, or a bank line dealt with elsewhere, is never
+// one-click.
 import type { DB } from '../db/connection'
-import type { CompanyInfo, VoucherKind } from '@shared/domain'
+import type { CompanyInfo, VoucherKind, VoucherType } from '@shared/domain'
 import type { AiDraftDto } from '@shared/ai'
 import type { QueueApprove, QueueLine, QueueList, QueueOrigin, QueueProposal } from '@shared/aiQueue'
 import { whatOfKind } from '@shared/aiQueue'
 import type { AccountingFormState, InvoiceFormState } from '@shared/voucherEdit'
-import { buildAccountingPayload, buildInvoicePayload, computeInvoice, derivePartyId, requiredTaxLedgers, taxLedgerIdsFrom, taxSideOf } from '@shared/voucherEdit'
+import type { CaptureReview } from '@shared/capture/types'
+import { findDuplicates, invoiceNoComparable } from '@shared/capture/duplicates'
 import { voucherInputSchema, type VoucherInputParsed } from '@shared/schemas'
-import { nextVoucherNumber } from '../services/vouchers'
-import { listVoucherTypes } from '../services/masters'
-import { getDraft, listDrafts } from './store'
-import { listMemory } from './memory'
-import { loadMasters, isParty } from './drafting/work'
-import { ensureTaxLedgers, invoiceCtx } from './drafting/builders'
 import { AppError } from '@shared/errors/appError'
 import { draftOffer } from '@shared/simple/aiPlain'
 import type { AssistPrefill } from '@shared/assist'
+import { nextVoucherNumber } from '../services/vouchers'
+import { listVoucherTypes } from '../services/masters'
+import { statementLineOpen } from '../services/bankImport'
+import { getDraft, listDrafts } from './store'
+import { listMemory } from './memory'
+import { loadMasters, type DraftMasters } from './drafting/work'
+import { accountingSavePayload, invoiceSavePayload } from './drafting/builders'
+import { rehearse } from './drafting/rehearse'
+import { duplicateCandidates } from './capture/billDraft'
+import { chargesGstOn } from '@shared/gst/registration'
 
 const ONE_CLICK_FORMS = new Set(['accounting', 'invoice'])
 
@@ -37,12 +46,62 @@ function originOf(d: AiDraftDto): QueueOrigin {
   return 'other'
 }
 
-function approveOf(db: DB, d: AiDraftDto): QueueApprove {
+interface CaptureFacts {
+  id: number
+  duplicateKind: string | null
+  supplierLedgerId: number | null
+  invoiceNo: string | null
+  invoiceDate: string | null
+  total: number | null
+  review: CaptureReview | null
+}
+
+function captureFacts(db: DB, id: number): CaptureFacts | null {
+  const r = db
+    .prepare('SELECT id, duplicate_kind, supplier_ledger_id, invoice_no, invoice_date, total, review_json FROM capture_items WHERE id = ?')
+    .get(id) as { id: number; duplicate_kind: string | null; supplier_ledger_id: number | null; invoice_no: string | null; invoice_date: string | null; total: number | null; review_json: string | null } | undefined
+  if (!r) return null
+  let review: CaptureReview | null = null
+  try {
+    review = r.review_json ? (JSON.parse(r.review_json) as CaptureReview) : null
+  } catch {
+    review = null
+  }
+  return { id: r.id, duplicateKind: r.duplicate_kind, supplierLedgerId: r.supplier_ledger_id, invoiceNo: r.invoice_no, invoiceDate: r.invoice_date, total: r.total, review }
+}
+
+/** A captured bill the reader flagged — a possible duplicate, a printed GST / total that differs
+ *  from the editor's, a low-confidence or partly unread bill, a number the duplicate check could
+ *  not compare — is opened and checked, never saved in one click (review of #221). */
+export function captureNeedsCheck(c: CaptureFacts | null, company: CompanyInfo, date: string): boolean {
+  if (!c || !c.review) return true
+  const r = c.review
+  const t = r.taxCheck
+  // As the bill reader words it: a GST difference counts only on a GST-charging date (a company
+  // that can't claim GST folds the bill's GST into the cost — there is no tax line to compare).
+  const gstDiffers = t != null && t.computed !== t.printed && chargesGstOn(company, date)
+  return (
+    c.duplicateKind != null ||
+    (r.duplicates ?? []).length > 0 ||
+    gstDiffers ||
+    (t != null && t.printedTotal != null && t.printedTotal !== t.computedTotal) ||
+    r.parsed?.confidence === 'low' ||
+    (r.parsed?.warnings ?? []).length > 0 ||
+    (r.totals?.discrepancies ?? []).length > 0 ||
+    !invoiceNoComparable(r.parsed?.invoiceNo ?? null)
+  )
+}
+
+/** How Approve saves a draft, before its figures are rebuilt (`types` = the voucher types by id). */
+function approveOf(db: DB, company: CompanyInfo, d: AiDraftDto, types: ReadonlyMap<number, VoucherType>): QueueApprove {
   if (d.payload.simple) return d.payload.simple.intent ? 'simple' : 'edit'
   if (!d.payload.state || !ONE_CLICK_FORMS.has(d.payload.form ?? 'accounting')) return 'edit'
-  const t = db.prepare('SELECT numbering FROM voucher_types WHERE id = ?').get(d.payload.voucherTypeId) as { numbering: string } | undefined
+  const t = types.get(d.payload.voucherTypeId)
   if (!t) return 'edit'
-  return t.numbering === 'manual' ? 'manual_number' : 'voucher'
+  if (t.numbering === 'manual') return 'manual_number'
+  if (d.payload.bankLine && statementLineOpen(db, d.payload.bankLine.bankLedgerId, d.payload.bankLine.statementLineId)) return 'line_done'
+  if (d.source === 'capture' && !d.payload.bankLine && d.payload.captureItemId && captureNeedsCheck(captureFacts(db, d.payload.captureItemId), company, d.payload.date)) return 'check'
+  return 'voucher'
 }
 
 /** The simple flow a draft's Edit opens in simple mode: an Ask Total offer's own prefill, a chat
@@ -56,22 +115,82 @@ function simplePrefill(d: AiDraftDto): AssistPrefill | null {
 
 /** Who a payment / receipt without a party went to / came from: its one expense / income side
  *  (the Dr line of a payment, the Cr line of a receipt) — so "Money out to Shop Rent". */
-function counterparty(kind: string, lines: QueueLine[]): string | null {
+function counterparty(kind: string, lines: readonly QueueLine[]): string | null {
   const side = kind === 'payment' ? 'dr' : kind === 'receipt' ? 'cr' : null
   const on = side ? lines.filter((l) => l.drCr === side) : []
   return on.length === 1 ? on[0]!.ledgerName : null
 }
 
-/** The open proposals, newest first (a chat answer's drafts stay together, in the order made). */
-export function listQueue(db: DB): QueueList {
+/** The payload the draft's editor would save today, built with the editor's shared mapping. Called
+ *  INSIDE a transaction (the save's, or a rehearsal): like the editor on first use, it creates a
+ *  missing GST / Round Off ledger (audited by createLedger); the number is the series' next one
+ *  (what the editor suggests; saveVoucher would pick the same), and an advance kept as a new bill is
+ *  named after it, as the accounting form names it (the draft named it after the number of its day). */
+export function draftVoucherPayload(m: DraftMasters, d: AiDraftDto, type: VoucherType): VoucherInputParsed {
+  const p = d.payload
+  const number = nextVoucherNumber(m.db, type.id, (p.state as { date: string }).date)
+  if (p.form === 'invoice') return voucherInputSchema.parse(invoiceSavePayload(m, p.voucherKind as VoucherKind, type.id, p.state as InvoiceFormState, number))
+  const state = p.state as AccountingFormState
+  const billRefs = state.billRefs.map((r) => (r.kind === 'new' ? { ...r, name: number } : r))
+  return voucherInputSchema.parse(accountingSavePayload(m, type, { ...state, number, billRefs }))
+}
+
+/** True when the rebuilt payload posts what the draft showed: the same amount on every ledger the
+ *  draft listed and the same document total on the party (a GST / Round Off ledger created on
+ *  first use was not listed — it had no id yet). */
+export function postsAsDrafted(d: AiDraftDto, built: VoucherInputParsed): boolean {
+  const key = (ledgerId: number, drCr: string): string => `${ledgerId}:${drCr}`
+  const sum = (lines: readonly { ledgerId: number; drCr: string; amount: number }[]): Map<string, number> => {
+    const m = new Map<string, number>()
+    for (const l of lines) m.set(key(l.ledgerId, l.drCr), (m.get(key(l.ledgerId, l.drCr)) ?? 0) + l.amount)
+    return m
+  }
+  const was = sum(d.payload.lines ?? [])
+  const now = sum(built.lines)
+  for (const [k, v] of was) if (now.get(k) !== v) return false
+  if (d.payload.form !== 'invoice') {
+    for (const k of now.keys()) if (!was.has(k)) return false
+    return true
+  }
+  const party = d.payload.partyLedgerId
+  if (party == null || d.payload.total == null) return true
+  const partyNow = built.lines.filter((l) => l.ledgerId === party).reduce((s, l) => s + (l.drCr === 'dr' ? l.amount : -l.amount), 0)
+  return Math.abs(partyNow) === d.payload.total
+}
+
+const linesWithNames = (db: DB, lines: readonly { ledgerId: number; drCr: 'dr' | 'cr'; amount: number }[]): QueueLine[] => {
+  const name = db.prepare('SELECT name FROM ledgers WHERE id = ?')
+  return lines.map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount, ledgerName: (name.get(l.ledgerId) as { name: string } | undefined)?.name ?? `#${l.ledgerId}` }))
+}
+
+/** The open proposals, newest first (a chat answer's drafts stay together, in the order made).
+ *  A one-click draft shows the lines Approve would post TODAY (rehearsed, rolled back). */
+export function listQueue(db: DB, company: CompanyInfo, today: string): QueueList {
   const names = new Map((db.prepare('SELECT id, name FROM ledgers').all() as { id: number; name: string }[]).map((r) => [r.id, r.name]))
+  const types = new Map(listVoucherTypes(db).map((t) => [t.id, t]))
   const drafts = listDrafts(db, 'open')
   const perMessage = new Map<number, number>()
   for (const d of drafts) if (d.messageId) perMessage.set(d.messageId, (perMessage.get(d.messageId) ?? 0) + 1)
+  let masters: DraftMasters | null = null
   const out: QueueProposal[] = []
   for (const d of drafts) {
     const p = d.payload
-    const lines: QueueLine[] = (p.lines ?? []).map((l) => ({ ...l, ledgerName: names.get(l.ledgerId) ?? `#${l.ledgerId}` }))
+    let lines: QueueLine[] = (p.lines ?? []).map((l) => ({ ...l, ledgerName: names.get(l.ledgerId) ?? `#${l.ledgerId}` }))
+    let approve = approveOf(db, company, d, types)
+    if (approve === 'voucher') {
+      masters ??= loadMasters(db, company, today)
+      const m = masters
+      try {
+        const now = rehearse(db, () => {
+          const built = draftVoucherPayload(m, d, types.get(p.voucherTypeId)!)
+          return { lines: linesWithNames(db, built.lines), same: postsAsDrafted(d, built) }
+        })
+        lines = now.lines
+        if (!now.same) approve = 'changed'
+      } catch {
+        approve = 'edit'
+      }
+    }
     const amount = p.total ?? (lines.length ? lines.filter((l) => l.drCr === 'dr').reduce((s, l) => s + l.amount, 0) : null)
     out.push({
       key: `draft:${d.id}`, type: 'draft', id: d.id, origin: originOf(d), what: whatOfKind(p.voucherKind),
@@ -79,14 +198,15 @@ export function listQueue(db: DB): QueueList {
       voucherKind: p.voucherKind ?? null, date: p.date ?? null,
       partyName: (p.partyLedgerId ? names.get(p.partyLedgerId) : null) ?? counterparty(p.voucherKind, lines),
       amount, summary: d.summary, lines, assumptions: p.assumptions ?? [], unrequested: d.unrequested,
-      approve: approveOf(db, d), createdAt: d.createdAt, draftForm: p.form ?? 'accounting',
+      approve, createdAt: d.createdAt, draftForm: p.form ?? 'accounting',
       ...(simplePrefill(d) ? { prefill: simplePrefill(d)! } : {})
     })
   }
   // Bills still being read, or waiting for the user's answers / the cost approval.
   const captures = db
     .prepare(`SELECT id, file_name, status, supplier_name, invoice_date, total, created_at FROM capture_items
-              WHERE status IN ('queued', 'needs_review', 'failed') AND (draft_id IS NULL OR draft_id NOT IN (SELECT id FROM ai_drafts WHERE status = 'open'))
+              WHERE status IN ('queued', 'pending', 'processing', 'needs_review', 'failed')
+                AND (draft_id IS NULL OR draft_id NOT IN (SELECT id FROM ai_drafts WHERE status = 'open'))
               ORDER BY id DESC`)
     .all() as { id: number; file_name: string; status: string; supplier_name: string | null; invoice_date: string | null; total: number | null; created_at: string }[]
   for (const c of captures) {
@@ -107,44 +227,40 @@ export function listQueue(db: DB): QueueList {
   return { proposals: out, waiting: out.filter((p) => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory').length }
 }
 
-/** An open draft Approve may save in one click, or the reason it can't (AppError on `key`). */
-export function openDraftFor(db: DB, draftId: number, path: 'voucher' | 'simple'): AiDraftDto {
+const REFUSAL: Partial<Record<QueueApprove, () => AppError>> = {
+  changed: () => new AppError('queue_changed', 'The figures changed since this was prepared (a rate or account changed) — open it to check'),
+  manual_number: () => new AppError('queue_manual_number', 'This voucher type is numbered by hand — open it to type the number'),
+  line_done: () => new AppError('queue_line_done', 'This bank line was already matched or left out — nothing to record'),
+  check: () => new AppError('queue_check', 'The bill reader flagged this bill — open it and check it before saving')
+}
+
+/** An open draft Approve may save in one click, or the reason it can't. */
+export function openDraftFor(db: DB, company: CompanyInfo, draftId: number, path: 'voucher' | 'simple'): AiDraftDto {
   const d = getDraft(db, draftId)
   if (!d) throw new AppError('queue_not_found', 'This proposal is no longer there')
   if (d.status !== 'open') throw new AppError('queue_not_open', `This proposal is already ${d.status}`, { params: { status: d.status } })
-  const how = approveOf(db, d)
-  if (how === 'manual_number') throw new AppError('queue_manual_number', 'This voucher type is numbered by hand — open it to type the number')
+  const how = approveOf(db, company, d, new Map(listVoucherTypes(db).map((t) => [t.id, t])))
+  const refusal = REFUSAL[how]
+  if (refusal) throw refusal()
   if (how !== path) throw new AppError('queue_edit_only', 'This proposal cannot be saved in one click — open it to finish it')
   return d
 }
 
-/** The payload the draft's editor would save, built with the editor's shared mapping. Called
- *  INSIDE the save's transaction: like the editor on first use, it creates a missing GST /
- *  Round Off ledger (audited by createLedger), and the number is the series' next one (what the
- *  editor suggests; saveVoucher would pick the same). */
-export function draftVoucherPayload(db: DB, company: CompanyInfo, d: AiDraftDto, today: string): VoucherInputParsed {
-  const p = d.payload
-  const m = loadMasters(db, company, today)
-  const kind = p.voucherKind as VoucherKind
-  const type = listVoucherTypes(db).find((t) => t.id === p.voucherTypeId)
-  if (!type) throw new AppError('queue_edit_only', 'The voucher type of this proposal no longer exists — open it to finish it')
-  if (p.form === 'invoice') {
-    const state = p.state as InvoiceFormState
-    const ctx = invoiceCtx(m, kind)
-    const computed = computeInvoice(state, ctx)
-    const taxLedgers = ensureTaxLedgers(db, m, requiredTaxLedgers(computed), taxLedgerIdsFrom(m.ledgers, taxSideOf(kind)))
-    const number = nextVoucherNumber(db, type.id, state.date)
-    const built = buildInvoicePayload({ ...state, number, billName: state.billName || number }, ctx, type.id, taxLedgers)
-    if (!built.ok) throw new Error(built.error)
-    return voucherInputSchema.parse(built.payload)
+/** Approve's payload for a draft (path 'voucher'), built inside voucher:save's transaction: the
+ *  draft is open and one-click, today's figures are those the draft showed, and — for a captured
+ *  bill — no voucher of the same supplier carries its invoice number in its FY by now. */
+export function approvalPayload(db: DB, company: CompanyInfo, draftId: number, today: string): VoucherInputParsed {
+  const d = openDraftFor(db, company, draftId, 'voucher')
+  const type = listVoucherTypes(db).find((t) => t.id === d.payload.voucherTypeId)!
+  const built = draftVoucherPayload(loadMasters(db, company, today), d, type)
+  if (!postsAsDrafted(d, built)) throw new AppError('queue_changed', 'The figures changed since this was prepared (a rate or account changed) — open it to check')
+  const c = d.source === 'capture' && d.payload.captureItemId ? captureFacts(db, d.payload.captureItemId) : null
+  if (c?.supplierLedgerId) {
+    const dup = findDuplicates(
+      { partyLedgerId: c.supplierLedgerId, invoiceNo: c.invoiceNo, date: c.invoiceDate, total: c.total, today },
+      duplicateCandidates(db, [c.supplierLedgerId], c.id)
+    ).find((h) => h.kind === 'same_invoice')
+    if (dup) throw new AppError('queue_duplicate', `${dup.why} — open it to check`)
   }
-  const state = p.state as AccountingFormState
-  const isPartyOrTds = (id: number): boolean => {
-    const l = m.ledgers.find((x) => x.id === id)
-    return !!l && (isParty(m, l) || l.tdsSectionId != null)
-  }
-  const derived = derivePartyId(state.rows, isPartyOrTds, null)
-  const built = buildAccountingPayload({ ...state, number: nextVoucherNumber(db, type.id, state.date) }, { kind: type.kind, voucherTypeId: type.id, derivedPartyId: derived })
-  if (!built.ok) throw new Error(built.error)
-  return voucherInputSchema.parse(built.payload)
+  return built
 }

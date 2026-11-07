@@ -3,10 +3,11 @@
 // nothing posts by itself. The simple view is simple/queue/ApprovalQueue.tsx.
 import { useMemo, useState } from 'react'
 import { formatPaise } from '@shared/money'
-import { approvableTogether, type QueueOrigin, type QueueProposal } from '@shared/aiQueue'
+import { approvableTogether, oneClick, type QueueOrigin, type QueueProposal } from '@shared/aiQueue'
 import { useNav, useToasts } from '../state/stores'
 import { Badge, Banner, Button, Page, PageHeader, Panel } from '../components/ui'
 import { DataTable, defineColumns } from '../components/table'
+import { useCanSave, useCanWrite } from '../simple/ViewerNote'
 import { queueEditTarget, useQueueActions, useQueueList, type QueueOutcome } from '../lib/approvalQueue'
 
 const ORIGIN: Record<QueueOrigin, string> = {
@@ -15,7 +16,10 @@ const ORIGIN: Record<QueueOrigin, string> = {
 const BLOCKED: Partial<Record<QueueProposal['approve'], string>> = {
   edit: 'Open it to finish — it cannot be saved in one click',
   manual_number: 'Hand-numbered voucher type — open it to type the number',
-  capture: 'Still being read — open Document capture'
+  capture: 'Still being read — open Document capture',
+  changed: 'The figures changed since this was drafted (a rate or ledger changed) — the lines above are what would post now; open it to check',
+  check: 'The bill reader flagged this bill (see the assumptions) — open it and check it against the file',
+  line_done: 'The statement line was matched or ignored meanwhile — nothing to record; discard it'
 }
 
 const COLUMNS = defineColumns<QueueProposal>([
@@ -41,6 +45,8 @@ function errorText(o: QueueOutcome): string {
 
 function Detail({ p, onApprove, onDiscard, busy }: { p: QueueProposal; onApprove: () => void; onDiscard: () => void; busy: boolean }): React.JSX.Element {
   const nav = useNav()
+  const canSave = useCanSave()
+  const canWrite = useCanWrite()
   const edit = queueEditTarget(p, false)
   return (
     <div className="space-y-2 px-panel py-2" data-testid={`queue-detail-${p.key}`}>
@@ -72,11 +78,11 @@ function Detail({ p, onApprove, onDiscard, busy }: { p: QueueProposal; onApprove
       )}
       {BLOCKED[p.approve] && <p className="text-hint text-muted">{BLOCKED[p.approve]}</p>}
       <div className="flex gap-2">
-        {(p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory') && (
+        {oneClick(p) && (p.type === 'memory' ? canWrite : canSave) && (
           <Button size="sm" variant="primary" loading={busy} onClick={onApprove} data-testid={`queue-approve-${p.key}`}>Approve</Button>
         )}
-        {edit && <Button size="sm" onClick={() => nav.go(edit)} data-testid={`queue-edit-${p.key}`}>{p.type === 'capture' ? 'Open' : 'Edit'}</Button>}
-        {p.type !== 'capture' && <Button size="sm" variant="ghost" disabled={busy} onClick={onDiscard} data-testid={`queue-discard-${p.key}`}>Discard</Button>}
+        {edit && p.approve !== 'line_done' && <Button size="sm" onClick={() => nav.go(edit)} data-testid={`queue-edit-${p.key}`}>{p.type === 'capture' ? 'Open' : 'Edit'}</Button>}
+        {p.type !== 'capture' && canWrite && <Button size="sm" variant="ghost" disabled={busy} onClick={onDiscard} data-testid={`queue-discard-${p.key}`}>Discard</Button>}
       </div>
     </div>
   )
@@ -87,7 +93,9 @@ export function ApprovalQueueScreen(): React.JSX.Element {
   const { busy, approve, approveAll, discard } = useQueueActions()
   const toast = useToasts()
   const rows = useMemo(() => data?.proposals ?? [], [data])
-  const together = rows.filter(approvableTogether)
+  const canSave = useCanSave()
+  const canWrite = useCanWrite()
+  const together = rows.filter((p) => approvableTogether(p) && (p.type === 'memory' ? canWrite : canSave))
   // A row opens its accounts (Enter / click toggles; the ▸ expander too).
   const [expanded, setExpanded] = useState<ReadonlySet<string | number>>(new Set())
 

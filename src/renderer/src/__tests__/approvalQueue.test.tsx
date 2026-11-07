@@ -48,7 +48,7 @@ beforeEach(() => {
   })
   window.total = { platform: 'test', invoke }
   act(() => {
-    useSession.setState({ info: { name: 'Sharma Kirana', stateCode: '27', gstin: null, gstRegistrationType: 'unregistered', address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null } as CompanyInfo, slug: 'sharma', ui: { mode: 'simple' }, workingDate: '2026-10-14', from: '2026-04-01', to: '2027-03-31' })
+    useSession.setState({ info: { name: 'Sharma Kirana', stateCode: '27', gstin: null, gstRegistrationType: 'unregistered', address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null } as CompanyInfo, slug: 'sharma', ui: { mode: 'simple' }, user: null, workingDate: '2026-10-14', from: '2026-04-01', to: '2027-03-31' })
     useNav.setState({ stack: [{ name: 'simple-approvals' }] })
   })
 })
@@ -118,6 +118,26 @@ describe('approval queue — simple mode', () => {
     expect(screen.queryByTestId('queue-approve-draft:1')).toBeNull()
   })
 
+  it('a changed / flagged / already-matched proposal says why and offers no Approve; a captured bill is never in Approve all', async () => {
+    const CHANGED = base({ key: 'draft:11', id: 11, approve: 'changed', group: 'message:5' })
+    const FLAGGED = base({ key: 'draft:12', id: 12, origin: 'capture', what: 'purchase', approve: 'check', group: 'message:5' })
+    const DONE = base({ key: 'draft:13', id: 13, origin: 'bank', approve: 'line_done', group: 'message:5' })
+    const CLEAN_BILL = base({ key: 'draft:14', id: 14, origin: 'capture', what: 'purchase', group: 'message:5' })
+    const OK1 = base({ key: 'draft:15', id: 15, group: 'message:5' })
+    const OK2 = base({ key: 'draft:16', id: 16, group: 'message:5' })
+    list = { proposals: [CHANGED, FLAGGED, DONE, CLEAN_BILL, OK1, OK2], waiting: 3 }
+    renderUi(<ApprovalQueue />)
+    await waitFor(() => expect(screen.getByTestId('queue-card-draft:11')).toBeTruthy())
+    expect(screen.getByTestId('queue-card-draft:11').textContent).toContain('The amounts changed since this was prepared')
+    expect(screen.getByTestId('queue-card-draft:12').textContent).toContain('Check this bill against the file first')
+    expect(screen.getByTestId('queue-card-draft:13').textContent).toContain('already sorted out elsewhere')
+    for (const k of ['draft:11', 'draft:12', 'draft:13']) expect(screen.queryByTestId(`queue-approve-${k}`)).toBeNull()
+    expect(screen.queryByTestId('queue-edit-draft:13')).toBeNull()
+    expect(screen.getByTestId('queue-approve-draft:14')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('queue-approve-all-message:5'))
+    await waitFor(() => expect(calls('ai:queue:approve').map((c) => c.key)).toEqual(['draft:15', 'draft:16']))
+  })
+
   it('an empty queue teaches what lands here', async () => {
     list = { proposals: [], waiting: 0 }
     renderUi(<ApprovalQueue />)
@@ -140,6 +160,23 @@ describe('approval queue — accountant mode', () => {
     expect(lines.textContent).toContain('Dr')
     expect(lines.textContent).toContain('1,500.00')
     fireEvent.click(screen.getByTestId('queue-approve-all'))
-    await waitFor(() => expect(calls('ai:queue:approve').map((c) => c.key)).toEqual(['draft:1', 'draft:2', 'draft:3', 'memory:7']))
+    // The unrequested draft is left out; the memory is accepted through its own channel.
+    await waitFor(() => expect(calls('ai:queue:approve').map((c) => c.key)).toEqual(['draft:1', 'draft:2', 'draft:3']))
+    await waitFor(() => expect(calls('ai:memory:setStatus')).toEqual([{ id: 7, status: 'active' }]))
+  })
+
+  it('a viewer sees the accounts but no Approve / Discard / Approve all', async () => {
+    act(() => useSession.setState({ ui: { mode: 'accountant' }, user: { id: 3, name: 'Looker', role: 'viewer' } } as never))
+    renderUi(<ApprovalQueueScreen />)
+    const row = await waitFor(() => {
+      const r = document.querySelector('[data-key="draft:1"]')
+      expect(r).toBeTruthy()
+      return r as HTMLElement
+    })
+    fireEvent.click(row)
+    await screen.findByTestId('queue-lines-draft:1')
+    expect(screen.queryByTestId('queue-approve-draft:1')).toBeNull()
+    expect(screen.queryByTestId('queue-discard-draft:1')).toBeNull()
+    expect(screen.queryByTestId('queue-approve-all')).toBeNull()
   })
 })

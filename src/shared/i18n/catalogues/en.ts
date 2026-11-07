@@ -3185,6 +3185,13 @@ export const en = {
   'errors.queue.notOpen': 'This suggestion was already dealt with.',
   'errors.queue.manualNumber': 'This needs a number you type yourself — open it with Edit.',
   'errors.queue.editOnly': 'This one needs a few more answers — open it with Edit.',
+  'simple.queue.changed': 'The amounts changed since this was prepared (a price or rate changed) — open it with Edit to check.',
+  'simple.queue.check': 'Check this bill against the file first — open it with Edit.',
+  'simple.queue.lineDone': 'This bank line was already sorted out elsewhere — nothing more to record.',
+  'errors.queue.changed': 'The amounts changed since this was prepared — open it with Edit to check.',
+  'errors.queue.check': 'Check this bill against the file first — open it with Edit.',
+  'errors.queue.lineDone': 'This bank line was already sorted out elsewhere — nothing more to record.',
+  'errors.queue.duplicate': 'A bill with this number from this supplier is already recorded — open it with Edit to check.',
 } as const satisfies Record<string, string>
 
 export type MessageKey = keyof typeof en

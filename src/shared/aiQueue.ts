@@ -20,8 +20,14 @@ export type QueueWhat =
  *  - edit: no one-click save (a manufacture / order / challan draft, a WP 5.1 draft without a form,
  *    an Ask Total offer the flow still asks something for) — Edit opens it;
  *  - manual_number: the voucher type is numbered by hand — Edit to type the number;
- *  - capture: a bill still being read / waiting for answers — opens the Capture screen. */
-export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture'
+ *  - capture: a bill still being read / waiting for answers — opens the Capture screen;
+ *  - changed: today's masters give other figures than the draft showed (a rate / account changed)
+ *    — Edit to see them (the queue lists the lines Approve would post today);
+ *  - check: a captured bill the reader flagged (possible duplicate, printed GST / total differs,
+ *    low confidence, unread parts, a number the duplicate check can't compare) — Edit to check it;
+ *  - line_done: a bank-line draft whose statement line was matched or left out meanwhile —
+ *    nothing to record (Discard). */
+export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture' | 'changed' | 'check' | 'line_done'
 
 export interface QueueLine {
   ledgerId: number
@@ -87,9 +93,13 @@ export function whatOfKind(kind: string | null | undefined): QueueWhat {
   return (kind && KIND_WHAT[kind]) || 'journal'
 }
 
-/** Proposals "Approve all" takes: one-click saves that somebody asked for. */
-export function approvableTogether(p: Pick<QueueProposal, 'approve' | 'unrequested'>): boolean {
-  return (p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory') && !p.unrequested
+/** One click saves it (Approve shown). */
+export const oneClick = (p: Pick<QueueProposal, 'approve'>): boolean => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory'
+
+/** Proposals "Approve all" takes: one-click saves somebody asked for — never a captured bill (each
+ *  one is approved after a look at its file). */
+export function approvableTogether(p: Pick<QueueProposal, 'approve' | 'unrequested' | 'origin'>): boolean {
+  return oneClick(p) && !p.unrequested && p.origin !== 'capture'
 }
 
 /** Groups in queue order: proposals with the same `group` together (first one's place), the rest one each. */

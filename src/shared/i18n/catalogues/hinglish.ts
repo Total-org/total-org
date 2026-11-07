@@ -3072,4 +3072,11 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'errors.queue.notOpen': 'Is sujhav par pehle hi kaam ho chuka hai.',
   'errors.queue.manualNumber': 'Iska number aapko khud likhna hai — Badlein se kholein.',
   'errors.queue.editOnly': 'Ismein kuch aur jawab chahiye — Badlein se kholein.',
+  'simple.queue.changed': 'Ise taiyaar karne ke baad rakam badal gayi (koi daam ya dar badli) — check karne ke liye Badlein se kholein.',
+  'simple.queue.check': 'Pehle is bill ko file se milayein — Badlein se kholein.',
+  'simple.queue.lineDone': 'Bank ki yeh line pehle hi kahin aur nipat chuki hai — record karne ko kuch nahin bacha.',
+  'errors.queue.changed': 'Ise taiyaar karne ke baad rakam badal gayi — check karne ke liye Badlein se kholein.',
+  'errors.queue.check': 'Pehle is bill ko file se milayein — Badlein se kholein.',
+  'errors.queue.lineDone': 'Bank ki yeh line pehle hi kahin aur nipat chuki hai — record karne ko kuch nahin bacha.',
+  'errors.queue.duplicate': 'Is supplier ka isi number ka bill pehle se record hai — check karne ke liye Badlein se kholein.',
 }

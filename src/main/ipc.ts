@@ -129,8 +129,7 @@ import { settleAskDraft } from './assist/settle'
 import { aiMockAllowed } from './ai/env'
 import { settleDraftOnSave } from './ai/drafts'
 import * as aiStore from './ai/store'
-import { draftVoucherPayload as queuePayload, openDraftFor } from './ai/queue'
-import { getMemory, setMemoryStatus } from './ai/memory'
+import { approvalPayload, openDraftFor } from './ai/queue'
 import { appSecretStore } from './services/secretStore'
 import type { AiEvent } from '@shared/ai'
 import { registerReceivablesIpc } from './ipcReceivables'
@@ -2028,30 +2027,20 @@ export function registerIpc(): void {
   // Phase 3b: approve one proposal of the approval queue (main/ai/queue.ts). A draft with an
   // editor form saves through voucher:save's own save above (the payload built by the editor's
   // shared mapping, the draft consumed in the same transaction); an Ask Total offer posts through
-  // simple:post's postIntent (below); a memory suggestion becomes active. Nothing else is written.
+  // simple:post's postIntent (below). A memory suggestion is approved through ai:memory:setStatus
+  // (no posting right needed). Nothing else is written.
   handle('ai:queue:approve', (p) => {
-    const { key, today } = z.object({ key: z.string().regex(/^(draft|memory):[1-9]\d*$/), today: isoDate.optional() }).strict().parse(p)
-    const [type, rawId] = key.split(':') as ['draft' | 'memory', string]
-    const id = Number(rawId)
+    const { key, today } = z.object({ key: z.string().regex(/^draft:[1-9]\d*$/), today: isoDate.optional() }).strict().parse(p)
+    const id = Number(key.slice('draft:'.length))
     const c = requireCompany()
-    if (type === 'memory') {
-      const before = getMemory(c.db, id)
-      if (!before) throw new AppError('queue_not_found', 'This proposal is no longer there')
-      if (before.status !== 'suggested') throw new AppError('queue_not_open', `This proposal is already ${before.status}`, { params: { status: before.status } })
-      const m = setMemoryStatus(c.db, id, 'active')
-      return { key, voucherIds: [], memoryId: m.id }
-    }
     const draft = aiStore.getDraft(c.db, id)
     if (draft?.payload.simple) {
-      openDraftFor(c.db, id, 'simple')
+      openDraftFor(c.db, c.info, id, 'simple')
       const intent = simpleIntentSchema.parse({ ...(draft.payload.simple.intent as object), clientId: `queue-draft-${id}` })
       const r = postSimpleIntent(intent, today, id)
       return { key, voucherIds: r.voucherIds }
     }
-    const saved = saveVoucherRequest(() => {
-      const d = openDraftFor(c.db, id, 'voucher')
-      return queuePayload(c.db, c.info, d, today ?? todayISO())
-    }, { aiDraftId: id })
+    const saved = saveVoucherRequest(() => approvalPayload(c.db, c.info, id, today ?? todayISO()), { aiDraftId: id })
     return { key, voucherIds: [saved.id] }
   })
   handle('voucher:delete', (p) => vouchers.deleteVoucher(requireCompany().db, idSchema.parse(p).id))

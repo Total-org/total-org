@@ -384,7 +384,10 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
   handle('ai:draft:discard', (p) => discardDraft(db(), idSchema.parse(p).id), 'accountant')
   // Phase 3b: the approval queue — every open proposal (drafts, bills being read, memory
   // suggestions). Approving is ai:queue:approve (ipc.ts, beside voucher:save).
-  handle('ai:queue', () => listQueue(db()), 'viewer')
+  handle('ai:queue', () => {
+    const c = deps.company()
+    return listQueue(c.db, c.info, today())
+  }, 'viewer')
   // WP 5.3: the drafts one answer made (a multi-draft turn), for the editor's "draft 2 of 3".
   handle('ai:draft:set', (p) => {
     const d = store.getDraft(db(), idSchema.parse(p).id)

@@ -6,10 +6,10 @@ import { formatPaise } from '@shared/money'
 import { toPlainDate } from '@shared/dates'
 import type { MessageKey } from '@shared/i18n'
 import { mapError, type CaughtError } from '@shared/errors'
-import { approvableTogether, groupProposals, type QueueOrigin, type QueueProposal, type QueueWhat } from '@shared/aiQueue'
+import { approvableTogether, groupProposals, oneClick, type QueueOrigin, type QueueProposal, type QueueWhat } from '@shared/aiQueue'
 import { useT } from '../../lib/i18n'
 import { useNav, useToasts } from '../../state/stores'
-import { useCanSave } from '../ViewerNote'
+import { useCanSave, useCanWrite } from '../ViewerNote'
 import { Badge, Banner, Button, Page, Panel, SkeletonRows } from '../../components/ui'
 import { EmptyTeach } from '../help/EmptyTeach'
 import { queueEditTarget, useQueueActions, useQueueList, type QueueOutcome } from '../../lib/approvalQueue'
@@ -65,7 +65,7 @@ function errorText(o: QueueOutcome, t: T): string {
 
 type Actions = ReturnType<typeof useQueueActions>
 
-function Card({ p, actions, canSave, onDone }: { p: QueueProposal; actions: Actions; canSave: boolean; onDone: (o: QueueOutcome, ok: MessageKey) => void }): React.JSX.Element {
+function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; actions: Actions; canSave: boolean; canWrite: boolean; onDone: (o: QueueOutcome, ok: MessageKey) => void }): React.JSX.Element {
   const t = useT()
   const nav = useNav()
   const { approve, discard } = actions
@@ -74,7 +74,8 @@ function Card({ p, actions, canSave, onDone }: { p: QueueProposal; actions: Acti
   const okKey: MessageKey = p.type === 'memory' ? 'simple.queue.approvedMemory' : 'simple.queue.approved' // i18n-technical
   const editKey: MessageKey = p.type === 'capture' ? 'simple.queue.open' : 'simple.queue.edit' // i18n-technical
   const edit = queueEditTarget(p, true)
-  const oneClick = p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory'
+  // A draft needs the posting right; a memory and a discard only a non-viewer.
+  const mayApprove = oneClick(p) && (p.type === 'memory' ? canWrite : canSave)
   return (
     <li className="space-y-2 border-b border-line px-panel py-3 last:border-b-0" data-testid={`queue-card-${p.key}`}>
       <div className="flex flex-wrap items-baseline gap-2">
@@ -86,6 +87,9 @@ function Card({ p, actions, canSave, onDone }: { p: QueueProposal; actions: Acti
       {p.unrequested && <Banner tone="warning">{t('simple.queue.unrequested')}</Banner>}
       {p.approve === 'edit' && <p className="text-hint text-muted">{t('simple.queue.needsEdit')}</p>}
       {p.approve === 'manual_number' && <p className="text-hint text-muted">{t('simple.queue.manualNumber')}</p>}
+      {p.approve === 'changed' && <Banner tone="warning">{t('simple.queue.changed')}</Banner>}
+      {p.approve === 'check' && <Banner tone="warning">{t('simple.queue.check')}</Banner>}
+      {p.approve === 'line_done' && <p className="text-hint text-muted">{t('simple.queue.lineDone')}</p>}
       {p.assumptions.length > 0 && (
         <details className="text-hint text-muted">
           <summary className="cursor-pointer">{t('simple.queue.details')}</summary>
@@ -95,15 +99,15 @@ function Card({ p, actions, canSave, onDone }: { p: QueueProposal; actions: Acti
           </ul>
         </details>
       )}
-      {canSave && (
+      {canWrite && (
         <div className="flex flex-wrap gap-2">
-          {oneClick && (
+          {mayApprove && (
             <Button size="sm" variant="primary" loading={busy} data-testid={`queue-approve-${p.key}`}
               onClick={() => void approve(p).then((o) => onDone(o, okKey))}>
               {t('simple.queue.approve')}
             </Button>
           )}
-          {edit && (
+          {edit && p.approve !== 'line_done' && (
             <Button size="sm" data-testid={`queue-edit-${p.key}`} onClick={() => nav.go(edit)}>
               {lbl(editKey)}
             </Button>
@@ -124,6 +128,7 @@ export function ApprovalQueue(): React.JSX.Element {
   const t = useT()
   const toast = useToasts()
   const canSave = useCanSave()
+  const canWrite = useCanWrite()
   const { data, isLoading } = useQueueList()
   const actions = useQueueActions()
   const { busy, approveAll } = actions
@@ -152,13 +157,13 @@ export function ApprovalQueue(): React.JSX.Element {
           help="getting-started" // i18n-technical
         />}
       {groupProposals(proposals).map((g) => {
-        const together = g.items.filter(approvableTogether)
+        const together = g.items.filter((p) => approvableTogether(p) && (p.type === 'memory' ? canWrite : canSave))
         return (
           <Panel key={g.group ?? g.items[0]!.key} className="mb-3" testId={g.group ? `queue-group-${g.group}` : undefined}>
             {g.group && (
               <div className="flex items-center justify-between gap-2 border-b border-line px-panel py-2">
                 <span className="text-small font-medium text-ink">{t('simple.queue.together', { count: g.items.length })}</span>
-                {canSave && together.length > 1 && (
+                {together.length > 1 && (
                   <Button size="sm" variant="primary" disabled={busy.size > 0} data-testid={`queue-approve-all-${g.group}`} onClick={() => void runAll(together)}>
                     {t('simple.queue.approveAll', { count: together.length })}
                   </Button>
@@ -166,7 +171,7 @@ export function ApprovalQueue(): React.JSX.Element {
               </div>
             )}
             <ul>
-              {g.items.map((p) => <Card key={p.key} p={p} actions={actions} canSave={canSave} onDone={onDone} />)}
+              {g.items.map((p) => <Card key={p.key} p={p} actions={actions} canSave={canSave} canWrite={canWrite} onDone={onDone} />)}
             </ul>
           </Panel>
         )
