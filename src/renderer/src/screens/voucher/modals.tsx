@@ -206,7 +206,7 @@ function AccountantQuickLedgerModal({
           <div className="grid grid-cols-2 gap-3">
             {isParty && (
               <Field label="GSTIN">
-                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="num" placeholder="Optional" />
+                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="font-mono" placeholder="Optional" />
               </Field>
             )}
             {isTradingLedger && chargesGst(regType) && (

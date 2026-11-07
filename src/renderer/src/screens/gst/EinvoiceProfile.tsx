@@ -10,6 +10,7 @@ import {
   type GstTurnover
 } from '@shared/gst/einvoiceApplicability'
 import { AmountInput, Banner, Button, Checkbox, Field, Select } from '../../components/ui'
+import { CaCheck } from '../../components/CaCheck'
 
 /** One turnover row while the form edits it (paise null = typed but not an amount yet). */
 export interface TurnoverRow {
@@ -142,6 +143,7 @@ export function EinvoiceProfileSection({
       {a && (
         <p className="text-hint text-muted" data-testid="company-einvoice-applicability" title={EINVOICE_APPLICABILITY_UNVERIFIED.join(' · ')}>
           As saved: {describeEinvoiceApplicability(a, toDisplayDate)} Unverified points on hover.
+          <CaCheck place="company.einvoiceProfile" />
         </p>
       )}
     </div>

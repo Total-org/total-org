@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import { useQueryClient } from '@tanstack/react-query'
 import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
@@ -75,7 +76,10 @@ export function FiledForm({ form, period, periodEnd, today, filed }: { form: Gst
   }
   return (
     <div className="rounded-md border border-line bg-panel2 px-3 py-2" data-testid={`taxes-filed-form-${form}`}>
-      <p className="text-detail font-medium text-ink">{name}</p>
+      <p className="text-detail font-medium text-ink">
+        {name}
+        <CaCheck place="simple.taxes.filed" />
+      </p>
       <div className="mt-1 flex flex-wrap items-start gap-3">
         <Field label={t('simple.taxes.gst.arn')} name="arn" error={errors.arn ?? null}>
           <TextInput

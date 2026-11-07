@@ -15,6 +15,7 @@ import { LedgerLink, VoucherLink } from '../../components/links'
 import { openVoucher, useCanEditMasters } from '../../lib/drill'
 import { confirmDialog } from '../../lib/dialogs'
 import { KIND_WORDS, pctText, useTdsAction, withholdingApi, type TdsPeriod, type WithholdingKind } from './common'
+import { CaCheck } from '../../components/CaCheck'
 
 const STATUS = {
   unallocated: { label: 'Not on a challan', tone: 'warning' },
@@ -31,7 +32,7 @@ export function deductedColumns(kind: WithholdingKind) {
       cell: (r) => <VoucherLink voucherId={r.voucherId} label={r.voucherNumber} />
     },
     { id: 'party', header: 'Party', kind: 'text', value: (r) => r.partyName, minWidth: 120, cell: (r) => <LedgerLink ledgerId={r.partyLedgerId} name={r.partyName} /> },
-    { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'Missing', className: 'num', defaultHidden: true },
+    { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'Missing', className: 'font-mono', defaultHidden: true },
     { id: 'section', header: 'Section', kind: 'text', value: (r) => r.sectionCode, width: kind === 'tcs' ? 172 : 80, className: 'num' },
     { id: 'base', header: 'Base', kind: 'money', value: (r) => r.basePaise, aggregate: 'sum', width: kind === 'tcs' ? 140 : 116 },
     { id: 'rate', header: 'Rate', kind: 'number', value: (r) => (r.rateBp == null ? null : r.rateBp / 100), text: (r) => (r.isManual ? 'Manual' : pctText(r.rateBp)), width: 72 },
@@ -137,6 +138,7 @@ export function DeductedTab({ period, kind = 'tds' }: { period: TdsPeriod; kind?
     {late.length > 0 && (
       <p className="mt-2 text-small text-muted" data-testid="tds-late-interest-note">
         {`${late.length} deduction${late.length === 1 ? ' was' : 's were'} made on payment for bills already liable when booked — late-deduction interest ${formatPaise(late.reduce((s, r) => s + r.lateDeduction!.interestPaise, 0), { symbol: true })}. ${LATE_DEDUCTION_CITATION}.`}
+        <CaCheck place="tds.lateInterest" />
       </p>
     )}
     </>

@@ -23,7 +23,7 @@ const jwText = (r: { jwGstin: string | null; jwStateCode: string | null }): stri
 const jwCols = <T extends { jwGstin: string | null; jwStateCode: string | null; jwName: string; partyLedgerId: number | null }>() =>
   [
     { id: 'jw', header: 'Job worker', kind: 'text' as const, value: (r: T) => r.jwName, minWidth: 120, cell: (r: T) => <LedgerLink ledgerId={r.partyLedgerId} name={r.jwName} /> },
-    { id: 'gstin', header: 'GSTIN / State', kind: 'text' as const, value: (r: T) => jwText(r), width: 150, className: 'num text-muted' }
+    { id: 'gstin', header: 'GSTIN / State', kind: 'text' as const, value: (r: T) => jwText(r), width: 150, className: 'font-mono text-muted' }
   ]
 
 export const ITC04_SENT_COLUMNS = defineColumns<Itc04SentRow>([
@@ -139,7 +139,7 @@ export function Itc04Screen(): React.JSX.Element {
         }}
       />
 
-      <UnverifiedBanner ids={['itc04-json', 'itc04-hsn']} testId="itc04-unverified" />
+      <UnverifiedBanner ids={['itc04-json', 'itc04-hsn']} place="itc04.screen" testId="itc04-unverified" />
       {data && r && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-small text-muted" data-testid="itc04-facts">
           <Badge tone="neutral">{data.periodicity === 'half_yearly' ? 'Half-yearly' : 'Annual'}</Badge>

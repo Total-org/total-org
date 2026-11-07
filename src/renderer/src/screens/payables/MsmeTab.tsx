@@ -19,6 +19,7 @@ import { payablesApi } from '../../lib/payablesClient'
 import { useToasts } from '../../state/stores'
 import { pct, usePayablesAsOn } from './common'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../../lib/capabilities'
+import { CaCheck } from '../../components/CaCheck'
 
 const BASIS = { agreed: 'Agreed', agreed_capped: 'Agreed > 45 d: capped', no_agreement: 'No agreement: 15 d' } as const
 
@@ -62,7 +63,7 @@ const DISALLOW_COLUMNS = defineColumns<MsmeBill43Bh>([
 
 const FORM_COLUMNS = defineColumns<MsmeForm1Supplier>([
   { id: 'party', header: 'Name of MSE supplier', kind: 'text', value: (r) => r.partyName, minWidth: 170, hideable: false, cell: (r) => <LedgerLink ledgerId={r.ledgerId} name={r.partyName} /> },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan ?? '', width: 110, className: 'num' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan ?? '', width: 110, className: 'font-mono' },
   { id: 'withinN', header: 'No.', group: 'Paid ≤ 45 d', kind: 'number', value: (r) => r.paidWithin45.count, width: 60 },
   { id: 'within', header: 'Amount', group: 'Paid ≤ 45 d', kind: 'money', value: (r) => r.paidWithin45.amount, width: 120, aggregate: 'sum' },
   { id: 'afterN', header: 'No.', group: 'Paid > 45 d', kind: 'number', value: (r) => r.paidAfter45.count, width: 60 },
@@ -168,6 +169,7 @@ export function MsmeTab({ tabs }: { tabs: ReactNode }): React.JSX.Element {
       <PageHeader
         title="Payables"
         period={`MSME as on ${toDisplayDate(asOn)}`}
+        subtitle={<CaCheck place="payables.msme" />}
         tabs={tabs}
         controls={<DateInput value={asOn} context={asOn} onChange={setAsOn} testId="input-msme-as-on" ariaLabel="As on" className="w-32" />}
         secondary={

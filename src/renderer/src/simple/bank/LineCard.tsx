@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import type { MessageKey } from '@shared/i18n'
 import { formatPaise } from '@shared/money'
 import { toPlainDate } from '@shared/dates'
@@ -277,6 +278,7 @@ export function LineCard({
         {gstAsk && choice?.kind === 'expense' && (
           <GstBillQuestion
             lineId={line.id}
+            date={line.date}
             bill={choice.gstBill}
             slabs={slabs}
             suppliers={suppliers}
@@ -296,7 +298,7 @@ export function LineCard({
             />
             {choice.gstBill && (
               <div className="mt-2 flex flex-col gap-2">
-                <RateChips lineId={line.id} slabs={slabs} rate={choice.gstBill.gstRate ?? null} onRate={(gstRate) => onChoice({ ...choice, gstBill: { ...choice.gstBill, gstRate } })} error={problem?.fields.gstRate ?? null} />
+                <RateChips lineId={line.id} date={line.date} slabs={slabs} rate={choice.gstBill.gstRate ?? null} onRate={(gstRate) => onChoice({ ...choice, gstBill: { ...choice.gstBill, gstRate } })} error={problem?.fields.gstRate ?? null} />
                 <Field label={t('simple.bank.bankGstin')} name="gstin" error={problem?.fields.gstin ?? null}>
                   <TextInput
                     value={choice.gstBill.gstin ?? ''}
@@ -352,11 +354,11 @@ export function LineCard({
 }
 
 /** The GST rate chips (the slabs in force on the line's date). */
-function RateChips({ lineId, slabs, rate, onRate, error }: { lineId: number; slabs: readonly { rate: number }[]; rate: number | null; onRate: (r: number) => void; error: string | null }): React.JSX.Element {
+function RateChips({ lineId, date, slabs, rate, onRate, error }: { lineId: number; date: string; slabs: readonly { rate: number }[]; rate: number | null; onRate: (r: number) => void; error: string | null }): React.JSX.Element {
   const t = useT()
   return (
     <div>
-      <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.money.gstRate')}</span>
+      <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.money.gstRate')}<CaCheck place="simple.ratePicker" date={date} /></span>
       <div role="radiogroup" aria-label={t('simple.money.gstRate')} className="flex flex-wrap gap-1.5">
         {slabs.map((x) => (
           <button
@@ -379,9 +381,10 @@ function RateChips({ lineId, slabs, rate, onRate, error }: { lineId: number; sla
 
 /** Money out's "Do you have a GST bill?" on a bank expense: who it is from, its number, its rate. */
 function GstBillQuestion({
-  lineId, bill, slabs, suppliers, problem, onBill, onNewSupplier
+  lineId, date, bill, slabs, suppliers, problem, onBill, onNewSupplier
 }: {
   lineId: number
+  date: string
   bill: BankGstBill | undefined
   slabs: readonly { rate: number }[]
   suppliers: { id: number; label: string }[]
@@ -428,7 +431,7 @@ function GstBillQuestion({
           <Field label={t('simple.money.billNo')} name="billNo" error={problem?.fields.billNo ?? null}>
             <TextInput value={bill.billNo ?? ''} onChange={(e) => onBill({ ...bill, billNo: e.target.value })} data-testid={`input-bank-bill-no-${lineId}`} />
           </Field>
-          <RateChips lineId={lineId} slabs={slabs} rate={bill.gstRate ?? null} onRate={(gstRate) => onBill({ ...bill, gstRate })} error={problem?.fields.gstRate ?? null} />
+          <RateChips lineId={lineId} date={date} slabs={slabs} rate={bill.gstRate ?? null} onRate={(gstRate) => onBill({ ...bill, gstRate })} error={problem?.fields.gstRate ?? null} />
         </div>
       )}
     </div>

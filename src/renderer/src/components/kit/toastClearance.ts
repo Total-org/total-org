@@ -32,7 +32,9 @@ export function useToastClearance(
   enabled: boolean,
   measure: (el: HTMLElement) => number,
   /** Re-measure when these change (jsdom has no ResizeObserver). */
-  deps: readonly unknown[] = []
+  deps: readonly unknown[] = [],
+  /** Also re-measure when the element's parent resizes (content above a bar grows and moves it). */
+  watchParent = false
 ): void {
   useLayoutEffect(() => {
     const el = ref.current
@@ -50,6 +52,7 @@ export function useToastClearance(
     update()
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : null
     ro?.observe(el)
+    if (watchParent && el.parentElement) ro?.observe(el.parentElement)
     window.addEventListener('resize', update) // i18n-technical: event name
     return () => {
       ro?.disconnect()
@@ -58,5 +61,5 @@ export function useToastClearance(
       apply(name)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, name, ...deps])
+  }, [enabled, name, watchParent, ...deps])
 }

@@ -14,6 +14,7 @@ import { b2clLabelForPeriod, type Gstr1Result, type Gstr3bResult } from '@shared
 import type { GstIssue } from '@shared/gst/validate'
 import type { Gst3bManualInput } from '@shared/schemas'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
+import { CaCheck } from '../components/CaCheck'
 
 export interface MonthChoice {
   key: string // YYYY-MM
@@ -300,6 +301,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
     <Page>
       <PageHeader
         title="GSTR-1 · Outward supplies"
+        subtitle={<CaCheck place="gstr1.screen" />}
         tabs={<GstReturnTabs current="gstr1" />}
         controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" />}
         actions={
@@ -552,14 +554,17 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
   const row = (
     label: string,
     v: { taxable?: number; igst: number; cgst?: number; sgst?: number; cess: number } | undefined,
-    opts: { negative?: boolean; className?: string } = {}
+    opts: { negative?: boolean; className?: string; extra?: React.ReactNode } = {}
   ): React.JSX.Element => {
     const sign = opts.negative ? -1 : 1
     const cell = (n: number | undefined): React.JSX.Element =>
       n == null ? <span className="text-muted">–</span> : <Money paise={sign * n} signed={opts.negative} />
     return (
       <tr className={opts.className}>
-        <td>{label}</td>
+        <td>
+          {label}
+          {opts.extra}
+        </td>
         <td className="r">{v?.taxable != null ? <Money paise={v.taxable} /> : <span className="text-muted">–</span>}</td>
         <td className="r">{cell(v?.igst ?? 0)}</td>
         <td className="r">{cell(v?.cgst)}</td>
@@ -594,6 +599,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     <Page>
       <PageHeader
         title="GSTR-3B · Summary return"
+        subtitle={<CaCheck place="gstr3b.screen" />}
         tabs={<GstReturnTabs current="gstr3b" />}
         controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" />}
         actions={
@@ -639,17 +645,17 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
             </tr>
           </thead>
           <tbody data-testid="rows-gstr3b">
-            {row('3.1(a) Outward taxable supplies', data.outward)}
+            {row('3.1(a) Outward taxable supplies', data.outward, { extra: <CaCheck place="gstr3b.outward" /> })}
             {row('3.1(b) Zero-rated (exports + SEZ)', { taxable: data.zeroRated.taxable, igst: data.zeroRated.igst, cess: data.zeroRated.cess })}
             {row('3.1(c) Nil-rated / exempt', { taxable: data.nilExempt.taxable, igst: 0, cgst: 0, sgst: 0, cess: 0 })}
             {row('3.1(d) Inward supplies under RCM', data.rcm)}
             {row('4(A)(1) ITC — import of goods', data.itcParts.impg)}
             {row('4(A)(3) ITC — inward RCM supplies', data.itcParts.isrc)}
             {row('4(A)(5) ITC — all other (incl. s.17(5) credit and reclaims)', data.itcParts.oth)}
-            {row('4(B)(1) Reversed — rules 38/42/43 and s.17(5)', data.manual.itcRevRul, { negative: true })}
+            {row('4(B)(1) Reversed — rules 38/42/43 and s.17(5)', data.manual.itcRevRul, { negative: true, extra: <CaCheck place="gstr3b.itc" /> })}
             {row('4(B)(2) Reversed — others (rule 37 …)', data.manual.itcRevOth, { negative: true })}
             {row('4(C) Net eligible ITC', data.itc, { className: 'total-row' })}
-            {row('4(D)(1) ITC reclaimed (reversed under 4(B)(2) earlier)', data.itcParts.blocked)}
+            {row('4(D)(1) ITC reclaimed (reversed under 4(B)(2) earlier)', data.itcParts.blocked, { extra: <CaCheck place="gstr3b.itc" testId="ca-check-gstr3b-itc-4d" /> })}
             {row('5.1 Interest payable (manual, below)', data.manual.interest)}
             {row('5.1 Late fee (manual, below)', { igst: 0, cgst: data.manual.lateFee.camt, sgst: data.manual.lateFee.samt, cess: 0 })}
           </tbody>

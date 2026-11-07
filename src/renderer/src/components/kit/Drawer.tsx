@@ -42,7 +42,7 @@ export function Drawer({
   return createPortal(
     <div className="fixed inset-0 z-30 flex justify-end" data-drawer-root="">
 
-      <div aria-hidden="true" className="absolute inset-0 bg-scrim" onMouseDown={() => onCloseRef.current()} />
+      <div aria-hidden="true" className="t-fade-in absolute inset-0 bg-scrim" onMouseDown={() => onCloseRef.current()} />
       <div
         ref={panelRef}
         role="dialog"
@@ -88,7 +88,7 @@ export function DrawerSection({
 }): React.JSX.Element {
   return (
     <section className="mb-5 last:mb-0" data-testid={testId} aria-label={title}>
-      <h3 className="mb-2 text-label font-semibold tracking-[0.08em] text-muted uppercase">{title}</h3>
+      <h3 className="mb-2 text-small font-semibold text-muted">{title}</h3>
       <div className="flex flex-col gap-2">{children}</div>
     </section>
   )

@@ -67,7 +67,7 @@ export const PAYMENT_COLUMNS = defineColumns<StatutoryPayment>([
 type F16Row = Form16Data['employees'][number]
 export const FORM16_COLUMNS = defineColumns<F16Row>([
   { id: 'name', header: 'Employee', kind: 'text', value: (e) => e.name, hideable: false, minWidth: 140 },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (e) => e.pan, text: (e) => e.pan ?? 'Missing', width: 116, className: 'num' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (e) => e.pan, text: (e) => e.pan ?? 'Missing', width: 116, className: 'font-mono' },
   { id: 'regime', header: 'Regime', kind: 'enum', value: (e) => e.regime, options: [{ value: 'new', label: 'New' }, { value: 'old', label: 'Old' }], width: 80 },
   { id: 'gross', header: 'Salary paid', kind: 'money', value: (e) => e.workings.gross, aggregate: 'sum', width: 124 },
   { id: 'income', header: 'Total income', kind: 'money', value: (e) => e.workings.totalIncome, width: 124 },

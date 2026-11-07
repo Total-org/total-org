@@ -381,7 +381,7 @@ function TradeDocForm({
             <div className="col-span-2 flex items-end justify-end gap-3 pb-1" style={{ gridColumnStart: series.length > 1 && !isEdit ? 3 : 2, gridColumnEnd: 5 }}>
               {party && (
                 <p className="text-hint text-muted">
-                  {party.gstin ? <>GSTIN <span className="num">{party.gstin}</span> · </> : 'Unregistered · '}
+                  {party.gstin ? <>GSTIN <span className="font-mono">{party.gstin}</span> · </> : 'Unregistered · '}
                   {computed.supply === 'intra' ? 'Intra-state — CGST + SGST' : 'Inter-state — IGST'}
                 </p>
               )}

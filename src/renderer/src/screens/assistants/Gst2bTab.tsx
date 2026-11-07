@@ -17,6 +17,7 @@ import { DataTable, defineColumns } from '../../components/table'
 import { LedgerLink, VoucherLink } from '../../components/links'
 import { MonthBar, NoMonths, useMonth } from '../GstReturns'
 import { RunWithAi, runWithAi, useCanAct } from './common'
+import { CaCheck } from '../../components/CaCheck'
 
 const CATEGORIES = Object.keys(MISMATCH_LABELS) as MismatchCategory[]
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ value: c, label: MISMATCH_LABELS[c] }))
@@ -123,9 +124,9 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
           kind: 'text',
           value: (m) => m.supplier ?? m.portal?.gstin ?? m.book?.partyGstin ?? '',
           minWidth: 130,
-          cell: (m) => (m.ledgerId ? <LedgerLink ledgerId={m.ledgerId} name={m.supplier ?? m.portal?.gstin ?? ''} /> : <span className="num">{m.supplier ?? m.portal?.gstin ?? '—'}</span>)
+          cell: (m) => (m.ledgerId ? <LedgerLink ledgerId={m.ledgerId} name={m.supplier ?? m.portal?.gstin ?? ''} /> : <span className="font-mono">{m.supplier ?? m.portal?.gstin ?? '—'}</span>)
         },
-        { id: 'gstin', header: 'GSTIN', kind: 'text', value: (m) => m.portal?.gstin ?? m.book?.partyGstin ?? '', className: 'num text-muted', defaultHidden: true, width: 160 },
+        { id: 'gstin', header: 'GSTIN', kind: 'text', value: (m) => m.portal?.gstin ?? m.book?.partyGstin ?? '', className: 'font-mono text-muted', defaultHidden: true, width: 160 },
         {
           id: 'invoice',
           header: 'Invoice',
@@ -294,6 +295,7 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
           </Panel>
           <p className="mt-2 text-hint text-muted" data-testid="assistants-2b-unverified">
             ITC needs the document in GSTR-2B (s.16(2)(aa), rule 36(4)). Not verified here: {ASSISTANT_UNVERIFIED.filter((u) => u.id.startsWith('gstr2b') || u.id === '2b-actions').map((u) => u.text).join(' ')}
+            <CaCheck place="gst2b.tab" />
           </p>
         </>
       )}

@@ -290,7 +290,7 @@ export function NewAccountDialog({
             </Field>
             {showGstin && (
               <Field label={t('simple.newAccount.gstin')} name={F.gstin} error={errors.get(F.gstin)} hint={t('simple.newAccount.gstinHint')} className="col-span-2">
-                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="num" maxLength={15} data-testid="input-account-gstin" />
+                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="font-mono" maxLength={15} data-testid="input-account-gstin" />
               </Field>
             )}
           </div>

@@ -10,6 +10,7 @@ import { gstinErrorMessage } from '../lib/gstinError'
 import { useUnsavedGuard } from '../lib/useUnsavedGuard'
 import { dataFolder, pathSep } from '../lib/platform'
 import { EinvoiceProfileSection, draftFromProfile, profileFromDraft, type EinvoiceProfileDraft } from './gst/EinvoiceProfile'
+import { CaCheck } from '../components/CaCheck'
 
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/
 const TAN_RE = /^[A-Z]{4}\d{5}[A-Z]$/
@@ -149,7 +150,7 @@ export function CompanyInfoScreen(): React.JSX.Element {
           <TextInput value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="State">
+          <Field label="State" hint={<CaCheck place="company.state" />}>
             <Select value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
               {GST_STATE_LIST.map(([code, label]) => (
                 <option key={code} value={code}>
@@ -158,7 +159,7 @@ export function CompanyInfoScreen(): React.JSX.Element {
               ))}
             </Select>
           </Field>
-          <Field label="Registration">
+          <Field label="Registration" hint={<CaCheck place="company.registration" />}>
             <Select value={regType} onChange={(e) => setRegType(e.target.value as typeof regType)} disabled={!gstin.trim()}>
               <option value="regular">Regular</option>
               <option value="composition">Composition</option>
@@ -167,7 +168,7 @@ export function CompanyInfoScreen(): React.JSX.Element {
           </Field>
         </div>
         <Field label="GSTIN" error={gstinError} hint="Needed for GSTR exports">
-          <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="num" />
+          <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="font-mono" />
         </Field>
         {showFiling && (
           <Field label="GSTR-1 filing" hint="Monthly: due the 11th. Quarterly (QRMP): due the 13th after the quarter. Saved with the details.">
@@ -220,10 +221,10 @@ export function CompanyInfoScreen(): React.JSX.Element {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="PAN" error={panError} hint="Company's Income Tax PAN">
-            <TextInput value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} className="num" maxLength={10} />
+            <TextInput value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} className="font-mono" maxLength={10} />
           </Field>
           <Field label="TAN" error={tanError} hint="Needed for TDS filings">
-            <TextInput value={tan} onChange={(e) => setTan(e.target.value.toUpperCase())} className="num" maxLength={10} />
+            <TextInput value={tan} onChange={(e) => setTan(e.target.value.toUpperCase())} className="font-mono" maxLength={10} />
           </Field>
         </div>
         <div className="flex justify-between">

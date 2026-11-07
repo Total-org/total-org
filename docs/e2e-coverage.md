@@ -145,6 +145,7 @@ is covered by `__tests__/hiddenFeatures.test.tsx` and `featureUsage.dbtest.ts`.
 
 | Phase | What | Scenario | Notes |
 |---|---|---|---|
+| 2c | HSN / SAC search in the New product box (simple): words → the GST portal list (loaded on demand) → ↓ + Enter picks a code, saved on the product; no rate suggested | 50 | the list's integrity / search / checks are in `hsnMaster.test` / `hsn.test` / `__tests__/hsnInput.test.tsx`; the capture note in `capture.dbtest` |
 | 4 | GST gateway in test mode (built-in Test GSP): a bill → IRN → e-way bill (e-Documents → Portal (test)) → GSTR-1 signed in, sent, checked, filed with EVC → ARN labelled as a test → GSTR-2B fetched into the screen's matcher | 75 | the simulated IRN never reaches the voucher / e-documents list; a test filing / 2B never counts as real (asserted). GSTR-3B offset + file, the simple Taxes portal step, refusals and the adapter contract are in `gateway.dbtest` / `testGsp.contract.test` / `__tests__/gatewayUi.test.tsx`. A real GSP sandbox: manual workflow `gsp-sandbox.yml` once an adapter exists |
 
 ## Remaining gaps (deferred)

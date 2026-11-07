@@ -260,7 +260,7 @@ export function FooterSection({ t, patch, disabled }: SectionProps): React.JSX.E
           <Row>
             <Field label="Bank name"><TextInput value={bank.name} disabled={disabled} onChange={(e) => setBank({ name: e.target.value })} /></Field>
             <Field label="Account no."><TextInput value={bank.account} className="num" disabled={disabled} onChange={(e) => setBank({ account: e.target.value })} /></Field>
-            <Field label="IFSC"><TextInput value={bank.ifsc} className="num" disabled={disabled} onChange={(e) => setBank({ ifsc: e.target.value.toUpperCase() })} /></Field>
+            <Field label="IFSC"><TextInput value={bank.ifsc} className="font-mono" disabled={disabled} onChange={(e) => setBank({ ifsc: e.target.value.toUpperCase() })} /></Field>
             <Field label="Branch"><TextInput value={bank.branch} disabled={disabled} onChange={(e) => setBank({ branch: e.target.value })} /></Field>
           </Row>
         )}

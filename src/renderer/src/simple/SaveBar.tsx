@@ -11,6 +11,13 @@ import { useToastClearance } from '../components/kit/toastClearance'
  * polite live region; the key hints hide on short windows (≤ 760 px). The bar is opaque and
  * reaches the window's bottom edge, so nothing of the form shows through or under it.
  */
+function saveBarClearance(el: HTMLElement): number {
+  const r = el.getBoundingClientRect()
+  const height = r.height || el.offsetHeight
+  if (!r.height) return height
+  return Math.max(height, window.innerHeight - r.top)
+}
+
 export function SaveBar({
   total,
   totalTestId,
@@ -36,7 +43,10 @@ export function SaveBar({
   const canSave = useCanSave()
   // Toasts sit above the bar whatever its height (it wraps to two rows on a narrow window or a
   // long preview line — a fixed offset let a toast cover Save), from the first paint on.
-  useToastClearance(barRef, '--t-save-bar-h', true, (el) => el.getBoundingClientRect().height || el.offsetHeight)
+  // The room a toast must leave at the bottom: from the bar's top edge to the window's bottom. On a
+  // short form the bar sits in the flow above the window's bottom (sticky only once the form
+  // scrolls), so its height alone left a toast over Save (UI overhaul, e2e 73 at 1280×800).
+  useToastClearance(barRef, '--t-save-bar-h', true, saveBarClearance, [], true)
   useEffect(() => {
     const onFocus = (e: FocusEvent): void => {
       const bar = barRef.current

@@ -183,7 +183,7 @@ export function GstStep({ draft, set, errors }: StepProps): React.JSX.Element {
           error={err.gstin ?? null}
           required
         >
-          <TextInput data-testid="setup-gstin" className="num" maxLength={15} value={draft.gstin} onChange={(e) => set({ gstin: e.target.value.toUpperCase() })} />
+          <TextInput data-testid="setup-gstin" className="font-mono" maxLength={15} value={draft.gstin} onChange={(e) => set({ gstin: e.target.value.toUpperCase() })} />
         </Field>
       )}
       {draft.gst === 'regular' && (

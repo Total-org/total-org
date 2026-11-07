@@ -100,7 +100,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
           aria-label={`${info?.name ?? 'Company'} — company details`}
         >
           <span className="font-serif text-subtitle font-semibold tracking-tight">{info?.name}</span>
-          {info?.gstin && <span className="num text-label text-muted">{info.gstin}</span>}
+          {info?.gstin && <span className="font-mono text-label text-muted">{info.gstin}</span>}
         </button>
         <div className="flex-1" />
         {/* "Back to simple" — only in a simple company (renders nothing otherwise). */}
