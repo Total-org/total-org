@@ -157,6 +157,21 @@ export class Harness {
    *  data notice, switch it on, then Test connection — which picks the model from the service's
    *  own list (the TOTAL_AI_MOCK provider lists gpt-6.1-sol / gpt-6-luna / mock-model). There is
    *  no built-in model id, so without the test the assistant stays "Pick a model". */
+  /** Phase 3b part 3: the ONE Ask panel (⌘J) opens on Ask Total in both modes; the AI conversation
+   *  is "Ask the AI helper instead" (while the assistant is ready). Opens the panel if it is closed
+   *  and lands on the AI conversation (`ai-panel`). */
+  async openAiChat(timeout = 10000) {
+    const open = async () => (await this.page.$('[data-testid="ask-panel"]')) || (await this.page.$('[data-testid="ai-panel"]')) || (await this.page.$('[data-testid="ask-queue-panel"]'))
+    if (!(await open())) await this.click('btn-assistant')
+    await this.page.waitForSelector('[data-testid="ask-panel"], [data-testid="ai-panel"], [data-testid="ask-queue-panel"]', { timeout })
+    if (await this.page.$('[data-testid="ask-queue-panel"]')) await this.click('tab-ai-queue-ask')
+    if (!(await this.page.$('[data-testid="ai-panel"]'))) {
+      await this.page.waitForSelector('[data-testid="btn-ask-ai"]', { timeout })
+      await this.click('btn-ask-ai')
+    }
+    await this.page.waitForSelector('[data-testid="ai-panel"]', { timeout })
+  }
+
   async enableAi() {
     await this.invoke('ai:notice:accept')
     await this.invoke('ai:settings:set', { enabled: true })

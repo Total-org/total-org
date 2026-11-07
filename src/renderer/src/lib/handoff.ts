@@ -455,6 +455,43 @@ export interface AccountantViewRequest {
   keep?: Record<string, unknown>
 }
 
+/** A simple flow's answers → the full editor pre-filled (simple:intentForm, nothing saved), else
+ *  the blank counterpart. Shared by "Accountant view" and Ask Total in accountant mode (Phase 3b
+ *  part 3: an entry offer opens the full editor there, never a simple flow). */
+export async function openHandoff(a: {
+  from: Name
+  intent: Omit<SimpleIntentInput, 'clientId'>
+  clientId?: string
+  today: string
+  blank: Screen
+  force: boolean
+  go: (screen: Screen, opts?: { force?: boolean }) => void
+  onNotCarried: () => void
+}): Promise<void> {
+  try {
+    const sent = { ...a.intent, clientId: a.clientId ?? HANDOFF_CLIENT_ID } as SimpleIntentInput
+    const r = await api.simple.intentForm(sent, a.today)
+    const [entry, ...rest] = r.entries
+    if (!entry) return a.go(a.blank, { force: a.force })
+    const handoff: SimpleHandoff = {
+      from: a.from,
+      kind: r.kind,
+      intent: sent,
+      entry,
+      others: rest.map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })),
+      missing: r.missing,
+      ...(r.addedOnSave?.length ? { addedOnSave: r.addedOnSave } : {})
+    }
+    a.go({ name: 'voucher-entry', handoff, draftId: nextDraftId() }, { force: true })
+  } catch {
+    // Answers the mapping can't use yet (no product picked, say): the blank editor, with no
+    // discard question when the answers are kept for the way back (the note says they could
+    // not be carried; Back / Cancel there return to them).
+    a.onNotCarried()
+    a.go(a.blank, { force: a.force })
+  }
+}
+
 /**
  * A simple flow's "Accountant view": saved → that voucher; answers → the full editor pre-filled
  * (simple:intentForm), without the discard question (the answers go with it); nothing usable → the
@@ -478,28 +515,7 @@ export function useAccountantView(self: Name | Screen): (req: AccountantViewRequ
       if (!req.intent) return nav.go(blank)
       const kept = !!req.keep
       if (req.keep) keepForm(req.keep)
-      try {
-        const sent = { ...req.intent, clientId: req.clientId ?? HANDOFF_CLIENT_ID } as SimpleIntentInput
-        const r = await api.simple.intentForm(sent, today)
-        const [entry, ...rest] = r.entries
-        if (!entry) return nav.go(blank, { force: kept })
-        const handoff: SimpleHandoff = {
-          from: screen.name,
-          kind: r.kind,
-          intent: sent,
-          entry,
-          others: rest.map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })),
-          missing: r.missing,
-          ...(r.addedOnSave?.length ? { addedOnSave: r.addedOnSave } : {})
-        }
-        nav.go({ name: 'voucher-entry', handoff, draftId: nextDraftId() }, { force: true })
-      } catch {
-        // Answers the mapping can't use yet (no product picked, say): the blank editor, with no
-        // discard question when the answers are kept for the way back (the note says they could
-        // not be carried; Back / Cancel there return to them).
-        toast.push('info', t('simple.handoff.notCarried'))
-        nav.go(blank, { force: kept })
-      }
+      await openHandoff({ from: screen.name, intent: req.intent, clientId: req.clientId, today, blank, force: kept, go: nav.go, onNotCarried: () => toast.push('info', t('simple.handoff.notCarried')) })
     },
     [typeof self === 'string' ? self : JSON.stringify(self), nav, t, toast, slug, userId, today] // eslint-disable-line react-hooks/exhaustive-deps -- `screen` is `self`
   )
