@@ -233,7 +233,7 @@ export function VoucherEntry({
   const activeMode = voucherId ? plan!.mode : (aiMode ?? handoffHere?.entry.form ?? modeForKind(currentType.kind))
 
   const typeTabs = !voucherId ? (
-    <div role="tablist" aria-label="Voucher type" className="flex max-w-full items-center gap-0.5 overflow-x-auto border-b border-line pb-px">
+    <div role="tablist" aria-label="Voucher type" className="flex flex-wrap items-center gap-0.5 border-b border-line">
       {tabOrder(types)
         .filter((t) => features.inventory || (t.kind !== 'stock_journal' && t.kind !== 'physical_stock'))
         // Delivery challans / GRNs (WP 2.5b): shown with Orders & challans on.
