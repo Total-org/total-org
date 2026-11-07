@@ -44,7 +44,7 @@ function PlainError({ error, testId }: { error: AiPlainError; testId: string }):
 
 function Card({ title, right, children, testId }: { title: string; right?: React.ReactNode; children: React.ReactNode; testId?: string }): React.JSX.Element {
   return (
-    <section className="rounded-lg border border-line bg-panel px-panel py-4 shadow-elev-1" data-testid={testId}>
+    <section className="rounded-xl border border-line bg-panel px-panel py-4 shadow-elev-1" data-testid={testId}>
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-detail font-semibold text-ink">{title}</h2>
         {right}

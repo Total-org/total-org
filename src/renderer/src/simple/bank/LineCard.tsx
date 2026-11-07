@@ -150,7 +150,7 @@ export function LineCard({
 
   return (
     <article
-      className="rounded-lg border border-line bg-panel p-panel shadow-elev-1"
+      className="rounded-xl border border-line bg-panel p-panel shadow-elev-1"
       data-testid="bank-line"
       data-line-id={line.id}
       data-side={line.side}
@@ -219,7 +219,7 @@ export function LineCard({
             {choice.partyId > 0 && (
               <button
                 type="button"
-                className="mt-1 text-small text-blue hover:underline"
+                className="mt-1 text-small t-link"
                 data-testid={`btn-bank-pick-bills-${line.id}`}
                 title={choice.kind === 'customer' ? t('simple.bank.pickBillsInHint') : t('simple.bank.pickBillsOutHint')}
                 onClick={() => {
@@ -358,7 +358,7 @@ function RateChips({ lineId, date, slabs, rate, onRate, error }: { lineId: numbe
   const t = useT()
   return (
     <div>
-      <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.money.gstRate')}<CaCheck place="simple.ratePicker" date={date} /></span>
+      <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.money.gstRate')}<CaCheck place="simple.ratePicker" date={date} /></span>
       <div role="radiogroup" aria-label={t('simple.money.gstRate')} className="flex flex-wrap gap-1.5">
         {slabs.map((x) => (
           <button

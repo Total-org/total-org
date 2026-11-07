@@ -63,7 +63,7 @@ export function Choices<V extends string>({
 /** A card around one question. */
 export function Card({ title, children, testId }: { title: string; children: ReactNode; testId?: string }): React.JSX.Element {
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={title} data-testid={testId}>
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={title} data-testid={testId}>
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{title}</h2>
       {children}
     </section>

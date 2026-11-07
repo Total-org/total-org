@@ -894,7 +894,7 @@ export function InvoiceEntry({
               </div>
               <SummaryRow label="Payable to supplier" paise={partyAmount} />
               <button
-                className="text-hint text-blue hover:underline"
+                className="text-hint t-link"
                 data-testid="btn-tds-remove"
                 onClick={() => setTds(null)}
               >
@@ -960,7 +960,7 @@ export function InvoiceEntry({
       <div className="mt-4 border-t border-line pt-3">
         <button
           data-testid="btn-invoice-gst-details"
-          className="flex items-center gap-1.5 text-caption font-semibold tracking-[0.08em] text-muted uppercase"
+          className="flex items-center gap-1.5 text-small font-semibold text-muted"
           onClick={() => setGstOpen((v) => !v)}
         >
           <span className="inline-block w-3 text-micro">{gstOpen ? '▾' : '▸'}</span>
@@ -1010,7 +1010,7 @@ export function InvoiceEntry({
       {features.billWise && partyId && (
         <div className="mt-4 border-t border-line pt-3">
           <button
-            className="flex items-center gap-1.5 text-caption font-semibold tracking-[0.08em] text-muted uppercase"
+            className="flex items-center gap-1.5 text-small font-semibold text-muted"
             onClick={() => setBillsOpen((v) => !v)}
           >
             <span className="inline-block w-3 text-micro">{billsOpen ? '▾' : '▸'}</span>
@@ -1065,7 +1065,7 @@ export function InvoiceEntry({
                       })}
                     </div>
                   )}
-                  <button className="mt-2 text-hint text-blue hover:underline" onClick={() => setManualNewBillMode(true)}>
+                  <button className="mt-2 text-hint t-link" onClick={() => setManualNewBillMode(true)}>
                     Create new bill instead
                   </button>
                 </>
@@ -1102,7 +1102,7 @@ export function InvoiceEntry({
                   </Field>
                   {isNoteKind && (
                     <button
-                      className="col-span-3 self-start text-hint text-blue hover:underline"
+                      className="col-span-3 self-start text-hint t-link"
                       onClick={() => setManualNewBillMode(false)}
                     >
                       Allocate against open bills instead

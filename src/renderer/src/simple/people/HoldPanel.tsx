@@ -35,7 +35,7 @@ export function HoldPanel({ person, onDone }: { person: PersonView; onDone: () =
     }
   }
   return (
-    <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="person-hold-panel">
+    <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="person-hold-panel">
       {!person.onHold && (
         <>
           <h2 className="text-subtitle font-semibold text-ink">{t('simple.people.hold.title', { name: person.name })}</h2>

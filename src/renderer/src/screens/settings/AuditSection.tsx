@@ -96,7 +96,7 @@ export function AuditSection(): React.JSX.Element {
           {!required && isOwner && (
             <div className="mt-3 flex items-end gap-2">
               <div>
-                <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">Keep (years)</span>
+                <span className="mb-1.5 block text-small font-medium text-muted">Keep (years)</span>
                 <TextInput
                   data-testid="input-audit-keep-years"
                   className="w-24"

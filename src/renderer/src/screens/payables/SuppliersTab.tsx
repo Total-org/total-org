@@ -190,7 +190,7 @@ export function SuppliersTab({ tabs }: { tabs: ReactNode }): React.JSX.Element {
                 className="num"
               />
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-hint text-blue hover:underline">
+                <label className="text-hint t-link">
                   <input type="file" accept=".csv,text/csv" className="sr-only" data-testid="input-recon-file" onChange={(e) => loadFile(e.target.files?.[0])} />
                   Load a CSV file…
                 </label>

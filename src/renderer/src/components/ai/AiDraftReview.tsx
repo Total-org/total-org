@@ -183,7 +183,7 @@ export function AiDraftReview({ draft, form }: { draft: AiDraftDto; form?: strin
         <div className="mt-2 grid gap-x-6 gap-y-2 md:grid-cols-2">
           {sources.length > 0 && (
             <div>
-              <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Matched</p>
+              <p className="text-small font-semibold text-muted">Matched</p>
               <ul className="mt-1 flex flex-col gap-1" data-testid="ai-draft-sources">
                 {sources.map((s, i) => (
                   <li key={i} className="flex flex-col">
@@ -213,7 +213,7 @@ export function AiDraftReview({ draft, form }: { draft: AiDraftDto; form?: strin
           )}
           {assumptions.length > 0 && (
             <div>
-              <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Assumed</p>
+              <p className="text-small font-semibold text-muted">Assumed</p>
               <ul className="mt-1 list-disc pl-4" data-testid="ai-draft-assumptions">
                 {assumptions.map((a, i) => (
                   <li key={i}>{a}</li>

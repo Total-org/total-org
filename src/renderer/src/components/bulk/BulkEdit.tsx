@@ -421,7 +421,7 @@ export function BulkHistoryModal({ target, onClose }: { target: BulkTarget; onCl
           toolbarFeatures={{ groupBy: false, density: false, views: false, export: false }}
           trailing={(b) =>
             b.status !== 'undone' ? (
-              <button type="button" className="text-hint text-blue hover:underline" onClick={() => void undo(b)} data-testid={`bulk-undo-${b.id}`}>
+              <button type="button" className="text-hint t-link" onClick={() => void undo(b)} data-testid={`bulk-undo-${b.id}`}>
                 Undo
               </button>
             ) : null

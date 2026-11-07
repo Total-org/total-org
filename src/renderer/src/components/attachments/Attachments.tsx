@@ -81,7 +81,7 @@ export function AttachmentList({ target, readOnly = false }: { target: Attachmen
         toolbarFeatures={{ groupBy: false, density: false, views: false, export: false, quickFilter: false }}
         trailing={(a) => (
           <span className="flex items-center justify-end gap-3">
-            <button type="button" className="text-hint text-blue hover:underline" onClick={() => open(a)} data-testid="btn-attachment-open">
+            <button type="button" className="text-hint t-link" onClick={() => open(a)} data-testid="btn-attachment-open">
               Open
             </button>
             {!readOnly && (

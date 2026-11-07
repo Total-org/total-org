@@ -79,7 +79,7 @@ export function UsersSection(): React.JSX.Element {
           trailingWidth={150}
           trailing={(u) => (
             <span className="whitespace-nowrap">
-              <button className="mr-2 text-small text-blue hover:underline" onClick={() => setEditing(u)}>
+              <button className="mr-2 text-small t-link" onClick={() => setEditing(u)}>
                 Edit
               </button>
               {u.active && (

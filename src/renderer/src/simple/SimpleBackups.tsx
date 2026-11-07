@@ -67,7 +67,7 @@ export function SimpleBackups(): React.JSX.Element {
     <Page width="narrow" data-testid="simple-backups">
       <h1 className="mb-2 font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.settings.backups')}</h1>
       <p className="mb-5 text-detail text-muted">{t('simple.backups.intro')}</p>
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <p className="text-body text-ink" data-testid="simple-backups-last">
           {newest == null ? t('simple.backups.none') : t('simple.backups.last', { date: toPlainDate(localDay(newest), t.lang) })}
         </p>
@@ -90,7 +90,7 @@ export function SimpleBackups(): React.JSX.Element {
         {saved && (
           <p className="mt-3 text-detail text-ink" role="status" data-testid="simple-backups-saved">
             {t('simple.backups.savedWhere')}{' '}
-            <button type="button" className="text-blue hover:underline" data-testid="btn-simple-backups-reveal-saved" onClick={() => void reveal(fileOf(saved))}>
+            <button type="button" className="t-link" data-testid="btn-simple-backups-reveal-saved" onClick={() => void reveal(fileOf(saved))}>
               {t('simple.backups.showInFinder')}
             </button>
           </p>
@@ -103,7 +103,7 @@ export function SimpleBackups(): React.JSX.Element {
           </Button>
         )}
       </section>
-      <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <h2 className="text-subtitle font-semibold text-ink">{t('simple.backups.restoreTitle')}</h2>
         <p className="mt-1 text-detail text-muted">{t('simple.backups.restore')}</p>
         <Button className="mt-3" data-testid="btn-simple-backups-all" onClick={() => nav.go(FULL)}>

@@ -52,7 +52,7 @@ export function HowPaid({
   const chosen = accountId ?? defaults?.[how] ?? null
   const fromMemory = how !== 'cash' && accountId == null && memoryId != null && chosen === defaults?.[how]
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={title} data-testid={`money-how-${side}`}>
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={title} data-testid={`money-how-${side}`}>
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{title}</h2>
       <div role="radiogroup" aria-label={title} className="flex flex-wrap gap-2">
         {MONEY_HOWS.map((h) => (

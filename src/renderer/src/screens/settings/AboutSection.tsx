@@ -142,7 +142,7 @@ function PeriodLockCard(): React.JSX.Element {
 
   return (
     <Panel className="mt-4 p-5">
-      <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Period lock</p>
+      <p className="text-small font-semibold text-muted">Period lock</p>
       <div className="mt-2 flex items-center justify-between">
         <p className="text-body">
           {data?.date ? (

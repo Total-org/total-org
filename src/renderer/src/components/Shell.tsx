@@ -317,11 +317,11 @@ function PeriodModal({ onClose }: { onClose: () => void }): React.JSX.Element {
     <Modal title="Working period" onClose={onClose}>
       <div className="flex gap-3">
         <div className="flex-1">
-          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">From</span>
+          <span className="mb-1.5 block text-small font-medium text-muted">From</span>
           <DateInput value={f} context={f} onChange={setF} testId="input-period-from" ariaLabel="From" />
         </div>
         <div className="flex-1">
-          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">To</span>
+          <span className="mb-1.5 block text-small font-medium text-muted">To</span>
           <DateInput value={t} context={t} onChange={setT} testId="input-period-to" ariaLabel="To" />
 
         </div>

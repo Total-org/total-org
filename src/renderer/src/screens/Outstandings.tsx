@@ -154,7 +154,7 @@ function BillsDetail({ party }: { party: OutstandingParty }): React.JSX.Element 
           return [
             <tr key={key} className={b.overdueDays > 0 ? 'text-cr' : ''} data-bill={b.number}>
               <td>
-                <VoucherLink voucherId={b.voucherId} label={b.number} className="hover:text-blue" />
+                <VoucherLink voucherId={b.voucherId} label={b.number} className="hover:underline" />
               </td>
               <td className="num">{toDisplayDate(b.date)}</td>
               <td className="r num">{b.ageDays} days</td>
@@ -178,7 +178,7 @@ function BillsDetail({ party }: { party: OutstandingParty }): React.JSX.Element 
                 ) : null}
               </td>
               <td className="r">
-                <button type="button" data-testid="btn-followup-add" className="text-hint text-blue hover:underline" onClick={() => setAdding(adding === key ? null : key)}>
+                <button type="button" data-testid="btn-followup-add" className="text-hint t-link" onClick={() => setAdding(adding === key ? null : key)}>
                   + Note
                 </button>
               </td>
@@ -380,7 +380,7 @@ export function OutstandingsScreen({ initialSide = 'receivable' }: { initialSide
               <button
                 type="button"
                 data-testid="btn-outstandings-statement"
-                className="text-hint text-blue hover:underline"
+                className="text-hint t-link"
                 title={`Open ${p.name} ledger statement`}
                 onClick={() => openLedgerStatement(p.ledgerId)}
               >
@@ -390,7 +390,7 @@ export function OutstandingsScreen({ initialSide = 'receivable' }: { initialSide
                 <button
                   type="button"
                   data-testid="btn-outstandings-soa"
-                  className="text-hint text-blue hover:underline"
+                  className="text-hint t-link"
                   title={`Statement of account for ${p.name}`}
                   onClick={() => setSoa(p)}
                 >
@@ -401,7 +401,7 @@ export function OutstandingsScreen({ initialSide = 'receivable' }: { initialSide
                 <button
                   type="button"
                   data-testid="btn-outstandings-remind"
-                  className="text-hint text-blue hover:underline"
+                  className="text-hint t-link"
                   onClick={() => void remind(p, to, toast)}
                 >
                   Remind

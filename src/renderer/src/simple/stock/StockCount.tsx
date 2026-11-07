@@ -180,7 +180,7 @@ export function StockCount(): React.JSX.Element {
         />
       ) : (
         <div className="flex flex-col gap-4">
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
               <Field label={t('simple.stock.count.date')} name="date" error={errors.get(F.date)}>
                 <DateInput value={form.date} context={workingDate} onChange={(d) => update({ date: d })} format={((d: string) => toPlainDate(d, t.lang))} testId="input-count-date" />
@@ -191,7 +191,7 @@ export function StockCount(): React.JSX.Element {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.stock.count')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.stock.count')}>
             <p className="mb-3 text-small text-muted">{t('simple.stock.count.hint')}</p>
             <FieldError name="counts" error={errors.get(F.counts)} />
             {rows.length === 0 ? (

@@ -458,7 +458,7 @@ export function StockStep({ draft, update, state }: OpeningsStepProps): React.JS
               <AmountInput testId={`openings-item-${i}-sell`} paise={r.sell ?? null} onPaise={(p) => setItem(i, { sell: p })} />
             </OField>
             <div>
-              <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.openings.stock.value')}</span>
+              <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.openings.stock.value')}</span>
               <p className="num pt-1.5 text-right text-body text-ink" data-testid={`openings-item-${i}-value`}>
                 {rupees(valueOf(r))}
               </p>

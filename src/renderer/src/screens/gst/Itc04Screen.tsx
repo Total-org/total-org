@@ -154,7 +154,7 @@ export function Itc04Screen(): React.JSX.Element {
               <li key={k}>
                 {i.message}{' '}
                 {i.voucherIds.slice(0, 5).map((id) => (
-                  <button key={id} className="ml-1 text-blue hover:underline" onClick={() => openVoucher(id)}>
+                  <button key={id} className="ml-1 t-link" onClick={() => openVoucher(id)}>
                     #{id}
                   </button>
                 ))}

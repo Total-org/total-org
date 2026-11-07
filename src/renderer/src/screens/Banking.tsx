@@ -80,7 +80,7 @@ function reconColumns(onEditBankDate: (r: BankLineRow) => void): TableColumn<Ban
       width: 128,
       groupable: false,
       cell: (r) => (
-        <button className="num text-small text-blue hover:underline" data-testid="btn-banking-edit-bank-date" onClick={() => onEditBankDate(r)}>
+        <button className="num text-small t-link" data-testid="btn-banking-edit-bank-date" onClick={() => onEditBankDate(r)}>
           {r.bankDate ? toDisplayDate(r.bankDate) : 'Set date'}
         </button>
       )
@@ -462,14 +462,14 @@ function BrsSection({ ledgerId, defaultAsOn }: { ledgerId: number; defaultAsOn: 
 
           <Panel className="mb-3">
             <div className="border-b border-line px-4 py-2.5">
-              <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase">Deposits not yet credited by the bank · {brs.uncredited.length}</p>
+              <p className="text-small font-semibold text-muted">Deposits not yet credited by the bank · {brs.uncredited.length}</p>
             </div>
             {itemTable(brs.uncredited, 'banking-brs-uncredited', 'Deposits not yet credited')}
           </Panel>
 
           <Panel>
             <div className="border-b border-line px-4 py-2.5">
-              <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase">Cheques issued, not yet presented · {brs.unpresented.length}</p>
+              <p className="text-small font-semibold text-muted">Cheques issued, not yet presented · {brs.unpresented.length}</p>
             </div>
             {itemTable(brs.unpresented, 'banking-brs-unpresented', 'Cheques issued, not yet presented')}
           </Panel>

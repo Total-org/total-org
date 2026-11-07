@@ -21,7 +21,7 @@ export function EmptyTeach({ testId, purpose, action, help }: {
     <section
       data-testid={testId}
       data-empty-state=""
-      className="flex flex-col items-center rounded-lg border border-dashed border-line bg-panel px-panel py-10 text-center"
+      className="flex flex-col items-center rounded-xl border border-dashed border-line-strong bg-panel px-panel py-12 text-center"
     >
       <p className="max-w-lg text-lead text-ink" data-testid="empty-purpose">
         {purpose}
@@ -33,7 +33,7 @@ export function EmptyTeach({ testId, purpose, action, help }: {
       )}
       <button
         type="button"
-        className="mt-3 text-detail text-blue underline-offset-2 hover:underline"
+        className="t-link mt-3 text-detail font-medium"
         data-testid="empty-learn"
         data-help={help}
         onClick={() => useHelpPanel.getState().openArticle(help)}

@@ -44,7 +44,7 @@ export function PaidNow({
   const fromMemory = how != null && how !== 'cash' && form.accountId == null && setup?.memoryId != null && chosen === setup.defaults[how]
 
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.paidNow')} data-testid="buy-paid-now">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.paidNow')} data-testid="buy-paid-now">
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.buy.paidNow')}</h2>
       <div role="radiogroup" aria-label={t('simple.buy.paidNow')} className="flex flex-wrap gap-2">
         {BUY_PAID_CHOICES.map((value) => (
@@ -71,7 +71,7 @@ export function PaidNow({
             <AmountInput paise={form.partAmount} onPaise={(p) => onChange({ partAmount: p })} testId="input-buy-part-amount" />
           </Field>
           <div>
-            <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.buy.partHow')}</span>
+            <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.partHow')}</span>
             <div role="radiogroup" aria-label={t('simple.buy.partHow')} className="flex flex-wrap gap-2">
               {BUY_PART_HOWS.map((h) => (
                 <button

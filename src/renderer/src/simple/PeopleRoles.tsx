@@ -65,7 +65,7 @@ export function PeopleRoles({ embedded = false }: { embedded?: boolean }): React
             {t('simple.roles.none')}
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-panel shadow-elev-1">
+          <ul className="divide-y divide-line rounded-xl border border-line bg-panel shadow-elev-1">
             {users.map((u) => {
               const can = effectiveCapabilities(u.role, u.capabilities)
               return (

@@ -95,7 +95,7 @@ export function StatementDrop({
   const dates = newLines.map((l) => l.date).sort()
 
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.bank.import')} data-testid="bank-statement">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.bank.import')} data-testid="bank-statement">
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{compact ? t('simple.bank.importAnother') : t('simple.bank.import')}</h2>
       {!preview && (
         <div
@@ -162,12 +162,12 @@ export function StatementDrop({
           {problem && <p className="mt-1 text-muted">{problem}</p>}
           <div className="mt-2 flex flex-wrap gap-3">
             {unreadable && (
-              <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-bank-set-up-once" onClick={() => nav.go({ name: 'banking', tab: IMPORT_TAB, ledgerId: bankLedgerId })} // i18n-technical
+              <button type="button" className="text-detail t-link" data-testid="btn-bank-set-up-once" onClick={() => nav.go({ name: 'banking', tab: IMPORT_TAB, ledgerId: bankLedgerId })} // i18n-technical
               >
                 {t('simple.bank.setUpOnce')}
               </button>
             )}
-            <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-bank-try-again" onClick={reset}>
+            <button type="button" className="text-detail t-link" data-testid="btn-bank-try-again" onClick={reset}>
               {t('simple.bank.cancelFile')}
             </button>
           </div>

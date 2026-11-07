@@ -26,7 +26,7 @@ export function HelpSettings(): React.JSX.Element {
   return (
     <Page width="narrow" data-testid="simple-help">
       <h1 className="mb-5 font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.settings.helpTour')}</h1>
-      <div className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <div className="rounded-xl border border-line bg-panel shadow-elev-1">
         <Row title={t('simple.helpSettings.tour')} hint={t('simple.helpSettings.tourHint')}>
           <Button
             variant="primary"

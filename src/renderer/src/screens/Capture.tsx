@@ -80,7 +80,7 @@ function columns(openDraft: (id: number) => void) {
         i.voucherId ? (
           <VoucherLink voucherId={i.voucherId} label="Saved voucher" className="text-small" />
         ) : i.draftId && i.status === 'drafted' ? (
-          <button type="button" className="text-small text-blue hover:underline" data-testid="btn-capture-open-draft" onClick={(e) => { e.stopPropagation(); openDraft(i.draftId!) }}>
+          <button type="button" className="text-small t-link" data-testid="btn-capture-open-draft" onClick={(e) => { e.stopPropagation(); openDraft(i.draftId!) }}>
             Review draft
           </button>
         ) : null

@@ -713,7 +713,7 @@ export function ManufactureForm({
                       {!isEdit && (
                         <button
                           type="button"
-                          className="text-blue hover:underline"
+                          className="t-link"
                           data-testid={`btn-manufacture-subassembly-${s.itemId}`}
                           onClick={() => nav.go({ name: 'manufacture', prefill: { itemId: s.itemId, qtyMilli: s.qtyMilli } })}
                         >
@@ -828,7 +828,7 @@ export function ManufactureForm({
           {/* ---------- by-products / scrap (compact) ---------- */}
           <div className="mt-4 border-t border-line pt-3" data-testid="manufacture-byproducts">
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">By-products / scrap</h3>
+              <h3 className="text-small font-semibold text-muted">By-products / scrap</h3>
               <span className="text-hint text-muted">Enter at the value you assign — it comes off the finished item’s cost</span>
             </div>
             {bpRows.length > 0 && (
@@ -958,18 +958,18 @@ export function ManufactureForm({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="num flex items-center gap-5 text-detail" data-testid="manufacture-match" data-match={matches ? 'true' : 'false'}>
             <span>
-              <span className="mr-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Sale Item</span>
+              <span className="mr-2 text-small font-semibold text-muted">Sale Item</span>
               <Money paise={totals.saleAmount} className="text-subtitle font-semibold" />
             </span>
             <span className={matches ? 'text-success' : 'text-muted'} aria-label={matches ? 'Both sides match' : 'Sides do not match yet'}>
               {matches ? '= ✓' : '='}
             </span>
             <span data-testid="manufacture-right-total">
-              <span className="mr-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Production cost + Profit</span>
+              <span className="mr-2 text-small font-semibold text-muted">Production cost + Profit</span>
               <Money paise={totals.rightTotal} className="text-subtitle font-semibold" />
             </span>
             <span className={`border-l border-line pl-5 ${totals.profit < 0 ? 'text-danger' : ''}`} data-testid="manufacture-footer-profit">
-              <span className="mr-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">{totals.profit < 0 ? 'Loss' : 'Profit'}</span>
+              <span className="mr-2 text-small font-semibold text-muted">{totals.profit < 0 ? 'Loss' : 'Profit'}</span>
               <Money paise={totals.profit} className="text-subtitle font-semibold" />
             </span>
           </div>
