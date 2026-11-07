@@ -837,7 +837,7 @@ function PartyModal({
     <Modal title="Customer" onClose={onClose}>
       <div className="flex flex-col gap-3">
         <Field label="Party (sundry debtor)" hint="Their party rates and price level apply; they may pay part now">
-          <LedgerPicker value={null} onPick={(id) => id != null && onPick(id)} autoFocus placeholder="Type a customer" filter={(l) => isParty(l)} testId="picker-counter-party" />
+          <LedgerPicker value={null} onPick={(id) => id != null && onPick(id)} autoFocus openOnArrival placeholder="Type a customer" filter={(l) => isParty(l)} testId="picker-counter-party" />
         </Field>
         <div className="flex justify-between">
           <Button data-testid="btn-counter-walk-in" onClick={() => onPick(null)}>
