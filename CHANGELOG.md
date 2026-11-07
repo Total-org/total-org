@@ -35,6 +35,23 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
+- **"Check with your CA" badges** (#220; upgrade plan Phase 2b). Plain words: wherever Total shows
+  a figure or a date that rests on a tax rule it could not confirm in the official text, a small amber
+  **Check with your CA** badge sits beside it; click it to read what is not confirmed and which rule it
+  is about. On the simple screens it is in English, Hindi or Hinglish: Taxes (GST collected, GST on
+  purchases, cash to pay, the GSTR-1 / GSTR-3B / PMT-06 / CMP-08 / GSTR-4 dates, the quarterly
+  filer's 22nd / 24th, preparing the files, the ARN, e-invoicing, TDS / TCS), Home's GST tile, every
+  GST rate picker (the slabs from 22 Sep 2025) and Returns' GST. In the full app: GSTR-1, GSTR-3B
+  (3.1(a), 4(B)), GSTR-9, ITC-04, ITC reversal, IMS, GSTR-2B, e-invoice list / details, Company
+  details (state, registration, e-invoicing), TDS / TCS, Payroll, MSME, Cash forecast, Edit log and
+  the Gateway's compliance card. No figure or date changes. Points of hidden or removed features
+  (fixed assets, payroll statutory, interest on overdue bills, MSME interest, forex) and the
+  sandbox-only GST gateway are listed as closed. For developers: one registry
+  `src/shared/caCheck.ts` (id, sentence key `common.caCheck.point.*`, rule, the UNVERIFIED list
+  entries and CA questions it stands for, places or why closed), kit `CaCheckBadge` + `components/CaCheck`
+  (by place); `src/main/caCheck.test.ts` fails when an UNVERIFIED list entry or a CA question is not
+  covered, a place is unused, or docs/owner/09's generated block differs (`TOTAL_WRITE_CA_DOC=1`
+  rewrites it).
 **HSN / SAC codes you can search** (#219; upgrade plan Phase 2, owner decision D4). Plain words:
 the HSN box of a product (Masters → Stock item, and the New product box in simple mode) now searches
 the GST portal's own HSN / SAC list — type the code or a word like "rice" and pick from the list. It

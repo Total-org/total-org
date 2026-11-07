@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import { useQueryClient } from '@tanstack/react-query'
 import { gstPeriodOf, toMonthLabel, toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
@@ -213,6 +214,9 @@ function PrepareFiles({ x }: { x: Regular }): React.JSX.Element {
           {t('simple.taxes.step3.quarterly')}
         </p>
       )}
+      <div className="-ml-1.5 mb-1">
+        <CaCheck place="simple.taxes.export" quarterly={quarterly} />
+      </div>
       <ul className="flex flex-col gap-2">
         {FORMS.map((form) => (
           <li key={form} className="flex flex-wrap items-center gap-3">

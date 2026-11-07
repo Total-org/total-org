@@ -170,7 +170,7 @@ export function ItcReversalScreen(): React.JSX.Element {
         }}
       />
 
-      <UnverifiedBanner ids={['s50-rate', '3b-labels']} testId="itc-reversal-unverified" />
+      <UnverifiedBanner ids={['s50-rate', '3b-labels']} place="itcReversal.screen" testId="itc-reversal-unverified" />
 
       {isLoading || !data || !s || !inputs ? (
         <Panel>
