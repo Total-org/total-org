@@ -1,150 +1,145 @@
-// Site proof screenshots: launches the BUILT app (out/) against a fresh scratch data dir,
-// drives the real "Sample data in the full app" flow (WP 8.3) (createDemo + open, chained by the renderer
-// itself — see CompanySelect.tsx), and captures Gateway / GSTR-1 / dark-theme voucher shots
-// straight into site/public/. Modeled on scripts/smoke-ci.mjs (launch pattern) and
-// the scripts/lib/harness.mjs conventions (clickText DOM-click pattern). Run `npm run build` first.
-import { _electron as electron } from 'playwright-core'
-import { createRequire } from 'node:module'
+// Site screenshots (landing page, devjindal.tech): launches the BUILT app (out/) on a fresh
+// scratch data dir (never ~/Documents/total), creates the Demo Traders sample company in SIMPLE
+// mode ("Try with sample data", WP 8.3) and captures real screens into site/public/shots/:
+//
+//   home-light.png / home-dark.png   simple Home
+//   home-hindi.png                   simple Home in Hindi
+//   bill-light.png                   Make a bill, filled in (not saved)
+//   taxes-light.png                  Taxes (GST)
+//   accountant-light.png             the full app's Gateway (accountant view)
+//   gstr1-light.png                  GSTR-1 in the full app
+//
+// Run `npm run build` first, then `node scripts/shots-site.mjs`. The site converts nothing at
+// build time: next/image serves resized AVIF / WebP from these PNGs.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import * as os from 'node:os'
+import { Harness, PICKER_OPTION } from './lib/harness.mjs'
 
-const require = createRequire(import.meta.url)
-const electronPath = require('electron')
+// The debug shot on failure goes to the harness's out dir (os.tmpdir()/total-e2e-out), never the repo.
 
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'total-shots-site-'))
-const outDir = path.join(process.cwd(), 'site', 'public')
+const outDir = path.join(process.cwd(), 'site', 'public', 'shots')
 fs.mkdirSync(outDir, { recursive: true })
 
+const h = new Harness({ mode: 'simple' })
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function launchApp() {
-  const app = await electron.launch({
-    executablePath: electronPath,
-    args: [process.cwd()],
-    timeout: 60000,
-    env: { ...process.env, TOTAL_DATA_DIR: dataDir, TOTAL_SUPPRESS_SYNC_WARNING: '1' }
-  })
-  const page = await app.firstWindow()
-  await page.waitForLoadState('domcontentloaded')
-  await page.waitForFunction(() => Boolean(window.total), null, { timeout: 30000 })
-  await page.setViewportSize({ width: 1440, height: 900 })
-  return { app, page }
+async function settle() {
+  await h.waitIdle(30000)
+  // Let the page's own fades finish so a shot never catches a half-drawn tile.
+  await h.page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))))
+  // Toasts ("Total now shows the full app.") fade on their own timer; a shot waits them out.
+  await h.page.waitForFunction(() => !document.querySelector('[data-toasts]')?.children.length, null, { timeout: 15000 }).catch(() => {})
+  await wait(400)
 }
 
-const clickText = async (page, text) => {
-  const r = await page.evaluate((t) => {
-    const els = [...document.querySelectorAll('button, a, [role="button"]')]
-    const el = els.find((e) => e.textContent?.trim() === t) ?? els.find((e) => e.textContent?.includes(t))
-    if (!el) return 'NOT_FOUND'
-    el.click()
-    return 'OK'
-  }, text)
-  return r
+async function shot(name) {
+  await settle()
+  await h.page.screenshot({ path: path.join(outDir, `${name}.png`) })
+  console.log('shot', name)
 }
 
-// Case-insensitive: CSS text-transform:uppercase on tile labels makes innerText render
-// "CASH & BANK" even though the JSX literal is "Cash & bank".
-const waitForText = async (page, text, timeout = 20000) => {
-  await page.waitForFunction(
-    (t) => document.body.innerText.toLowerCase().includes(t.toLowerCase()),
-    text,
-    { timeout }
-  )
-}
-
-// Bounded poll (max iterations, never unbounded) that logs a snippet of the page each round —
-// used only around the one step (demo creation) known to take a variable amount of time, so a
-// stall is diagnosable instead of a silent 30s timeout.
-const waitForTextWithLog = async (page, text, { intervalMs = 3000, maxIterations = 15, label = text } = {}) => {
-  for (let i = 0; i < maxIterations; i++) {
-    const found = await page.evaluate((t) => document.body.innerText.toLowerCase().includes(t.toLowerCase()), text)
-    if (found) return
-    const snippet = await page.evaluate(() => document.body.innerText.slice(0, 300))
-    console.log(`waiting for "${label}" [${i + 1}/${maxIterations}]: ${JSON.stringify(snippet)}`)
-    await wait(intervalMs)
+async function theme(want) {
+  const now = await h.page.evaluate(() => document.documentElement.dataset.theme)
+  if (now !== want) {
+    await h.click('btn-theme')
+    await h.page.waitForFunction((t) => document.documentElement.dataset.theme === t, want)
   }
-  throw new Error(`timed out waiting for text "${label}" after ${(maxIterations * intervalMs) / 1000}s`)
 }
 
-const results = {}
+async function pick(testId, text) {
+  const input = h.page.locator(`[data-testid="${testId}"]`).first()
+  await input.click()
+  await input.fill(text)
+  const opt = h.page.locator(PICKER_OPTION, { hasText: text }).first()
+  await opt.waitFor({ timeout: 8000 })
+  await opt.click()
+}
 
-let app
-let page
+async function fill(testId, text) {
+  const input = h.page.locator(`[data-testid="${testId}"]`).first()
+  await input.click()
+  await input.fill(text)
+  await input.blur()
+}
+
+async function openEntry(section, entry, screen) {
+  await h.click(`simple-nav-${section}`)
+  await h.page.waitForSelector(`[data-testid="simple-entry-${entry}"]`, { state: 'attached', timeout: 10000 })
+  await h.click(`simple-entry-${entry}`)
+  await h.waitScreen(screen, 20000)
+}
+
 try {
-  ;({ app, page } = await launchApp())
+  await h.launch()
+  await h.createDemoCompany(90000, { mode: 'simple' })
+  await theme('light')
 
-  // --- Get to the Gateway with demo data. "Sample data in the full app" chains
-  // company:createDemo -> company:open -> setCompany itself (CompanySelect.tsx), so a single
-  // click drives create+open, integrity/locked handling included.
-  await waitForText(page, 'Sample data in the full app', 15000)
-  const clicked = await clickText(page, 'Sample data in the full app')
-  if (clicked !== 'OK') throw new Error('could not find "Sample data in the full app" button')
-  await waitForTextWithLog(page, 'Cash & bank', { intervalMs: 3000, maxIterations: 15, label: 'Cash & bank (Gateway loaded)' })
-  await wait(800)
-
-  // --- Shot 1: gateway-light.jpg
-  try {
-    await page.screenshot({ path: path.join(outDir, 'gateway-light.jpg'), type: 'jpeg', quality: 88 })
-    results['gateway-light.jpg'] = 'ok'
-  } catch (err) {
-    results['gateway-light.jpg'] = `FAILED: ${err instanceof Error ? err.message : String(err)}`
+  // 1. simple Home (light, dark) — "I started fresh" puts away the day-one card first
+  await h.click('simple-nav-home')
+  await h.waitScreen('gateway')
+  if (await h.page.$('[data-testid="simple-home-openings-fresh"]')) {
+    await h.click('simple-home-openings-fresh')
+    await h.page.waitForSelector('[data-testid="simple-home-openings"][data-done="false"]', { state: 'detached', timeout: 10000 }).catch(() => {})
   }
+  await shot('home-light')
+  await theme('dark')
+  await shot('home-dark')
+  await theme('light')
 
-  // --- Shot 2: gstr1-light.jpg
-  try {
-    const navClicked = await clickText(page, 'GSTR-1')
-    if (navClicked !== 'OK') throw new Error('sidebar "GSTR-1" not found')
-    await wait(1500)
-    await page.screenshot({ path: path.join(outDir, 'gstr1-light.jpg'), type: 'jpeg', quality: 88 })
-    results['gstr1-light.jpg'] = 'ok'
-  } catch (err) {
-    results['gstr1-light.jpg'] = `FAILED: ${err instanceof Error ? err.message : String(err)}`
+  // Home in Hindi (Settings → How Total looks), then back to English
+  const language = async (lang) => {
+    await h.click('simple-nav-settings')
+    await h.page.waitForSelector('[data-testid="simple-entry-looks"]', { state: 'attached', timeout: 10000 })
+    await h.click('simple-entry-looks')
+    await h.page.waitForSelector('[data-testid="simple-looks"]', { state: 'attached', timeout: 10000 })
+    await h.click(`btn-language-${lang}`)
+    await h.page.waitForSelector('[data-testid="language-loading"]', { state: 'detached', timeout: 15000 }).catch(() => {})
+    await h.click('simple-nav-home')
+    await h.waitScreen('gateway')
   }
+  await language('hi')
+  await shot('home-hindi')
+  await language('en')
 
-  // --- Shot 3: voucher-dark.jpg
-  try {
-    const themeClicked = await clickText(page, 'Dark')
-    if (themeClicked !== 'OK') throw new Error('theme toggle "Dark" not found')
-    await wait(400)
+  // 2. Taxes
+  await openEntry('taxes', 'gst-summary', 'simple-taxes')
+  await h.page.waitForSelector('[data-testid="taxes-figures"]', { state: 'attached', timeout: 20000 })
+  await shot('taxes-light')
 
-    const navClicked = await clickText(page, 'Voucher entry')
-    if (navClicked !== 'OK') throw new Error('sidebar "Voucher entry" not found')
-    await wait(600)
-    await page.keyboard.press('F8')
-    await wait(500)
+  // 3. The accountant view: the full app's Gateway and GSTR-1
+  await h.setMode('accountant')
+  await shot('accountant-light')
+  await h.goto('gstr1', 20000)
+  // The month before: the demo's busiest GST month (the running one holds a single bill).
+  const select = h.page.locator('[data-screen="gstr1"] select').first()
+  const prev = await select.evaluate((s) => [...s.options].find((o) => o.index === s.selectedIndex - 1)?.value ?? s.value)
+  await select.selectOption(prev)
+  await shot('gstr1-light')
+  await h.setMode('simple')
 
-    // Open the party ledger picker (type a couple of characters to trigger suggestions).
-    await page.evaluate(() => {
-      const inputs = [...document.querySelectorAll('input')]
-      inputs.find((i) => i.placeholder === 'Party ledger')?.focus()
-    })
-    await page.keyboard.type('Umb', { delay: 20 })
-    await wait(500)
-
-    await page.screenshot({ path: path.join(outDir, 'voucher-dark.jpg'), type: 'jpeg', quality: 88 })
-    results['voucher-dark.jpg'] = 'ok'
-  } catch (err) {
-    results['voucher-dark.jpg'] = `FAILED: ${err instanceof Error ? err.message : String(err)}`
+  // 4. Make a bill, filled in for a walk-in customer (left unsaved; the last shot)
+  await openEntry('sell', 'make-bill', 'simple-sell')
+  const items = await h.invoke('master:stockItems:list').catch(() => [])
+  const names = (Array.isArray(items) ? items : []).map((i) => i.name)
+  await pick('picker-sell-item-0', (names[0] ?? 'A4').slice(0, 6))
+  await fill('input-sell-qty-0', '10')
+  if (names[1]) {
+    await h.click('btn-sell-add-line')
+    await pick('picker-sell-item-1', names[1].slice(0, 6))
+    await fill('input-sell-qty-1', '1')
   }
+  await h.click('sell-paid-upi')
+  await h.page.waitForFunction(() => (document.querySelector('[data-testid="sell-preview"]')?.textContent ?? '').includes('UPI'), null, { timeout: 15000 })
+  await shot('bill-light')
 } catch (err) {
-  console.error('shots-site: fatal error before shots could run:', err instanceof Error ? err.stack || err.message : String(err))
-  results['__fatal__'] = 'FAILED'
+  console.error('shots-site failed:', err instanceof Error ? err.stack || err.message : String(err))
   try {
-    await page?.screenshot({ path: '/tmp/shots-site-debug.png' })
-    console.error('debug screenshot: /tmp/shots-site-debug.png')
+    await h.page?.screenshot({ path: path.join(h.outDir, 'shots-site-debug.png') })
   } catch {
-    // ignore
+    /* ignore */
   }
+  process.exitCode = 1
 } finally {
-  try {
-    await app?.close()
-  } catch {
-    // ignore
-  }
+  await h.close()
+  fs.rmSync(h.dataDir, { recursive: true, force: true })
 }
-
-console.log(JSON.stringify(results, null, 2))
-
-const anyFailed = Object.values(results).some((v) => v !== 'ok')
-process.exit(anyFailed ? 1 : 0)

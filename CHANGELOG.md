@@ -29,6 +29,13 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
+- Site (#218): the landing page at devjindal.tech is rebuilt — one big headline (with a Hindi line),
+  real screenshots of the app (simple Home, Make a bill, Taxes, GSTR-1, the accountant view, Home in
+  Hindi; captured from the built app by `scripts/shots-site.mjs`), a Shop owner / Accountant switch,
+  light and dark. The main action is a 1.0 waitlist (e-mail, server-side checks, rate limit,
+  honeypot, CSV export at `/api/waitlist/export` for the owner); it stays switched off ("opens soon")
+  until a store is connected in Vercel. The current builds stay one click away. /docs, /api/latest
+  and /api/download are unchanged.
 - Fix (#217): e2e scenarios 39 / 41 / 43 / 44 / 45 turn the AI assistant on through the new harness
   `h.enableAi()` — notice, switch, then Test connection, which picks the model from the mock's list —
   since #210 there is no built-in model id. Tests only; no app change.

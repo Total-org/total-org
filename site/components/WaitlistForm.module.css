@@ -1,0 +1,130 @@
+.form {
+  display: grid;
+  gap: 8px;
+}
+.label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.input {
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px; /* 16px keeps iOS from zooming in */
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: var(--radius-sm);
+}
+.input::placeholder {
+  color: color-mix(in srgb, var(--muted) 80%, transparent);
+}
+.input[aria-invalid='true'] {
+  border-color: #b3261e;
+}
+.button {
+  flex: 0 0 auto;
+  height: 48px;
+  padding: 0 20px;
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #1d1400;
+  background: var(--amber);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.button:hover {
+  background: color-mix(in srgb, var(--amber) 88%, #fff);
+}
+.button:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+.note {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.error {
+  font-size: 14px;
+  font-weight: 500;
+  color: #b3261e;
+}
+.error:empty {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  .input[aria-invalid='true'] {
+    border-color: #ff8a80;
+  }
+  .error {
+    color: #ff8a80;
+  }
+}
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.done,
+.closed {
+  font-size: 15.5px;
+  line-height: 1.55;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-wash);
+  color: var(--ink);
+}
+.closed a {
+  text-underline-offset: 3px;
+}
+
+/* On the amber closing band: dark button, ink text whatever the theme. */
+.inverse {
+  color: #1d1400;
+}
+.inverse .button {
+  background: #15171c;
+  color: #fff;
+}
+.inverse .button:hover {
+  background: #2a2d35;
+}
+.inverse .input {
+  background: #fffdf6;
+  color: #15171c;
+  border-color: rgb(29 20 0 / 0.35);
+}
+.inverse .note {
+  color: rgb(29 20 0 / 0.78);
+}
+.inverse .error {
+  color: #7a0d07;
+}
+.inverse.done,
+.inverse.closed {
+  background: rgb(255 255 255 / 0.55);
+  color: #1d1400;
+}
+
+.inverse .input::placeholder {
+  color: rgb(29 20 0 / 0.55);
+}
+.inverse .input:focus-visible,
+.inverse .button:focus-visible,
+.inverse a:focus-visible {
+  outline-color: #15171c;
+}
+.done:focus {
+  outline: none;
+}
