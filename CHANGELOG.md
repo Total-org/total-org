@@ -29,7 +29,7 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
-**HSN / SAC codes you can search** (#PRNUM; upgrade plan Phase 2, owner decision D4). Plain words:
+**HSN / SAC codes you can search** (#219; upgrade plan Phase 2, owner decision D4). Plain words:
 the HSN box of a product (Masters → Stock item, and the New product box in simple mode) now searches
 the GST portal's own HSN / SAC list — type the code or a word like "rice" and pick from the list. It
 says what the code is, notes when a code is not on the list, when 4 digits are only enough up to
