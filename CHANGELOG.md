@@ -122,7 +122,7 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **People: "paid ahead" says who paid** (#PENDING; audit UX-13, owner 7 Nov). Plain words: on the
+- **People: "paid ahead" says who paid** (#234; audit UX-13, owner 7 Nov). Plain words: on the
   People list the green chip used to say "₹X credit" for both a customer and a supplier, which meant
   opposite things. It now says "Paid ₹X ahead" for a customer and "You paid ₹X ahead" for a supplier
   (Hindi and Hinglish too).
