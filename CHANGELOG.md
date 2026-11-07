@@ -45,7 +45,7 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **New look, part 2 — the shells** (#PENDING; UI overhaul). Plain words: both sidebars get small
+- **New look, part 2 — the shells** (#226; UI overhaul). Plain words: both sidebars get small
   icons and show the open screen as a raised item with the amber bar; the accountant sidebar's
   sections are in normal case. The top bar is quieter: Search looks like a search box, the simple
   light / dark switch is a sun / moon icon, and the dates chip is hidden while you are making a bill
