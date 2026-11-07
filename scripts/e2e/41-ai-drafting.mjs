@@ -89,8 +89,7 @@ await scenario('41-ai-drafting', async (h) => {
   const vouchersBefore = (await h.invoke('voucher:list', period)).length
 
   // ---------- 1. a sales invoice from plain language ----------
-  await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+  await h.openAiChat()
   await h.fill('ai-input', 'Record a sales invoice to Umbrella Retail for 2 Laptop 14 at 45,000')
   await h.page.press('[data-testid="ai-input"]', 'Enter')
   await h.page.waitForSelector('[data-testid="ai-draft-card"][data-status="open"]', { timeout: 20000 })
@@ -135,8 +134,7 @@ await scenario('41-ai-drafting', async (h) => {
   await bothThemes('03-daybook-invoice')
 
   // ---------- 2. a payment against two open bills ----------
-  await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+  await h.openAiChat()
   await h.fill('ai-input', 'Pay Northwind Supplies against bills NW-101 and NW-102 from HDFC Bank')
   await h.page.press('[data-testid="ai-input"]', 'Enter')
   await h.page.waitForSelector('[data-testid="ai-draft-card"][data-status="open"]', { timeout: 20000 })
@@ -162,8 +160,7 @@ await scenario('41-ai-drafting', async (h) => {
 
   // ---------- 3. a quotation → the quotation editor → saved ----------
   const ask = async (text) => {
-    await h.click('btn-assistant')
-    await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+    await h.openAiChat()
     await h.fill('ai-input', text)
     await h.page.press('[data-testid="ai-input"]', 'Enter')
     await h.page.waitForSelector('[data-testid="ai-draft-card"][data-status="open"]', { timeout: 20000 })

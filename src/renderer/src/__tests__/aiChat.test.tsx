@@ -94,7 +94,7 @@ beforeEach(() => {
   useSession.getState().setCompany('demo', INFO)
   useSession.setState({ user: null, from: '2025-04-01', to: '2026-03-31', workingDate: '2025-07-31' })
   useNav.setState({ stack: [{ name: 'trial-balance' }] })
-  useAssistantPanel.setState({ open: false, pending: null, width: 460 })
+  useAssistantPanel.setState({ open: false, pending: null, width: 460, aiThreadId: null, tab: 'ask', escalated: false, owner: null })
   useExplain.setState({ ready: false, handler: null })
 })
 

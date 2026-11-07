@@ -438,7 +438,7 @@ function withholdingAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistI
   if (!features[kind]) return answer(intent, [t('assist.tds.off', { kind })], { links: [{ label: t('assist.link.features'), target: target('simple-features') }] })
   // The Taxes screen's own withholding figures (assistants.withholdingFacts + the FIFO unpaid).
   const w = simpleTaxes(db, company, {}, input.today).withholding.find((x) => x.kind === kind)
-  const taxes = target('simple-taxes')
+  const taxes = target('simple-taxes', { withholding: kind })
   if (!w) return answer(intent, [t('assist.tds.none', { kind })], { links: [{ label: t('assist.link.taxes'), target: taxes }] })
   const src = screenSource('simple-taxes', t('assist.source.withholding'))
   const sentences = [
