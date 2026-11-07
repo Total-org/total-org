@@ -36,6 +36,7 @@ import { getAiSettings } from '../settings'
 import { DraftWork, NeedsClarification, isCreditor, isParty, loadMasters, underGroup, type DraftMasters } from '../drafting/work'
 import { buildInvoiceDraft, finish, invoiceCtx, precheck, rehearsalNumber, saveWarnings, voucherTypeFor, type BuiltDraft } from '../drafting/builders'
 import { rehearse } from '../drafting/rehearse'
+import { checkHsn, type HsnIndex } from '@shared/gst/hsn'
 
 const rs = (p: number): string => formatPaise(p, { symbol: true })
 /** Paise → the rupee text the draft builders read with parseAmountText (integer maths). */
@@ -64,6 +65,9 @@ export interface BillDraftInput {
   mode: CaptureReview['mode']
   mapping: CaptureMapping
   today: string
+  /** Phase 2c: the GST portal's HSN / SAC list — a printed code that is not a code, or is not in
+   *  the list, becomes a note (never a refusal). Absent = no list check. */
+  hsnIndex?: HsnIndex | null
 }
 
 /** Lines that carry something to book (blank description rows and pure sub-total rows dropped). */
@@ -378,6 +382,12 @@ export function draftFromBill(input: BillDraftInput): BillDraftOutcome {
     review.suggestedParty = { name: parsed.supplierName, gstin: parsed.supplierGstin, stateCode: parsed.supplierStateCode, address: null }
   }
   const lines = bookableLines(parsed)
+  for (const line of input.hsnIndex ? lines : []) {
+    if (!line.hsn) continue
+    const check = checkHsn(line.hsn, input.hsnIndex)
+    if (check.problem) assume(`Line ${line.index + 1}: the HSN / SAC “${line.hsn}” printed on the bill is not a 4, 6 or 8 digit code — check the bill`)
+    else if (check.notes.includes('not_in_list')) assume(`Line ${line.index + 1}: HSN / SAC ${check.code} is not in the GST portal's HSN / SAC list (April 2026) — check the bill`)
+  }
   if (lines.length === 0) return { status: 'failed', review, supplierLedgerId: supplier?.id ?? null, error: 'No legible item lines on the bill' }
   let maps: LineMap[]
   try {

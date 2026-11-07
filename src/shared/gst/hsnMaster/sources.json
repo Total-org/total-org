@@ -1,0 +1,13 @@
+{
+  "_note": "Phase 2c (owner decision D4): the GST portal's HSN / SAC master, vendored byte-for-byte. hsnSac.json is generated from it by normalise.ts (whitespace only — see the comment there); hsnMaster.test.ts checks the SHA-256 below and that the JSON equals the workbook. The file carries codes and descriptions only — no GST rates. No licence or terms statement is published with it; it is government reference data offered for download on the GST portal's tutorial site, cited here with its source. To update: download the file again, replace HSN_SAC.xlsx, update sha256 / lastModified / fetched below, then run `TOTAL_HSN_WRITE=1 npx vitest run src/shared/gst/hsnMaster` and review the diff of hsnSac.json.",
+  "files": {
+    "HSN_SAC.xlsx": {
+      "title": "GST portal — HSN / SAC master (sheets HSN_MSTR: 21,935 goods codes; SAC_MSTR: 681 services codes). Workbook properties: modified 2026-04-24.",
+      "url": "https://tutorial.gst.gov.in/downloads/HSN_SAC.xlsx",
+      "lastModified": "Sun, 01 Nov 2026 07:11:43 GMT",
+      "fetched": "2026-11-07",
+      "bytes": 668474,
+      "sha256": "051108e31063f1ef0d6dfb005a622bcc848878fa2d94fae51a73e67f8916871e"
+    }
+  }
+}
