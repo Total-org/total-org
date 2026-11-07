@@ -16,6 +16,8 @@ import { useNav, useSession } from '../state/stores'
 
 const invoke = vi.fn()
 let aiReady = false
+/** An AI set up but not ready (key / switch on, a blocker) — null = plain off or ready. */
+let blocker: { keyPresent: boolean; enabled: boolean; text: string } | null = null
 const answers = new Map<string, AssistAnswer>()
 
 const base = (over: Partial<AssistAnswer>): AssistAnswer => ({ intent: 'owed', answeredBy: 'total', sentences: [], figures: [], links: [], understood: true, ...over })
@@ -29,15 +31,16 @@ const OWES = base({
 function settings(): AiSettingsView {
   return {
     settings: {
-      enabled: aiReady, noticeAcceptedAt: aiReady ? '2025-08-01T10:00:00.000Z' : null, noticeAcceptedBy: null, noticeVersion: 1, defaultModel: 'm', fastModel: 'f',
+      enabled: aiReady || !!blocker?.enabled, noticeAcceptedAt: aiReady ? '2025-08-01T10:00:00.000Z' : null, noticeAcceptedBy: null, noticeVersion: 1, defaultModel: 'm', fastModel: 'f',
       privacy: { maskIds: true, pseudonymiseParties: false }, prices: {}, maxSteps: 8, useMemory: true
     },
-    keyPresent: aiReady, keyHint: null, secureStorageAvailable: true, mock: false, ready: aiReady, blocker: aiReady ? null : 'The assistant is off'
+    keyPresent: aiReady || !!blocker?.keyPresent, keyHint: null, secureStorageAvailable: true, mock: false, ready: aiReady, blocker: aiReady ? null : (blocker?.text ?? 'The assistant is off')
   } as AiSettingsView
 }
 
 beforeEach(() => {
   aiReady = false
+  blocker = null
   answers.clear()
   answers.set('who owes me', OWES)
   invoke.mockReset()
@@ -52,6 +55,7 @@ beforeEach(() => {
         const key = p.picks?.party ? `${p.text}#${p.picks.party}` : p.text
         return { ok: true, data: answers.get(key) ?? base({ intent: 'unknown', understood: false, sentences: ['I can’t answer that yet. Try one of these:'], suggestions: ['Who owes me money?'] }) }
       }
+      case 'simple:intentForm': return { ok: true, data: { kind: 'money_out', entries: [{ role: 'payment', kind: 'payment', amount: 50000, form: 'accounting', state: {} }], missing: [], addedOnSave: [] } }
       case 'assist:plan': return { ok: true, data: { planId: 3, count: 2, existing: false } }
       case 'assist:draft': return { ok: true, data: { draftId: 41, prefill: { screen: 'simple-money-out', who: 'expense', payee: 9, amount: 50000, how: 'cash', note: 'tea' } } }
       case 'ai:send': return { ok: true, data: { threadId: 3, runId: 'r', userMessage: { id: 1, threadId: 3, role: 'user', content: (payload as { text: string }).text, status: 'ok', toolCalls: [], toolCallId: null, toolName: null, toolInput: null, toolOutput: null, toolOk: null, truncated: false, sources: [], figures: [], model: null, costMicroUsd: null, inputTokens: null, outputTokens: null, draftId: null, context: null, memoryIds: [], createdAt: '2025-08-14T10:00:00Z' } } }
@@ -62,7 +66,7 @@ beforeEach(() => {
   window.total = { platform: 'test', invoke, onAiEvent: () => () => undefined }
   useSession.setState({ user: null, from: '2025-04-01', to: '2026-03-31', workingDate: '2025-10-14', ui: { mode: 'simple' } } as never)
   useNav.setState({ stack: [{ name: 'gateway' }] })
-  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask' })
+  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false })
   useAskTotal.setState({ pending: null, turns: [], owner: null })
 })
 
@@ -102,6 +106,40 @@ describe('Ask Total — which panel', () => {
     expect(await screen.findByTestId('ask-panel')).toBeTruthy()
   })
 
+  it('accountant mode: an entry offer opens the FULL editor pre-filled (simple:intentForm hand-off), a task\'s plan the accountant queue, places their full screens', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    answers.set(
+      'paid 500 for tea in cash',
+      base({
+        intent: 'entry',
+        sentences: ['Nothing is saved yet.'],
+        entry: { kind: 'money_out', prefill: { screen: 'simple-money-out', who: 'expense', payee: 9, amount: 50000, how: 'cash', note: 'tea' }, intent: { kind: 'money_out', date: '2025-10-14', amount: 50000, from: { how: 'cash' }, payeeId: 9 } as never, sentences: [], missing: null, canDraft: true }
+      })
+    )
+    answers.set('remind everyone 30 days late', base({ intent: 'task', sentences: ['x'], task: { preview: { task: 'remind_late', params: { minDays: 30 }, totalCount: 1, totalAmount: 1, count: 1, amount: 1, waiting: 0, unread: 0, existingPlanId: null }, canPlan: true } }))
+    answers.set('open bank', base({ intent: 'open', sentences: ['Opening Bank.'], open: { screen: 'simple-bank' } }))
+    wrap(<AssistantPanel />)
+    await askIt('paid 500 for tea in cash')
+    fireEvent.click(await screen.findByTestId('ask-open-entry'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'voucher-entry', handoff: { kind: 'money_out', from: 'simple-money-out' } }))
+    expect(invoke.mock.calls.filter(([c]) => c === 'assist:draft')).toHaveLength(0)
+    await askIt('remind everyone 30 days late')
+    fireEvent.click(await screen.findByTestId('ask-prepare-plan'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'ai-queue' }))
+    await askIt('open bank')
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'banking' }))
+  })
+
+  it('accountant mode, AI set up but not ready: the panel says why and links Settings → AI', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    blocker = { keyPresent: true, enabled: true, text: 'Pick a model' }
+    wrap(<AssistantPanel />)
+    const note = await screen.findByTestId('ai-off-banner')
+    expect(note.textContent).toContain('Pick a model')
+    fireEvent.click(screen.getByTestId('btn-ai-open-settings'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'settings', tab: 'ai' }))
+  })
+
   it('accountant mode with AI on: "Ask the AI helper instead" opens the accountant AI conversation, which goes back to Ask', async () => {
     aiReady = true
     useSession.setState({ ui: { mode: 'accountant' } } as never)
@@ -139,7 +177,7 @@ describe('Ask Total — which panel', () => {
 
   it('closing the panel after an escalation: it opens on Ask Total again (Total answers first)', async () => {
     aiReady = true
-    useAssistantPanel.setState({ open: true, simpleView: 'ai' })
+    useAssistantPanel.setState({ open: true, simpleView: 'ai', escalated: true })
     wrap(<AssistantPanel />)
     expect(await screen.findByTestId('ai-escalated')).toBeTruthy()
     act(() => useAssistantPanel.getState().setOpen(false))

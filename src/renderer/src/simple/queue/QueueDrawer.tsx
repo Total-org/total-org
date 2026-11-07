@@ -11,12 +11,14 @@ const FULL_SIMPLE: Screen = { name: 'simple-approvals' } // i18n-technical
 const QUEUE_TAB: AskTab = 'queue' // i18n-technical
 const FULL_ACCOUNTANT: Screen = { name: 'ai-queue' } // i18n-technical
 
-export function QueueDrawer({ onClose, width, onResize, onTab, simple }: {
+export function QueueDrawer({ onClose, width, onResize, onTab, simple, focus, onFocused }: {
   onClose: () => void
   width: number
   onResize: (w: number) => void
   onTab: (tab: AskTab) => void
   simple: boolean
+  focus?: boolean
+  onFocused?: () => void
 }): React.JSX.Element {
   const t = useT()
   const nav = useNav()
@@ -33,7 +35,7 @@ export function QueueDrawer({ onClose, width, onResize, onTab, simple }: {
     </div>
   )
   return (
-    <DockedDrawer title={t('simple.queue.title')} subtitle={t('simple.queue.intro')} onClose={onClose} width={width} onResize={onResize} testId="ask-queue-panel" header={<AskTabs active={QUEUE_TAB} onSelect={onTab} />} footer={footer}>
+    <DockedDrawer title={t('simple.queue.title')} subtitle={t('simple.queue.intro')} onClose={onClose} width={width} onResize={onResize} testId="ask-queue-panel" header={<AskTabs active={QUEUE_TAB} onSelect={onTab} focus={focus} onFocused={onFocused} />} footer={footer}>
       <QueueGroups compact />
     </DockedDrawer>
   )

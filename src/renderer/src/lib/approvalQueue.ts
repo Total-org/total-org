@@ -21,11 +21,14 @@ export function useQueueList(enabled = true): ReturnType<typeof useQuery<Awaited
   useEffect(
     () =>
       onAiEvent((e) => {
-        if (e.type === 'done' || e.type === 'error') void queryClient.invalidateQueries({ queryKey: QUEUE_KEY })
+        if (e.type === 'done' || e.type === 'error' || e.type === 'cancelled') void queryClient.invalidateQueries({ queryKey: QUEUE_KEY })
       }),
     [queryClient]
   )
-  return useQuery({ queryKey: QUEUE_KEY, queryFn: () => aiApi.queue(), enabled, staleTime: 0, refetchOnMount: 'always' })
+  // The app's default staleness (lists reload when a screen is visited — registry `invalidates`);
+  // every write that changes the queue invalidates it (approve / discard / remind, the AI events above,
+  // Ask Total's draft / plan).
+  return useQuery({ queryKey: QUEUE_KEY, queryFn: () => aiApi.queue(), enabled })
 }
 
 /** Where Edit opens a proposal. `simple`: the company is in simple mode — a chat draft / Ask Total

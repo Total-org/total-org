@@ -7,6 +7,11 @@
 // unchanged) — each answer says which one answered.
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useMode } from '../lib/mode'
+import { useQueryClient } from '@tanstack/react-query'
+import { QUEUE_KEY } from '../lib/approvalQueue'
+import { fullCounterpart, openHandoff } from '../lib/handoff'
+import type { IntentDraft } from '../lib/simplePost'
 import { create } from 'zustand'
 import type { AssistAnswer, AssistFigure } from '@shared/assist'
 import type { Language } from '@shared/i18n'
@@ -101,6 +106,8 @@ function Sentence({ text, figures, onOpen }: { text: string; figures: AssistFigu
 }
 
 const APPROVALS = { name: 'simple-approvals' } as const // i18n-technical
+const APPROVALS_FULL = { name: 'ai-queue' } as const // i18n-technical
+const INFO = 'info' as const // i18n-technical
 
 function AnswerView({ turn, onAsk, onOpen, onEntry, onPlan, busy }: {
   turn: Turn
@@ -230,7 +237,7 @@ const EXAMPLES = ['assist.suggest.owed', 'assist.suggest.profitHinglish', 'assis
  * The drawer. `aiReady` = the owner turned the AI assistant on with a key: a question Total
  * doesn't understand is handed to it (`onEscalate`).
  */
-export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, onOpenAi, tabs }: {
+export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, onOpenAi, tabs, offNote }: {
   onClose: () => void
   width: number
   onResize: (w: number) => void
@@ -240,6 +247,8 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
   onOpenAi?: () => void
   /** Phase 3b part 3: the ONE panel's Ask / To approve tabs. */
   tabs?: ReactNode
+  /** Phase 3b part 3: why the AI is not ready (accountant mode), above the answers. */
+  offNote?: ReactNode
 }): React.JSX.Element {
   const overlay = useContext(DockModeContext) === 'overlay'
   const t = useT()
@@ -268,11 +277,17 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
     endRef.current?.scrollIntoView?.({ block: 'end' })
   }, [turns])
 
+  // Phase 3b part 3: in accountant mode the ONE panel's answers open the full app's screens — a
+  // simple screen's full counterpart (fullCounterpart, the "Accountant view" table); one without a
+  // counterpart opens as it is.
+  const accountant = useMode() === 'accountant'
+  const queryClient = useQueryClient()
+  const place = useCallback((s: Screen): Screen => (accountant ? (fullCounterpart(s) ?? s) : s), [accountant])
   const open = useCallback(
     (s: Screen) => {
-      nav.go(s)
+      nav.go(place(s))
     },
-    [nav]
+    [nav, place]
   )
 
   const ask = useCallback(
@@ -286,7 +301,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
         const answer = await api.assist.ask({ text: question, today: workingDate, ...(picks ? { picks } : {}), lang: lang as Language })
         setTurns((all) => all.map((x) => (x.id === id ? { ...x, answer } : x)))
         const to = askScreen(answer.open)
-        if (to) nav.go(to)
+        if (to) nav.go(place(to))
         if (!answer.understood && aiReady && onEscalate) onEscalate(question)
       } catch {
         setTurns((all) => all.map((x) => (x.id === id ? { ...x, failed: true } : x)))
@@ -294,7 +309,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
         setBusy(false)
       }
     },
-    [workingDate, lang, aiReady, onEscalate, nav]
+    [workingDate, lang, aiReady, onEscalate, nav, place]
   )
 
   useEffect(() => {
@@ -309,7 +324,17 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
     if (!offer) return
     setBusy(true)
     try {
+      if (accountant) {
+        // The full editor pre-filled with the offer's own intent (simple:intentForm — nothing is
+        // saved; the editor's Save is the person's), or the blank editor when the flow still asks.
+        const blank = fullCounterpart({ name: offer.prefill.screen } as Screen) ?? ({ name: 'voucher-entry' } as Screen)
+        if (offer.intent) await openHandoff({ from: offer.prefill.screen, intent: offer.intent as IntentDraft, today: workingDate, blank, force: false, go: nav.go, onNotCarried: () => toast.push(INFO, t('simple.handoff.notCarried')) })
+        else nav.go(blank)
+        if (overlay) onClose()
+        return
+      }
       const d = await api.assist.draft({ text: turn.text, today: workingDate, ...(turn.picks ? { picks: turn.picks } : {}), lang: lang as Language })
+      void queryClient.invalidateQueries({ queryKey: QUEUE_KEY })
       nav.go({ name: d.prefill.screen, ask: { draftId: d.draftId, prefill: d.prefill } } as Screen)
       // WP 10.5: over the screen (a window under 1600 px) the panel would cover the flow's Save
       // bar — it steps aside; ⌘J brings the conversation back.
@@ -327,8 +352,9 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
     setBusy(true)
     try {
       await api.assist.plan({ text: turn.text, today: workingDate, lang: lang as Language })
+      void queryClient.invalidateQueries({ queryKey: QUEUE_KEY })
       toast.push('success', t('assist.task.prepared'))
-      nav.go(APPROVALS)
+      nav.go(accountant ? APPROVALS_FULL : APPROVALS)
       if (overlay) onClose()
     } catch {
       toast.push('error', t('assist.panel.draftError'))
@@ -378,6 +404,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
 
   return (
     <DockedDrawer title={t('assist.panel.title')} subtitle={t('assist.panel.sub')} onClose={onClose} width={width} onResize={onResize} testId="ask-panel" header={tabs} footer={footer}>
+      {offNote && <div className="mb-3">{offNote}</div>}
       <div className="flex flex-col gap-4" aria-live="polite" data-testid="ask-messages">
         {turns.length === 0 && (
           <div className="flex flex-col gap-2" data-testid="ask-empty">

@@ -78,6 +78,18 @@ interface AssistantStore {
   setTab: (tab: AskTab) => void
   /** Open the panel on its To approve tab. */
   openQueue: () => void
+  /** The AI conversation on screen, kept while the panel is open so switching tabs (which remounts
+   *  the AI drawer) brings it back (review of #231); cleared when the panel closes. */
+  aiThreadId: number | null
+  setAiThreadId: (id: number | null) => void
+  /** true only when Ask Total handed the question over (it could not answer it) — the AI drawer's
+   *  "Total could not answer it" note shows only then. */
+  escalated: boolean
+  /** Ask Total could not answer: the same question goes to the model (escalated). */
+  escalate: (text: string) => void
+  /** A tab was chosen: the tab strip of the next view takes the keyboard focus. */
+  focusTab: boolean
+  clearFocusTab: () => void
 }
 
 function loadPrefs(): { open: boolean; width: number } {
@@ -103,9 +115,18 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   ...loadPrefs(),
   pending: null,
   simpleView: 'ask',
-  setSimpleView: (simpleView) => set({ simpleView, tab: 'ask' }),
+  setSimpleView: (simpleView) => set({ simpleView, tab: 'ask', ...(simpleView === 'ai' ? { escalated: false } : {}) }),
   tab: 'ask',
-  setTab: (tab) => set({ tab }),
+  setTab: (tab) => set({ tab, focusTab: true }),
+  aiThreadId: null,
+  setAiThreadId: (aiThreadId) => set({ aiThreadId }),
+  escalated: false,
+  escalate: (text) => {
+    get().ask(text)
+    set({ escalated: true })
+  },
+  focusTab: false,
+  clearFocusTab: () => set({ focusTab: false }),
   openQueue: () => {
     set({ open: true, tab: 'queue' })
     savePrefs(get())
@@ -113,7 +134,7 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   setOpen: (open) => {
     // WP 10.1: closing the panel ends an escalation — the next question goes to Ask Total first
     // again (Total answers first; the model only when Total can't). It reopens on Ask.
-    set(open ? { open } : { open, simpleView: 'ask', tab: 'ask' })
+    set(open ? { open } : { open, simpleView: 'ask', tab: 'ask', aiThreadId: null, escalated: false })
     savePrefs(get())
   },
   toggle: () => get().setOpen(!get().open),
@@ -123,7 +144,7 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   },
   ask: (text, context, preCall) => {
     // A question for the MODEL (Explain this, the palette's Ask AI, Ask Total's escalation).
-    set({ open: true, simpleView: 'ai', tab: 'ask', pending: { id: ++askSeq, text, context, ...(preCall ? { preCall } : {}) } })
+    set({ open: true, simpleView: 'ai', tab: 'ask', escalated: false, pending: { id: ++askSeq, text, context, ...(preCall ? { preCall } : {}) } })
     savePrefs(get())
   },
   takePending: () => {
@@ -132,6 +153,27 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
     return p
   }
 }))
+
+/** Phase 3b part 3: keep the AI drawer's conversation in the panel store while it is open, and load
+ *  it back when the drawer mounts again (a tab switch) — unless a new question is waiting. */
+export function useKeptThread(threadId: number | null, load: (id: number, messages: AiMessageDto[], running: boolean) => void): void {
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current) return
+    restored.current = true
+    const { aiThreadId, pending } = useAssistantPanel.getState()
+    if (aiThreadId == null || pending) return
+    void aiApi
+      .thread(aiThreadId)
+      .then((t) => load(aiThreadId, t.messages, t.running))
+      .catch(() => useAssistantPanel.getState().setAiThreadId(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
+  useEffect(() => {
+    // "New" (no thread) is kept too, so a tab switch after it doesn't bring the old one back.
+    if (restored.current) useAssistantPanel.getState().setAiThreadId(threadId)
+  }, [threadId])
+}
 
 /** The current screen's context (nav + period + what the screen registered). */
 export function useCurrentAiContext(): AiContext {
@@ -145,7 +187,7 @@ export function useCurrentAiContext(): AiContext {
 // ---------- the host ----------
 
 export function AssistantPanel(): React.JSX.Element | null {
-  const { open, setOpen, simpleView, setSimpleView, width, setWidth, tab, setTab } = useAssistantPanel()
+  const { open, setOpen, simpleView, setSimpleView, width, setWidth, tab, setTab, focusTab, clearFocusTab } = useAssistantPanel()
   const mode = useMode()
   const { data: view } = useQuery({ queryKey: ['aiSettings'], queryFn: aiApi.settings })
   const ready = !!view?.ready
@@ -181,7 +223,7 @@ export function AssistantPanel(): React.JSX.Element | null {
   // answers what Total can't (escalation), or when asked directly ("Ask the AI instead"), while it
   // is ready. Simple mode shows the AI's answers in plain words (WP 10.6).
   const onTab = (t: AskTab): void => setTab(t)
-  if (tab === 'queue') return <QueueDrawer onClose={() => setOpen(false)} width={width} onResize={setWidth} onTab={onTab} simple={mode === 'simple'} />
+  if (tab === 'queue') return <QueueDrawer onClose={() => setOpen(false)} width={width} onResize={setWidth} onTab={onTab} simple={mode === 'simple'} focus={focusTab} onFocused={clearFocusTab} />
   if (!ready || simpleView === 'ask') {
     return (
       <AskTotalDrawer
@@ -189,14 +231,24 @@ export function AssistantPanel(): React.JSX.Element | null {
         width={width}
         onResize={setWidth}
         aiReady={ready}
-        onEscalate={(q) => useAssistantPanel.getState().ask(q)}
+        onEscalate={(q) => useAssistantPanel.getState().escalate(q)}
         onOpenAi={() => setSimpleView('ai')}
-        tabs={<AskTabs active="ask" onSelect={onTab} />}
+        tabs={<AskTabs active="ask" onSelect={onTab} focus={focusTab} onFocused={clearFocusTab} />}
+        offNote={
+          // Accountant mode: an AI set up but not ready says why (Pick a model, the notice to accept
+          // again …) and links Settings → AI, as the AI drawer did (review of #231).
+          mode === 'accountant' && view && !ready && (view.keyPresent || view.settings.enabled) ? (
+            <Banner tone="info" testId="ai-off-banner" action={<Button size="sm" onClick={() => { setOpen(false); useNav.getState().go({ name: 'settings', tab: 'ai' }) }} data-testid="btn-ai-open-settings">Settings → AI</Button>}>
+              {view.blocker}
+            </Banner>
+          ) : null
+        }
       />
     )
   }
-  if (mode === 'simple') return <PlainAiHost onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={<AskTabs active="ask" onSelect={onTab} />} />
-  return <AssistantDrawer onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={<AskTabs active="ask" onSelect={onTab} />} />
+  const tabs = <AskTabs active="ask" onSelect={onTab} focus={focusTab} onFocused={clearFocusTab} />
+  if (mode === 'simple') return <PlainAiHost onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={tabs} />
+  return <AssistantDrawer onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={tabs} />
 }
 
 /** WP 10.6: the simple shell's AI panel, fed the same context and pending question as the
@@ -207,7 +259,16 @@ function PlainAiHost({ onClose, onBack, tabs }: { onClose: () => void; onBack: (
   const pending = useAssistantPanel((s) => s.pending)
   const context = useCurrentAiContext()
   const takePending = useCallback(() => useAssistantPanel.getState().takePending(), [])
-  return <SimpleAiDrawer onClose={onClose} onBack={onBack} width={width} onResize={setWidth} context={context} pending={pending} takePending={takePending} tabs={tabs} />
+  const escalated = useAssistantPanel((s) => s.escalated)
+  // Phase 3b part 3: the conversation survives a tab switch (the store keeps its id while open).
+  const [keptThreadId] = useState(() => (useAssistantPanel.getState().pending ? null : useAssistantPanel.getState().aiThreadId))
+  const onThread = useCallback((id: number | null) => useAssistantPanel.getState().setAiThreadId(id), [])
+  return (
+    <SimpleAiDrawer
+      onClose={onClose} onBack={onBack} width={width} onResize={setWidth} context={context} pending={pending} takePending={takePending} tabs={tabs}
+      escalated={escalated} keptThreadId={keptThreadId} onThread={onThread}
+    />
+  )
 }
 
 /** "Explain this": the figure + the current screen → a prefilled question in a new conversation. */
@@ -268,6 +329,9 @@ export function AssistantDrawer({ onClose, onBack, tabs }: {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [mode, setMode] = useState<'chat' | 'threads'>('chat')
+  const escalated = useAssistantPanel((s) => s.escalated)
+  // Phase 3b part 3 (review of #231): the conversation survives a trip to the To approve tab.
+  useKeptThread(state.threadId, (id, messages, running) => dispatch({ type: 'load', state: loadThread(id, messages, running) }))
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const ready = !!view?.ready
@@ -522,7 +586,12 @@ export function AssistantDrawer({ onClose, onBack, tabs }: {
           service or model in Settings → AI for that.
         </Banner>
       )}
-      {onBack && (
+      {onBack && !escalated && (
+        <div className="mb-3">
+          <Button size="sm" variant="ghost" onClick={onBack} data-testid="btn-back-ask-total">{tr('assist.panel.back')}</Button>
+        </div>
+      )}
+      {onBack && escalated && (
         <Banner tone="info" className="mb-3" testId="ai-escalated" action={<Button size="sm" onClick={onBack} data-testid="btn-back-ask-total">{tr('assist.panel.back')}</Button>}>
           {tr('assist.panel.aiAnswered')}
         </Banner>
@@ -766,17 +835,13 @@ function DraftsList({ drafts }: { drafts: AiDraftDto[] }): React.JSX.Element {
 
 /** Phase 3b: every open proposal (this conversation's and the rest) waits in the approval queue. */
 function QueueLink(): React.JSX.Element {
-  const nav = useNav()
   return (
     <li className="pt-1">
       <button
         type="button"
         className="text-caption text-blue hover:underline"
         data-testid="ai-open-queue"
-        onClick={() => {
-          useAssistantPanel.getState().setOpen(false)
-          nav.go({ name: 'ai-queue' })
-        }}
+        onClick={() => useAssistantPanel.getState().openQueue()}
       >
         Approve them in the approval queue →
       </button>

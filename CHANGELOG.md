@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**One place to ask** (Phase 3b part 3). ⌘J now opens the same "Ask" panel in both modes. Total
+**One place to ask** (#231, Phase 3b part 3). ⌘J now opens the same "Ask" panel in both modes. Total
 answers from your books first (no AI key needed); when the AI helper is on, it answers what Total
 can't, or anything you send it with "Ask the AI helper instead". A second tab, "To approve", shows
 everything waiting for your approval with its count, an "Add bills" button (when the AI helper is
