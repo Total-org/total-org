@@ -9,7 +9,7 @@ const serif = IBM_Plex_Serif({ subsets: ['latin'], weight: ['600', '700'], varia
 const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-mono', preload: false })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://devjindal.tech'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://irminflow.com'),
   title: 'Total — offline accounting for Indian businesses',
   description:
     'Accounting for Indian shops and their CAs: bills, GST returns (GSTR-1, GSTR-3B, e-invoice), stock and bank, in plain words or the full accountant view. Works offline; your books stay on your computer. In English, Hindi and Hinglish.',

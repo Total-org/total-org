@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The website is now irminflow.com** (#PR). The app's update check and "Download now" use
+`https://irminflow.com`. devjindal.tech pages move to the same page on irminflow.com, but its update
+feed (`/api/latest`, `/api/download`) keeps answering directly, so every copy installed before today
+still finds updates. For developers: `SITE_URL` in `src/shared/product.ts`, `site/lib/redirects.ts`,
+the release check verifies `/api/latest` on both hosts. Nothing changes in your books.
+
 **Releases come by themselves** (#216). Twice a day (about 09:00 and 21:00 India time) GitHub
 releases what is new on `main` as the next patch version, but only when every test on `main` passed,
 books made by the last release open in the new one with every report unchanged (trial balance, P&L,
