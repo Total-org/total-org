@@ -1,5 +1,5 @@
 import { e2eToday } from './e2eClock'
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
@@ -16,7 +16,7 @@ import { configureI18n } from '@shared/i18n'
 // Main renders hi / hinglish synchronously (prints, errors): register both catalogues.
 import '@shared/i18n/all'
 import '@shared/zodMessages'
-import { applyWindowPolicy, mainWindowWebPreferences } from './windowPolicy'
+import { appMenuTemplate, applyWindowPolicy, hardenSession, mainWindowWebPreferences } from './windowPolicy'
 import { configureTrustedRenderer } from './ipcSender'
 import { dataFolderLabel } from '@shared/updateText'
 import { MOVED_NOTE } from './services/dataRootMove'
@@ -30,6 +30,10 @@ import { MOVED_NOTE } from './services/dataRootMove'
 if (process.env.TOTAL_DATA_DIR) {
   app.setPath('userData', join(process.env.TOTAL_DATA_DIR, '.electron-userdata'))
 }
+
+// Audit 2026-11 A2: every renderer is sandboxed (the main window and the hidden PDF window already
+// ask for it; this makes it the rule for any web contents).
+app.enableSandbox()
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
@@ -129,7 +133,7 @@ function createWindow(): void {
     icon: appIconPath,
     ...(isMac ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 18, y: 16 } } : {}),
     backgroundColor: '#f4f4ef',
-    webPreferences: mainWindowWebPreferences({ preload: join(__dirname, '../preload/index.js'), e2eToday })
+    webPreferences: mainWindowWebPreferences({ preload: join(__dirname, '../preload/index.js'), e2eToday, devTools: !app.isPackaged })
   })
 
   win.on('ready-to-show', () => win.show())
@@ -160,6 +164,10 @@ if (gotSingleInstanceLock) {
     // WP 7.2 / D7: one policy for every web contents (the main window, the hidden PDF window):
     // no new windows, no navigation away from the app, no webviews (windowPolicy.ts).
     const devUrl = is.dev ? process.env.ELECTRON_RENDERER_URL : undefined
+    // Audit 2026-11 A2: no Toggle Developer Tools / Reload in a packaged build's menu; every
+    // permission refused but clipboard write; pages load only the app's own files.
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate({ isMac: process.platform === 'darwin', packaged: app.isPackaged })))
+    hardenSession(session.defaultSession, { log, devUrl, appRoot: pathToFileURL(join(__dirname, '../renderer')).href })
     app.on('web-contents-created', (_, contents) =>
       applyWindowPolicy(contents, { openExternal: (url) => void shell.openExternal(url), log, devUrl })
     )

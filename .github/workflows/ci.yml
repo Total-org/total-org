@@ -224,10 +224,19 @@ jobs:
           case "$exe" in *" "*) echo "installer name has a space"; exit 1;; esac
           grep -q "^path: $exe$" dist/latest.yml || { echo "latest.yml does not name $exe"; cat dist/latest.yml; exit 1; }
 
+      # Audit 2026-11 A2: the shipped build has its Electron fuses set (no RunAsNode / NODE_OPTIONS /
+      # --inspect, asar integrity, app only from app.asar). Playwright needs --inspect, so the smoke
+      # runs on a copy that differs only in that one fuse (scripts/fuses.mjs).
+      - name: Electron fuses of the packaged build + a smoke copy
+        shell: bash
+        run: |
+          node scripts/fuses.mjs check dist/win-unpacked/Total.exe
+          node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
+
       - name: Hermetic IPC smoke test (packaged Total.exe)
         run: npm run smoke
         env:
-          TOTAL_APP_EXECUTABLE: ${{ github.workspace }}\dist\win-unpacked\Total.exe
+          TOTAL_APP_EXECUTABLE: ${{ github.workspace }}\dist\win-unpacked-smoke\Total.exe
           TOTAL_DATA_DIR: ${{ runner.temp }}\Total packaged data
           SMOKE_OUT: ${{ runner.temp }}\smoke-packaged
 

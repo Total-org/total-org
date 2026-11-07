@@ -46,9 +46,25 @@ export function readGatewaySettings(db: DB): GatewaySettings {
   }
 }
 
-const passwordOf = (slug: string, store: SecretStore): string => {
+// Audit 2026-11 A5: the portal password belongs to the provider it was typed for (the meta row
+// naming the provider is plain text in the company file) — another provider never receives it,
+// and choosing another provider without typing a password clears it. A password saved before the
+// binding existed was typed for the Test GSP (the only provider any build could select).
+const BOUND_SECRET = 'gstGateway.boundTo'
+
+const boundProviderOf = (slug: string, store: SecretStore): string | null => {
+  try {
+    return store.get(companyScope(slug), BOUND_SECRET)
+  } catch {
+    return null
+  }
+}
+
+const passwordOf = (slug: string, store: SecretStore, provider: GatewayProviderId): string => {
   if (!store.available()) return ''
   try {
+    const bound = boundProviderOf(slug, store) ?? 'test-gsp'
+    if (bound !== provider) return ''
     return store.get(companyScope(slug), PASSWORD_SECRET) ?? ''
   } catch {
     return ''
@@ -84,7 +100,7 @@ export function gatewayStatus(db: DB, slug: string, store: SecretStore = appSecr
     testMode,
     liveFilingAvailable: LIVE_FILING_AVAILABLE,
     providers: GATEWAY_PROVIDERS.map((id) => ({ id, label: LABELS[id], selectable: SELECTABLE_PROVIDERS.includes(id), capabilities: CAPS[id] })),
-    passwordStored: passwordOf(slug, store) !== '',
+    passwordStored: passwordOf(slug, store, settings.provider) !== '',
     signedIn: !!s && s.expiresAt > now,
     testHints: testMode ? { username: TEST_GSP_USERNAME, password: TEST_GSP_PASSWORD, otp: TEST_GSP_OTP } : null
   }
@@ -104,18 +120,27 @@ export function setGatewaySettings(
   }
   const before = readGatewaySettings(db)
   const next: GatewaySettings = { provider: input.provider, live: input.live, username: input.username.trim() }
-  const hadPassword = passwordOf(slug, store) !== ''
-  const passwordChange = input.password !== undefined && input.password !== passwordOf(slug, store)
+  const hadPassword = passwordOf(slug, store, before.provider) !== ''
+  // Another provider with no password typed: the old one is dropped (it never goes to another provider).
+  const providerMoved = next.provider !== before.provider && input.password === undefined && hadPassword
+  const password = providerMoved ? '' : input.password
+  const passwordChange = password !== undefined && password !== passwordOf(slug, store, next.provider)
   const settingsChange = JSON.stringify(before) !== JSON.stringify(next)
-  if (!settingsChange && !passwordChange) return gatewayStatus(db, slug, store)
+  if (!settingsChange && !passwordChange && !providerMoved) return gatewayStatus(db, slug, store)
   // Secret first: if the store can't encrypt, nothing else changes.
-  if (passwordChange) {
-    if (input.password) store.set(companyScope(slug), PASSWORD_SECRET, input.password)
-    else store.delete(companyScope(slug), PASSWORD_SECRET)
+  if (passwordChange || providerMoved) {
+    const scope = companyScope(slug)
+    if (password) {
+      store.set(scope, PASSWORD_SECRET, password)
+      store.set(scope, BOUND_SECRET, next.provider)
+    } else {
+      store.delete(scope, PASSWORD_SECRET)
+      store.delete(scope, BOUND_SECRET)
+    }
   }
   db.transaction(() => {
     db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(META_KEY, JSON.stringify(next))
-    writeAudit(db, 'gst_gateway', 0, 'update', { settings: before, passwordStored: hadPassword }, { settings: next, passwordStored: passwordChange ? !!input.password : hadPassword })
+    writeAudit(db, 'gst_gateway', 0, 'update', { settings: before, passwordStored: hadPassword }, { settings: next, passwordStored: passwordChange || providerMoved ? !!password : hadPassword })
   })()
   resetGatewaySessions()
   return gatewayStatus(db, slug, store)
@@ -191,7 +216,7 @@ export function openGateway(db: DB, slug: string, company: CompanyInfo, deps: Ga
   const now = deps.now ?? Date.now
   const store = deps.store ?? appSecretStore()
   const adapter = deps.adapter ?? testPortalFor(slug, db, now)
-  const who: GatewayIdentity = { gstin: company.gstin.toUpperCase(), username: settings.username, password: passwordOf(slug, store) }
+  const who: GatewayIdentity = { gstin: company.gstin.toUpperCase(), username: settings.username, password: passwordOf(slug, store, adapter.id) }
   const edocStore: EdocStore = adapter.test ? TEST_STORE : VOUCHER_STORE
   const key = sessionKey(slug, adapter.id, settings.username)
   return {
