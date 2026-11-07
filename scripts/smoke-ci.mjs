@@ -201,7 +201,7 @@ try {
 
   // Main-process facts: the PDF and check worker threads load (from app.asar in a packaged build), the
   // Devanagari print font is found (extraResources), and on Windows the secret store has DPAPI.
-  const probe = await app.evaluate(async ({ app: a, safeStorage }, backupPath) => {
+  const probe = await app.evaluate(async ({ app: a, safeStorage, BrowserWindow, Menu }, backupPath) => {
     // Node 22's process.getBuiltinModule (the evaluated function has no `require` of its own).
     const req = process.getBuiltinModule ?? process.mainModule?.require
     if (!req) return { error: 'no require in the main process' }
@@ -240,7 +240,41 @@ try {
     const verify = await checkJob({ kind: 'verify', path: backupPath, keyHex: null, asOn: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })(), nowIso: new Date().toISOString(), scratchRoot })
     const scratchLeft = nodeFs.readdirSync(scratchRoot).length
     nodeFs.rmSync(scratchRoot, { recursive: true, force: true })
+    // Audit 2026-11 A2: in a packaged build the developer tools can't be opened (devTools: false,
+    // no menu item); a page may not ask for the camera; the menu never offers Toggle Developer Tools.
+    const roles = []
+    const walk = (menu) => { for (const it of menu?.items ?? []) { if (it.role) roles.push(String(it.role).toLowerCase()); walk(it.submenu) } }
+    walk(Menu.getApplicationMenu())
+    const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.isVisible()) ?? BrowserWindow.getAllWindows()[0]
+    let devToolsOpened = null
+    if (win && a.isPackaged) {
+      win.webContents.openDevTools({ mode: 'detach' })
+      await new Promise((r) => setTimeout(r, 500))
+      devToolsOpened = win.webContents.isDevToolsOpened()
+      if (devToolsOpened) win.webContents.closeDevTools()
+    }
+    // The renderer request allowlist (webRequest), apart from the page's own CSP: a bare window
+    // without a CSP tries to reach a server on this computer — the request must never arrive.
+    const hits = { n: 0 }
+    const server = req('http').createServer((_q, res) => { hits.n++; res.end('ok') })
+    await new Promise((r) => server.listen(0, '127.0.0.1', r))
+    const probeWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+    let pageFetch = 'not tried'
+    try {
+      await probeWin.loadURL('data:text/html,<p>probe</p>')
+      pageFetch = await probeWin.webContents.executeJavaScript(`fetch('http://127.0.0.1:${server.address().port}/').then(() => 'reached', () => 'refused')`)
+    } catch (e) {
+      pageFetch = `error: ${e instanceof Error ? e.message : String(e)}`
+    } finally {
+      probeWin.destroy()
+      server.close()
+    }
     return {
+      menuHasDevTools: roles.includes('toggledevtools'),
+      menuHasReload: roles.includes('reload') || roles.includes('forcereload'),
+      devToolsOpened,
+      pageFetch,
+      pageFetchArrived: hits.n,
       platform: process.platform,
       packaged: a.isPackaged,
       worker,
@@ -259,6 +293,20 @@ try {
   assert(probe.scratchLeft === 0, `the worker's restore check leaves its scratch folder empty (${probe.scratchLeft})`)
   assert(probe.devanagariFont === true, 'the Devanagari print font is bundled where printFonts.ts looks')
   if (probe.platform === 'win32') assert(probe.secureStorage === true, 'safeStorage (DPAPI) is available on Windows')
+  if (probe.packaged) {
+    assert(probe.menuHasDevTools === false && probe.menuHasReload === false, 'the packaged menu has no Toggle Developer Tools / Reload')
+    assert(probe.devToolsOpened === false, 'developer tools cannot be opened in a packaged build')
+  } else {
+    assert(probe.menuHasDevTools === true, 'an unpackaged run keeps the developer menu')
+  }
+  assert(probe.pageFetch === 'refused' && probe.pageFetchArrived === 0, `a page cannot reach the network itself (${probe.pageFetch}, ${probe.pageFetchArrived} arrived)`)
+  // A page may not use the camera / location (deny-by-default permission handler).
+  const perms = await page.evaluate(async () => {
+    const perm = async (name) => { try { return (await navigator.permissions.query({ name })).state } catch (e) { return `error: ${e?.message ?? e}` } }
+    return { camera: await perm('camera'), geolocation: await perm('geolocation') }
+  })
+  console.log('[smoke] page permissions:', JSON.stringify(perms))
+  assert(perms.camera !== 'granted' && perms.geolocation !== 'granted', `a page gets no camera / location (${JSON.stringify(perms)})`)
 
   await page.screenshot({ path: path.join(outDir, 'success.png') })
   console.log(

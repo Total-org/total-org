@@ -20,6 +20,30 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Security: a locked-down app and portal passwords that stay put** (#PR; audit 2026-11 A2 + A5).
+Plain words: in the installed app the developer tools can no longer be opened (the View menu has no
+"Toggle Developer Tools" or "Reload" any more), a page inside Total cannot ask for the camera,
+microphone or location (only copying text to the clipboard is allowed), and nothing on screen can
+reach the internet by itself — only Total's own AI, portal and update code does. The installed app
+also refuses to be started as plain Node.js or with a debugger attached. In Settings → NIC live
+filing, the addresses must start with `https://`, and the saved API password and client secret go
+**only** to the address and NIC public key they were typed for: change either and Total clears them
+and asks you to type them again; if the address was changed outside Total (in the company file or a
+restored backup), they are held back and the screen says so. No figure, report or saved book changes.
+For developers: `windowPolicy.ts` (`appMenuTemplate`, `pdfWindowWebPreferences` — JavaScript off in
+the PDF window, `hardenSession` — `setPermissionRequestHandler` / `setPermissionCheckHandler` allow
+only `clipboard-sanitized-write`, `webRequest.onBeforeRequest` lets a page load only file: / data: /
+blob: / the dev server), `devTools: !app.isPackaged`, `app.enableSandbox()`; Electron fuses in
+`package.json` `build.electronFuses` (RunAsNode, NODE_OPTIONS, --inspect off; embedded asar integrity
+and only-from-asar on) — `scripts/fuses.mjs` checks them in CI / release and makes the packaged
+smoke's copy (only --inspect back on, for Playwright); `shared/nicEndpoint.ts` (https, http only on
+loopback), `nic.ts` `saveNicCredentials` / `readNicState` (secret `nic.boundTo` = both origins + the
+PEM's SHA-256; secrets saved before are bound on first read), `redirect: 'error'` on every NIC call,
+`nic:save` returns `secretsDropped`, `nic:status` `secretsHeldBack`; the GST gateway password is bound
+to its provider (`gstGateway.boundTo`). Tests: `windowPolicy.test.ts`, `shared/nicEndpoint.test.ts`,
+`services/nicBinding.dbtest.ts`, the smoke's main-process probe (packaged: no devtools; a bare page's
+request never arrives).
+
 **Releases come by themselves** (#216). Twice a day (about 09:00 and 21:00 India time) GitHub
 releases what is new on `main` as the next patch version, but only when every test on `main` passed,
 books made by the last release open in the new one with every report unchanged (trial balance, P&L,

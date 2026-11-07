@@ -90,6 +90,11 @@ jobs:
           # secrets here and auto-update becomes fully silent.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      # Audit 2026-11 A2: the DMG / ZIP were built with the fuses package.json sets (the release is
+      # still a draft here — release-win needs this job, so a failure keeps it unpublished).
+      - name: Electron fuses of the packaged build
+        run: node scripts/fuses.mjs check "$(ls -d dist/mac*/Total.app | head -1)/Contents/MacOS/Total"
+
   release-win:
     # Runs after the mac job so both publish into the SAME release —
     # parallel jobs each create their own release for the tag (learned the hard way).
@@ -131,10 +136,19 @@ jobs:
           case "$exe" in *" "*) echo "installer name has a space: $exe"; exit 1;; esac
           grep -q "^path: $exe$" dist/latest.yml || { echo "latest.yml does not name $exe"; cat dist/latest.yml; exit 1; }
 
+      # Audit 2026-11 A2: the shipped build has its Electron fuses set (no RunAsNode / NODE_OPTIONS /
+      # --inspect, asar integrity, app only from app.asar). Playwright needs --inspect, so the smoke
+      # runs on a copy that differs only in that one fuse (scripts/fuses.mjs).
+      - name: Electron fuses of the packaged build + a smoke copy
+        shell: bash
+        run: |
+          node scripts/fuses.mjs check dist/win-unpacked/Total.exe
+          node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
+
       - name: Hermetic IPC smoke test against the packaged Total.exe
         run: npm run smoke
         env:
-          TOTAL_APP_EXECUTABLE: ${{ github.workspace }}\dist\win-unpacked\Total.exe
+          TOTAL_APP_EXECUTABLE: ${{ github.workspace }}\dist\win-unpacked-smoke\Total.exe
           TOTAL_DATA_DIR: ${{ runner.temp }}\Total packaged data
           SMOKE_OUT: ${{ runner.temp }}\smoke-packaged
 
