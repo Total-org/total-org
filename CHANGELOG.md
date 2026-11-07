@@ -79,7 +79,7 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **Accountant sidebar: the top items stay in view** (#PENDING; audit UX-11, owner 7 Nov). Plain
+- **Accountant sidebar: the top items stay in view** (#230; audit UX-11, owner 7 Nov). Plain
   words: Gateway, Voucher entry, Manufacture, Counter and Masters no longer scroll away when GST or
   System is open on a smaller window — only the sections below them scroll. Also: the AI panel's
   last blue link is now the ink-and-amber link of the new look.
