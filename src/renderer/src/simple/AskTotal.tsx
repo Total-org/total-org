@@ -6,6 +6,7 @@
 // assistant on, a question Total can't answer goes to the model (the WP 5.x panel, every rule
 // unchanged) — each answer says which one answered.
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { create } from 'zustand'
 import type { AssistAnswer, AssistFigure } from '@shared/assist'
 import type { Language } from '@shared/i18n'
@@ -229,12 +230,16 @@ const EXAMPLES = ['assist.suggest.owed', 'assist.suggest.profitHinglish', 'assis
  * The drawer. `aiReady` = the owner turned the AI assistant on with a key: a question Total
  * doesn't understand is handed to it (`onEscalate`).
  */
-export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate }: {
+export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, onOpenAi, tabs }: {
   onClose: () => void
   width: number
   onResize: (w: number) => void
   aiReady: boolean
   onEscalate?: (text: string) => void
+  /** Phase 3b part 3: straight to the AI conversation (while it is ready). */
+  onOpenAi?: () => void
+  /** Phase 3b part 3: the ONE panel's Ask / To approve tabs. */
+  tabs?: ReactNode
 }): React.JSX.Element {
   const overlay = useContext(DockModeContext) === 'overlay'
   const t = useT()
@@ -356,7 +361,14 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate }
         }}
       />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-hint text-muted">{aiReady ? t('assist.panel.aiNote') : t('assist.panel.offline')}</span>
+        <span className="flex flex-col gap-1 text-hint text-muted">
+          {aiReady ? t('assist.panel.aiNote') : t('assist.panel.offline')}
+          {aiReady && onOpenAi && (
+            <button type="button" className="self-start text-blue hover:underline" data-testid="btn-ask-ai" onClick={onOpenAi}>
+              {t('assist.panel.toAi')} →
+            </button>
+          )}
+        </span>
         <Button variant="primary" size="sm" onClick={send} disabled={!text.trim() || busy} data-testid="ask-send">
           {t('assist.panel.ask')}
         </Button>
@@ -365,7 +377,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate }
   )
 
   return (
-    <DockedDrawer title={t('assist.panel.title')} subtitle={t('assist.panel.sub')} onClose={onClose} width={width} onResize={onResize} testId="ask-panel" footer={footer}>
+    <DockedDrawer title={t('assist.panel.title')} subtitle={t('assist.panel.sub')} onClose={onClose} width={width} onResize={onResize} testId="ask-panel" header={tabs} footer={footer}>
       <div className="flex flex-col gap-4" aria-live="polite" data-testid="ask-messages">
         {turns.length === 0 && (
           <div className="flex flex-col gap-2" data-testid="ask-empty">

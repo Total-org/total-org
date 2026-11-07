@@ -416,10 +416,11 @@ describe('the AI panel in plain words (simple mode)', () => {
     expect(err.querySelector('details')!.textContent).toContain('The AI service said: Could not reach the provider (network error).')
   })
 
-  it('accountant mode keeps the accountant panel as it was (tokens, model, tool chips, context strip)', async () => {
+  it('accountant mode: the AI conversation (reached from Ask) keeps the accountant panel as it was (tokens, model, tool chips, context strip)', async () => {
     useSession.setState({ ui: { mode: 'accountant' } } as never)
     view = READY()
     wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
     expect(await screen.findByTestId('ai-panel')).toBeTruthy()
     expect(screen.queryByTestId('ai-panel-plain')).toBeNull()
     expect(screen.getByTestId('ai-context')).toBeTruthy()

@@ -41,6 +41,8 @@ import { useMode } from '../../lib/mode'
 import { useT } from '../../lib/i18n'
 import { AskTotalDrawer } from '../../simple/AskTotal'
 import { SimpleAiDrawer } from '../../simple/ai/SimpleAiDrawer'
+import { AskTabs, type AskTab } from '../../simple/queue/AskTabs'
+import { QueueDrawer } from '../../simple/queue/QueueDrawer'
 
 export { screenFor }
 
@@ -67,9 +69,15 @@ interface AssistantStore {
   setWidth: (width: number) => void
   ask: (text: string, context?: AiContext, preCall?: AiPreCall) => void
   takePending: () => PendingAsk | null
-  /** WP 10.1, simple mode: Ask Total (deterministic, no key) or the AI assistant (key + AI on). */
+  /** WP 10.1 (Phase 3b part 3: both modes): Ask Total (deterministic, no key) or the AI
+   *  assistant (key + AI on). */
   simpleView: 'ask' | 'ai'
   setSimpleView: (v: 'ask' | 'ai') => void
+  /** Phase 3b part 3: the ONE panel's tab — Ask, or To approve (the approval queue). */
+  tab: AskTab
+  setTab: (tab: AskTab) => void
+  /** Open the panel on its To approve tab. */
+  openQueue: () => void
 }
 
 function loadPrefs(): { open: boolean; width: number } {
@@ -95,11 +103,17 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   ...loadPrefs(),
   pending: null,
   simpleView: 'ask',
-  setSimpleView: (simpleView) => set({ simpleView }),
+  setSimpleView: (simpleView) => set({ simpleView, tab: 'ask' }),
+  tab: 'ask',
+  setTab: (tab) => set({ tab }),
+  openQueue: () => {
+    set({ open: true, tab: 'queue' })
+    savePrefs(get())
+  },
   setOpen: (open) => {
-    // WP 10.1: closing the panel ends an escalation — the next question in simple mode goes to
-    // Ask Total first again (Total answers first; the model only when Total can't).
-    set(open ? { open } : { open, simpleView: 'ask' })
+    // WP 10.1: closing the panel ends an escalation — the next question goes to Ask Total first
+    // again (Total answers first; the model only when Total can't). It reopens on Ask.
+    set(open ? { open } : { open, simpleView: 'ask', tab: 'ask' })
     savePrefs(get())
   },
   toggle: () => get().setOpen(!get().open),
@@ -109,7 +123,7 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   },
   ask: (text, context, preCall) => {
     // A question for the MODEL (Explain this, the palette's Ask AI, Ask Total's escalation).
-    set({ open: true, simpleView: 'ai', pending: { id: ++askSeq, text, context, ...(preCall ? { preCall } : {}) } })
+    set({ open: true, simpleView: 'ai', tab: 'ask', pending: { id: ++askSeq, text, context, ...(preCall ? { preCall } : {}) } })
     savePrefs(get())
   },
   takePending: () => {
@@ -131,7 +145,7 @@ export function useCurrentAiContext(): AiContext {
 // ---------- the host ----------
 
 export function AssistantPanel(): React.JSX.Element | null {
-  const { open, setOpen, simpleView, setSimpleView, width, setWidth } = useAssistantPanel()
+  const { open, setOpen, simpleView, setSimpleView, width, setWidth, tab, setTab } = useAssistantPanel()
   const mode = useMode()
   const { data: view } = useQuery({ queryKey: ['aiSettings'], queryFn: aiApi.settings })
   const ready = !!view?.ready
@@ -162,9 +176,13 @@ export function AssistantPanel(): React.JSX.Element | null {
   }, [ready])
 
   if (!open) return null
-  // WP 10.1: in simple mode the panel is Ask Total (answers from the books, no key) unless the AI
-  // assistant is on and the question went to it; accountant mode is unchanged.
-  if (mode === 'simple' && (!ready || simpleView === 'ask')) {
+  // Phase 3b part 3 (audit PROD-1, owner 7 Nov): ONE panel in both modes. "To approve" is the
+  // approval queue; "Ask" is Ask Total first (answers from the books, no key) — the AI assistant
+  // answers what Total can't (escalation), or when asked directly ("Ask the AI instead"), while it
+  // is ready. Simple mode shows the AI's answers in plain words (WP 10.6).
+  const onTab = (t: AskTab): void => setTab(t)
+  if (tab === 'queue') return <QueueDrawer onClose={() => setOpen(false)} width={width} onResize={setWidth} onTab={onTab} simple={mode === 'simple'} />
+  if (!ready || simpleView === 'ask') {
     return (
       <AskTotalDrawer
         onClose={() => setOpen(false)}
@@ -172,23 +190,24 @@ export function AssistantPanel(): React.JSX.Element | null {
         onResize={setWidth}
         aiReady={ready}
         onEscalate={(q) => useAssistantPanel.getState().ask(q)}
+        onOpenAi={() => setSimpleView('ai')}
+        tabs={<AskTabs active="ask" onSelect={onTab} />}
       />
     )
   }
-  // WP 10.6: in simple mode the AI's answers come in plain words (the accountant panel is unchanged).
-  if (mode === 'simple') return <PlainAiHost onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} />
-  return <AssistantDrawer onClose={() => setOpen(false)} />
+  if (mode === 'simple') return <PlainAiHost onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={<AskTabs active="ask" onSelect={onTab} />} />
+  return <AssistantDrawer onClose={() => setOpen(false)} onBack={() => setSimpleView('ask')} tabs={<AskTabs active="ask" onSelect={onTab} />} />
 }
 
 /** WP 10.6: the simple shell's AI panel, fed the same context and pending question as the
  *  accountant drawer. */
-function PlainAiHost({ onClose, onBack }: { onClose: () => void; onBack: () => void }): React.JSX.Element {
+function PlainAiHost({ onClose, onBack, tabs }: { onClose: () => void; onBack: () => void; tabs?: ReactNode }): React.JSX.Element {
   const width = useAssistantPanel((s) => s.width)
   const setWidth = useAssistantPanel((s) => s.setWidth)
   const pending = useAssistantPanel((s) => s.pending)
   const context = useCurrentAiContext()
   const takePending = useCallback(() => useAssistantPanel.getState().takePending(), [])
-  return <SimpleAiDrawer onClose={onClose} onBack={onBack} width={width} onResize={setWidth} context={context} pending={pending} takePending={takePending} />
+  return <SimpleAiDrawer onClose={onClose} onBack={onBack} width={width} onResize={setWidth} context={context} pending={pending} takePending={takePending} tabs={tabs} />
 }
 
 /** "Explain this": the figure + the current screen → a prefilled question in a new conversation. */
@@ -226,7 +245,13 @@ function reducer(state: AiPanelState, a: Action): AiPanelState {
 }
 
 /** Exported for renderer tests (mounted without the store). `onClose` closes the panel. */
-export function AssistantDrawer({ onClose, onBack }: { onClose: () => void; /** WP 10.1: simple mode — back to Ask Total. */ onBack?: () => void }): React.JSX.Element {
+export function AssistantDrawer({ onClose, onBack, tabs }: {
+  onClose: () => void
+  /** Back to Ask Total (Phase 3b part 3: both modes). */
+  onBack?: () => void
+  /** Phase 3b part 3: the ONE panel's Ask / To approve tabs. */
+  tabs?: ReactNode
+}): React.JSX.Element {
   const tr = useT()
   const queryClient = useQueryClient()
   const toast = useToasts()
@@ -417,6 +442,7 @@ export function AssistantDrawer({ onClose, onBack }: { onClose: () => void; /** 
 
   const toolbar = (
     <div className="flex flex-col gap-2">
+      {tabs}
       <div className="flex items-center gap-1.5">
         <Button size="sm" variant={mode === 'threads' ? 'secondary' : 'ghost'} onClick={() => setMode(mode === 'threads' ? 'chat' : 'threads')} data-testid="btn-ai-threads" aria-pressed={mode === 'threads'}>
           Conversations{threads?.length ? ` (${threads.length})` : ''}
@@ -474,7 +500,7 @@ export function AssistantDrawer({ onClose, onBack }: { onClose: () => void; /** 
   )
 
   return (
-    <DockedDrawer title="Assistant" subtitle={subtitle} onClose={onClose} width={width} onResize={setWidth} testId="ai-panel" header={toolbar} footer={footer}>
+    <DockedDrawer title="AI assistant" subtitle={subtitle} onClose={onClose} width={width} onResize={setWidth} testId="ai-panel" header={toolbar} footer={footer}>
       {viewLoading && (
         <div className="flex items-center gap-2 text-hint text-muted" data-testid="ai-loading">
           <Spinner /> Loading…

@@ -9,6 +9,7 @@
 // context lines sit behind "Details". The accountant panel (components/ai/AssistantPanel.tsx) is
 // untouched.
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatMicroUsd, type AiContext, type AiDraftDto, type AiEvent, type AiMessageDto, type AiPreCall } from '@shared/ai'
 import { screenContextLines } from '@shared/aiExplain'
@@ -63,6 +64,7 @@ function PlainProblem({ message, testId }: { message: string; testId: string }):
 export function SimpleAiDrawer({
   onClose,
   onBack,
+  tabs,
   width,
   onResize,
   context,
@@ -72,6 +74,8 @@ export function SimpleAiDrawer({
   onClose: () => void
   /** Back to Ask Total. */
   onBack: () => void
+  /** Phase 3b part 3: the ONE panel's Ask / To approve tabs. */
+  tabs?: ReactNode
   width: number
   onResize: (w: number) => void
   /** The current screen's context (sent with each question, as in the accountant panel). */
@@ -184,6 +188,8 @@ export function SimpleAiDrawer({
   )
 
   const header = (
+    <div className="flex flex-col gap-2">
+    {tabs}
     <div className="flex items-center gap-2">
       <Button size="sm" variant="ghost" onClick={onBack} data-testid="btn-back-ask-total">
         {t('assist.panel.back')}
@@ -192,6 +198,7 @@ export function SimpleAiDrawer({
       <Button size="sm" variant="ghost" onClick={() => dispatch({ type: 'reset' }) /* i18n-technical */} disabled={state.running || sending} data-testid="ai-plain-new">
         {t('simple.ai.panel.new')}
       </Button>
+    </div>
     </div>
   )
 

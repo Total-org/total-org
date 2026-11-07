@@ -1,6 +1,6 @@
 // WP 10.1 — Ask Total in the panel: the simple-mode default while the AI assistant is off (and
 // with it on, the first stop — what Total can't answer goes to the model, which says so);
-// accountant mode keeps the AI panel; figures render as chips that open their screen; "Which …?"
+// Phase 3b part 3: one panel in both modes (Ask first, To approve tab); figures render as chips that open their screen; "Which …?"
 // re-asks with the pick; an entry request opens its simple flow pre-filled with the draft; the
 // Home box asks in the panel.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,6 +46,7 @@ beforeEach(() => {
       case 'ai:settings:get': return { ok: true, data: settings() }
       case 'ai:threads': return { ok: true, data: [] }
       case 'ai:drafts': return { ok: true, data: [] }
+      case 'ai:queue': return { ok: true, data: { proposals: [], plans: [], waiting: 0 } }
       case 'assist:ask': {
         const p = payload as { text: string; picks?: { party?: number } }
         const key = p.picks?.party ? `${p.text}#${p.picks.party}` : p.text
@@ -88,11 +89,27 @@ describe('Ask Total — which panel', () => {
     expect(screen.getByTestId('ask-empty').textContent).toContain('Ask about your business')
   })
 
-  it('accountant mode keeps the AI panel', async () => {
+  it('Phase 3b part 3: ONE panel in accountant mode too — Ask Total first; the AI conversation one click away while it is ready; To approve is a tab', async () => {
     useSession.setState({ ui: { mode: 'accountant' } } as never)
     wrap(<AssistantPanel />)
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+    expect(screen.queryByTestId('ai-panel')).toBeNull()
+    // AI off: no way to the model.
+    expect(screen.queryByTestId('btn-ask-ai')).toBeNull()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-queue'))
+    expect(await screen.findByTestId('ask-queue-panel')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-ask'))
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+  })
+
+  it('accountant mode with AI on: "Ask the AI helper instead" opens the accountant AI conversation, which goes back to Ask', async () => {
+    aiReady = true
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
     expect(await screen.findByTestId('ai-panel')).toBeTruthy()
-    expect(screen.queryByTestId('ask-panel')).toBeNull()
+    fireEvent.click(screen.getByTestId('btn-back-ask-total'))
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
   })
 
   it('simple mode with AI on: Total answers first; what it can’t answer goes to the model, which says so', async () => {

@@ -3,9 +3,9 @@
 // Approve / Edit / Discard / Approve all. Approve is ai:queue:approve for a draft (main saves
 // through voucher:save's / simple:post's own save), ai:memory:setStatus for a memory; Discard is the proposal's own discard (ai:draft:discard,
 // memory → archived); Edit opens the proposal where a person finishes it.
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { aiApi } from './aiClient'
+import { aiApi, onAiEvent } from './aiClient'
 import { useSession, type Screen } from '../state/stores'
 import type { VoucherKind } from '@shared/domain'
 import { approvableTogether, type QueueApproveResult, type QueueProposal } from '@shared/aiQueue'
@@ -15,7 +15,17 @@ import type { Language } from '@shared/i18n'
 export const QUEUE_KEY = ['aiQueue'] as const
 
 export function useQueueList(enabled = true): ReturnType<typeof useQuery<Awaited<ReturnType<typeof aiApi.queue>>>> {
-  return useQuery({ queryKey: QUEUE_KEY, queryFn: () => aiApi.queue(), enabled })
+  const queryClient = useQueryClient()
+  // An AI answer may have proposed something (a draft, a memory, a plan): the queue — and the Ask
+  // panel's "To approve" count — follow it as soon as the answer ends.
+  useEffect(
+    () =>
+      onAiEvent((e) => {
+        if (e.type === 'done' || e.type === 'error') void queryClient.invalidateQueries({ queryKey: QUEUE_KEY })
+      }),
+    [queryClient]
+  )
+  return useQuery({ queryKey: QUEUE_KEY, queryFn: () => aiApi.queue(), enabled, staleTime: 0, refetchOnMount: 'always' })
 }
 
 /** Where Edit opens a proposal. `simple`: the company is in simple mode — a chat draft / Ask Total

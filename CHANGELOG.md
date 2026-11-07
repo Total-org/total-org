@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**One place to ask** (Phase 3b part 3). ⌘J now opens the same "Ask" panel in both modes. Total
+answers from your books first (no AI key needed); when the AI helper is on, it answers what Total
+can't, or anything you send it with "Ask the AI helper instead". A second tab, "To approve", shows
+everything waiting for your approval with its count, an "Add bills" button (when the AI helper is
+on) and a link to the full list. In the full app the panel used to open straight on the AI
+conversation; it now opens on Ask, one click away from it.
+
 **Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
 helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
 who and how much, and "Prepare them" puts them together as one group in Things to approve: one
