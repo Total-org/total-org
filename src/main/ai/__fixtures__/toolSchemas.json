@@ -1336,5 +1336,37 @@
         "text"
       ]
     }
+  },
+  {
+    "name": "plan_task",
+    "description": "Prepare a TASK the user asked for as a plan of proposals in the approval queue — reminders to every late customer, or booking one month of captured bills. Nothing is sent or recorded: the user sends each reminder and approves each bill. Use it only when the user asks for that task in their own message.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "enum": [
+            "remind_late",
+            "book_bills"
+          ],
+          "description": "'remind_late' = a reminder to every customer late by at least minDays; 'book_bills' = the captured supplier bills of one month"
+        },
+        "minDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "remind_late: the oldest late bill is at least this many days late (default 1)"
+        },
+        "month": {
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+          "description": "book_bills: the month, 'YYYY-MM'"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "task"
+      ]
+    }
   }
 ]

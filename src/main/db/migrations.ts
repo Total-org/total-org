@@ -3650,5 +3650,37 @@ export const MIGRATIONS: string[] = [
     UNIQUE (provider, test, form, period)
   );
   ALTER TABLE gst2b_statements ADD COLUMN source TEXT CHECK (source IS NULL OR source IN ('gateway', 'gateway-test'));
+  `,
+  // Phase 3b part 2 — plans (last; number by position): a task the user asked for ("remind
+  // everyone 30 days late", "book October's bills") becomes ONE plan of proposals in the approval
+  // queue. Two new tables, nothing existing is read differently:
+  // - ai_plans: the task, its parameters, the question as asked, who / where it came from;
+  // - ai_plan_items: its proposals — an existing ai_drafts row (a bill draft; its status is the
+  //   draft's own) or a reminder to a customer (its figures are recomputed when sent; only the
+  //   item's status and the reminder_log row it produced are kept).
+  `
+  CREATE TABLE ai_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task TEXT NOT NULL CHECK (task IN ('remind_late', 'book_bills')),
+    params_json TEXT NOT NULL DEFAULT '{}',
+    question TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL CHECK (source IN ('ask-total', 'chat')),
+    thread_id INTEGER REFERENCES ai_threads(id) ON DELETE SET NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE ai_plan_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL REFERENCES ai_plans(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('draft', 'reminder')),
+    draft_id INTEGER REFERENCES ai_drafts(id) ON DELETE CASCADE,
+    party_ledger_id INTEGER REFERENCES ledgers(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'discarded')),
+    reminder_log_id INTEGER,
+    done_at TEXT,
+    CHECK ((kind = 'draft') = (draft_id IS NOT NULL) AND (kind = 'reminder') = (party_ledger_id IS NOT NULL))
+  );
+  CREATE INDEX idx_ai_plan_items_plan ON ai_plan_items(plan_id);
+  CREATE INDEX idx_ai_plan_items_draft ON ai_plan_items(draft_id) WHERE draft_id IS NOT NULL;
   `
 ]

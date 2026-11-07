@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
+helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
+who and how much, and "Prepare them" puts them together as one group in Things to approve: one
+reminder per late customer (in the People page's own words — "Send on WhatsApp" or "Copy the
+message", and Total notes it as sent; the app itself sends nothing), or the month's captured bills
+to approve one by one. Nothing is sent or recorded until you click.
+*For developers:* migration "plans" (`ai_plans`, `ai_plan_items`, audited `ai_plan`), `assist:plan`,
+`ai:plan:reminded`, `ai:plan:discard`, the agent tool `plan_task`.
+
 **Security: a locked-down app and portal passwords that stay put** (#225; audit 2026-11 A2 + A5).
 Plain words: in the installed app the developer tools can no longer be opened (the View menu has no
 "Toggle Developer Tools" or "Reload" any more), a page inside Total cannot ask for the camera,
@@ -54,7 +63,7 @@ feed (`/api/latest`, `/api/download`) keeps answering directly, so every copy in
 still finds updates. For developers: `SITE_URL` in `src/shared/product.ts`, `site/lib/redirects.ts`,
 the release check verifies `/api/latest` on both hosts. The site's GitHub lookup now retries without `GITHUB_TOKEN` when GitHub refuses the token (the update feed had been answering "nothing released"). Nothing changes in your books.
 
-**One place to approve what the assistants prepare** (Phase 3b, part 1). Everything the AI helper,
+**One place to approve what the assistants prepare** (#221, Phase 3b part 1). Everything the AI helper,
 Ask Total, a bill you added, your bank statement or the supplier-bill check proposes — and the
 things the assistant suggests remembering — now waits in one list: Money → Things to approve in
 simple mode (each one in plain words, with Approve / Edit / Discard, and "Approve all" for the ones

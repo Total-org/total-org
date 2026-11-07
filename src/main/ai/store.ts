@@ -560,6 +560,8 @@ export interface AiDataCounts {
   agentDrafts: number
   /** mcp_log rows (left by the removed MCP server) — counted for the record, never deleted here. */
   mcpLog: number
+  /** Phase 3b part 2: plans (tasks) — deleted with their items. */
+  plans: number
 }
 
 export function aiDataCounts(db: DB): AiDataCounts {
@@ -573,7 +575,8 @@ export function aiDataCounts(db: DB): AiDataCounts {
     outbound: n('ai_outbound_log'),
     pseudonyms: n('ai_pseudonyms'),
     agentDrafts: (db.prepare("SELECT COUNT(*) AS n FROM ai_drafts WHERE source IN ('mcp', 'inbox')").get() as { n: number }).n,
-    mcpLog: n('mcp_log')
+    mcpLog: n('mcp_log'),
+    plans: n('ai_plans')
   }
 }
 
@@ -582,7 +585,7 @@ export function aiDataCounts(db: DB): AiDataCounts {
 export function deleteAllAiData(db: DB, includeLogs: boolean): AiDataCounts {
   const before = aiDataCounts(db)
   db.transaction(() => {
-    db.exec('DELETE FROM ai_drafts; DELETE FROM ai_messages; DELETE FROM ai_threads; DELETE FROM ai_memory; DELETE FROM ai_pseudonyms;')
+    db.exec('DELETE FROM ai_plans; DELETE FROM ai_drafts; DELETE FROM ai_messages; DELETE FROM ai_threads; DELETE FROM ai_memory; DELETE FROM ai_pseudonyms;')
     // mcp_log is not an AI-provider log: it stays.
     if (includeLogs) db.exec('DELETE FROM ai_usage; DELETE FROM ai_outbound_log;')
     // Kept logs keep their sizes and fingerprints, not the (masked) screen context that was sent.

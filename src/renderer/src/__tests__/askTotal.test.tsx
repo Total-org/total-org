@@ -51,6 +51,7 @@ beforeEach(() => {
         const key = p.picks?.party ? `${p.text}#${p.picks.party}` : p.text
         return { ok: true, data: answers.get(key) ?? base({ intent: 'unknown', understood: false, sentences: ['I can’t answer that yet. Try one of these:'], suggestions: ['Who owes me money?'] }) }
       }
+      case 'assist:plan': return { ok: true, data: { planId: 3, count: 2, existing: false } }
       case 'assist:draft': return { ok: true, data: { draftId: 41, prefill: { screen: 'simple-money-out', who: 'expense', payee: 9, amount: 50000, how: 'cash', note: 'tea' } } }
       case 'ai:send': return { ok: true, data: { threadId: 3, runId: 'r', userMessage: { id: 1, threadId: 3, role: 'user', content: (payload as { text: string }).text, status: 'ok', toolCalls: [], toolCallId: null, toolName: null, toolInput: null, toolOutput: null, toolOk: null, truncated: false, sources: [], figures: [], model: null, costMicroUsd: null, inputTokens: null, outputTokens: null, draftId: null, context: null, memoryIds: [], createdAt: '2025-08-14T10:00:00Z' } } }
       case 'log:renderer': return { ok: true, data: null }
@@ -173,6 +174,17 @@ describe('Ask Total — answers', () => {
     fireEvent.click(await screen.findByTestId('ask-open-entry'))
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'simple-money-out', ask: { draftId: 41, prefill: { payee: 9, amount: 50000 } } }))
     expect(invoke.mock.calls.filter(([c]) => c === 'simple:post')).toHaveLength(0)
+  })
+
+  it('a task becomes one plan in Things to approve ("Prepare them"); nothing is sent or posted here', async () => {
+    const preview = { task: 'remind_late' as const, params: { minDays: 30 }, totalCount: 2, totalAmount: 1_500_000, count: 2, amount: 1_500_000, waiting: 0, unread: 0, existingPlanId: null }
+    answers.set('remind everyone 30 days late', base({ intent: 'task', sentences: ['2 customers are 30+ days late, owing ₹15,000.00.'], task: { preview, canPlan: true } }))
+    wrap(<AssistantPanel />)
+    await askIt('remind everyone 30 days late')
+    fireEvent.click(await screen.findByTestId('ask-prepare-plan'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'simple-approvals' }))
+    expect(invoke.mock.calls.filter(([c]) => c === 'assist:plan').map(([, p]) => (p as { text: string }).text)).toEqual(['remind everyone 30 days late'])
+    expect(invoke.mock.calls.filter(([c]) => c === 'simple:post' || c === 'ai:plan:reminded')).toHaveLength(0)
   })
 
   it('a viewer gets no "Open" button for an entry', async () => {

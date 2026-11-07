@@ -7,6 +7,8 @@ import { CATALOGUES, LANGUAGES } from '@shared/i18n'
 const TODAY = '2026-10-14'
 
 type Expect = Record<string, unknown>
+/** Any intent but a task (the corpus checks `kind` is not 'task'). */
+const NOT_TASK = '!task'
 const CORPUS: [string, Expect][] = [
   // ---- who owes me / what do I owe / does X owe me ----
   ['who owes me', { kind: 'owed', side: 'receivable', party: undefined }],
@@ -201,7 +203,29 @@ const CORPUS: [string, Expect][] = [
   ['salaries', { kind: 'payroll', period: { rule: 'thisMonth' }, periodSaid: false }],
   ['सैलरी कितनी गई इस महीने', { kind: 'payroll', period: { rule: 'thisMonth' } }],
   ['paid salary 5000 to Ravi', { kind: 'entry', entry: { action: 'money_out', amount: 500000, party: 'ravi', what: 'salary' } }],
-  ['how do I run payroll', { kind: 'howto', task: 'features' }]
+  ['how do I run payroll', { kind: 'howto', task: 'features' }],
+  // ---- Phase 3b part 2: tasks → plans ----
+  ['remind everyone 30 days late', { kind: 'task', task: 'remind_late', minDays: 30 }],
+  ['Send reminders to all customers over 60 days overdue', { kind: 'task', task: 'remind_late', minDays: 60 }],
+  ['remind everyone who is late', { kind: 'task', task: 'remind_late', minDays: 1 }],
+  ['sabko reminder bhejo jo 30 din se late hain', { kind: 'task', task: 'remind_late', minDays: 30 }],
+  ['late customers ko yaad dilao', { kind: 'task', task: 'remind_late', minDays: 1 }],
+  ["book October's bills", { kind: 'task', task: 'book_bills', month: '2026-10', monthSaid: true }],
+  ['enter all bills of last month', { kind: 'task', task: 'book_bills', month: '2026-09', monthSaid: true }],
+  ['september ke bills chadha do', { kind: 'task', task: 'book_bills', month: '2026-09', monthSaid: true }],
+  ['book the bills', { kind: 'task', task: 'book_bills', month: '2026-10', monthSaid: false }],
+  ['how do I send a reminder', { kind: 'howto', task: 'reminder' }],
+  ['record bill 42', { kind: 'bill', number: '42' }],
+  ['remind everyone late by 3 months', { kind: 'task', task: 'remind_late', minDays: 90 }],
+  ['remind all customers 2 weeks overdue', { kind: 'task', task: 'remind_late', minDays: 14 }],
+  // Review of #229: never wider than what was asked.
+  ['remind Ramesh who is late', { kind: NOT_TASK }],
+  ['remind everyone who owes more than 5000', { kind: NOT_TASK }],
+  ['pending reminders', { kind: NOT_TASK }],
+  ['enter bills from Ramesh', { kind: NOT_TASK }],
+  ['add electricity bills', { kind: NOT_TASK }],
+  ['record purchase bills from Sharma', { kind: NOT_TASK }],
+  ['did I enter all bills of october', { kind: NOT_TASK }]
 ]
 
 describe('Ask Total corpus', () => {
@@ -217,6 +241,10 @@ describe('Ask Total corpus', () => {
           if (v !== null && typeof v === 'object') check(have?.[k] as Record<string, unknown> | undefined, v as Record<string, unknown>, `${path}${k}.`)
           else expect(have?.[k], `${path}${k}`).toEqual(v)
         }
+      }
+      if (want.kind === NOT_TASK) {
+        expect(got.kind).not.toBe('task')
+        return
       }
       check(got, want, '')
     })
