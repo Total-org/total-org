@@ -39,6 +39,7 @@ export function TypeAhead({
   onPick,
   placeholder,
   autoFocus,
+  openOnArrival = false,
   onCreate,
   className,
   onScan,
@@ -50,6 +51,9 @@ export function TypeAhead({
   onPick: (id: number | null) => void
   placeholder: string
   autoFocus?: boolean
+  /** Open the list on the arrival focus too — for a picker the user just asked for (a search that
+   *  replaced the tiles they clicked, a dialog holding nothing but the picker). Default: closed. */
+  openOnArrival?: boolean
   onCreate?: (name: string) => void
   className?: string
   /** Fed every keydown for barcode-scan detection; return true to swallow the keystroke. */
@@ -69,7 +73,10 @@ export function TypeAhead({
   // Audit UX-7: the focus a picker gets on ARRIVAL (autoFocus) selects its text but leaves the list
   // closed, so it doesn't cover the form the user is about to read. Any later focus (Tab back, a
   // click), typing, ↓ or Enter opens it exactly as before.
-  const arrival = useRef(!!autoFocus)
+  const arrival = useRef(!!autoFocus && !openOnArrival)
+  // True while the list is closed only because of the arrival rule: the first ↓ then opens AND
+  // moves, so arrival → ↓ → Enter picks the row it always did; a left click opens it.
+  const arrivalClosed = useRef(false)
   const [active, setActive] = useState(0)
   // WP 8.4: Enter never creates. The "Create …" row is reached only explicitly — ↓ past the last
   // match (or onto it when nothing matches) or the mouse — and only then does Enter open the
@@ -152,18 +159,28 @@ export function TypeAhead({
         autoFocus={autoFocus}
         onFocus={(e) => {
           e.target.select()
-          if (arrival.current) arrival.current = false
-          else setOpen(true)
+          if (arrival.current) {
+            arrival.current = false
+            arrivalClosed.current = true
+          } else {
+            arrivalClosed.current = false
+            setOpen(true)
+          }
           // Highlight the current value, not the first option — a pre-filled line (an AI or
           // GSTR-2B draft) must not change ledger on a stray Enter.
           setActive(selectedIndex())
         }}
-        onMouseDown={() => {
-          // A click on the arrival-focused box (already focused, so no focus event) opens it.
+        onMouseDown={(e) => {
+          // A left click on the arrival-focused box (already focused, so no focus event) opens it;
+          // any other click behaves as before.
           arrival.current = false
-          setOpen(true)
+          if (arrivalClosed.current && e.button === 0) {
+            arrivalClosed.current = false
+            setOpen(true)
+          }
         }}
         onChange={(e) => {
+          arrivalClosed.current = false
           setText(e.target.value)
           setOpen(true)
           setActive(0)
@@ -189,8 +206,11 @@ export function TypeAhead({
             return
           }
           if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+            const fromArrival = arrivalClosed.current
+            arrivalClosed.current = false
             setOpen(true)
-            return
+            // On arrival the list would have been open already: ↓ also moves, as it always did.
+            if (!(fromArrival && e.key === 'ArrowDown')) return
           }
           if (e.key === 'ArrowDown') {
             e.preventDefault()
@@ -285,6 +305,7 @@ export function LedgerPicker({
   placeholder = 'Ledger',
   filter,
   autoFocus,
+  openOnArrival,
   onCreateRequest,
   className,
   testId = 'picker-ledger'
@@ -294,6 +315,7 @@ export function LedgerPicker({
   placeholder?: string
   filter?: (l: Ledger, groups: Map<number, Group>) => boolean
   autoFocus?: boolean
+  openOnArrival?: boolean
   onCreateRequest?: (name: string) => void
   className?: string
   testId?: string
@@ -315,6 +337,7 @@ export function LedgerPicker({
       onPick={onPick}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      openOnArrival={openOnArrival}
       onCreate={onCreateRequest}
       className={className}
       testId={testId}
