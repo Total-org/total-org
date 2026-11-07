@@ -39,21 +39,35 @@ const PATHS: Record<string, readonly string[]> = {
   gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M12 2v3', 'M12 19v3', 'M2 12h3', 'M19 12h3', 'm4.9 4.9 2.1 2.1', 'm17 17 2.1 2.1', 'm4.9 19.1 2.1-2.1', 'm17 7 2.1-2.1'],
   save: ['M12 3v12', 'm7 10 5 5 5-5', 'M4 19h16'],
   swap: ['M7 4 3 8l4 4', 'M3 8h14', 'm17 12 4 4-4 4', 'M21 16H7'],
-  mail: ['M3 5h18v14H3z', 'm3 6 9 7 9-7']
+  mail: ['M3 5h18v14H3z', 'm3 6 9 7 9-7'],
+  // UI overhaul: the shells (accountant sidebar sections, header buttons).
+  book: ['M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z', 'M5 19.5A1.5 1.5 0 0 0 6.5 21H19', 'M9 7h6'],
+  pen: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
+  sun: ['M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M12 2v2', 'M12 20v2', 'm4.9 4.9 1.4 1.4', 'm17.7 17.7 1.4 1.4', 'M2 12h2', 'M20 12h2', 'm4.9 19.1 1.4-1.4', 'm17.7 6.3 1.4-1.4'],
+  moon: ['M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z'],
+  help: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6', 'M12 17h.01'],
+  lock: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],
+  spark: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2.5 2.5', 'm15.5 15.5 2.5 2.5', 'm6 18 2.5-2.5', 'm15.5 8.5 2.5-2.5'],
+  calendar: ['M4 6h16v14H4z', 'M4 10h16', 'M8 3v4', 'M16 3v4'],
+  factory: ['M3 21V10l6 4V10l6 4V6h6v15z', 'M7 17h2', 'M13 17h2'],
+  list: ['M8 6h12', 'M8 12h12', 'M8 18h12', 'M4 6h.01', 'M4 12h.01', 'M4 18h.01'],
+  shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z'],
+  in: ['M12 4v11', 'm7 10 5 5 5-5', 'M5 20h14'],
+  out: ['M12 20V9', 'm7 14 5-5 5 5', 'M5 4h14']
 }
 
 const ROUND = { strokeLinecap: 'round', strokeLinejoin: 'round' } as const // i18n-technical: SVG attributes
 
-export function PlainIcon({ id, className }: { id: string; className?: string }): React.JSX.Element {
+export function PlainIcon({ id, className, size = 18 }: { id: string; className?: string; size?: number }): React.JSX.Element {
   const paths = PATHS[id] ?? PATHS.dot!
   return (
     <svg
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.7}
+      strokeWidth={1.6}
       {...ROUND}
       aria-hidden="true"
       className={className}

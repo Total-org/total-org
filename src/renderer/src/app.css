@@ -26,6 +26,8 @@
   --t-panel: #ffffff;
   --t-panel2: #f8f7f3;
   --t-raised: #ffffff;
+  /* the sidebars (both shells): a shade under the page */
+  --t-sidebar: #eeece6;
   --t-line: #e4e1d9;
   --t-line-strong: #cfcabe;
   --t-ink: #1c1e24;
@@ -43,6 +45,11 @@
   --t-cr: #b03c2c;
   --t-blue: #1f5ab8;
   --t-rule: #2b2e36;
+
+  /* charts: a slate series beside the bright amber (no saturated blue next to the amber) */
+  --t-chart-slate: #4a5670;
+  /* the amber series, dark enough for 3:1 on white / panel2 (the bar amber is 1.8:1) */
+  --t-chart-amber: #a87000;
 
   /* the primary action: ink-filled in light, amber in dark */
   --t-primary: #1c1e24;
@@ -126,6 +133,7 @@
   --t-panel: #161b2b;
   --t-panel2: #1b2133;
   --t-raised: #1e2539;
+  --t-sidebar: #0c101b;
   --t-line: #262d42;
   --t-line-strong: #363e59;
   --t-ink: #ebeae4;
@@ -140,6 +148,9 @@
   --t-cr: #ec8a7d;
   --t-blue: #8aa4f8;
   --t-rule: #ebeae4;
+
+  --t-chart-slate: #a9b4cf;
+  --t-chart-amber: #f0b429;
 
   --t-primary: #f0b429;
   --t-primary-hover: #f5c34f;
@@ -191,6 +202,7 @@
   --color-panel: var(--t-panel);
   --color-panel2: var(--t-panel2);
   --color-raised: var(--t-raised);
+  --color-sidebar: var(--t-sidebar);
   --color-line: var(--t-line);
   --color-line-strong: var(--t-line-strong);
   --color-ink: var(--t-ink);
@@ -857,6 +869,37 @@ textarea:focus-visible {
 }
 .t-tab-vertical[aria-selected='true']::after {
   transform: scaleY(1);
+}
+
+/* Sidebar items (both shells): the current screen is a raised chip with the amber bar on its
+   left edge — styled from aria-current, so the markup only says which item is current. */
+.t-nav-item {
+  transition:
+    background-color var(--t-duration) var(--t-ease-out),
+    color var(--t-duration) var(--t-ease-out);
+}
+.t-nav-item[aria-current='page'] {
+  background: var(--t-panel);
+  color: var(--t-ink);
+  font-weight: 600;
+  box-shadow:
+    inset 3px 0 0 var(--t-select-bar),
+    var(--t-shadow-1);
+}
+/* Dark: --t-shadow-1 is `none`, which is not allowed inside a shadow list — the bar alone. */
+[data-theme='dark'] .t-nav-item[aria-current='page'] {
+  background: color-mix(in oklab, var(--t-ink) 9%, var(--t-sidebar));
+  box-shadow: inset 3px 0 0 var(--t-select-bar);
+}
+.t-nav-item .t-nav-icon {
+  color: var(--t-muted);
+  transition: color var(--t-duration) var(--t-ease-out);
+}
+.t-nav-item:hover .t-nav-icon {
+  color: var(--t-ink);
+}
+.t-nav-item[aria-current='page'] .t-nav-icon {
+  color: var(--t-amber);
 }
 
 /* Buttons: a pressed button sinks a pixel (no hover motion). */
