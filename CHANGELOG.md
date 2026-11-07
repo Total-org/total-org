@@ -20,6 +20,18 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**"Who owes me" was wrong when a debit note or journal was ticked against a bill** (#233, audit A1).
+If you raised a debit note to a customer (or a journal adding freight, say) and ticked their invoice,
+Total took the note OFF the invoice instead of adding it, so what the customer owed was short by twice
+the note. Home, People, reminders, statements, interest and the cash forecast showed the same wrong
+figure. The same went for a credit note or journal to a supplier ticked against their bill. Now the
+note adds to the bill, as in Tally; a bill already paid opens again for the extra. Ticking one more
+bill in a receipt or payment once the whole amount is set against bills no longer adds the whole bill
+(Save then failed); Total says the amount is used up instead. *For accountants*: bill-wise figures
+(pending, days overdue, advances) move only for parties with such an entry; the trial balance and
+GST returns do not change. *For developers*: `shared/outstanding.ts` positive-event `against` rule,
+`billHistory` too, `shared/voucherEdit/billTick.ts`.
+
 **Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
 helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
 who and how much, and "Prepare them" puts them together as one group in Things to approve: one
