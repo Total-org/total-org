@@ -68,6 +68,15 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
+- **New look, part 2 — the shells** (#226; UI overhaul). Plain words: both sidebars get small
+  icons and show the open screen as a raised item with the amber bar; the accountant sidebar's
+  sections are in normal case. The top bar is quieter: Search looks like a search box, the simple
+  light / dark switch is a sun / moon icon, and the dates chip is hidden while you are making a bill
+  or recording money (it meant nothing there). Home's four buttons have icons and "+ Sale" is the one
+  solid button; Cash and bank is the big tile with a bar per account; the profit sentence spans its
+  row. The Gateway's card titles are in normal case and its charts use slate and amber instead of
+  blue and brown. The command palette and the simple section pages are restyled. No figure, word or
+  step changed.
 - **New look, part 1 — the foundation** (#223; UI overhaul, plan Phase 5). Plain words: Total
   gets a calmer, sharper look in both modes and both themes. Amounts are in a clean typeface with
   even-width digits instead of the typewriter face, titles and labels are in normal sentence case,

@@ -39,12 +39,12 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
     <Page data-testid={`simple-section-${section}`}>
       {section === 'reports' ? (
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{title}</h1>
+          <h1 className="font-serif text-display font-semibold tracking-[-0.025em] text-ink">{title}</h1>
           {/* WP 9.10: the accountant reports (the Trial balance first). */}
           <AccountantViewButton testId="btn-reports-accountant-view" title={t('simple.shell.accountantViewHint')} onOpen={(always) => void openFull({ intent: null, always })} />
         </div>
       ) : (
-        <h1 className="mb-5 font-serif text-heading font-semibold tracking-tight text-ink">{title}</h1>
+        <h1 className="mb-5 font-serif text-display font-semibold tracking-[-0.025em] text-ink">{title}</h1>
       )}
       {section === 'taxes' && gstType === 'unregistered' && (
         <p className="mb-4 text-detail text-muted" data-testid="simple-taxes-unregistered">
@@ -52,7 +52,7 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
         </p>
       )}
       {section === 'taxes' && gstType === 'composition' && (
-        <section className="mb-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="simple-taxes-composition">
+        <section className="mb-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="simple-taxes-composition">
           <h2 className="text-lead font-semibold text-ink">{t('simple.taxes.gst.compositionTitle')}</h2>
           <p className="mt-1 text-detail text-muted">{t('simple.taxes.gst.composition')}</p>
           {/* WP 9.9: the Taxes screen has the cited CMP-08 / GSTR-4 dates; its entries are for a
@@ -61,7 +61,7 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
             type="button"
             data-testid="simple-taxes-composition-open"
             onClick={() => nav.go(taxesScreen)}
-            className="mt-3 rounded-md border border-line px-3 py-1.5 text-detail font-medium text-ink hover:border-amber/60 hover:bg-panel2 focus-visible:border-amber"
+            className="t-btn mt-3 rounded-md border border-line-strong/80 bg-panel px-3 py-1.5 text-detail font-medium text-ink hover:border-line-strong hover:bg-panel2"
           >
             {t('simple.taxes.composition.open')}
           </button>
@@ -99,16 +99,16 @@ function EntryGrid({ entries }: { entries: ResolvedSimpleEntry[] }): React.JSX.E
               type="button"
               data-testid={`simple-entry-${e.id}`}
               onClick={() => nav.go(e.screen)}
-              className="flex h-full w-full items-center justify-between gap-3 rounded-lg border border-line bg-panel px-panel py-4 text-left shadow-elev-1 transition-colors hover:border-amber/60 hover:bg-panel2 focus-visible:border-amber"
+              className="t-btn group flex h-full w-full items-center justify-between gap-3 rounded-xl border border-line bg-panel px-panel py-4 text-left shadow-elev-1 hover:border-line-strong hover:shadow-elev-2"
             >
               <span className="text-lead font-medium text-ink">{label}</span>
               <span className="flex shrink-0 items-center gap-2">
                 {fullApp && (
-                  <span className="rounded-full border border-line px-2 py-0.5 text-caption text-muted" title={t('simple.shell.fullAppHint')}>
+                  <span className="rounded-sm border border-line bg-panel2 px-1.5 py-px text-caption font-medium text-muted" title={t('simple.shell.fullAppHint')}>
                     {t('simple.shell.fullApp')}
                   </span>
                 )}
-                <span aria-hidden="true" className="text-muted">
+                <span aria-hidden="true" className="text-muted group-hover:text-ink">
                   →
                 </span>
               </span>
