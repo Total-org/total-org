@@ -32,7 +32,7 @@ export function deductedColumns(kind: WithholdingKind) {
       cell: (r) => <VoucherLink voucherId={r.voucherId} label={r.voucherNumber} />
     },
     { id: 'party', header: 'Party', kind: 'text', value: (r) => r.partyName, minWidth: 120, cell: (r) => <LedgerLink ledgerId={r.partyLedgerId} name={r.partyName} /> },
-    { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'Missing', className: 'num', defaultHidden: true },
+    { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'Missing', className: 'font-mono', defaultHidden: true },
     { id: 'section', header: 'Section', kind: 'text', value: (r) => r.sectionCode, width: kind === 'tcs' ? 172 : 80, className: 'num' },
     { id: 'base', header: 'Base', kind: 'money', value: (r) => r.basePaise, aggregate: 'sum', width: kind === 'tcs' ? 140 : 116 },
     { id: 'rate', header: 'Rate', kind: 'number', value: (r) => (r.rateBp == null ? null : r.rateBp / 100), text: (r) => (r.isManual ? 'Manual' : pctText(r.rateBp)), width: 72 },

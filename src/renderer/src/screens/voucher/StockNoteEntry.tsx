@@ -319,7 +319,7 @@ export function StockNoteEntry({
         <div className="flex items-center gap-3">
           {party && (
             <p className="text-hint text-muted">
-              {party.gstin ? <>GSTIN <span className="num">{party.gstin}</span> · </> : 'Unregistered · '}
+              {party.gstin ? <>GSTIN <span className="font-mono">{party.gstin}</span> · </> : 'Unregistered · '}
               {computed.supply === 'intra' ? 'Intra-state' : 'Inter-state'}
               {!taxed && ' · value only, no tax (not a supply)'}
             </p>

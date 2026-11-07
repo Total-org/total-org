@@ -56,7 +56,7 @@ function install(key) {
     for (const n of nodes) {
       if (seen.has(n)) continue
       const isField = n.hasAttribute('data-field-error')
-      const isToast = n.parentElement?.hasAttribute('data-toasts') && /text-(danger|warning)/.test(n.className)
+      const isToast = n.parentElement?.hasAttribute('data-toasts') && /^(error|warning)$/.test(n.dataset.kind ?? '')
       if (!isField && !isToast) continue
       seen.add(n)
       bump('errors', (n.textContent ?? '').trim())

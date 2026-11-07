@@ -188,7 +188,7 @@ export function Panel({
   scroll?: { maxH: string }
 }): React.JSX.Element {
   return (
-    <div className={`rounded-lg border border-line bg-panel panel-shadow overflow-hidden ${className}`} data-testid={testId}>
+    <div className={`rounded-xl border border-line bg-panel panel-shadow overflow-hidden ${className}`} data-testid={testId}>
       {scroll ? (
         <div className="overflow-y-auto" style={{ maxHeight: scroll.maxH }}>
           {children}
@@ -287,7 +287,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[10vh]"
+      className="t-fade-in fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[10vh]"
       onMouseDown={(e) => {
         overlayMouseDown.current = e.target === e.currentTarget
       }}
@@ -306,7 +306,7 @@ export function Modal({
         aria-labelledby={titleId}
         data-modal={title}
         tabIndex={-1}
-        className={`max-h-[75vh] w-full ${extraWide ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-lg'} overflow-auto rounded-xl border border-line bg-raised shadow-elev-3 outline-none`}
+        className={`t-pop-in max-h-[75vh] w-full ${extraWide ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-lg'} overflow-auto rounded-xl border border-line bg-raised shadow-elev-3 outline-none`}
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3">
           <h3 id={titleId} className="font-serif text-title font-semibold">
@@ -338,13 +338,22 @@ export function Modal({
   )
 }
 
+/** The toast's kind as a small stroke icon (decorative — the text says it). */
+const TOAST_ICON: Record<'info' | 'success' | 'error' | 'warning', ReactNode> = {
+  success: <path d="m5 12.5 4.5 4.5L19 7.5" pathLength={24} className="t-tick" />,
+  info: <path d="M12 8h.01M11 12h1v5h1" />,
+  warning: <path d="M12 4 2.8 19.5h18.4zM12 10v4M12 16.8h.01" />,
+  error: <path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 8v5M12 16h.01" />
+}
+
 export function Toasts(): React.JSX.Element {
   const { toasts, dismiss, pause, resume } = useToasts()
+  // An inverted chip (ink in light, light in dark) — the icon carries the kind's colour.
   const tones = {
-    info: 'border-info/50 text-info',
-    success: 'border-success/50 text-success',
-    error: 'border-danger/60 text-danger',
-    warning: 'border-warning/60 text-warning'
+    info: 'text-toast-info',
+    success: 'text-toast-success',
+    error: 'text-toast-error',
+    warning: 'text-toast-warning'
   }
   return (
     // Pause/resume live on the container, not the toast: React still fires the container's
@@ -361,9 +370,22 @@ export function Toasts(): React.JSX.Element {
       {toasts.map((t) => (
         <button
           key={t.id}
+          data-kind={t.kind}
           onClick={() => dismiss(t.id)}
-          className={`pointer-events-auto rounded-lg border bg-raised px-4 py-2.5 text-left text-detail shadow-elev-2 ${tones[t.kind]}`}
+          className="t-toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg bg-toast px-3.5 py-2.5 text-left text-detail text-toast-ink shadow-elev-3"
         >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className={`mt-px h-4 w-4 shrink-0 ${tones[t.kind]}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {TOAST_ICON[t.kind]}
+          </svg>
           {t.text}
         </button>
       ))}

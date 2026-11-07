@@ -6,7 +6,7 @@ import { createContext, forwardRef, useContext, useId, type ReactNode } from 're
  * TextInput/Select/Textarea (AmountInput, DateInput, TypeAhead pickers).
  */
 export const inputCls =
-  'w-full min-h-control rounded-md border border-line bg-panel2 px-control-x py-1 text-body text-ink placeholder:text-muted focus:border-amber/60 aria-[invalid=true]:border-danger/70'
+  'w-full min-h-control rounded-md border border-line-strong/80 bg-panel px-control-x py-1 text-body text-ink transition-colors placeholder:text-muted hover:border-line-strong focus:border-focus aria-[invalid=true]:border-danger/70'
 
 /** inputCls without its `w-full` when the caller sizes the control itself (`w-40`, `!w-56`) —
  *  two width utilities would otherwise fight by stylesheet order, not by intent. */
@@ -42,7 +42,7 @@ export function useFieldAria(): {
 }
 
 /**
- * A labelled control: uppercase caption above, help text or an error below. The label wraps the
+ * A labelled control: a caption above, help text or an error below. The label wraps the
  * control (so clicking it focuses the control and the caption alone is its accessible name); the
  * help/error sits outside the label and is wired via aria-describedby.
  */
@@ -75,7 +75,7 @@ export function Field({
 
       <div className={className}>
         <label className="block">
-          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">
+          <span className="mb-1.5 block text-small font-medium text-muted">
             {label}
             {required && (
               <span className="ml-0.5 text-danger" aria-hidden="true">

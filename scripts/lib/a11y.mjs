@@ -168,8 +168,14 @@ export function plantToastInPage(remove = false) {
   if (remove) return true
   const b = document.createElement('button')
   b.setAttribute('data-planted-toast', '')
-  b.className = 'pointer-events-auto rounded-lg border bg-raised px-4 py-2.5 text-left text-detail shadow-elev-2 border-info/50 text-info'
-  b.textContent = 'Saved a planted toast with a long enough sentence to wrap onto two lines'
+  b.setAttribute('data-kind', 'info')
+  b.className = 't-toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg bg-toast px-3.5 py-2.5 text-left text-detail text-toast-ink shadow-elev-3'
+  // the 16 px icon the real toast carries (ui.tsx Toasts), so the text wraps the same way
+  const icon = document.createElement('span')
+  icon.setAttribute('aria-hidden', 'true')
+  icon.className = 'mt-px h-4 w-4 shrink-0'
+  b.appendChild(icon)
+  b.appendChild(document.createTextNode('Saved a planted toast with a long enough sentence to wrap onto two lines'))
   stack.appendChild(b)
   return true
 }

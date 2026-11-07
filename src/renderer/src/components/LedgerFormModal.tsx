@@ -408,7 +408,7 @@ function LedgerForm({
           <>
             <div className="grid grid-cols-2 gap-3">
               <Field label="GSTIN" error={gstinError}>
-                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="num" placeholder="For parties" />
+                <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} className="font-mono" placeholder="For parties" />
               </Field>
               <Field label="State (place of supply)">
                 <Select value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
@@ -433,7 +433,7 @@ function LedgerForm({
                 </Select>
               </Field>
               <Field label="PAN" error={panError}>
-                <TextInput value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} className="num" placeholder="AAAAA9999A" maxLength={10} />
+                <TextInput value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} className="font-mono" placeholder="AAAAA9999A" maxLength={10} />
               </Field>
               <Field label="Credit days" hint="Default due date for bills">
                 <TextInput value={creditDays} onChange={(e) => setCreditDays(e.target.value)} className="num text-right" placeholder="0" />
