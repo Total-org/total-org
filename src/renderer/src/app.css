@@ -883,8 +883,10 @@ textarea:focus-visible {
     inset 3px 0 0 var(--t-select-bar),
     var(--t-shadow-1);
 }
+/* Dark: --t-shadow-1 is `none`, which is not allowed inside a shadow list — the bar alone. */
 [data-theme='dark'] .t-nav-item[aria-current='page'] {
   background: color-mix(in oklab, var(--t-ink) 9%, var(--t-sidebar));
+  box-shadow: inset 3px 0 0 var(--t-select-bar);
 }
 .t-nav-item .t-nav-icon {
   color: var(--t-muted);

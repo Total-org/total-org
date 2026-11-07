@@ -58,6 +58,9 @@ screens with real demo figures; the owner chose **A · Ledger** — refined cont
   accountant-dialog snapshot now compares structure without `class` attributes (owner decision).
 - **b) Shells** — simple header / sidebar (icons) / Home; accountant sidebar / Gateway / command
   palette. The accountant sidebar snapshot pins structure only (test ids + text), so icons fit.
+  Audit items folded in: UX-8 (header: icon theme switch, no period chip on entry flows), UX-15
+  (Home quick actions). UX-11 (the accountant sidebar scrolling its top items away) is left: pinning
+  them changes the pinned sidebar structure — an owner question.
 - **c) Key flows** — simple Make a bill / purchase / money / people / reports / taxes; accountant
   voucher entry, registers, reports — with empty, loading (skeletons, no layout shift) and error
   states. Owner decisions from the Nov audit (docs/audit/2026-11-audit.md): Quick bill merges into
