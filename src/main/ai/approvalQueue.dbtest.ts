@@ -9,6 +9,7 @@ import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
+import { testFileDb } from '../db/testdb'
 import type { AiEvent } from '@shared/ai'
 import type { QueueList, QueueProposal } from '@shared/aiQueue'
 
@@ -51,7 +52,10 @@ const until = async (pred: () => boolean, ms = 5000): Promise<void> => {
 
 let slug = ''
 const T = '2025-08-14'
-const companyDb = (readonly = true): Database.Database => new Database(join(DATA_DIR, 'companies', slug, 'company.db'), { readonly })
+const dbPath = (): string => join(DATA_DIR, 'companies', slug, 'company.db')
+// Reads open the file read-only; the few raw writes (a capture / bank / memory row the app would
+// have made) go through testFileDb (scratchDbLint).
+const companyDb = (readonly = true): Database.Database => (readonly ? new Database(dbPath(), { readonly: true }) : (testFileDb(dbPath()) as unknown as Database.Database))
 const count = (sql: string): number => {
   const db = companyDb()
   try {
