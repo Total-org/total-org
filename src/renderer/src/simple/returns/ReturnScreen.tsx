@@ -239,7 +239,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
       ) : (
         <div className="flex flex-col gap-4">
           {/* The bill */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="return-bill" data-bill={bill.voucherId}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="return-bill" data-bill={bill.voucherId}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-subtitle font-semibold text-ink" data-testid="return-bill-head">
@@ -276,7 +276,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
           ) : (
             <>
               {/* What came back */}
-              <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.returns.whichItems')}>
+              <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.returns.whichItems')}>
                 <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
                   <h2 className="self-end text-subtitle font-semibold text-ink">{bill.mode === 'items' ? t('simple.returns.whichItems') : t('simple.returns.howMuch')}</h2>
                   <Field label={t('simple.returns.date')} name="date" error={errors.get(F.date)}>
@@ -341,7 +341,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
 
               {/* Where the money goes */}
               {totals && totals.total > 0 && (
-                <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="return-money">
+                <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="return-money">
                   {split.offBill > 0 && (
                     <p className="mb-3 text-body text-ink" data-testid="return-off-bill">
                       {split.credit > 0

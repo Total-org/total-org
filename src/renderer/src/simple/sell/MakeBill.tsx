@@ -377,7 +377,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       ) : (
         <div className="flex flex-col gap-4">
           {/* Who is it for? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.who')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.who')}>
             <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.sell.who')}</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
               <Field label={t('simple.sell.customer')} name="party" error={errors.get(F.party)}>
@@ -407,7 +407,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
           </section>
 
           {/* What was sold? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.what')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.what')}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-subtitle font-semibold text-ink">{t('simple.sell.what')}</h2>
               {charges && (

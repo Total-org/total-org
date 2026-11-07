@@ -171,7 +171,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
       <button type="button" className="mb-3 text-detail t-link" data-testid="btn-stock-product-back" onClick={() => nav.back()}>
         {t('simple.stock.back')}
       </button>
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{p.name}</h1>
@@ -311,7 +311,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
         </div>
       </section>
 
-      <section className="mt-5 rounded-lg border border-line bg-panel shadow-elev-1" aria-label={t('simple.stock.history')}>
+      <section className="mt-5 rounded-xl border border-line bg-panel shadow-elev-1" aria-label={t('simple.stock.history')}>
         <div className="flex flex-wrap items-baseline justify-between gap-3 px-panel pt-panel">
           <h2 className="text-subtitle font-semibold text-ink">{t('simple.stock.history')}</h2>
           <span className="text-small text-muted" data-testid="stock-history-opening">

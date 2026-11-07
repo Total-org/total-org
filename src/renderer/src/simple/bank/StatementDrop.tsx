@@ -95,7 +95,7 @@ export function StatementDrop({
   const dates = newLines.map((l) => l.date).sort()
 
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.bank.import')} data-testid="bank-statement">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.bank.import')} data-testid="bank-statement">
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{compact ? t('simple.bank.importAnother') : t('simple.bank.import')}</h2>
       {!preview && (
         <div

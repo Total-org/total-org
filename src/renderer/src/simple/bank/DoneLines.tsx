@@ -68,7 +68,7 @@ export function DoneLines({ lines, bankLedgerId, onUnmatched }: { lines: BankLin
   return (
     <section aria-label={t('simple.bank.doneTitle')} data-testid="bank-done">
       <h2 className="mb-2 text-subtitle font-semibold text-ink">{t('simple.bank.doneTitle')}</h2>
-      <div className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <div className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-bank-done"
           columns={columns}

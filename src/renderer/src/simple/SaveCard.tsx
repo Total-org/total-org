@@ -104,7 +104,7 @@ export function SaveCard({
 
   if (undone) {
     return (
-      <section ref={takeFocus} tabIndex={-1} data-testid="save-card" data-state="undone" aria-live="polite" className="mb-4 rounded-lg border border-line bg-panel2 px-4 py-3 outline-none">
+      <section ref={takeFocus} tabIndex={-1} data-testid="save-card" data-state="undone" aria-live="polite" className="mb-4 rounded-xl border border-line bg-panel2 px-4 py-3 outline-none">
         <p className="text-body text-ink" data-testid="save-card-undone">{t('simple.saveCard.undone')}</p>
         <p className="mt-0.5 text-detail text-muted">{t('simple.saveCard.undoneHint')}</p>
         <div className="mt-3 flex gap-2">
@@ -136,57 +136,65 @@ export function SaveCard({
       data-state="saved"
       aria-label={t('simple.saveCard.label')}
       aria-live="polite"
-      className="mb-4 rounded-lg border border-success/50 bg-success-soft px-4 py-3 outline-none"
+      className="t-rise mb-4 flex items-start gap-3 rounded-xl border border-success/40 bg-success-soft px-4 py-3 outline-none"
     >
-      <p className="text-body text-ink" data-testid="save-card-text">
-        {sentences.length ? sentences.join(' ') : t('common.saved')}
-      </p>
-      {edited && (
-        <p className="mt-1 text-detail text-muted" data-testid="save-card-edited" data-reason={reason ?? undefined}>
-          {editNote}
+      {/* UI overhaul: the confirmation tick draws itself once (t-tick; instant under reduced motion). */}
+      <span aria-hidden="true" className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-panel">
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+          <path d="m5 12.5 4.5 4.5L19 7.5" pathLength={24} className="t-tick" />
+        </svg>
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-body text-ink" data-testid="save-card-text">
+          {sentences.length ? sentences.join(' ') : t('common.saved')}
         </p>
-      )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {printable && (
-          <>
-            <Button data-testid="btn-save-card-print" disabled={busy} onClick={() => void run(async () => void (await api.invoice.pdf(primary)))}>
-              {t('common.print')}
-            </Button>
-            <Button data-testid="btn-save-card-pdf" disabled={busy} onClick={() => void pdf()}>
-              {t('common.pdf')}
-            </Button>
-            <Button data-testid="btn-save-card-share" disabled={busy} onClick={() => void share()}>
-              {t('common.share')}
-            </Button>
-          </>
+        {edited && (
+          <p className="mt-1 text-detail text-muted" data-testid="save-card-edited" data-reason={reason ?? undefined}>
+            {editNote}
+          </p>
         )}
-        <Button variant="primary" data-testid="btn-save-card-new" onClick={onNew}>
-          {t('simple.saveCard.new')}
-        </Button>
-        {edited ? (
-          <Button data-testid="btn-save-card-edit" onClick={() => onEdit(primary)}>
-            {t('simple.saveCard.editInstead')}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {printable && (
+            <>
+              <Button data-testid="btn-save-card-print" disabled={busy} onClick={() => void run(async () => void (await api.invoice.pdf(primary)))}>
+                {t('common.print')}
+              </Button>
+              <Button data-testid="btn-save-card-pdf" disabled={busy} onClick={() => void pdf()}>
+                {t('common.pdf')}
+              </Button>
+              <Button data-testid="btn-save-card-share" disabled={busy} onClick={() => void share()}>
+                {t('common.share')}
+              </Button>
+            </>
+          )}
+          <Button variant="primary" data-testid="btn-save-card-new" onClick={onNew}>
+            {t('simple.saveCard.new')}
           </Button>
-        ) : (
-          <Button data-testid="btn-save-card-undo" disabled={busy || !undoable} onClick={() => void undo()}>
-            {busy ? t('simple.saveCard.undoing') : t('simple.saveCard.undo')}
-          </Button>
+          {edited ? (
+            <Button data-testid="btn-save-card-edit" onClick={() => onEdit(primary)}>
+              {t('simple.saveCard.editInstead')}
+            </Button>
+          ) : (
+            <Button data-testid="btn-save-card-undo" disabled={busy || !undoable} onClick={() => void undo()}>
+              {busy ? t('simple.saveCard.undoing') : t('simple.saveCard.undo')}
+            </Button>
+          )}
+        </div>
+        {note && (
+          <p className="mt-2 text-detail text-muted" data-testid="save-card-note">
+            {note}
+          </p>
+        )}
+        {problem && (
+          <div role="alert" className="mt-2 text-detail text-danger" data-testid="save-card-error">
+            <p>{problem.text}</p>
+            <details className="mt-1 text-muted">
+              <summary className="cursor-pointer">{t('common.details')}</summary>
+              <p className="mt-1 font-mono text-small">{problem.details}</p>
+            </details>
+          </div>
         )}
       </div>
-      {note && (
-        <p className="mt-2 text-detail text-muted" data-testid="save-card-note">
-          {note}
-        </p>
-      )}
-      {problem && (
-        <div role="alert" className="mt-2 text-detail text-danger" data-testid="save-card-error">
-          <p>{problem.text}</p>
-          <details className="mt-1 text-muted">
-            <summary className="cursor-pointer">{t('common.details')}</summary>
-            <p className="mt-1 font-mono text-small">{problem.details}</p>
-          </details>
-        </div>
-      )}
     </section>
   )
 }

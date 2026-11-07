@@ -44,7 +44,7 @@ export function PaidNow({
   const fromMemory = how != null && how !== 'cash' && form.accountId == null && setup?.memoryId != null && chosen === setup.defaults[how]
 
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.paidNow')} data-testid="buy-paid-now">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.paidNow')} data-testid="buy-paid-now">
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.buy.paidNow')}</h2>
       <div role="radiogroup" aria-label={t('simple.buy.paidNow')} className="flex flex-wrap gap-2">
         {BUY_PAID_CHOICES.map((value) => (

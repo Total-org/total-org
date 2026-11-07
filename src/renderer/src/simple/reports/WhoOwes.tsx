@@ -77,7 +77,7 @@ export function WhoOwes({ side: initial }: { side?: Side }): React.JSX.Element {
           </div>
         </section>
       )}
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="owed"
           columns={columns}

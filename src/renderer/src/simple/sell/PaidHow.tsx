@@ -47,7 +47,7 @@ export function PaidHow({
   const fromMemory = how != null && how !== 'cash' && form.accountId == null && setup?.memoryId != null && chosen === setup.defaults[how]
 
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.paidHow')} data-testid="sell-paid-how">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.paidHow')} data-testid="sell-paid-how">
       <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.sell.paidHow')}</h2>
       <div role="radiogroup" aria-label={t('simple.sell.paidHow')} className="flex flex-wrap gap-2">
         {paidChoicesFor(walkIn).map(({ value, disabled }) => (

@@ -152,7 +152,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         {t('simple.people.back')}
       </button>
 
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink" data-testid="person-name">{name}</h1>
@@ -250,7 +250,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
       {panel === UPCOMING && p.upcoming && <ReminderPanel person={p} reminder={p.upcoming} startLang={reminderLang} onSent={refresh} />}
       {panel === HOLD && <HoldPanel person={p} onDone={() => { setPanel(null); refresh() }} />}
 
-      <section className="mt-4 rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="mt-4 rounded-xl border border-line bg-panel shadow-elev-1">
         <h2 className="px-panel pt-panel text-subtitle font-semibold text-ink">{t('simple.people.bills.title')}</h2>
         <DataTable
           testId="person-bills"
@@ -280,7 +280,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         />
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="person-contact">
+      <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="person-contact">
         <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.people.contact')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label={t('simple.people.phone')} name={F.phone} error={errors.get(F.phone)}>

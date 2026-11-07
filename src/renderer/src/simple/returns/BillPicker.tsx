@@ -92,7 +92,7 @@ export function BillPicker({ side, onPick }: { side: ReturnSide; onPick: (billId
     [t, sale]
   )
   return (
-    <section className="rounded-lg border border-line bg-panel shadow-elev-1" aria-label={t('simple.returns.whichBill')} data-testid="return-bill-picker">
+    <section className="rounded-xl border border-line bg-panel shadow-elev-1" aria-label={t('simple.returns.whichBill')} data-testid="return-bill-picker">
       <div className="flex flex-wrap items-end justify-between gap-3 p-panel pb-3">
         <div>
           <h2 className="text-subtitle font-semibold text-ink">{t('simple.returns.whichBill')}</h2>

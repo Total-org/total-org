@@ -64,7 +64,7 @@ export function BillsToPay(): React.JSX.Element {
           <Tile label={t('simple.people.toPay.late')} amount={money(data.late)} testId="bills-late" paise={data.late} danger={data.late > 0} />
         </div>
       )}
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-bills-to-pay"
           columns={columns}
@@ -97,7 +97,7 @@ export function BillsToPay(): React.JSX.Element {
 
 function Tile({ label, amount, testId, paise, danger = false, children }: { label: string; amount: string; testId: string; paise: number; danger?: boolean; children?: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid={testId} data-paise={paise}>
+    <div className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid={testId} data-paise={paise}>
       <div className="text-detail text-muted">{label}</div>
       <div className={`num mt-1 text-lead font-semibold ${danger ? 'text-danger' : 'text-ink'}`}>{amount}</div>
       {children && <div className="mt-1">{children}</div>}

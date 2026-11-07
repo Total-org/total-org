@@ -123,7 +123,7 @@ function StockTable({ initialFilter }: { initialFilter?: 'low' }): React.JSX.Ele
           help="stock-and-count" // i18n-technical
         />
       ) : (
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-stock"
           columns={columns}

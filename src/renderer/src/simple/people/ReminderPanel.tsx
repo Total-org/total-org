@@ -98,7 +98,7 @@ export function ReminderPanel({ person, reminder, startLang, onSent }: { person:
   }
 
   return (
-    <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="person-reminder" data-bucket={reminder.bucket} data-tone={tone}>
+    <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="person-reminder" data-bucket={reminder.bucket} data-tone={tone}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-subtitle font-semibold text-ink">{before ? t('simple.people.reminder.titleBefore', { name: person.name }) : t('simple.people.reminder.title', { name: person.name })}</h2>

@@ -119,7 +119,7 @@ function SalesTable(): React.JSX.Element {
           help="make-a-bill" // i18n-technical
         />
       ) : (
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-sales"
           columns={columns}
@@ -174,7 +174,7 @@ function BillView({ billId }: { billId: number }): React.JSX.Element {
       <button type="button" className="mb-3 text-detail t-link" data-testid="btn-bill-back" onClick={() => nav.back()}>
         {t('simple.bill.back')}
       </button>
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.bill.heading', { number: bill.number })}</h1>

@@ -150,7 +150,7 @@ export function LineCard({
 
   return (
     <article
-      className="rounded-lg border border-line bg-panel p-panel shadow-elev-1"
+      className="rounded-xl border border-line bg-panel p-panel shadow-elev-1"
       data-testid="bank-line"
       data-line-id={line.id}
       data-side={line.side}

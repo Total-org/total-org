@@ -103,7 +103,8 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
         { id: 'owesYou', header: t('simple.people.col.owesYou'), kind: 'money', value: (r) => (r.side === 'customer' ? r.open : 0), aggregate: 'sum', explainable: false }, // i18n-technical
         { id: 'youOwe', header: t('simple.people.col.youOwe'), kind: 'money', value: (r) => (r.side === 'supplier' ? r.open : 0), aggregate: 'sum', explainable: false }, // i18n-technical
         {
-          id: 'status', header: t('simple.people.col.status'), kind: 'text', groupable: false, filterable: false, // i18n-technical
+          // UI overhaul (audit UX-13): room for a late chip ("₹2,33,920.00 late · 23 days") without clipping.
+          id: 'status', header: t('simple.people.col.status'), kind: 'text', groupable: false, filterable: false, minWidth: 250, // i18n-technical
           value: (r) => [r.late > 0 ? t('simple.people.chip.late', { amount: money(r.late) }) : '', r.ahead > 0 ? t('simple.people.chip.ahead', { amount: money(r.ahead) }) : '', r.onHold ? t('simple.people.chip.hold') : ''].filter(Boolean).join(', '),
           cell: (r) => (
             <span>
@@ -151,7 +152,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
           {t('simple.people.totals.owesYou', { amount: money(totals.owesYou) })} · {t('simple.people.totals.youOwe', { amount: money(totals.youOwe) })}
         </p>
       )}
-      {!empty && <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      {!empty && <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-people"
           columns={columns}

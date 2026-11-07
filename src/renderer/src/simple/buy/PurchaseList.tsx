@@ -118,7 +118,7 @@ function PurchaseTable(): React.JSX.Element {
           help="record-a-purchase" // i18n-technical
         />
       ) : (
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-purchases"
           columns={columns}
@@ -164,7 +164,7 @@ function PurchaseBillView({ billId }: { billId: number }): React.JSX.Element {
       <button type="button" className="mb-3 text-detail t-link" data-testid="btn-purchase-back" onClick={() => nav.back()}>
         {t('simple.purchase.back')}
       </button>
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">

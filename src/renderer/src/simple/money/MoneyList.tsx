@@ -130,7 +130,7 @@ function MoneyTable(): React.JSX.Element {
           help="money-in-out" // i18n-technical
         />
       ) : (
-      <section className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-money"
           columns={columns}
@@ -178,7 +178,7 @@ function EntryView({ entryId }: { entryId: number }): React.JSX.Element {
   return (
     <Page data-testid="simple-money-entry" data-entry={e.voucherId}>
       {back}
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">

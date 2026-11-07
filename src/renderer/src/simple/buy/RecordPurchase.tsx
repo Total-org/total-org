@@ -389,7 +389,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
       ) : (
         <div className="flex flex-col gap-4">
           {/* Whose bill is it? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.who')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.who')}>
             <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.buy.who')}</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr_1fr]">
               <Field label={t('simple.buy.supplier')} name="party" error={errors.get(F.party)}>
@@ -420,7 +420,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
           </section>
 
           {/* What did you buy? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.whatBought')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.buy.whatBought')}>
             <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.buy.whatBought')}</h2>
             <div role="radiogroup" aria-label={t('simple.buy.whatBought')} className="mb-4 flex flex-wrap gap-2">
               {modes.map((m) => (
