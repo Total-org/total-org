@@ -245,15 +245,18 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
       </header>}
 
       <div className="flex min-h-0 flex-1">
-        {simple ? <SimpleSidebar /> : <nav aria-label="Main" className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-line bg-sidebar p-2">
+        {simple ? <SimpleSidebar /> : <nav aria-label="Main" className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-sidebar p-2">
           <div className="mb-2 flex items-center gap-2 px-2 py-2">
             <TotalLogo size={28} />
             <span className="font-serif text-brand font-semibold tracking-tight">Total</span>
           </div>
           {topSection && renderSection(topSection)}
           {/* UX-11: the top block (Gateway … Masters) stays put; the sections scroll beneath it. The
-              accountantSidebar test reads through this wrapper, so the pinned shape is unchanged. */}
-          <div data-nav-scroll="" className="-mx-2 mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto border-t border-line px-2 pt-1">
+              accountantSidebar test reads through this wrapper, so the pinned shape is unchanged.
+              min-h-24 + the nav's own overflow: at a high zoom the nav itself scrolls once this area
+              hits its floor, so the foot (Back up now, Switch company) is always reachable;
+              scroll-py / pb keep a focus ring at the edge from being clipped. */}
+          <div data-nav-scroll="" className="-mx-2 mt-1 flex min-h-24 flex-1 scroll-py-1.5 flex-col gap-0.5 overflow-y-auto border-t border-line px-2 pt-1 pb-1">
             {scrollSections.map(renderSection)}
             <div className="flex-1" />
           </div>

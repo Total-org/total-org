@@ -86,6 +86,10 @@ describe('accountant sidebar (unchanged from 0.10)', () => {
     await renderShell()
     expect(sidebarShape()).toMatchSnapshot()
     expect(headerShape()).toMatchSnapshot()
+    // UX-11: the top block is pinned OUTSIDE the scrolling sections; GST scrolls with them.
+    const scroller = document.querySelector('[data-nav-scroll]')!
+    expect(scroller.contains(document.getElementById('nav-list-top'))).toBe(false)
+    expect(scroller.contains(document.getElementById('nav-list-gst'))).toBe(true)
   })
 
   it('every feature on', async () => {
