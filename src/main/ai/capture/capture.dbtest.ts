@@ -456,6 +456,25 @@ describe('review fixes', () => {
     expect(oddNotes.some((a) => a.startsWith('Line 1: the HSN / SAC “94-01” printed on the bill is not a 4, 6 or 8 digit code'))).toBe(true)
   })
 
+  it('Phase 2c: a redraft (answering a question) carries the HSN note when given the list — capture:resolve loads it first', async () => {
+    const labour = ledger('Packing Charges', 'Direct Expenses')
+    const bill = [
+      'TAX INVOICE', 'Bharat Steel Suppliers', 'x', 'GSTIN: 27AABCG3456H1ZN', 'Invoice No: BSS/SRV/91    Date: 16/08/2025',
+      'Sl  Description            HSN    Qty   Rate       Amount', '1   Packing work           999999   1     1,000.00   1,000.00', 'CGST 9% 90.00', 'SGST 9% 90.00', 'Total Rs. 1,180.00'
+    ]
+    const { item: it } = await add('hsn-redraft.pdf', pdf(bill))
+    await run([it!.id])
+    patchItem(db, it!.id, { mapping: { accountLedgerId: labour } }, true)
+    const index = await loadHsnIndex()
+    const done = redraft(env, it!.id, 'Arun', index)
+    expect(done.error).toBeNull()
+    expect(done.status).toBe('drafted')
+    expect(aiStore.getDraft(db, done.draftId!)!.payload.assumptions).toContain("Line 1: HSN / SAC 999999 is not in the GST portal's HSN / SAC list (April 2026) — check the bill")
+    // Without the list (not loaded in this session yet) the note is simply left out — never a refusal.
+    const ipcSrc = readFileSync(join(__dirname, 'ipc.ts'), 'utf8')
+    expect(ipcSrc).toMatch(/capture:resolve', async[\s\S]*?await loadHsnIndex\(\)[\s\S]*?redraft\(env\(\), id, null, hsnIndex\)/)
+  })
+
   it('a ledger-line bill with a credited round-off has no false GST mismatch; a negative line is asked about up front', async () => {
     const labour = ledger('Labour Charges', 'Direct Expenses')
     const bill = [

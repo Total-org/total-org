@@ -71,22 +71,6 @@ export function cleanHsn(raw: string): string | null {
   return /^\d+$/.test(s) ? s : null
 }
 
-export function lookupHsn(index: HsnIndex, raw: string): HsnEntry | null {
-  const code = cleanHsn(raw)
-  return code ? index.byCode.get(code) ?? null : null
-}
-
-/** The nearest heading / chapter the list has for a code (the code itself first). */
-export function hsnParent(index: HsnIndex, raw: string): HsnEntry | null {
-  const code = cleanHsn(raw)
-  if (!code) return null
-  for (let n = code.length; n >= 2; n--) {
-    const e = index.byCode.get(code.slice(0, n))
-    if (e) return e
-  }
-  return null
-}
-
 /**
  * Search by code or words. Digits (spaces allowed) match codes by PREFIX; other words must each
  * start a word of the description (any order, case-insensitive). Both together narrow both ways

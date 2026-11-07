@@ -1,12 +1,14 @@
 // Phase 2c: the HSN / SAC field — a text box that searches the GST portal's own list (code prefix
-// or description words, shared/gst/hsn.ts) and says what the typed code is. It never fills in or
-// suggests a GST rate (the list has none) and only ever writes the code the user typed or picked.
-// Used by the item master, the quick item form and simple mode's new-product dialog. The words it
-// prints come in through `labels` (English by default — accountant screens; simple callers pass
-// t() words, simple/hsnLabels.ts).
-import { useId, useMemo, useRef, useState } from 'react'
+// or description words, shared/gst/hsn.ts). `useHsnStatus` + `HsnStatusLines` say what the typed
+// code is; the caller puts them in its Field's hint, so they describe the box (aria-describedby)
+// without becoming part of its name. It never fills in or suggests a GST rate (the list has none)
+// and only ever writes the code the user typed or picked. Used by the item master and simple
+// mode's new-product dialog. The words it prints come in through `labels` (English by default —
+// accountant screens; simple callers pass t() words, simple/hsnLabels.ts).
+import { useEffect, useId, useMemo, useState } from 'react'
 import { checkHsn, hsnDescription, searchHsn, type HsnCheck, type HsnEntry } from '@shared/gst/hsn'
 import { useFieldAria } from './kit/Field'
+import { registerEscapeLayer } from './kit/layers'
 import { inputCls } from './ui'
 import { useHsnIndex } from '../lib/hsnMaster'
 
@@ -32,7 +34,7 @@ export const ENGLISH_HSN_LABELS: HsnLabels = {
 
 const MAX_OPTIONS = 8
 
-/** What to say under the field about the value as typed (null = nothing). */
+/** What to say about the value as typed (none for a malformed value — that is the field's error). */
 export function hsnStatusLines(check: HsnCheck, labels: HsnLabels): string[] {
   if (!check.code || check.problem) return []
   const out: string[] = []
@@ -42,6 +44,26 @@ export function hsnStatusLines(check: HsnCheck, labels: HsnLabels): string[] {
   if (check.notes.includes('eight_digits')) out.push(labels.eightDigits)
   if (check.entry) out.push(labels.rateNote)
   return out
+}
+
+/** The lines to show under an HSN field for its current value (the list is loaded on demand). */
+export function useHsnStatus(value: string, labels: HsnLabels = ENGLISH_HSN_LABELS): string[] {
+  const index = useHsnIndex()
+  return useMemo(() => (value.trim() ? hsnStatusLines(checkHsn(value, index), labels) : []), [value, index, labels])
+}
+
+/** The status lines, for a Field's `hint`. */
+export function HsnStatusLines({ lines, testId }: { lines: string[]; testId?: string }): React.JSX.Element | null {
+  if (lines.length === 0) return null
+  return (
+    <span className="block" data-testid={testId}>
+      {lines.map((line, i) => (
+        <span key={i} className="block">
+          {line}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 export function HsnInput({
@@ -61,18 +83,17 @@ export function HsnInput({
 }): React.JSX.Element {
   const index = useHsnIndex()
   const listId = useId()
-  const statusId = useId()
   const fieldAria = useFieldAria()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const query = value.trim()
   const options: HsnEntry[] = useMemo(() => (index && query ? searchHsn(index, query, MAX_OPTIONS) : []), [index, query])
   const exact = options.length === 1 && options[0]!.code === query.replace(/[\s.]/g, '')
   const showList = open && !!query && !exact
-  const check = useMemo(() => checkHsn(value, index), [value, index])
-  const status = query ? hsnStatusLines(check, labels) : []
+  // While the list shows it is an Esc layer: a dialog's capture-phase Esc handler lets that Esc
+  // through to close the list instead of the whole dialog (and the answers in it).
+  useEffect(() => (showList ? registerEscapeLayer() : undefined), [showList])
 
   const pick = (e: HsnEntry | undefined): void => {
     if (!e) return
@@ -81,22 +102,19 @@ export function HsnInput({
     setActive(-1)
   }
 
-  const describedBy = [fieldAria['aria-describedby'], status.length ? statusId : null].filter(Boolean).join(' ') || undefined
-
   return (
     <div className="relative">
       <input
-        ref={inputRef}
         className={`${inputCls} num`}
         data-testid={testId}
         value={value}
         placeholder={placeholder}
         role="combobox"
         aria-label={ariaLabel}
-        aria-describedby={describedBy}
+        aria-describedby={fieldAria['aria-describedby']}
         aria-invalid={fieldAria['aria-invalid']}
         aria-autocomplete="list"
-        aria-expanded={showList && options.length > 0}
+        aria-expanded={showList}
         aria-controls={listId}
         aria-activedescendant={showList && active >= 0 && options[active] ? `${listId}-${options[active]!.code}` : undefined}
         autoComplete="off"
@@ -111,25 +129,24 @@ export function HsnInput({
         onKeyDown={(e) => {
           // ⌘↵ is the form's save; plain Enter picks only a row the arrows reached (never what
           // happens to be first — the typed text stays as typed).
-          if (e.metaKey || e.ctrlKey || !showList || options.length === 0) {
-            if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey && query) setOpen(true)
+          if (e.metaKey || e.ctrlKey) return
+          if (!showList) {
+            if (e.key === 'ArrowDown' && query) setOpen(true)
             return
           }
-          if (e.key === 'ArrowDown') {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            setOpen(false)
+            setActive(-1)
+          } else if (e.key === 'ArrowDown' && options.length) {
             e.preventDefault()
             setActive((a) => Math.min(options.length - 1, a + 1))
-          } else if (e.key === 'ArrowUp') {
+          } else if (e.key === 'ArrowUp' && options.length) {
             e.preventDefault()
             setActive((a) => Math.max(-1, a - 1))
           } else if (e.key === 'Enter' && active >= 0) {
             e.preventDefault()
             pick(options[active])
-          } else if (e.key === 'Escape') {
-            // The open list takes this Esc; the dialog / panel keeps the next one.
-            e.preventDefault()
-            e.stopPropagation()
-            setOpen(false)
-            setActive(-1)
           }
         }}
       />
@@ -163,15 +180,6 @@ export function HsnInput({
             ))
           )}
         </div>
-      )}
-      {status.length > 0 && (
-        <span id={statusId} className="mt-1 block text-hint text-muted" data-testid={testId ? `${testId}-status` : undefined}>
-          {status.map((line, i) => (
-            <span key={i} className="block">
-              {line}
-            </span>
-          ))}
-        </span>
       )}
     </div>
   )

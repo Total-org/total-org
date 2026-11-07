@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { HSN_SIX_DIGITS_ABOVE_TURNOVER_PAISE } from '@shared/gst/hsn'
 import type { Translate } from '@shared/i18n'
-import { formatPaise } from '@shared/money'
+import { formatPaiseCompact } from '@shared/money'
 import type { HsnLabels } from '../components/HsnInput'
 import { useT } from '../lib/i18n'
 
@@ -14,7 +14,7 @@ export function simpleHsnLabels(t: Translate): HsnLabels {
     noMatch: (query) => t('simple.hsn.noMatch', { query }),
     rateNote: t('simple.hsn.rateNote'),
     notInList: (code) => t('simple.hsn.notInList', { code }),
-    fourDigits: t('simple.hsn.fourDigits', { limit: formatPaise(HSN_SIX_DIGITS_ABOVE_TURNOVER_PAISE, { symbol: true }) }),
+    fourDigits: t('simple.hsn.fourDigits', { limit: formatPaiseCompact(HSN_SIX_DIGITS_ABOVE_TURNOVER_PAISE) }),
     eightDigits: t('simple.hsn.eightDigits')
   }
 }

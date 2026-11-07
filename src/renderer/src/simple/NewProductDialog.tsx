@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { slabsOn } from '@shared/gst/rateTable'
 import { checkHsn, cleanHsn } from '@shared/gst/hsn'
-import { HsnInput } from '../components/HsnInput'
+import { HsnInput, HsnStatusLines, useHsnStatus } from '../components/HsnInput'
 import { useSimpleHsnLabels } from './hsnLabels'
 import { nearDuplicates } from '@shared/simple/nearDuplicate'
 import { api } from '../lib/client'
@@ -64,6 +64,7 @@ export function NewProductDialog({
   // WP 9.2: with stock off a product is a name and a price — the unit is not asked (the preset's).
   const stockOn = useFeatures().inventory !== false
   const [hsn, setHsn] = useState('')
+  const hsnStatus = useHsnStatus(hsn, hsnLabels)
   const [saving, setSaving] = useState(false)
   const [asked, setAsked] = useState(false)
   const [confirmed, setConfirmed] = useState<string | null>(null)
@@ -265,7 +266,15 @@ export function NewProductDialog({
         )}
 
         {itemShowsHsn(regType) && (
-          <Field label={showGst ? t('simple.newProduct.hsnRegular') : t('simple.newProduct.hsn')} hint={t('simple.newProduct.hsnHint')} name={F.hsn} error={errors.get(F.hsn)}>
+          <Field label={showGst ? t('simple.newProduct.hsnRegular') : t('simple.newProduct.hsn')} hint={
+              <>
+                {t('simple.newProduct.hsnHint')}
+                <HsnStatusLines lines={hsnStatus} testId="input-product-hsn-status" />
+              </>
+            }
+            name={F.hsn}
+            error={errors.get(F.hsn)}
+          >
             <HsnInput value={hsn} onChange={setHsn} testId="input-product-hsn" labels={hsnLabels} />
           </Field>
         )}

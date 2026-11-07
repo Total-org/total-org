@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkHsn, cleanHsn, createHsnIndex, EIGHT_DIGIT_HSN_N90_2020, hsnDescription, hsnParent, lookupHsn, searchHsn } from './hsn'
+import { checkHsn, cleanHsn, createHsnIndex, EIGHT_DIGIT_HSN_N90_2020, hsnDescription, searchHsn, type HsnIndex } from './hsn'
+
+const lookupHsn = (index: HsnIndex, code: string) => index.byCode.get(code) ?? null
 import type { HsnMasterData } from './hsnMaster/normalise'
 
 const small = createHsnIndex({
@@ -66,11 +68,11 @@ describe('HSN lookup and checks', () => {
     expect(cleanHsn('8471.30')).toBe('847130')
     expect(cleanHsn('rice')).toBeNull()
   })
-  it('lookup and nearest parent', () => {
+  it('lookup by code; the check carries the entry', () => {
     expect(lookupHsn(small, '100610')?.kind).toBe('goods')
     expect(lookupHsn(small, '998311')?.kind).toBe('services')
     expect(lookupHsn(small, '10069999')).toBeNull()
-    expect(hsnParent(small, '10069999')?.code).toBe('1006')
+    expect(checkHsn('1006 10', small).entry?.code).toBe('100610')
   })
   it('structure: digits only; 4, 6 or 8 of them (the old validateHsn rule)', () => {
     expect(checkHsn('rice').problem).toBe('digits')

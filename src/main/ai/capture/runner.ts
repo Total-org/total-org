@@ -22,6 +22,7 @@ import { prepareDocument, type ImageConverter } from './prepare'
 import { extractBill } from './extract'
 import { draftFromBill, type BillDraftOutcome } from './billDraft'
 import { loadHsnIndex, loadedHsnIndex } from '../../hsnMaster'
+import type { HsnIndex } from '@shared/gst/hsn'
 import { getItem, nextPending, patchItem, type CaptureItemRow } from './store'
 
 export interface CaptureEnv {
@@ -65,7 +66,7 @@ export function applyOutcome(db: DB, id: number, o: BillDraftOutcome, extra: { c
 }
 
 /** Re-run bill → draft on the stored extraction (after the user answered the questions). */
-export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: number, user: string | null): CaptureItemRow {
+export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: number, user: string | null, hsnIndex: HsnIndex | null = loadedHsnIndex()): CaptureItemRow {
   const it = getItem(env.db, id)
   if (!it) throw new Error('Capture item not found')
   if (!it.extractionJson) throw new Error('This file has not been read yet')
@@ -77,7 +78,7 @@ export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: n
       const parsed = parseExtraction(extraction, env.today())
       if (it.review?.parsed.gstinCandidates) parsed.gstinCandidates = it.review.parsed.gstinCandidates
       const outcome = draftFromBill({
-        db: env.db, company: env.company, item: { id, fileName: it.fileName }, parsed, mode: it.review?.mode ?? 'text', mapping: it.mapping ?? {}, today: env.today(), hsnIndex: loadedHsnIndex()
+        db: env.db, company: env.company, item: { id, fileName: it.fileName }, parsed, mode: it.review?.mode ?? 'text', mapping: it.mapping ?? {}, today: env.today(), hsnIndex
       })
       return applyOutcome(env.db, id, outcome)
     })()

@@ -10,7 +10,7 @@ import { bannedWordsIn } from '@shared/simple/bannedWords'
 import { useSession } from '../state/stores'
 import { ItemFormModal } from '../screens/Masters'
 import { NewProductDialog } from '../simple/NewProductDialog'
-import { HsnInput } from '../components/HsnInput'
+import { HsnStatusLines, useHsnStatus } from '../components/HsnInput'
 import { simpleHsnLabels } from '../simple/hsnLabels'
 import { loadHsnIndex } from '../lib/hsnMaster'
 
@@ -33,6 +33,8 @@ beforeEach(async () => {
     switch (channel) {
       case 'master:units:list': return { ok: true, data: UNITS }
       case 'master:stockItems:list': return { ok: true, data: [] }
+      case 'master:stockItems:create': return { ok: true, data: { id: 78, ...(payload as object) } }
+      case 'master:stockItems:update': return { ok: true, data: { id: 5 } }
       case 'master:stockItems:quickCreate': {
         const p = payload as { item: { name: string } }
         return { ok: true, data: { item: { id: 77, name: p.item.name }, priceLevelId: 1 } }
@@ -90,18 +92,77 @@ describe('accountant: the item master HSN field', () => {
 
     fireEvent.change(input, { target: { value: '2931' } })
     await waitFor(() => expect(screen.getByTestId('input-item-hsn-status').textContent).toContain('Notification 90/2020-CT'))
-    // The old structural rule still shows as the field's error.
+    // The structural rule shows as the field's error only once Save is tried (words search freely).
+    fireEvent.change(input, { target: { value: 'rice' } })
+    expect(screen.queryByText('HSN must be digits only')).toBeNull()
+    expect(input.getAttribute('aria-invalid')).toBeNull()
     fireEvent.change(input, { target: { value: '10061' } })
+    expect(screen.queryByText('HSN must be 4, 6 or 8 digits')).toBeNull()
+    fireEvent.click(screen.getByTestId('btn-item-save'))
     expect(await screen.findByText('HSN must be 4, 6 or 8 digits')).toBeTruthy()
+    expect(calls('master:stockItems:create')).toEqual([])
   })
 
-  it('Esc closes the open list first', async () => {
-    renderUi(<HsnInput value="rice" onChange={() => {}} testId="h" />)
-    const input = screen.getByTestId('h')
+  it('the status describes the box but is never part of its name', async () => {
+    renderUi(<ItemFormModal item={null} onClose={() => {}} />)
+    const input = (await screen.findByTestId('input-item-hsn')) as HTMLInputElement
+    fireEvent.change(input, { target: { value: '1006' } })
+    await waitFor(() => expect(screen.getByTestId('input-item-hsn-status').textContent).toContain('RICE'))
+    expect(screen.getByRole('combobox', { name: 'HSN' })).toBe(input)
+    const describedBy = (input.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent ?? '')
+    expect(describedBy.join(' ')).toContain('check the rate with your CA')
+  })
+
+  it('a code typed with a space is saved cleaned; an unchanged stored HSN is saved as stored', async () => {
+    renderUi(<ItemFormModal item={null} onClose={() => {}} />)
+    await screen.findByText('Pieces (Pcs)')
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Rice 1kg' } })
+    fireEvent.change(screen.getByTestId('input-item-hsn'), { target: { value: '1006 30' } })
+    fireEvent.change(screen.getByTestId('input-item-gst-rate'), { target: { value: '5' } })
+    fireEvent.click(screen.getByTestId('btn-item-save'))
+    await waitFor(() => expect(calls('master:stockItems:create').length).toBe(1))
+    expect(calls('master:stockItems:create')[0]).toMatchObject({ hsn: '100630' })
+    cleanup()
+
+    // A stored HSN the old rule would refuse (e.g. from an import) is neither re-checked nor rewritten.
+    const stored = { id: 5, name: 'Old', groupId: null, unitId: 4, hsn: '1006 30', gstRate: 5, cessRate: null, openingQtyMilli: 0, openingValue: 0, barcode: null, reorderLevelMilli: null } as never
+    renderUi(<ItemFormModal item={stored} onClose={() => {}} />)
+    await screen.findByText('Pieces (Pcs)')
+    fireEvent.click(screen.getByTestId('btn-item-save'))
+    await waitFor(() => expect(calls('master:stockItems:update').length).toBe(1))
+    expect(calls('master:stockItems:update')[0]).toMatchObject({ data: { hsn: '1006 30' } })
+  })
+})
+
+describe('Esc closes the open list, never the dialog around it', () => {
+  it('item master (accountant)', async () => {
+    const onClose = vi.fn()
+    renderUi(<ItemFormModal item={null} onClose={onClose} />)
+    const input = await screen.findByTestId('input-item-hsn')
     fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'rice' } })
     await waitFor(() => expect(options().length).toBeGreaterThan(0))
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    // The next Esc is the dialog's again.
+    fireEvent.keyDown(input, { key: 'Escape' })
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('new product (simple)', async () => {
+    act(() => useSession.setState({ ui: { mode: 'simple' } }))
+    const onClose = vi.fn()
+    renderUi(<NewProductDialog name="Basmati" onClose={onClose} onCreated={() => {}} />)
+    await screen.findByText('Pcs')
+    const input = screen.getByTestId('input-product-hsn')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'rice' } })
+    await waitFor(() => expect(options().length).toBeGreaterThan(0))
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('dialog-new-product')).toBeTruthy()
   })
 })
 
@@ -150,11 +211,11 @@ describe('simple: the new-product dialog', () => {
 
 describe('simple words in every language', () => {
   for (const lang of ['en', 'hi', 'hinglish'] as const) {
-    it(`${lang}: every label is translated, carries the ₹5 crore limit from money.ts, and is banned-word clean`, () => {
+    it(`${lang}: every label is translated, carries the ₹5 crore limit (money.ts compact), and is banned-word clean`, () => {
       const l = simpleHsnLabels(translator(lang))
       const words = [l.loading, l.list, l.noMatch('chawal'), l.rateNote, l.notInList('10069999'), l.fourDigits, l.eightDigits]
       for (const w of words) expect(w.trim().length).toBeGreaterThan(0)
-      expect(l.fourDigits).toContain('₹5,00,00,000.00')
+      expect(l.fourDigits).toContain('₹5Cr')
       expect(l.notInList('10069999')).toContain('10069999')
       expect(l.noMatch('chawal')).toContain('chawal')
       if (lang === 'hi') expect(l.rateNote).toMatch(/[ऀ-ॿ]/)
@@ -163,8 +224,9 @@ describe('simple words in every language', () => {
     })
   }
 
-  it('the field shows the simple words it is given', async () => {
-    renderUi(<HsnInput value="1006" onChange={() => {}} testId="h" labels={simpleHsnLabels(translator('hinglish'))} />)
+  it('the status speaks the simple words it is given', async () => {
+    const Probe = (): React.JSX.Element => <HsnStatusLines lines={useHsnStatus('1006', simpleHsnLabels(translator('hinglish')))} testId="h-status" />
+    renderUi(<Probe />)
     expect((await screen.findByTestId('h-status')).textContent).toContain('Total kisi code ka GST rate nahi jaanta')
   })
 })
