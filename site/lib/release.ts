@@ -22,14 +22,21 @@ type FetchImpl = (url: string, init: FetchInit) => Promise<Response>
 /** Statuses GitHub gives a token it won't honour for this repo (bad / expired / wrong scope). */
 const TOKEN_REFUSED = new Set([401, 403, 404])
 
+/** Tokens GitHub refused once — not sent again for the life of this instance (no failing login per request). */
+const refusedTokens = new Set<string>()
+
 /**
  * GET from the GitHub API with the token when there is one; when GitHub refuses that token
  * (401 / 403 / 404), ask again without it — the repo and its releases are public.
  */
 export async function githubFetch(url: string, init: FetchInit = {}, accept?: string, token: string | undefined = TOKEN, fetchImpl: FetchImpl = fetch): Promise<Response> {
-  const res = await fetchImpl(url, { ...init, headers: githubHeaders(accept, token) })
-  if (!token || !TOKEN_REFUSED.has(res.status)) return res
-  return fetchImpl(url, { ...init, headers: githubHeaders(accept, undefined) })
+  const useToken = token && !refusedTokens.has(token) ? token : undefined
+  const res = await fetchImpl(url, { ...init, headers: githubHeaders(accept, useToken) })
+  if (!useToken || !TOKEN_REFUSED.has(res.status)) return res
+  const retry = await fetchImpl(url, { ...init, headers: githubHeaders(accept, undefined) })
+  // Only a token that was refused while the public lookup worked is remembered (a real 404 isn't the token's fault).
+  if (retry.ok || (retry.status >= 300 && retry.status < 400)) refusedTokens.add(useToken)
+  return retry
 }
 
 export type Platform = 'mac' | 'win'
