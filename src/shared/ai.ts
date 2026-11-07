@@ -257,6 +257,10 @@ export interface AiVoucherDraftPayload {
   /** The document total the tool computed (paise) — invoice total, payment amount, order value,
    *  goods value of a challan, production cost of a manufacture. */
   total?: number
+  /** Phase 3b: the name of the `new` bill ref that is an ADVANCE (the excess over the bills),
+   *  named after the voucher number of the draft's day — the approval queue renames only this one
+   *  to the number the save takes (a supplier's invoice number on a `new` ref is never touched). */
+  advanceRef?: string
   /** Bill allocations the tool resolved (payments / receipts / notes). */
   billRefs?: { kind: 'new' | 'against'; name: string; amount: number; dueDate: string | null }[]
   sources?: AiDraftSourceRef[]

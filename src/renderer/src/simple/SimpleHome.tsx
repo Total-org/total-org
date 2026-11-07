@@ -10,6 +10,7 @@ import { useNav } from '../state/stores'
 import { Page } from '../components/ui'
 import { Button, SkeletonTiles, Why } from '../components/kit'
 import { OpeningsHomeCard } from './OpeningsHomeCard'
+import { ApprovalsHomeCard } from './queue/ApprovalsHomeCard'
 import { useCanWrite, ViewerBackupNote } from './ViewerNote'
 import { HomeTour } from './help/Tour'
 import { PlainIcon } from './icons'
@@ -186,6 +187,7 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
       )}
 
       <OpeningsHomeCard owed={{ receivables: home.receivables.total, payables: home.payables.total }} />
+      <ApprovalsHomeCard />
 
       {empty && <EmptyHome checklist={checklist} />}
 

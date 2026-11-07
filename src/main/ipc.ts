@@ -129,6 +129,7 @@ import { settleAskDraft } from './assist/settle'
 import { aiMockAllowed } from './ai/env'
 import { settleDraftOnSave } from './ai/drafts'
 import * as aiStore from './ai/store'
+import { approvalPayload, openOfferFor } from './ai/queue'
 import { appSecretStore } from './services/secretStore'
 import type { AiEvent } from '@shared/ai'
 import { registerReceivablesIpc } from './ipcReceivables'
@@ -815,8 +816,8 @@ export function registerIpc(): void {
     const q = z.object({ voucherId: z.number().int().positive().optional(), ledgerId: z.number().int().positive().optional() }).strict().parse(payload)
     return simpleHandoff.handoffFacts(requireCompany().db, q)
   }, 'viewer')
-  handle('simple:post', (payload) => {
-    const { intent, today, aiDraftId } = simplePostPayload.parse(payload)
+  // simple:post's post (also Phase 3b's approval queue for an Ask Total offer).
+  const postSimpleIntent = (intent: z.infer<typeof simpleIntentSchema>, today: string | undefined, aiDraftId: number | undefined): ReturnType<typeof simplePost.postIntent> => {
     const c = requireCompany()
     const out = c.db.transaction(() => {
       const r = simplePost.postIntent(c.db, c.info, intent, today ?? todayISO())
@@ -825,6 +826,10 @@ export function registerIpc(): void {
     })()
     if (!out.replayed && configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
     return out
+  }
+  handle('simple:post', (payload) => {
+    const { intent, today, aiDraftId } = simplePostPayload.parse(payload)
+    return postSimpleIntent(intent, today, aiDraftId)
   })
 
   // WP 9.4: the simple Money screens' reads (services/simpleMoney.ts) — the forms' customers,
@@ -1967,15 +1972,14 @@ export function registerIpc(): void {
     return vouchers.listVouchers(requireCompany().db, from, to, voucherTypeId)
   }, 'viewer')
   handle('voucher:get', (p) => vouchers.getVoucher(requireCompany().db, idSchema.parse(p).id), 'viewer')
-  handle('voucher:save', (p) => {
-    const { data, id, aiDraftId, creditHoldOverride } = z
-      .object({
-        data: voucherInputSchema,
-        id: z.number().int().positive().optional(),
-        aiDraftId: z.number().int().positive().optional(),
-        creditHoldOverride: creditOverrideSchema.optional()
-      })
-      .parse(p)
+  // The voucher save a person makes (editors, and Phase 3b's approval queue): `build` runs inside
+  // the save's transaction when a draft is settled (the queue builds the draft's payload there, so
+  // a GST ledger the editor would create on first use is rolled back with a refused save).
+  const saveVoucherRequest = (
+    build: () => z.infer<typeof voucherInputSchema>,
+    opts: { id?: number; aiDraftId?: number; creditHoldOverride?: z.infer<typeof creditOverrideSchema> }
+  ): ReturnType<typeof vouchers.saveVoucher> => {
+    const { id, aiDraftId, creditHoldOverride } = opts
     const c = requireCompany()
     // WP 4.2: only an owner may override a credit hold (any user in a company without users).
     if (creditHoldOverride && c.usersExist && sessionUser?.role !== 'owner') throw new Error('Only an owner can override a credit hold')
@@ -1987,7 +1991,7 @@ export function registerIpc(): void {
     if (aiDraftId) {
       try {
         saved = c.db.transaction(() => {
-          const v = vouchers.saveVoucher(c.db, data, id, saveOpts)
+          const v = vouchers.saveVoucher(c.db, build(), id, saveOpts)
           settleDraftOnSave(c.db, aiDraftId, v.id, 'voucher', { companyDir: companyDir(c.slug) })
           return v
         })()
@@ -1997,7 +2001,7 @@ export function registerIpc(): void {
       }
       // WP 5.4: a captured bill's file is attached only once the save has committed.
       flushCaptureAttachments()
-    } else saved = vouchers.saveVoucher(c.db, data, id, saveOpts)
+    } else saved = vouchers.saveVoucher(c.db, build(), id, saveOpts)
     // WP 2.6 "remember last price" (Options toggle; a no-op unless on and this is a sale). Never
     // fails the save it follows.
     try {
@@ -2008,6 +2012,36 @@ export function registerIpc(): void {
     // Agent mirror stays fresh while the flag is on — debounced so entry bursts export once.
     if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
     return saved
+  }
+  handle('voucher:save', (p) => {
+    const { data, id, aiDraftId, creditHoldOverride } = z
+      .object({
+        data: voucherInputSchema,
+        id: z.number().int().positive().optional(),
+        aiDraftId: z.number().int().positive().optional(),
+        creditHoldOverride: creditOverrideSchema.optional()
+      })
+      .parse(p)
+    return saveVoucherRequest(() => data, { id, aiDraftId, creditHoldOverride })
+  })
+  // Phase 3b: approve one proposal of the approval queue (main/ai/queue.ts). A draft with an
+  // editor form saves through voucher:save's own save above (the payload built by the editor's
+  // shared mapping, the draft consumed in the same transaction); an Ask Total offer posts through
+  // simple:post's postIntent (below). A memory suggestion is approved through ai:memory:setStatus
+  // (no posting right needed). Nothing else is written.
+  handle('ai:queue:approve', (p) => {
+    const { key, today } = z.object({ key: z.string().regex(/^draft:[1-9]\d*$/), today: isoDate.optional() }).strict().parse(p)
+    const id = Number(key.slice('draft:'.length))
+    const c = requireCompany()
+    const draft = aiStore.getDraft(c.db, id)
+    if (draft?.payload.simple) {
+      openOfferFor(c.db, c.info, id, today ?? todayISO())
+      const intent = simpleIntentSchema.parse({ ...(draft.payload.simple.intent as object), clientId: `queue-draft-${id}` })
+      const r = postSimpleIntent(intent, today, id)
+      return { key, voucherIds: r.voucherIds }
+    }
+    const saved = saveVoucherRequest(() => approvalPayload(c.db, c.info, id, today ?? todayISO()), { aiDraftId: id })
+    return { key, voucherIds: [saved.id] }
   })
   handle('voucher:delete', (p) => vouchers.deleteVoucher(requireCompany().db, idSchema.parse(p).id))
   handle('voucher:bin', () => vouchers.listBin(requireCompany().db), 'viewer')

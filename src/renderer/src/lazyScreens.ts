@@ -141,6 +141,10 @@ export const TradeReturnsScreen = lazyScreen(load_screens_TradeReturns, 'TradeRe
 const load_screens_TradeUnbilled = () => import('./screens/TradeUnbilled')
 export const StaleDocumentsScreen = lazyScreen(load_screens_TradeUnbilled, 'StaleDocumentsScreen')
 export const UnbilledGoodsScreen = lazyScreen(load_screens_TradeUnbilled, 'UnbilledGoodsScreen')
+const load_simple_queue_ApprovalQueue = () => import('./simple/queue/ApprovalQueue')
+export const SimpleApprovalQueue = lazyScreen(load_simple_queue_ApprovalQueue, 'ApprovalQueue')
+const load_screens_ApprovalQueue = () => import('./screens/ApprovalQueue')
+export const ApprovalQueueScreen = lazyScreen(load_screens_ApprovalQueue, 'ApprovalQueueScreen')
 const load_screens_Capture = () => import('./screens/Capture')
 export const CaptureScreen = lazyScreen(load_screens_Capture, 'CaptureScreen')
 const load_screens_Banking = () => import('./screens/Banking')
@@ -195,6 +199,7 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'simple-return-sale': [ReturnSale],
   'simple-return-purchase': [ReturnPurchase],
   'simple-bank': [BankScreen],
+  'simple-approvals': [SimpleApprovalQueue],
   'simple-buy': [RecordPurchase],
   'simple-purchases': [PurchaseList],
   'simple-people': [PeopleList],
@@ -255,6 +260,7 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'stale-documents': [StaleDocumentsScreen],
   'banking': [BankingScreen],
   'capture': [CaptureScreen],
+  'ai-queue': [ApprovalQueueScreen],
   'payroll': [PayrollScreen],
   'tds': [TdsScreen],
   'tcs': [TcsScreen],
@@ -287,6 +293,7 @@ export const SIMPLE_VIEW_CHUNKS: Readonly<Record<string, LazyComponent<never>>> 
   'returns/ReturnSale': ReturnSale,
   'returns/ReturnPurchase': ReturnPurchase,
   'bank/BankScreen': BankScreen,
+  'queue/ApprovalQueue': SimpleApprovalQueue,
   'buy/RecordPurchase': RecordPurchase,
   'buy/PurchaseList': PurchaseList,
   'people/PeopleList': PeopleList,

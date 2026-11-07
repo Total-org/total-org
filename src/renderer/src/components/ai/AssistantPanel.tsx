@@ -731,9 +731,30 @@ function DraftsList({ drafts }: { drafts: AiDraftDto[] }): React.JSX.Element {
               {d.status === 'open' && <ReviewDraftButton draft={d} testId={`btn-ai-review-draft-${d.id}`} />}
             </li>
           ))}
+          {openCount > 0 && <QueueLink />}
         </ul>
       )}
     </div>
+  )
+}
+
+/** Phase 3b: every open proposal (this conversation's and the rest) waits in the approval queue. */
+function QueueLink(): React.JSX.Element {
+  const nav = useNav()
+  return (
+    <li className="pt-1">
+      <button
+        type="button"
+        className="text-caption text-blue hover:underline"
+        data-testid="ai-open-queue"
+        onClick={() => {
+          useAssistantPanel.getState().setOpen(false)
+          nav.go({ name: 'ai-queue' })
+        }}
+      >
+        Approve them in the approval queue →
+      </button>
+    </li>
   )
 }
 

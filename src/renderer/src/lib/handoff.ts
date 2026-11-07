@@ -61,6 +61,8 @@ export function fullCounterpart(screen: Screen): Screen | null {
       return screen.itemId != null ? { name: 'stock-movements', itemId: screen.itemId } : { name: 'stock-summary' }
     case 'simple-bank':
       return screen.bankId != null ? { name: 'banking', tab: 'import', ledgerId: screen.bankId } : { name: 'banking', tab: 'import' }
+    case 'simple-approvals':
+      return { name: 'ai-queue' }
     // WP 9.9's plain reports: the accountant report each one's Accountant view opens.
     case 'simple-reports':
       switch (screen.report) {
@@ -209,6 +211,8 @@ export function simpleTargetFor(screen: Screen, facts: HandoffFacts | null): Scr
       return screen.prefill ? { name: 'simple-made-goods', itemId: screen.prefill.itemId } : { name: 'simple-made-goods' }
     case 'banking':
       return screen.ledgerId != null ? { name: 'simple-bank', bankId: screen.ledgerId } : { name: 'simple-bank' }
+    case 'ai-queue':
+      return { name: 'simple-approvals' }
     default:
       return section(screen)
   }
@@ -237,6 +241,7 @@ export function backToSimpleClears(screen: Screen, target: Screen): Name[] {
   if (screen.name === 'manufacture') out.add('simple-made-goods')
   if (screen.name === 'stock-summary' || screen.name === 'stock-movements') out.add('simple-stock')
   if (screen.name === 'banking') out.add('simple-bank')
+  if (screen.name === 'ai-queue') out.add('simple-approvals')
   if (screen.name === 'registers') out.add(alwaysKey({ name: 'simple-reports', report: 'by-month' }))
   if (screen.name === 'outstandings' && (screen.side === 'payable' || screen.backTo === 'simple-people')) out.add('simple-people')
   if (screen.name === 'ledger-statement' && target.name === 'simple-person') out.add('simple-person')
