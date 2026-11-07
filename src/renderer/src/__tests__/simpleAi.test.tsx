@@ -101,7 +101,7 @@ beforeEach(() => {
   window.total = { platform: 'test', invoke, onAiEvent: (l: (e: unknown) => void) => { listener = l; return () => { listener = null } } }
   useSession.setState({ user: { id: 1, name: 'Owner', role: 'owner' }, from: '2026-04-01', to: '2027-03-31', workingDate: '2026-10-14', ui: { mode: 'simple' } } as never)
   useNav.setState({ stack: [{ name: 'gateway' }] })
-  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false })
+  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false, owner: null })
 })
 
 afterEach(() => {
@@ -450,6 +450,26 @@ describe('the AI panel in plain words (simple mode)', () => {
     expect(invoke.mock.calls.some(([c, p]) => c === 'ai:thread' && (p as { id: number }).id === 9)).toBe(true)
     // Back on Ask the conversation's own box takes it (still inside the panel, never the page).
     await waitFor(() => expect(screen.getByTestId('ai-panel').contains(document.activeElement)).toBe(true))
+  })
+
+  it('another user (a lock / sign-out / company switch unmounts the panel open) never gets the kept conversation', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    view = READY()
+    wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
+    fireEvent.change(await screen.findByTestId('ai-input'), { target: { value: 'sales?' } })
+    fireEvent.click(screen.getByTestId('btn-ai-send'))
+    await waitFor(() => expect(listener).not.toBeNull())
+    answerTurn()
+    await waitFor(() => expect(useAssistantPanel.getState().aiThreadId).toBe(9))
+    cleanup()
+    act(() => useSession.setState({ user: { id: 77, name: 'Clerk', role: 'accountant' } } as never))
+    const before = invoke.mock.calls.filter(([c]) => c === 'ai:thread').length
+    wrap(<AssistantPanel />)
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+    await waitFor(() => expect(useAssistantPanel.getState().aiThreadId).toBeNull())
+    expect(invoke.mock.calls.filter(([c]) => c === 'ai:thread').length).toBe(before)
+    act(() => useSession.setState({ user: null } as never))
   })
 
   it('simple mode: the plain conversation also survives a trip to To approve; the escalation note shows only when Total handed it over', async () => {

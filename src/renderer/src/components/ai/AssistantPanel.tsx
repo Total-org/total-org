@@ -82,6 +82,11 @@ interface AssistantStore {
    *  the AI drawer) brings it back (review of #231); cleared when the panel closes. */
   aiThreadId: number | null
   setAiThreadId: (id: number | null) => void
+  /** Whose panel state this is (`<company slug>:<user id | ->`): a lock, sign-out or company switch
+   *  unmounts the panel without closing it, so the next owner must never get the old conversation
+   *  or AI view (re-review of #231). `claim` resets everything AI-side for a new owner. */
+  owner: string | null
+  claim: (owner: string) => void
   /** true only when Ask Total handed the question over (it could not answer it) — the AI drawer's
    *  "Total could not answer it" note shows only then. */
   escalated: boolean
@@ -120,6 +125,15 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   setTab: (tab) => set({ tab, focusTab: true }),
   aiThreadId: null,
   setAiThreadId: (aiThreadId) => set({ aiThreadId }),
+  owner: null,
+  claim: (owner) => {
+    const was = get().owner
+    if (was === owner) return
+    // The first owner of this window keeps what was asked before the panel mounted (a palette
+    // question); a DIFFERENT owner starts clean.
+    if (was === null) set({ owner })
+    else set({ owner, aiThreadId: null, simpleView: 'ask', escalated: false, tab: 'ask', pending: null })
+  },
   escalated: false,
   escalate: (text) => {
     get().ask(text)
@@ -154,15 +168,23 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
   }
 }))
 
+/** `<company slug>:<user id | ->` — whose panel state it is. */
+export function usePanelOwner(): string {
+  const slug = useSession((s) => s.slug)
+  const userId = useSession((s) => s.user?.id ?? null)
+  return `${slug ?? ''}:${userId ?? '-'}`
+}
+
 /** Phase 3b part 3: keep the AI drawer's conversation in the panel store while it is open, and load
  *  it back when the drawer mounts again (a tab switch) — unless a new question is waiting. */
 export function useKeptThread(threadId: number | null, load: (id: number, messages: AiMessageDto[], running: boolean) => void): void {
   const restored = useRef(false)
+  const ownerNow = usePanelOwner()
   useEffect(() => {
     if (restored.current) return
     restored.current = true
-    const { aiThreadId, pending } = useAssistantPanel.getState()
-    if (aiThreadId == null || pending) return
+    const { aiThreadId, pending, owner } = useAssistantPanel.getState()
+    if (aiThreadId == null || pending || (owner !== null && owner !== ownerNow)) return
     void aiApi
       .thread(aiThreadId)
       .then((t) => load(aiThreadId, t.messages, t.running))
@@ -187,7 +209,15 @@ export function useCurrentAiContext(): AiContext {
 // ---------- the host ----------
 
 export function AssistantPanel(): React.JSX.Element | null {
-  const { open, setOpen, simpleView, setSimpleView, width, setWidth, tab, setTab, focusTab, clearFocusTab } = useAssistantPanel()
+  const owner = usePanelOwner()
+  const { open, setOpen, simpleView: storedView, setSimpleView, width, setWidth, tab: storedTab, setTab, focusTab, clearFocusTab } = useAssistantPanel()
+  // A new company or user (the panel survives a lock / sign-out / switch unmounted) starts on Ask
+  // with nothing kept: their state is read as empty now and reset right after (the drawers check
+  // the owner before restoring a conversation).
+  const fresh = useAssistantPanel((s) => s.owner === null || s.owner === owner)
+  useEffect(() => useAssistantPanel.getState().claim(owner), [owner])
+  const simpleView = fresh ? storedView : 'ask'
+  const tab = fresh ? storedTab : 'ask'
   const mode = useMode()
   const { data: view } = useQuery({ queryKey: ['aiSettings'], queryFn: aiApi.settings })
   const ready = !!view?.ready
@@ -261,7 +291,11 @@ function PlainAiHost({ onClose, onBack, tabs }: { onClose: () => void; onBack: (
   const takePending = useCallback(() => useAssistantPanel.getState().takePending(), [])
   const escalated = useAssistantPanel((s) => s.escalated)
   // Phase 3b part 3: the conversation survives a tab switch (the store keeps its id while open).
-  const [keptThreadId] = useState(() => (useAssistantPanel.getState().pending ? null : useAssistantPanel.getState().aiThreadId))
+  const ownerNow = usePanelOwner()
+  const [keptThreadId] = useState(() => {
+    const st = useAssistantPanel.getState()
+    return st.pending || (st.owner !== null && st.owner !== ownerNow) ? null : st.aiThreadId
+  })
   const onThread = useCallback((id: number | null) => useAssistantPanel.getState().setAiThreadId(id), [])
   return (
     <SimpleAiDrawer

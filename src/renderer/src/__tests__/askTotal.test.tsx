@@ -12,6 +12,7 @@ import type { AssistAnswer } from '@shared/assist'
 import { AssistantPanel, useAssistantPanel } from '../components/ai/AssistantPanel'
 import { useAskTotal } from '../simple/AskTotal'
 import { askScreen } from '../simple/askTargets'
+import { fullPlace } from '../simple/AskTotal'
 import { useNav, useSession } from '../state/stores'
 
 const invoke = vi.fn()
@@ -66,7 +67,7 @@ beforeEach(() => {
   window.total = { platform: 'test', invoke, onAiEvent: () => () => undefined }
   useSession.setState({ user: null, from: '2025-04-01', to: '2026-03-31', workingDate: '2025-10-14', ui: { mode: 'simple' } } as never)
   useNav.setState({ stack: [{ name: 'gateway' }] })
-  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false })
+  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false, owner: null })
   useAskTotal.setState({ pending: null, turns: [], owner: null })
 })
 
@@ -128,6 +129,20 @@ describe('Ask Total — which panel', () => {
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'ai-queue' }))
     await askIt('open bank')
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'banking' }))
+  })
+
+  it('fullPlace: a simple place in the full app — bills / entries their voucher, Features, TDS / TCS, the counterpart only where it applies', () => {
+    expect(fullPlace({ name: 'simple-sales', billId: 12 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 12 })
+    expect(fullPlace({ name: 'simple-purchases', billId: 13 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 13 })
+    expect(fullPlace({ name: 'simple-money', entryId: 14 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 14 })
+    expect(fullPlace({ name: 'simple-features' }, 'regular')).toEqual({ name: 'settings', tab: 'features' })
+    expect(fullPlace({ name: 'simple-taxes', withholding: 'tds' }, 'unregistered')).toEqual({ name: 'tds' })
+    expect(fullPlace({ name: 'simple-taxes' }, 'regular')).toEqual({ name: 'gstr3b' })
+    // An unregistered business has no GST return to open: Home, never GSTR-3B.
+    expect(fullPlace({ name: 'simple-taxes' }, 'unregistered')).toEqual({ name: 'gateway' })
+    expect(fullPlace({ name: 'simple-bank', bankId: 3 }, 'regular')).toMatchObject({ name: 'banking', ledgerId: 3 })
+    // A full-app screen stays as it is.
+    expect(fullPlace({ name: 'profit-loss' }, 'regular')).toEqual({ name: 'profit-loss' })
   })
 
   it('accountant mode, AI set up but not ready: the panel says why and links Settings → AI', async () => {

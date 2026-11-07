@@ -11,6 +11,7 @@ import { useMode } from '../lib/mode'
 import { useQueryClient } from '@tanstack/react-query'
 import { QUEUE_KEY } from '../lib/approvalQueue'
 import { fullCounterpart, openHandoff } from '../lib/handoff'
+import { screenApplies, screenDef } from '../lib/screens'
 import type { IntentDraft } from '../lib/simplePost'
 import { create } from 'zustand'
 import type { AssistAnswer, AssistFigure } from '@shared/assist'
@@ -105,6 +106,25 @@ function Sentence({ text, figures, onOpen }: { text: string; figures: AssistFigu
   )
 }
 
+/** Phase 3b part 3 (accountant mode): where an answer's place opens in the full app — a bill / an
+ *  entry its voucher, Features its Settings tab, TDS / TCS their screens, else the simple screen's
+ *  full counterpart ("Accountant view") when the company can use it (never GST returns for an
+ *  unregistered business), else Home. A simple screen is never opened in the accountant shell. */
+export function fullPlace(s: Screen, gstType: string | undefined): Screen {
+  const p = s as Screen & { billId?: number; entryId?: number; withholding?: 'tds' | 'tcs' }
+  if ((s.name === 'simple-sales' || s.name === 'simple-purchases') && p.billId) return { name: 'voucher-entry', voucherId: p.billId }
+  if (s.name === 'simple-money' && p.entryId) return { name: 'voucher-entry', voucherId: p.entryId }
+  if (s.name === 'simple-features') return SETTINGS_FEATURES
+  if (s.name === 'simple-taxes' && p.withholding) return { name: p.withholding }
+  const def = screenDef(s.name)
+  if (!def?.modes.includes('simple') || def.modes.includes('accountant')) return s
+  const full = fullCounterpart(s)
+  const fullDef = full ? screenDef(full.name) : undefined
+  return full && (!fullDef || screenApplies(fullDef, gstType)) ? full : HOME
+}
+
+const HOME: Screen = { name: 'gateway' } // i18n-technical
+const SETTINGS_FEATURES = { name: 'settings', tab: 'features' } as Screen // i18n-technical
 const APPROVALS = { name: 'simple-approvals' } as const // i18n-technical
 const APPROVALS_FULL = { name: 'ai-queue' } as const // i18n-technical
 const INFO = 'info' as const // i18n-technical
@@ -282,7 +302,8 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
   // counterpart opens as it is.
   const accountant = useMode() === 'accountant'
   const queryClient = useQueryClient()
-  const place = useCallback((s: Screen): Screen => (accountant ? (fullCounterpart(s) ?? s) : s), [accountant])
+  const gstType = useSession((st) => st.info?.gstRegistrationType)
+  const place = useCallback((s: Screen): Screen => (accountant ? fullPlace(s, gstType) : s), [accountant, gstType])
   const open = useCallback(
     (s: Screen) => {
       nav.go(place(s))
