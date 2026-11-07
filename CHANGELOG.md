@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Releases come by themselves** (#216). Twice a day (about 09:00 and 21:00 India time) GitHub
+releases what is new on `main` as the next patch version, but only when every test on `main` passed,
+books made by the last release open in the new one with every report unchanged (trial balance, P&L,
+balance sheet, outstandings, stock, GSTR-1 / 3B) and the backup restore check passes, and no pull
+request is labelled `release-blocker`. A figure change ships only with the owner's
+`figures-approved` label. Skipped slots are explained in one GitHub issue. For developers:
+`.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
+`workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
+
 - Fix (#217): e2e scenarios 39 / 41 / 43 / 44 / 45 turn the AI assistant on through the new harness
   `h.enableAi()` — notice, switch, then Test connection, which picks the model from the mock's list —
   since #210 there is no built-in model id. Tests only; no app change.
