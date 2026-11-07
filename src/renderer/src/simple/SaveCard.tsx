@@ -6,6 +6,8 @@ import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
 import { Button } from '../components/kit/Button'
 
+const ROUND = 'round' // i18n-technical: SVG attribute value
+
 /**
  * The save card (WP 8.5, plan §1.6): what was just saved, in one or two plain sentences — "Bill
  * ₹1,180 saved. Received ₹500 into UPI. Ramesh still owes ₹680." — with Print / PDF / Share
@@ -140,7 +142,7 @@ export function SaveCard({
     >
       {/* UI overhaul: the confirmation tick draws itself once (t-tick; instant under reduced motion). */}
       <span aria-hidden="true" className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success text-panel">
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap={ROUND} strokeLinejoin={ROUND}>
           <path d="m5 12.5 4.5 4.5L19 7.5" pathLength={24} className="t-tick" />
         </svg>
       </span>
