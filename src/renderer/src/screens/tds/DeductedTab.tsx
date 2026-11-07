@@ -15,6 +15,7 @@ import { LedgerLink, VoucherLink } from '../../components/links'
 import { openVoucher, useCanEditMasters } from '../../lib/drill'
 import { confirmDialog } from '../../lib/dialogs'
 import { KIND_WORDS, pctText, useTdsAction, withholdingApi, type TdsPeriod, type WithholdingKind } from './common'
+import { CaCheck } from '../../components/CaCheck'
 
 const STATUS = {
   unallocated: { label: 'Not on a challan', tone: 'warning' },
@@ -137,6 +138,7 @@ export function DeductedTab({ period, kind = 'tds' }: { period: TdsPeriod; kind?
     {late.length > 0 && (
       <p className="mt-2 text-small text-muted" data-testid="tds-late-interest-note">
         {`${late.length} deduction${late.length === 1 ? ' was' : 's were'} made on payment for bills already liable when booked — late-deduction interest ${formatPaise(late.reduce((s, r) => s + r.lateDeduction!.interestPaise, 0), { symbol: true })}. ${LATE_DEDUCTION_CITATION}.`}
+        <CaCheck place="tds.lateInterest" />
       </p>
     )}
     </>

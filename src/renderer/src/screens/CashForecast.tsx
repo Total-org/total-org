@@ -23,6 +23,7 @@ import { DataTable, defineColumns } from '../components/table'
 import { BarChart, ChartLegend, LineChart, type ChartCategory } from '../components/charts'
 import { LedgerLink, VoucherLink } from '../components/links'
 import { confirmDialog } from '../lib/dialogs'
+import { CaCheck } from '../components/CaCheck'
 
 type Tab = 'forecast' | 'items' | 'assumptions'
 const TABS: { id: Tab; label: string }[] = [
@@ -179,6 +180,7 @@ export function CashForecastScreen(): React.JSX.Element {
       <PageHeader
         title="Cash-flow forecast"
         period={`from ${toDisplayDate(todayISO())}`}
+        subtitle={<CaCheck place="cashForecast.screen" />}
         tabs={<TabBar screen="cash-forecast" label="Cash-flow forecast" tabs={TABS} active={tab} onSelect={setTab} />}
         options={{
           onReset: opts.reset,

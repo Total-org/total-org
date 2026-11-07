@@ -22,6 +22,7 @@ import {
   type OtherDraft,
   type PartyDraft
 } from '@shared/simple/openings'
+import { CaCheck } from '../components/CaCheck'
 
 /** WP 8.7: the opening setup's steps (Openings.tsx holds the answers and moves between them).
  *  Every word through t(); each problem sits under its own field. */
@@ -413,7 +414,7 @@ export function StockStep({ draft, update, state }: OpeningsStepProps): React.JS
             )}
             {askGst &&
               (r.itemId == null && !known(r.name) ? (
-                <OField label={t('simple.openings.stock.gstRate')} name={`items.${i}.gstRate`}>
+                <OField label={t('simple.openings.stock.gstRate')} name={`items.${i}.gstRate`} hint={<CaCheck place="simple.ratePicker" date={workingDate} />}>
                   <Select
                     data-testid={`openings-item-${i}-gst`}
                     value={customShown(r) ? CUSTOM_RATE : r.gstRate == null ? '' : String(r.gstRate)}

@@ -10,6 +10,7 @@ import { formatPaise, formatPaiseCompact } from '@shared/money'
 import { toDisplayDate, toDisplayDateTime, toMonthLabel, todayISO } from '@shared/dates'
 import { COMPLIANCE_UNVERIFIED, EINVOICE_COMPLIANCE_UNVERIFIED, upcomingDeadlines } from '@shared/compliance'
 import { GST_FILING_UNVERIFIED } from '@shared/gst/filing'
+import { CaCheck } from '../../components/CaCheck'
 import { api } from '../../lib/client'
 import { useNav, useSession } from '../../state/stores'
 import { Badge, Checklist, Money } from '../../components/ui'
@@ -313,6 +314,12 @@ export function ComplianceCard({
               </div>
             )
           )}
+          {/* Phase 2b: outside the role=button row, so the row's name stays its own. */}
+          {typeof g !== 'string' && g && (
+            <div className="px-4 pb-1">
+              <CaCheck place="gateway.compliance" quarterly={gstFiling === 'quarterly'} />
+            </div>
+          )}
           {typeof t === 'string' ? (
             <p className="px-4 py-2 text-small text-cr">TDS unavailable</p>
           ) : (
@@ -328,6 +335,11 @@ export function ComplianceCard({
                 </dl>
               </div>
             )
+          )}
+          {typeof t !== 'string' && t && (
+            <div className="px-4 pb-1">
+              <CaCheck place="gateway.tds" />
+            </div>
           )}
           {einvoiceTurnOn && (
             <div data-testid="dash-einvoice-turn-on" {...drillRowProps(() => nav.go({ name: 'company-info' }))} className={stackRowCls}>

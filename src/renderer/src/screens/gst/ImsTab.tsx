@@ -15,6 +15,7 @@ import { LedgerLink, VoucherLink } from '../../components/links'
 import { useCanEditMasters } from '../../lib/drill'
 import { promptDialog } from '../../lib/dialogs'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../../lib/capabilities'
+import { CaCheck } from '../../components/CaCheck'
 
 const BUCKET_LABEL: Record<ImsRow['bucket'], string> = {
   matched: 'Matched', amountMismatch: 'Amount mismatch', taxMismatch: 'Tax mismatch', missingInBooks: 'Missing in books', missingInPortal: 'Missing in portal'
@@ -99,6 +100,7 @@ export function ImsTab({ period, periodLabel, pairs }: { period: string; periodL
         of 2B and 3B until you act (credit notes: one tax period only, from October 2025); no action = deemed accepted when 2B is generated on the 14th.
         RCM and import records do not pass through IMS. The export is the app&apos;s own JSON / CSV (the IMS offline tool&apos;s schema is unpublished —
         UNVERIFIED): act on it in the IMS dashboard.
+        <CaCheck place="ims.tab" />
       </Banner>
       <DataTable
         viewId="gstr2b-ims"
