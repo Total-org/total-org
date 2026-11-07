@@ -16,7 +16,7 @@ import { useNav, useSession } from '../../state/stores'
 import { Badge, Checklist, Money } from '../../components/ui'
 import { ItemLink, LedgerLink, drillRowProps } from '../../components/links'
 import { openLedgerStatement } from '../../lib/drill'
-import { BarChart, ChartLegend, LineChart, type ChartCategory } from '../../components/charts'
+import { BarChart, ChartLegend, LineChart, chartColor, type ChartCategory } from '../../components/charts'
 import { formatMilli } from '../../lib/table'
 import { CardLink, DashCard, type CardState } from './parts'
 import { onboardingFromDashSetup } from '@shared/onboarding'
@@ -71,7 +71,7 @@ export function TradeChartCard({ card, window: w }: { card: CardState<DashTrade>
             <div className="flex items-baseline justify-between px-1 pb-1">
               <ChartLegend series={[{ id: 's', label: 'Sales', color: 'blue' }, { id: 'p', label: 'Purchases', color: 'amber' }]} />
               <p className="num text-caption text-muted">
-                <span className="text-blue">{formatPaiseCompact(t.periodSales)}</span> · <span className="text-amber">{formatPaiseCompact(t.periodPurchases)}</span>
+                <span className="text-ink">{formatPaiseCompact(t.periodSales)}</span> · <span className="text-amber">{formatPaiseCompact(t.periodPurchases)}</span>
               </p>
             </div>
             <BarChart
@@ -153,7 +153,7 @@ function AgeingBars({ a, color, label }: { a: DashAgeing; color: 'blue' | 'amber
                 <span className="block h-2 rounded-sm bg-panel2">
                   <span
                     className="block h-2 rounded-sm"
-                    style={{ width: `${b === 0 ? 0 : Math.max(2, Math.round((b / max) * 100))}%`, background: `var(--t-${color})`, opacity: i >= 2 ? 1 : 0.75 }}
+                    style={{ width: `${b === 0 ? 0 : Math.max(2, Math.round((b / max) * 100))}%`, background: chartColor(color), opacity: i >= 2 ? 1 : 0.75 }}
                   />
                 </span>
               </td>
@@ -388,7 +388,7 @@ export function ComplianceCard({
             </div>
           ))}
           {others.length > 3 && (
-            <button data-testid="btn-gateway-compliance-all" className="px-4 py-1.5 text-left text-hint text-blue hover:underline" onClick={() => setShowAll((v) => !v)}>
+            <button data-testid="btn-gateway-compliance-all" className="t-link px-4 py-1.5 text-left text-hint" onClick={() => setShowAll((v) => !v)}>
               {showAll ? 'Show fewer' : `Show all ${others.length}`}
             </button>
           )}
@@ -409,7 +409,7 @@ export function CashCard({ card }: { card: CardState<DashCash> }): React.JSX.Ele
         <div>
           {c.ledgers.map((l) => (
             <div key={l.ledgerId} data-testid="cash-ledger" {...drillRowProps(() => openLedgerStatement(l.ledgerId), l.ledgerId)} className={rowCls}>
-              <span className="w-9 text-label text-muted uppercase">{l.kind}</span>
+              <span className="w-9 text-label text-muted capitalize">{l.kind}</span>
               <span className="min-w-0 flex-1 truncate text-body-sm">
                 <LedgerLink ledgerId={l.ledgerId} name={l.name} />
               </span>
@@ -488,7 +488,7 @@ export function BooksCard({
             <span className="num text-small text-muted" data-testid="dash-last-backup">
               {s?.lastBackup ? toDisplayDateTime(new Date(s.lastBackup.at)) : 'never'}
             </span>
-            <button type="button" data-testid="btn-gateway-backup" disabled={backingUp} onClick={onBackup} className="text-hint text-blue hover:underline disabled:opacity-50">
+            <button type="button" data-testid="btn-gateway-backup" disabled={backingUp} onClick={onBackup} className="t-link text-hint disabled:opacity-50">
               {backingUp ? 'Backing up…' : 'Back up now'}
             </button>
           </div>
