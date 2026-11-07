@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
 import { pageFooterTemplate, type PageLabel } from '@shared/print/labels'
+import { pdfWindowWebPreferences } from '../windowPolicy'
 import { companyExportsDir } from '../paths'
 
 export interface HtmlToPdfOptions {
@@ -39,7 +40,7 @@ const JOB_TIMEOUT_MS = 30_000
 
 function obtainWindow(): BrowserWindow {
   if (!sharedWin || sharedWin.isDestroyed()) {
-    sharedWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+    sharedWin = new BrowserWindow({ show: false, webPreferences: pdfWindowWebPreferences() })
   }
   return sharedWin
 }

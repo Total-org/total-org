@@ -3147,20 +3147,18 @@ export function registerIpc(): void {
   handle('nic:save', (p) => {
     const c = requireCompany()
     const incoming = nicCredentialsSchema.parse(p)
-    const existing = nic.readNicCredentials(c.db, c.slug)
-    // Re-saving the mask sentinel means "keep what's stored" — the settings form round-trips
-    // nic:get values verbatim when the owner doesn't retype them.
-    if (incoming.password === nic.NIC_SECRET_MASK) incoming.password = existing.password
-    if (incoming.clientSecret === nic.NIC_SECRET_MASK) incoming.clientSecret = existing.clientSecret
-    nic.writeNicCredentials(c.db, c.slug, incoming)
+    // Re-saving the mask sentinel means "keep what's stored" — but only while the addresses and
+    // the public key stay the ones the secrets were saved for (audit 2026-11 A5, nic.ts).
+    const result = nic.saveNicCredentials(c.db, c.slug, incoming)
     nic.resetNicSession()
   // WP 6.3: a file loaded into the import wizard never carries over to another company.
   clearLoadedImports()
-    return { configured: nic.nicConfigured(c.db, c.slug) }
+    return result
   }, 'owner')
   handle('nic:status', () => {
     const c = requireCompany()
-    return { configured: nic.nicConfigured(c.db, c.slug) }
+    const { creds, heldBack } = nic.readNicState(c.db, c.slug)
+    return { configured: nic.nicConfigured(c.db, c.slug), secretsHeldBack: heldBack && !creds.password && !creds.clientSecret }
   }, 'viewer')
   // Settings → NIC "Connection test" (WP 3.5): the auth handshake only — files nothing and
   // writes nothing to the books; the outcome (or the mapped NIC error) goes back to the UI.

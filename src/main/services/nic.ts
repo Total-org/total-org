@@ -22,6 +22,10 @@ import {
 import { log } from '../log'
 import { companyScope, SecretsUnavailableError, type SecretStore } from './secrets'
 import { appSecretStore } from './secretStore'
+import { AppError } from '@shared/errors'
+import {
+  checkNicBaseUrl, nicOriginOf, parseNicBinding, sameNicBinding, NIC_SECRETS_HELD_BACK, type NicBinding
+} from '@shared/nicEndpoint'
 
 // ---------- credential storage ----------
 //
@@ -73,6 +77,13 @@ function parseCreds(raw: Record<string, unknown>): NicCredentials {
  * already on disk; nothing new is ever written in plaintext), and store-held secrets read as ''.
  */
 export function readNicCredentials(db: DB, slug: string, store: SecretStore = appSecretStore()): NicCredentials {
+  return readNicState(db, slug, store).creds
+}
+
+/** readNicCredentials + whether the secrets were held back because the stored address / public key
+ *  is not the one they were saved for (audit 2026-11 A5 — the meta row is plain text in the company
+ *  file and its backups, so an address changed there must not receive them). */
+export function readNicState(db: DB, slug: string, store: SecretStore = appSecretStore()): { creds: NicCredentials; heldBack: boolean } {
   const raw = readMetaRaw(db)
   const scope = companyScope(slug)
   const legacy = SECRET_FIELDS.filter((f) => typeof raw[f] === 'string' && raw[f] !== '')
@@ -81,7 +92,7 @@ export function readNicCredentials(db: DB, slug: string, store: SecretStore = ap
     if (legacy.length) log('warn', 'nic-secrets-legacy-plaintext-unmigrated', { slug })
     const out: Record<string, unknown> = { ...raw }
     for (const f of SECRET_FIELDS) if (!legacy.includes(f)) out[f] = ''
-    return parseCreds(out)
+    return { creds: parseCreds(out), heldBack: false }
   }
 
   const secrets: Partial<Record<SecretField, string>> = {}
@@ -106,7 +117,47 @@ export function readNicCredentials(db: DB, slug: string, store: SecretStore = ap
     }
     log('info', 'nic-secrets-migrated', { slug, fields: legacy })
   }
-  return parseCreds({ ...raw, password: secrets.password ?? '', clientSecret: secrets.clientSecret ?? '' })
+  const creds = parseCreds({ ...raw, password: secrets.password ?? '', clientSecret: secrets.clientSecret ?? '' })
+  if (!creds.password && !creds.clientSecret) return { creds, heldBack: false }
+  const current = bindingOf(creds)
+  const bound = boundNicBinding(store, scope)
+  if (!bound) {
+    // Secrets saved before the binding existed: bind them to where they point now (the address the
+    // owner set them up for), so a later change outside Total holds them back.
+    bindSecrets(store, scope, current)
+    return { creds, heldBack: false }
+  }
+  if (sameNicBinding(bound, current)) return { creds, heldBack: false }
+  log('warn', 'nic-secrets-held-back', { slug })
+  return { creds: { ...creds, password: '', clientSecret: '' }, heldBack: true }
+}
+
+const BINDING_SECRET = 'nic.boundTo'
+
+/** SHA-256 of the PEM with every blank removed (line endings / indentation don't count). */
+export function pemFingerprint(pem: string): string {
+  const s = String(pem ?? '').replace(/\s+/g, '')
+  return s ? crypto.createHash('sha256').update(s, 'utf8').digest('hex') : ''
+}
+
+export function bindingOf(creds: Pick<NicCredentials, 'baseUrlEinvoice' | 'baseUrlEwb' | 'publicKeyPem'>): NicBinding {
+  return { einvoice: nicOriginOf(creds.baseUrlEinvoice), ewb: nicOriginOf(creds.baseUrlEwb), pem: pemFingerprint(creds.publicKeyPem) }
+}
+
+function boundNicBinding(store: SecretStore, scope: string): NicBinding | null {
+  try {
+    return parseNicBinding(store.get(scope, BINDING_SECRET))
+  } catch {
+    return null
+  }
+}
+
+function bindSecrets(store: SecretStore, scope: string, binding: NicBinding): void {
+  try {
+    store.set(scope, BINDING_SECRET, JSON.stringify(binding))
+  } catch {
+    // No cipher right now: the next read binds them.
+  }
 }
 
 /** Throws SecretsUnavailableError (and writes nothing) when a non-empty secret can't be encrypted. */
@@ -115,6 +166,8 @@ export function writeNicCredentials(db: DB, slug: string, creds: NicCredentials,
   // Secrets first — if encryption is unavailable this throws before anything changes.
   for (const f of SECRET_FIELDS) if (creds[f]) store.set(scope, secretName(f), creds[f])
   for (const f of SECRET_FIELDS) if (!creds[f]) store.delete(scope, secretName(f))
+  if (creds.password || creds.clientSecret) store.set(scope, BINDING_SECRET, JSON.stringify(bindingOf(creds)))
+  else store.delete(scope, BINDING_SECRET)
   writeMetaWithoutSecrets(db, creds)
   // Credentials (incl. password) never go into the audit trail — before/after are always null.
   writeAudit(db, 'nic_credentials', 0, 'update', null, null)
@@ -122,6 +175,41 @@ export function writeNicCredentials(db: DB, slug: string, creds: NicCredentials,
 
 /** The mask nic:get sends instead of a stored secret; nic:save treats it as "keep what's stored". */
 export const NIC_SECRET_MASK = '••••••••'
+
+/**
+ * Settings → NIC live filing → Save (owner). Both addresses must be https (http only on this
+ * computer); the mask sentinel keeps a stored secret ONLY while the addresses' origins and the
+ * public key stay the ones it was saved for — otherwise it is dropped (`secretsDropped`), so a
+ * changed address never receives the old password / client secret (audit 2026-11 A5).
+ */
+export function saveNicCredentials(
+  db: DB, slug: string, input: NicCredentials, store: SecretStore = appSecretStore()
+): { configured: boolean; secretsDropped: boolean } {
+  const incoming = { ...input }
+  for (const field of ['baseUrlEinvoice', 'baseUrlEwb'] as const) {
+    const c = checkNicBaseUrl(incoming[field])
+    if (!c.ok) throw new AppError(`nic_url_${c.code}`, c.error, { field })
+  }
+  // A masked secret can't be kept when the store can't be read right now (keychain locked): saving
+  // would delete it. Refuse before anything is written (review of #225).
+  if (SECRET_FIELDS.some((f) => incoming[f] === NIC_SECRET_MASK) && !store.available()) throw new SecretsUnavailableError()
+  const { creds: existing } = readNicState(db, slug, store)
+  const scope = companyScope(slug)
+  const savedFor = boundNicBinding(store, scope) ?? bindingOf(existing)
+  const stays = sameNicBinding(savedFor, bindingOf(incoming))
+  let secretsDropped = false
+  for (const f of SECRET_FIELDS) {
+    if (incoming[f] !== NIC_SECRET_MASK) continue
+    if (stays) incoming[f] = existing[f]
+    else {
+      if (existing[f]) secretsDropped = true
+      incoming[f] = ''
+    }
+  }
+  writeNicCredentials(db, slug, incoming, store)
+  if (secretsDropped) log('info', 'nic-secrets-dropped', { slug })
+  return { configured: nicConfigured(db, slug, store), secretsDropped }
+}
 
 /** Credentials as the renderer may see them: password AND clientSecret (the two halves of the NIC
  *  auth pair) masked — never sent back in full (v0.3 review F3). */
@@ -138,8 +226,9 @@ function credsComplete(c: NicCredentials): boolean {
   return !!(c.baseUrlEinvoice && c.username && c.password && c.clientId && c.publicKeyPem)
 }
 
-function assertConfigured(creds: NicCredentials, store: SecretStore = appSecretStore()): void {
+function assertConfigured(creds: NicCredentials, store: SecretStore = appSecretStore(), heldBack = false): void {
   if (credsComplete(creds)) return
+  if (heldBack) throw new NicError(NIC_SECRETS_HELD_BACK, [], 'config')
   // Distinguish "never set up" from "set up, but the keychain can't decrypt the secrets now".
   if (!store.available()) throw new SecretsUnavailableError()
   throw new Error('Live filing is not configured — add NIC API credentials first')
@@ -300,7 +389,9 @@ function errorFromEnvelope(body: unknown, httpStatus: number, fallback: string):
 // ---------- transport: retry with backoff ----------
 
 export type NicFetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<{ status: number; json(): Promise<unknown> }>
-const defaultFetch: NicFetch = (url, init) => fetch(url, init)
+// redirect: 'error' — the client_secret header and the encrypted login must never follow a
+// redirect to another host (audit 2026-11 A5).
+const defaultFetch: NicFetch = (url, init) => fetch(url, { ...init, redirect: 'error' })
 
 export interface NicDeps {
   fetchFn?: NicFetch
@@ -319,6 +410,15 @@ export const nicBackoffMs = (attempt: number): number => 500 * 2 ** attempt
 /** One HTTP exchange with retry/backoff on 5xx and network errors. A 4xx or a JSON error
  *  envelope is returned as-is — those are answers, not outages. */
 async function exchange(url: string, init: { method: string; headers: Record<string, string>; body?: string }, deps: NicDeps): Promise<{ status: number; body: unknown }> {
+  // Only https (http on this computer) — a stored address edited outside Total is refused here too.
+  let origin = ''
+  try {
+    origin = new URL(url).origin
+  } catch {
+    origin = url
+  }
+  const check = checkNicBaseUrl(origin)
+  if (!check.ok) throw new NicError(check.error, [], 'config')
   const fetchFn = deps.fetchFn ?? defaultFetch
   const sleep = deps.sleep ?? realSleep
   let lastStatus = 0
@@ -557,8 +657,8 @@ interface Ctx { creds: NicCredentials; gstin: string; deps: NicDeps }
 
 function context(db: DB, slug: string, company: CompanyInfo, deps: NicDeps): Ctx {
   const store = deps.store ?? appSecretStore()
-  const creds = readNicCredentials(db, slug, store)
-  assertConfigured(creds, store)
+  const { creds, heldBack } = readNicState(db, slug, store)
+  assertConfigured(creds, store, heldBack)
   if (!company.gstin) throw new NicError('Company GSTIN is missing — set it in Company settings', [], 'config')
   return { creds, gstin: company.gstin.toUpperCase(), deps }
 }
