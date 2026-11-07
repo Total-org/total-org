@@ -7,11 +7,22 @@ import { ViewToggle } from './ViewToggle'
 import { AssistantButton } from '../components/ai/AssistantButton'
 import { useHelpPanel } from '../help/store'
 import { helpKeyFor } from '../lib/screens'
+import { PlainIcon } from './icons'
+import { INTENT_SCREEN } from '@shared/simple/handoff'
 
 // WP 10.5: chips never shrink or wrap (a two-line chip overflowed the 48 px header at 1024 px);
 // the business name gives way instead (truncated, its full name in the accessible name), and the
 // key hints (⌘J, ?, ⌘K) hide under 1200 px (app.css).
-const CHIP = 'shrink-0 whitespace-nowrap rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink'
+// UI overhaul: quiet ghost chips; Search reads as a search box; the theme switch is an icon.
+const CHIP_BASE = 't-btn inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-small font-medium text-muted hover:text-ink'
+const CHIP = `${CHIP_BASE} border-transparent hover:bg-panel2`
+/** A boxed chip (the period, Search): its own border and fill — never CHIP plus overrides, since
+ *  Tailwind orders utilities by name, not by their place in the class string. */
+const BOXED = `${CHIP_BASE} border-line bg-panel2 hover:border-line-strong hover:bg-panel`
+
+/** Entry flows — every intent's screen and Quick bill: the period means nothing while a bill /
+ *  payment is being written (audit UX-8). */
+const ENTRY_SCREENS = new Set<string>([...Object.values(INTENT_SCREEN), 'simple-quick-bill']) // i18n-technical: registry screen name
 
 /**
  * WP 8.1: the simple shell's header — the business name (→ business details), the dates shown,
@@ -49,7 +60,7 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
   return (
     <header
       data-testid="simple-header"
-      className={`drag-region flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel pr-4 panel-shadow ${
+      className={`drag-region flex h-12 shrink-0 items-center gap-1.5 border-b border-line bg-panel pr-3 ${
         window.total.platform === 'darwin' ? 'pl-24' : 'pl-4'
       }`}
     >
@@ -62,15 +73,18 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
         {name}
       </button>
       <div className="min-w-2 flex-1" />
-      <button
-        type="button"
-        className={`num ${CHIP}`}
-        onClick={() => setPeriodOpen(true)}
-        aria-label={t('simple.shell.period', { from: periodDate(from), to: periodDate(to) })}
-        data-testid="btn-period"
-      >
-        {periodChip(from, to, workingDate, month, periodDate, t)}
-      </button>
+      {!ENTRY_SCREENS.has(screen.name) && (
+        <button
+          type="button"
+          className={BOXED}
+          onClick={() => setPeriodOpen(true)}
+          aria-label={t('simple.shell.period', { from: periodDate(from), to: periodDate(to) })}
+          data-testid="btn-period"
+        >
+          <PlainIcon id="calendar" size={14} />
+          {periodChip(from, to, workingDate, month, periodDate, t)}
+        </button>
+      )}
       <ViewToggle screen={screen} className={CHIP} />
       <AssistantButton
         label={t('simple.shell.assistant')}
@@ -83,28 +97,40 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
       <button
         type="button"
         data-testid="btn-help"
-        className={`flex items-center gap-2 ${CHIP}`}
+        className={CHIP}
         title={t('simple.shell.helpHint')}
         aria-expanded={helpOpen}
         onClick={() => useHelpPanel.getState().toggleForScreen(helpKeyFor(screen))}
       >
+        <PlainIcon id="help" size={15} />
         {t('simple.shell.help')} <Kbd>{t('simple.shell.helpKey')}</Kbd>
       </button>
-      <button type="button" data-testid="btn-theme" className={CHIP} onClick={toggle} aria-label={t('simple.shell.themeHint', { theme })}>
-        {t('simple.shell.theme', { theme })}
+      <button
+        type="button"
+        data-testid="btn-theme"
+        className={`${CHIP} px-2`}
+        onClick={toggle}
+        aria-label={t('simple.shell.themeHint', { theme })}
+        title={t('simple.shell.themeHint', { theme })}
+      >
+        <PlainIcon id={theme === 'light' ? 'moon' : 'sun'} size={16} />
       </button>
       <button
         type="button"
         data-testid="btn-search"
-        className={`flex items-center gap-2 ${CHIP}`}
+        className={`${BOXED} min-w-40 justify-between`}
         onClick={onOpenPalette}
         title={t('simple.nav.searchHint')}
       >
-        {t('simple.nav.search')} <Kbd>{t('simple.shell.searchKey')}</Kbd>
+        <span className="inline-flex items-center gap-1.5">
+          <PlainIcon id="search" size={14} />
+          {t('simple.nav.search')}
+        </span>{' '}
+        <Kbd>{t('simple.shell.searchKey')}</Kbd>
       </button>
       {user && (
         <>
-          <span className={`num max-w-48 truncate ${CHIP}`} title={t('simple.shell.user', { name: user.name, role: user.role })}>
+          <span className={`max-w-48 truncate ${CHIP} hover:bg-transparent`} title={t('simple.shell.user', { name: user.name, role: user.role })}>
             {t('simple.shell.user', { name: user.name, role: user.role })}
           </span>
           <button
@@ -114,6 +140,7 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
             className={CHIP}
             onClick={() => void lock()}
           >
+            <PlainIcon id="lock" size={15} />
             {t('simple.shell.lock')}
           </button>
         </>

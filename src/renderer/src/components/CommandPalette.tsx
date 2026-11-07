@@ -346,9 +346,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
 
   let index = 0
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[14vh]" data-esc-layer="" onMouseDown={onClose}>
+    <div className="t-fade-in fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[14vh]" data-esc-layer="" onMouseDown={onClose}>
       <div
-        className="w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-raised shadow-elev-3"
+        className="t-pop-in w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-raised shadow-elev-3"
         data-testid="palette"
         onMouseDown={(e) => e.stopPropagation()}
         onMouseMove={() => {
@@ -374,20 +374,20 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
             else if (e.key === 'Enter') runItem(navItems[active])
           }}
           placeholder={t('palette.placeholder')}
-          className="w-full border-b border-line bg-transparent px-5 py-3.5 text-lead outline-none placeholder:text-muted"
+          className="w-full border-b border-line bg-transparent px-5 py-4 text-lead outline-none placeholder:text-muted"
         />
         {(parsed.chips.length > 0 || parsed.unknown.length > 0) && (
           <div className="border-b border-line px-5 py-2">
             <QueryChips chips={parsed.chips} unknown={parsed.unknown} testId="palette-chips" />
           </div>
         )}
-        <div className="max-h-[26rem] overflow-auto py-1">
+        <div className="max-h-[26rem] overflow-auto p-1.5">
           {groups.map((g) => (
             <div key={g.key} data-testid={`palette-section-${g.key}`}>
               {g.title && (
-                <p className="flex items-baseline justify-between px-5 pb-1 pt-3 text-label font-medium tracking-wide text-muted uppercase">
+                <p className="flex items-baseline justify-between px-3.5 pb-1 pt-3 text-small font-semibold text-muted">
                   <span>{g.title}</span>
-                  {g.count != null && <span className="num normal-case tracking-normal">{g.count}</span>}
+                  {g.count != null && <span className="num font-medium">{g.count}</span>}
                 </p>
               )}
               {g.items.map((item) => {
@@ -414,7 +414,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
             </p>
           )}
         </div>
-        <div data-testid="palette-help" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-panel2 px-5 py-2 text-caption text-muted">
+        <div data-testid="palette-help" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-panel2 px-5 py-2.5 text-caption text-muted">
           {query.trim() === '' ? (
             <>
               <span>Filters:</span>
@@ -475,7 +475,7 @@ function PaletteRow({
       type="button"
       data-testid="palette-edit-ledger"
       title="Edit ledger (⌘E)"
-      className="shrink-0 rounded border border-line px-1.5 py-0.5 text-caption text-blue hover:bg-panel2"
+      className="shrink-0 rounded border border-line px-1.5 py-0.5 text-caption font-medium text-ink hover:bg-panel2"
       onClick={(e) => {
         e.stopPropagation()
         onEdit()
@@ -484,7 +484,7 @@ function PaletteRow({
       Edit <span className="text-muted">⌘E</span>
     </button>
   )
-  const base = 'kbar-row flex cursor-pointer items-center justify-between gap-3 px-5 py-2 text-body'
+  const base = 'kbar-row flex cursor-pointer items-center justify-between gap-3 rounded-md px-3.5 py-2 text-body'
   const common = { 'data-active': active, onMouseEnter: onHover, onClick: onRun }
   const simple = useMode() === 'simple'
   const t = useT()
@@ -529,7 +529,7 @@ function PaletteRow({
       )
     case 'see-all':
       return (
-        <div {...common} data-testid={`palette-see-all-${item.kind}`} className={`${base} text-blue`}>
+        <div {...common} data-testid={`palette-see-all-${item.kind}`} className={`${base} font-medium text-ink`}>
           <span>{simple ? t('simple.palette.seeAll', { count: item.total }) : `See all ${item.total} ${KIND_TITLE[item.kind].toLowerCase()}`}</span>
           <span className="text-caption text-muted">⌘↵</span>
         </div>

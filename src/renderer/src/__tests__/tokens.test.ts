@@ -30,7 +30,7 @@ function color(vars: Record<string, string>, name: string, depth = 0): RGBA {
 }
 
 const TEXT = ['--t-ink', '--t-muted', '--t-dr', '--t-cr', '--t-blue', '--t-amber']
-const SURFACES = ['--t-bg', '--t-panel', '--t-panel2', '--t-raised']
+const SURFACES = ['--t-bg', '--t-panel', '--t-panel2', '--t-raised', '--t-sidebar']
 const STATUS: [string, string][] = [
   ['--t-success', '--t-success-soft'],
   ['--t-warning', '--t-warning-soft'],
@@ -77,6 +77,14 @@ describe.each([
     'toast icon %s on the toast chip ≥ 3 (non-text contrast)',
     (fg) => {
       expect(contrastRatio(color(vars, fg), color(vars, '--t-toast-bg'))).toBeGreaterThanOrEqual(3)
+    }
+  )
+
+  // UI overhaul: chart series fills are graphical objects (WCAG 1.4.11).
+  it.each(['--t-chart-slate', '--t-chart-amber'].flatMap((fg) => ['--t-panel', '--t-panel2'].map((bg) => [fg, bg] as const)))(
+    'chart fill %s on %s ≥ 3',
+    (fg, bg) => {
+      expect(contrastRatio(color(vars, fg), color(vars, bg))).toBeGreaterThanOrEqual(3)
     }
   )
 
