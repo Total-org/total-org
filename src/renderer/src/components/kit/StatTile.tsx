@@ -79,7 +79,7 @@ export function StatTile({
   const ready = !loading && !error
   const body = (
     <>
-      <span className="block truncate text-label font-semibold tracking-[0.08em] text-muted uppercase">{label}</span>
+      <span className="block truncate text-small font-medium text-muted">{label}</span>
       <span id={valueId} className={`mt-1 block ${size === 'lg' ? 'min-h-[22px]' : ''}`}>
         {loading ? (
           <Skeleton className="mt-1 h-4 w-24" />
@@ -88,7 +88,7 @@ export function StatTile({
             {labels.unavailable}
           </span>
         ) : (
-          <span className={`num block truncate font-medium leading-tight ${size === 'lg' ? 'text-brand' : 'text-subtitle'} ${valueCls}`}>{value}</span>
+          <span className={`num block truncate font-semibold leading-tight tracking-tight ${size === 'lg' ? 'text-brand' : 'text-subtitle'} ${valueCls}`}>{value}</span>
         )}
       </span>
       {ready && (delta || hint) && (
@@ -98,13 +98,13 @@ export function StatTile({
         </span>
       )}
       {(sparkline || reserveSparkline) && <span className="mt-1 block h-7">{ready && sparkline}</span>}
-      {footer !== undefined && <span className="mt-0.5 block truncate text-label text-muted">{ready && footer ? footer : ' '}</span>}
+      {footer !== undefined && <span className="mt-0.5 block truncate text-caption text-muted">{ready && footer ? footer : ' '}</span>}
     </>
   )
   const valueText = ready && aiOn && explain !== false ? nodeText(value).trim() : ''
   const explainable = valueText !== '' && looksLikeMoney(valueText)
   // With the explain action the wrapper carries the caller's layout classes (see below).
-  const cls = `block min-w-0 rounded-lg border border-line bg-panel text-left shadow-elev-1 ${
+  const cls = `block min-w-0 rounded-xl border border-line bg-panel text-left shadow-elev-1 ${
     size === 'lg' ? 'px-3.5 pt-2.5 pb-2' : 'p-panel'
   } ${explainable ? 'h-full' : className}`
   const tile = onClick ? (
@@ -115,7 +115,7 @@ export function StatTile({
       title={openLabel}
       aria-label={openLabel ? `${typeof label === 'string' ? label : ''}. ${openLabel}` : undefined}
       aria-describedby={valueId}
-      className={`${cls} flex h-full w-full flex-col transition-colors hover:border-amber/60 focus-visible:border-amber`}
+      className={`${cls} t-btn flex h-full w-full flex-col hover:border-line-strong hover:shadow-elev-2 focus-visible:border-amber`}
     >
       {body}
     </button>

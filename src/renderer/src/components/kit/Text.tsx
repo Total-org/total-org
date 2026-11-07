@@ -4,7 +4,7 @@ import { formatPaise } from '@shared/money'
 /** A key cap: <Kbd>⌘K</Kbd>. */
 export function Kbd({ children }: { children: ReactNode }): React.JSX.Element {
   return (
-    <kbd className="rounded border border-line bg-panel2 px-1.5 py-0.5 font-mono text-label text-muted">
+    <kbd className="rounded-sm border border-line border-b-line-strong bg-panel2 px-1.5 py-px font-mono text-label text-muted">
       {children}
     </kbd>
   )

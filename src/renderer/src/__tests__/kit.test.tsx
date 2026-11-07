@@ -50,7 +50,9 @@ describe('Button', () => {
         <Button variant="danger">X</Button>
       </>
     )
-    expect(screen.getByText('P').className).toMatch(/bg-amberbar/)
+    // UI overhaul: the primary fill is the --t-primary token (ink in light, amber in dark)
+    expect(screen.getByText('P').className).toMatch(/t-btn-primary/)
+    expect(screen.getByText('P').className).toMatch(/bg-primary/)
     expect(screen.getByText('S').className).toBe(screen.getByText('D').className)
     expect(screen.getByText('X').className).toMatch(/text-danger/)
     expect(screen.getByText('G').getAttribute('type')).toBe('button')

@@ -48,7 +48,7 @@ const LEDGER_COLUMNS = defineColumns<Ranked<LedgerResult>>([
     cell: (r) => <LedgerLink ledgerId={r.id} name={r.name}>{hl(r.name)}</LedgerLink>
   },
   { id: 'group', header: 'Group', kind: 'text', value: (r) => r.groupName, className: 'text-muted' },
-  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (r) => r.gstin, cell: (r) => <span className="num text-muted">{hl(r.gstin)}</span>, width: 170 },
+  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (r) => r.gstin, cell: (r) => <span className="font-mono text-muted">{hl(r.gstin)}</span>, width: 170 },
   { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, defaultHidden: true, width: 120 },
   { id: 'matched', header: 'Matched', kind: 'text', value: (r) => matchHint(r), cell: (r) => <span className="text-small text-muted">{hl(matchHint(r))}</span>, groupable: false },
   RANK

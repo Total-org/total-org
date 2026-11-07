@@ -17,7 +17,7 @@ export function Spinner({ className = '', label = 'Loading' }: { className?: str
 
 /** One shimmering placeholder bar — size it with className (h-4 w-1/2 …). */
 export function Skeleton({ className = '' }: { className?: string }): React.JSX.Element {
-  return <span aria-hidden="true" className={`block animate-pulse rounded bg-panel2 ${className}`} />
+  return <span aria-hidden="true" className={`t-skeleton block rounded ${className}`} />
 }
 
 /** Placeholder rows while a list/report query is in flight — drop inside a Panel. */
@@ -36,7 +36,7 @@ export function SkeletonTiles({ count = 4 }: { count?: number }): React.JSX.Elem
   return (
     <div aria-hidden="true" className="grid gap-3" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="rounded-lg border border-line bg-panel p-panel">
+        <div key={i} className="rounded-xl border border-line bg-panel p-panel">
           <Skeleton className="h-3 w-1/2" />
           <Skeleton className="mt-2 h-5 w-2/3" />
         </div>
@@ -73,7 +73,7 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p className={`${compact ? 'text-detail' : 'text-lead'} text-muted`}>{title}</p>
+      <p className={`${compact ? 'text-detail' : 'text-lead'} font-medium text-ink`}>{title}</p>
       {hint && <p className="mt-1 text-body-sm text-muted">{hint}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>

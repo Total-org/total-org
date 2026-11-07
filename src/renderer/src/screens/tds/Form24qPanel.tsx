@@ -15,7 +15,7 @@ type Row = Form24qData['deductees'][number]
 export const DEDUCTEE_24Q_COLUMNS = defineColumns<Row>([
   { id: 'serial', header: '#', kind: 'number', value: (r) => r.serial, width: 44 },
   { id: 'employee', header: 'Employee', kind: 'text', value: (r) => r.employeeName, minWidth: 140, hideable: false },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'PANNOTAVBL', className: 'num' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'PANNOTAVBL', className: 'font-mono' },
   { id: 'section', header: 'Section code', kind: 'text', value: (r) => r.sectionCode, width: 110, className: 'num' },
   { id: 'paid', header: 'Paid on', kind: 'date', value: (r) => r.paymentDate },
   { id: 'voucher', header: 'Voucher', kind: 'text', value: (r) => String(r.voucherId), width: 90, defaultHidden: true, cell: (r) => <VoucherLink voucherId={r.voucherId} label="Open" /> },

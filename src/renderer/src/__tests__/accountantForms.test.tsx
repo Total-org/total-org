@@ -2,6 +2,11 @@
 // from the pre-8.4 components (main d32eadb1 + WP 8.3) — never edit them to make a change pass.
 // A company in accountant mode (meta `ui` missing) must keep LedgerFormModal's full form and the
 // quick "New ledger" / "New stock item" modals exactly as they were.
+//
+// UI overhaul (owner decision, 7 Nov 2026): the comparison ignores `class` attributes — what is
+// pinned is the STRUCTURE (every element, attribute other than class, role, test id, label, text
+// and their order), not the styling. The stored snapshot is the pre-8.4 one with its class
+// attributes removed by a script (regex / class="[^"]*"/ → ''), never regenerated from new code.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -26,6 +31,11 @@ const UNITS = [
 const INFO: CompanyInfo = {
   name: 'Acme Traders', stateCode: '27', gstin: '27AAACT1234A1Z5', gstRegistrationType: 'regular',
   address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null
+}
+
+/** innerHTML without class attributes (see the header). */
+function structure(el: HTMLElement): string {
+  return el.innerHTML.replace(/ class="[^"]*"/g, '')
 }
 
 function renderUi(ui: React.JSX.Element): HTMLElement {
@@ -54,19 +64,19 @@ describe('accountant create dialogs (unchanged by WP 8.4)', () => {
   it('LedgerFormModal — new ledger', async () => {
     const el = renderUi(<LedgerFormModal ledger={null} onClose={() => {}} />)
     await screen.findByText('Sundry Creditors')
-    expect(el.innerHTML).toMatchSnapshot()
+    expect(structure(el)).toMatchSnapshot()
   })
 
   it('QuickLedgerModal — party from a sales bill', async () => {
     const el = renderUi(<QuickLedgerModal name="Ramesh" suggestParty={true} suggestAccount={null} onClose={() => {}} onCreated={() => {}} />)
     await screen.findByText('Sundry Creditors')
     await screen.findByPlaceholderText('Optional')
-    expect(el.innerHTML).toMatchSnapshot()
+    expect(structure(el)).toMatchSnapshot()
   })
 
   it('QuickItemModal — new stock item', async () => {
     const el = renderUi(<QuickItemModal name="Rice 1kg" onClose={() => {}} onCreated={() => {}} />)
     await screen.findByText('Pcs')
-    expect(el.innerHTML).toMatchSnapshot()
+    expect(structure(el)).toMatchSnapshot()
   })
 })

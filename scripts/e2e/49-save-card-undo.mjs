@@ -49,7 +49,7 @@ await scenario('49-save-card-undo', async (h) => {
     await theme('light')
   }
   const errorToasts = () =>
-    page.$$eval('[role="status"] button', (bs) => bs.map((b) => b.className).filter((c) => c.includes('text-danger')).length)
+    page.$$eval('[data-toasts] button[data-kind="error"]', (bs) => bs.length)
 
   // ---------- Sell → Make a bill ----------
   await h.click('simple-nav-sell')

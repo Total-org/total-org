@@ -51,8 +51,8 @@ interface DeducteeRow {
 const DEDUCTEE_COLUMNS = defineColumns<DeducteeRow>([
   { id: 'party', header: 'Party', kind: 'text', value: (r) => r.name, hideable: false, groupable: false, cell: (r) => <LedgerLink ledgerId={r.ledgerId} name={r.name} /> },
   {
-    id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 150, className: 'num',
-    text: (r) => r.pan ?? 'Missing', cell: (r) => (r.pan ? <span className="num">{r.pan}</span> : <Badge tone="danger">Missing — higher rate</Badge>)
+    id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 150, className: 'font-mono',
+    text: (r) => r.pan ?? 'Missing', cell: (r) => (r.pan ? <span className="font-mono">{r.pan}</span> : <Badge tone="danger">Missing — higher rate</Badge>)
   },
   {
     id: 'type', header: 'Deductee type', kind: 'text', width: 230,

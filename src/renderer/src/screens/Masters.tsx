@@ -121,8 +121,8 @@ export const LEDGER_COLUMNS = defineColumns<LedgerRow>([
     cell: (l) => <LedgerLink ledgerId={l.id} name={l.name} />
   },
   { id: 'group', header: 'Group', kind: 'text', value: (l) => l.groupName, className: 'text-muted', width: 200 },
-  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (l) => l.gstin ?? '', className: 'num text-muted', width: 170, groupable: false },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (l) => l.pan ?? '', className: 'num text-muted', width: 120, groupable: false, defaultHidden: true },
+  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (l) => l.gstin ?? '', className: 'font-mono text-muted', width: 170, groupable: false },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (l) => l.pan ?? '', className: 'font-mono text-muted', width: 120, groupable: false, defaultHidden: true },
   // WP 8.4: a party's phone (WhatsApp in the form); empty for other accounts.
   { id: 'phone', header: 'Phone', kind: 'text', value: (l) => l.phone ?? '', className: 'num text-muted', width: 140, groupable: false },
   // Signed dr-positive paise. Not totalled: a sum of mixed openings isn't a figure anyone reads here.

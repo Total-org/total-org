@@ -4,8 +4,12 @@ The building blocks every screen is made of. Import from `../components/ui` (whi
 the kit, so older imports keep working) or from `../components/kit` (which also has the
 `Popover` / `MenuButton` pair).
 
-The character to keep: a quiet, keyboard-first ledger tool. IBM Plex Sans / Serif / Mono, warm
-off-white light theme, deep navy dark theme, the amber selection bar, green Dr / red Cr.
+The character to keep (UI overhaul, Nov 2026 — direction "Ledger", owner's pick): a quiet,
+keyboard-first ledger tool. Geist for text and money (tabular figures), Geist Mono only for codes
+(GSTINs, voucher numbers) and key caps, Noto Sans Devanagari for Hindi; warm stone light theme
+with near-black ink, deep navy dark theme; the amber is the ONE accent (selection bar, focus,
+highlights); green Dr / red Cr. No blue links (`t-link`: ink with an amber underline), no
+all-caps labels, no typewriter-mono amounts.
 
 ## Tokens (`app.css`)
 
@@ -16,21 +20,43 @@ never raw values:
 | Kind | Utilities | Notes |
 |---|---|---|
 | Surfaces | `bg-bg` `bg-panel` `bg-panel2` `bg-raised` `bg-scrim` | page → panel → header band/inset → popover/drawer/modal |
+| Primary | `bg-primary` `hover:bg-primary-hover` `text-on-primary` | ink-filled in light, amber in dark — the kit `Button variant="primary"` (class `t-btn-primary`) |
+| Links | `t-link` (CSS class) | ink text, amber underline; `text-link` for the colour alone |
+| Toasts | `bg-toast` `text-toast-ink` `text-toast-success/info/warning/error` | an inverted chip; the icon carries the kind |
 | Lines | `border-line` `border-line-strong` | |
 | Text | `text-ink` `text-muted` `text-amber` `text-dr` `text-cr` `text-blue` `text-on-amber` | all ≥ 4.5:1 on every surface, both themes |
 | Status | `text-success/warning/danger/info`, `bg-*-soft` | derived from dr / amber / cr / blue |
 | Focus | `--t-focus` (the global `:focus-visible` outline), `--t-focus-ring` | ≥ 3:1 on bg and panel |
 | Elevation | `shadow-elev-1` (panels) `-2` (popovers, toasts) `-3` (modal, drawer) | dark theme swaps shadows for borders |
-| Radius | `rounded-sm/md/lg/xl` → 4 / 6 / 8 / 12 px | |
+| Radius | `rounded-sm/md/lg/xl` → 4 / 6 / 10 / 14 px | tighter inside (controls `md`), softer on containers (panels, tiles, dialogs `xl`) |
 | Spacing | Tailwind's 4px scale, plus density-aware `p-page` `gap-section` `p-panel` `h-control` `h-control-sm` `px-control-x` | |
-| Type | `text-micro` 10 · `label` 10.5 · `caption` 11 · `hint` 11.5 · `small` 12 · `body-sm` 12.5 · `detail` 13 · `body` 13.5 · `lead` 14.5 · `subtitle` 15 · `title` 16 · `brand` 17 · `heading` 19 · `display` 28 · `hero` 34 | a raw `text-[Npx]` fails `__tests__/typeScale.test.ts` |
+| Type | `text-micro` 10 · `label` 10.5 · `caption` 11 · `hint` 11.5 · `small` 12 · `body-sm` 12.5 · `detail` 13 · `body` 13.5 · `lead` 14.5 · `subtitle` 15 · `title` 16 · `brand` 17 · `heading` 21 · `display` 28 · `hero` 34 | a raw `text-[Npx]` fails `__tests__/typeScale.test.ts` |
 
 Density (`comfortable` / `compact`, Settings → Appearance) sets `data-density` on `<html>`;
 table row height, cell padding, control height and page/panel padding follow it. A DataTable
 whose saved view picks a density sets its own `data-density`, which wins inside the table.
 
-Motion: transitions use `--t-duration`; everything collapses to instant under
-`prefers-reduced-motion` or Settings → Appearance → Reduce motion (`data-motion="reduce"`).
+Motion ("quiet confirmation"): only where something changed because the user acted — never on
+row hover, never while typing, never delaying a key. Tokens `--t-duration` 120 ms,
+`--t-duration-med` 160 ms, `--t-duration-slow` 220 ms, `--t-ease-out`. Enter-only CSS keyframes
+(an element animates in when it mounts and leaves at once, so the DOM and every wait stay exactly
+as before):
+
+| Class | Used by |
+|---|---|
+| `t-fade-in` | modal / drawer scrim |
+| `t-pop-in` | Modal dialog |
+| `t-menu-in` | Popover, picker (TypeAhead) lists |
+| `t-drawer-in` | Drawer, DockedDrawer |
+| `t-toast-in` | toasts |
+| `t-rise` | a newly inserted row / card (save card) |
+| `t-tick` | a drawn confirmation tick (svg path with `pathLength={24}`) |
+| `t-skeleton` | Skeleton (a soft sweep instead of a blink) |
+| `t-tab` / `t-tab-vertical` | TabBar's amber indicator that grows in under the chosen tab |
+| `t-btn` | buttons: colour transitions + a 1 px press |
+
+Everything collapses to instant under `prefers-reduced-motion` or Settings → Appearance → Reduce
+motion (`data-motion="reduce"`). No animation library — CSS only.
 
 Contrast is checked on the token values by `__tests__/tokens.test.ts` and on screen by
 `scripts/e2e/12-theme-a11y.mjs`.
