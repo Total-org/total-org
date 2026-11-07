@@ -29,7 +29,7 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
-- **"Check with your CA" badges** (#PR; upgrade plan Phase 2b). Plain words: wherever Total shows
+- **"Check with your CA" badges** (#220; upgrade plan Phase 2b). Plain words: wherever Total shows
   a figure or a date that rests on a tax rule it could not confirm in the official text, a small amber
   **Check with your CA** badge sits beside it; click it to read what is not confirmed and which rule it
   is about. On the simple screens it is in English, Hindi or Hinglish: Taxes (GST collected, GST on

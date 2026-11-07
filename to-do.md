@@ -176,7 +176,7 @@ done on main were dropped. One line each; the pointer says where to look.
 
 ## 5. UNVERIFIED tax points (confirm with a CA before relying on them)
 
-- ~~Show every UNVERIFIED point in the app where it touches a figure or a date~~ DONE — PR #PR ("Check with your CA" badges, registry `src/shared/caCheck.ts`; closed points listed there and in docs/owner/09). The points below stay open until a CA answers them.
+- ~~Show every UNVERIFIED point in the app where it touches a figure or a date~~ DONE — PR #220 ("Check with your CA" badges, registry `src/shared/caCheck.ts`; closed points listed there and in docs/owner/09). The points below stay open until a CA answers them.
 
 - GST slabs 2025 / 2026 and schedule numbering read from secondary copies (N. 9/2025, 19/2025-CT (Rate)) — `src/shared/gst/rateTable.ts` GST_RATE_UNVERIFIED
 - Services' GST rates after 22 Sep 2025; compensation cess nil / ended dates; biris at 18 %; the HSN → slab mapping — `rateTable.ts`
