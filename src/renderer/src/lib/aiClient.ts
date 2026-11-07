@@ -43,6 +43,9 @@ export const aiApi = {
   /** Phase 3b: every open proposal (drafts, bills being read, memory suggestions). */
   queue: () => call<QueueList>('ai:queue'),
   /** Approve one proposal — saved through voucher:save's / simple:post's own save. */
+  /** Phase 3b part 2: a plan's reminder the user sent (logged as on the person's page) / dropped. */
+  planReminded: (itemId: number, via: 'whatsapp' | 'sms' | 'copied', today?: string) => call<{ logId: number }>('ai:plan:reminded', { itemId, via, ...(today ? { today } : {}) }),
+  planDiscard: (itemId: number) => call<null>('ai:plan:discard', { itemId }),
   approveProposal: (key: string, today?: string) => call<QueueApproveResult>('ai:queue:approve', { key, ...(today ? { today } : {}) }),
   usage: () => call<AiUsageRow[]>('ai:usage'),
   outbound: () => call<AiOutboundRow[]>('ai:outbound'),

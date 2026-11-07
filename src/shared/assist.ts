@@ -67,6 +67,11 @@ export type AssistIntent =
   | { kind: 'withholding'; which: 'tds' | 'tcs' }
   /** "salary kitni gayi is mahine", "payroll last month" — the Payroll screen's pay runs. */
   | { kind: 'payroll'; period: AssistPeriod; periodSaid: boolean }
+  /** Phase 3b part 2: a task that becomes a plan of proposals in the approval queue — "remind
+   *  everyone 30 days late" (minDays, default 1), "book October's bills" (month 'YYYY-MM';
+   *  `monthSaid` false = this month, and the answer says so). */
+  | { kind: 'task'; task: 'remind_late'; minDays: number }
+  | { kind: 'task'; task: 'book_bills'; month: string; monthSaid: boolean }
   | { kind: 'unknown' }
 
 export type AssistIntentKind = AssistIntent['kind']
@@ -134,6 +139,9 @@ export interface AssistAnswer {
   help?: { term: string; plain: string; explain: string }[]
   /** "Open X": where the panel goes right away (resolved by the search service / the place words). */
   open?: AssistTarget
+  /** Phase 3b part 2: a task the queue can hold as one plan — what it would gather now (Ask Total
+   *  reads it; nothing stored) and whether this user may prepare it (assist:plan). */
+  task?: { preview: import('./aiPlans').PlanPreview; canPlan: boolean }
   /** Not understood: with AI on, the panel may pass the question to the model. */
   understood: boolean
 }

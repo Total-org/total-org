@@ -474,12 +474,17 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'ai:thread:delete': a('ai_thread'),
   // Viewer-level, listed anyway: a question writes only the AI tables (thread, messages, usage,
   // outbound log) — never the books — and audits any draft a draft tool creates.
-  'ai:send': a('ai_draft', 'ai_memory'),
+  'ai:send': a('ai_draft', 'ai_memory', 'ai_plan'),
   'ai:cancel': r('stops an in-flight answer; the partial reply is kept in the AI tables only'),
   'ai:draft:discard': a('ai_draft', 'capture_item'),
   // Phase 3b: the approval queue (a read over drafts / capture items / memory suggestions) and its
   // Approve — voucher:save's save (+ a GST ledger the editor creates on first use) or simple:post's.
   'ai:queue': QUERY,
+  // Phase 3b part 2: plans — created by Ask Total (assist:plan) or the agent's plan_task tool; a
+  // reminder sent from a plan is logged as on the person's page (reminder) + the item (ai_plan).
+  'assist:plan': a('ai_plan'),
+  'ai:plan:reminded': a('reminder', 'ai_plan'),
+  'ai:plan:discard': a('ai_plan'),
   'ai:queue:approve': a('voucher', 'ledger', 'ai_draft', 'attachment', 'capture_item', 'voucher_line', 'bank_statement_line', 'bank_learned_rule', 'simple_intent', 'manufacture'),
   // ---------- document capture (WP 5.4, ai/capture/ipc.ts) ----------
   'capture:pick': a('capture_item'),
@@ -495,7 +500,7 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'bankImport:categoriseAccept': a('ai_draft'),
   // WP 5.2 — the chat panel. Viewer-level, listed anyway: regenerate re-runs a question (AI tables
   // only, plus any draft it makes); a rename is audited; a pin is a display preference.
-  'ai:regenerate': a('ai_draft', 'ai_thread', 'ai_memory'),
+  'ai:regenerate': a('ai_draft', 'ai_thread', 'ai_memory', 'ai_plan'),
   'ai:thread:rename': a('ai_thread'),
   'ai:thread:pin': r('pins a conversation in the panel’s list (a display preference in the AI tables; not the books)'),
   'ai:data:deleteAll': a('ai_data'),

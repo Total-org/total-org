@@ -261,6 +261,17 @@ export const demoScript: MockScript = (req) => {
 
   if (/^\s*(please\s+)?remember\b/.test(q)) return rememberStep(question, results)
 
+  // Phase 3b part 2: a task → plan_task (the tool reads the parameters from the user's words).
+  const task = /\bremind\b.*\b(?:everyone|all)\b.*\blate\b/.test(q) ? 'remind_late' : /\b(?:book|enter)\b.*\bbills\b/.test(q) ? 'book_bills' : null
+  if (task) {
+    const done = results.find((r) => r.name === 'plan_task')
+    if (!done) return { text: '', toolCalls: [{ name: 'plan_task', arguments: { task } }] }
+    const r = JSON.parse(done.output) as { result?: { proposals?: number; amount?: string; error?: string; note?: string } }
+    const out = r.result ?? {}
+    if (out.error || !out.proposals) return { text: out.error ?? out.note ?? 'Nothing to prepare.' }
+    return { text: `I prepared ${out.proposals} for you to approve (${out.amount}). They wait in the approval queue — nothing was sent or recorded.` }
+  }
+
   const figure = /Figure to explain \(JSON\): (\{.*\})/.exec(req.instructions)?.[1]
   if (figure && /^explain this figure/i.test(question)) {
     const done = results.find((r) => r.name === 'explain_figure')

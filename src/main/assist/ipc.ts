@@ -6,6 +6,8 @@
 //                 origin 'ask-total', audited) that the simple flow opens; simple:post with
 //                 `aiDraftId` consumes it when the flow saves. The person's older open Ask Total
 //                 drafts are discarded (one open at a time).
+//   assist:plan   accountant+ — a task question becomes ONE plan of proposals in the approval
+//                 queue (services/aiPlans.ts, audited 'ai_plan'); nothing is sent or posted.
 //   assist:draft:discard  accountant+ — the flow was left without saving: its draft is discarded
 //                 (audited like Settings → AI drafts' Discard).
 // No network, no model, no key: src/main/assist/ never reaches the AI provider (assistBoundary.test.ts).
@@ -21,6 +23,8 @@ import { askTotal } from './answer'
 import { classify } from './classify'
 import { createAskDraft } from './entry'
 import { discardAskDraft } from './settle'
+import { createPlan } from '../services/aiPlans'
+import { AppError } from '@shared/errors/appError'
 
 type Handle = (channel: string, fn: (payload: unknown) => unknown, minRole?: Role) => void
 
@@ -51,6 +55,19 @@ export function registerAskTotalIpc(handle: Handle, deps: AskTotalDeps): void {
     const c = deps.company()
     const t = translator(p.lang ?? companyLanguage(c.db))
     return createAskDraft(c.db, c.info, { text: p.text, today: homeAsOn(p.today, todayISO()), ...(p.picks ? { picks: p.picks } : {}) }, { canDraft: true }, t, classify, deps.userNow?.() ?? null)
+  })
+
+  // Phase 3b part 2: a task ("remind everyone 30 days late", "book October's bills") → ONE plan of
+  // proposals in the approval queue (audited 'ai_plan'). The question is re-read here; anything
+  // that is not a task is refused. Nothing is sent or posted.
+  handle('assist:plan', (payload) => {
+    const p = assistAskSchema.parse(payload)
+    const c = deps.company()
+    const today = homeAsOn(p.today, todayISO())
+    const intent = classify(p.text, today)
+    if (intent.kind !== 'task') throw new AppError('plan_nothing', 'That is not a task Total can prepare')
+    const params = intent.task === 'remind_late' ? { minDays: intent.minDays } : { month: intent.month }
+    return createPlan(c.db, { task: intent.task, params, question: p.text, source: 'ask-total' }, today)
   })
 
   // The flow an Ask Total draft opened was left without saving (renderer: useSimplePost's unmount).

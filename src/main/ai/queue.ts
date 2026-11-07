@@ -37,6 +37,8 @@ import { loadMasters, type DraftMasters } from './drafting/work'
 import { accountingSavePayload, invoiceSavePayload } from './drafting/builders'
 import { rehearse } from './drafting/rehearse'
 import { duplicateCandidates } from './capture/billDraft'
+import { queuePlans } from '../services/aiPlans'
+import { lateReminders } from '../services/simplePeople'
 import { chargesGstOn } from '@shared/gst/registration'
 
 const ONE_CLICK_FORMS = new Set(['accounting', 'invoice'])
@@ -207,6 +209,7 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
   const names = new Map((db.prepare('SELECT id, name FROM ledgers').all() as { id: number; name: string }[]).map((r) => [r.id, r.name]))
   const types = new Map(listVoucherTypes(db).map((t) => [t.id, t]))
   const drafts = listDrafts(db, 'open')
+  const planned = queuePlans(db)
   const perMessage = new Map<number, number>()
   for (const d of drafts) if (d.messageId) perMessage.set(d.messageId, (perMessage.get(d.messageId) ?? 0) + 1)
   let masters: DraftMasters | null = null
@@ -234,13 +237,28 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
     const amount = p.total ?? (lines.length ? lines.filter((l) => l.drCr === 'dr').reduce((s, l) => s + l.amount, 0) : null)
     out.push({
       key: `draft:${d.id}`, type: 'draft', id: d.id, origin: originOf(d), what: whatOfKind(p.voucherKind),
-      group: d.messageId && (perMessage.get(d.messageId) ?? 0) > 1 ? `message:${d.messageId}` : null,
+      group: planned.draftPlan.has(d.id) ? `plan:${planned.draftPlan.get(d.id)}` : d.messageId && (perMessage.get(d.messageId) ?? 0) > 1 ? `message:${d.messageId}` : null,
       voucherKind: p.voucherKind ?? null, date: p.date ?? null,
       partyName: (p.partyLedgerId ? names.get(p.partyLedgerId) : null) ?? counterparty(p.voucherKind, lines),
       amount, summary: d.summary, lines, assumptions: p.assumptions ?? [], unrequested: d.unrequested,
       approve, createdAt: d.createdAt, draftForm: p.form ?? 'accounting',
       ...(simplePrefill(d) ? { prefill: simplePrefill(d)! } : {})
     })
+  }
+  // A plan's reminders: the People page's reminder facts as on today (one Outstandings run).
+  if (planned.reminders.length) {
+    const late = new Map(lateReminders(db, today, 1, new Set(planned.reminders.map((r) => r.partyId))).map((r) => [r.ledgerId, r]))
+    const sourceOf = new Map(planned.plans.map((p) => [p.id, p.source === 'ask-total' ? ('askTotal' as const) : ('chat' as const)]))
+    for (const r of planned.reminders) {
+      const l = late.get(r.partyId)
+      out.push({
+        key: `reminder:${r.itemId}`, type: 'reminder', id: r.itemId, origin: sourceOf.get(r.planId) ?? 'other', what: 'reminder', group: `plan:${r.planId}`, voucherKind: null,
+        date: null, partyName: l?.name ?? names.get(r.partyId) ?? null, amount: l?.reminder.amount ?? null,
+        summary: l ? `Remind ${l.name} about ${l.reminder.bills.length} late bill(s)` : `${names.get(r.partyId) ?? ''}: nothing late any more`,
+        lines: [], assumptions: [], unrequested: false, approve: l ? 'reminder' : 'nothing_late', createdAt: r.createdAt,
+        reminder: { partyId: r.partyId, phone: l?.phone ?? null, whatsapp: l?.whatsapp ?? null, facts: l?.reminder ?? null }
+      })
+    }
   }
   // Bills still being read, or waiting for the user's answers / the cost approval.
   const captures = db
@@ -264,7 +282,7 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
     })
   }
   out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
-  return { proposals: out, waiting: out.filter((p) => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory').length }
+  return { proposals: out, plans: planned.plans, waiting: out.filter((p) => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory' || p.approve === 'reminder').length }
 }
 
 const REFUSAL: Partial<Record<QueueApprove, () => AppError>> = {

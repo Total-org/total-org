@@ -28,6 +28,9 @@ import { createProvider, redactSecrets } from './provider'
 import { aiProviderSource, bindCustomOrigin, boundCustomOrigin, currentProvider, providerView, readPresetHeaders, readPresetKey, writePresetHeaders } from './providerConfig'
 import { AI_PRESETS, aiProviderSetSchema, checkBaseUrl, pickModels, type AiProviderSettings, type ResolvedAiProvider } from '@shared/aiProviders'
 import { listQueue } from './queue'
+import { discardPlanItem, planReminded } from '../services/aiPlans'
+import { planItemSchema, planRemindedSchema } from '@shared/aiPlans'
+import { homeAsOn } from '../services/simpleHome'
 import { discardDraft } from './drafts'
 import { createMemory, deleteMemory, forgetAllMemory, getMemory, memoryList, resolveDerived, setMemoryStatus, updateMemory } from './memory'
 import { todayISO } from '@shared/dates'
@@ -384,6 +387,13 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
   handle('ai:draft:discard', (p) => discardDraft(db(), idSchema.parse(p).id), 'accountant')
   // Phase 3b: the approval queue — every open proposal (drafts, bills being read, memory
   // suggestions). Approving is ai:queue:approve (ipc.ts, beside voucher:save).
+  // Phase 3b part 2: a plan's reminder the user sent (WhatsApp / SMS / copied) → logged through the
+  // person page's own path, the item done; a reminder dropped from the plan.
+  handle('ai:plan:reminded', (p) => {
+    const { itemId, via, today: t } = planRemindedSchema.parse(p)
+    return planReminded(db(), itemId, via, homeAsOn(t, today()))
+  }, 'accountant')
+  handle('ai:plan:discard', (p) => discardPlanItem(db(), planItemSchema.parse(p).itemId), 'accountant')
   handle('ai:queue', () => {
     const c = deps.company()
     return listQueue(c.db, c.info, today())

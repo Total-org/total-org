@@ -4,6 +4,8 @@
 // is stored for it. Approving goes through the save path a person uses (voucher:save's save /
 // simple:post's postIntent) — see main/ai/queue.ts.
 import type { AssistPrefill } from './assist'
+import type { QueuePlan } from './aiPlans'
+import type { PersonReminder } from './simple/people'
 
 /** Where a proposal came from (plain words in simple mode: simple.queue.from.*). */
 export type QueueOrigin = 'chat' | 'capture' | 'bank' | 'gst2b' | 'askTotal' | 'memory' | 'other'
@@ -11,7 +13,7 @@ export type QueueOrigin = 'chat' | 'capture' | 'bank' | 'gst2b' | 'askTotal' | '
 /** What it would record (simple.queue.what.*). */
 export type QueueWhat =
   | 'sale' | 'purchase' | 'money_in' | 'money_out' | 'move_money' | 'return_sale' | 'return_purchase'
-  | 'journal' | 'stock' | 'order' | 'made' | 'bill_to_read' | 'memory'
+  | 'journal' | 'stock' | 'order' | 'made' | 'bill_to_read' | 'memory' | 'reminder'
 
 /** How Approve saves it, or why it can only be edited / opened:
  *  - voucher: the draft's form state → the editor's payload → voucher:save's save (draft consumed);
@@ -28,8 +30,11 @@ export type QueueWhat =
  *  - line_done: a bank-line draft whose statement line was matched or left out meanwhile —
  *    nothing to record (Discard);
  *  - tds: the existing TDS rules say this payment / purchase needs TDS — Edit (the editor's TDS box;
- *    owner, 8 Nov). */
-export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture' | 'changed' | 'check' | 'line_done' | 'tds'
+ *    owner, 8 Nov);
+ *  - reminder: a plan's reminder to a customer — the user sends it (WhatsApp / copy) and it is
+ *    logged as on the person's page (ai:plan:reminded); never sent by itself;
+ *  - nothing_late: that customer has nothing late any more — Discard only. */
+export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture' | 'changed' | 'check' | 'line_done' | 'tds' | 'reminder' | 'nothing_late'
 
 export interface QueueLine {
   ledgerId: number
@@ -39,13 +44,14 @@ export interface QueueLine {
 }
 
 export interface QueueProposal {
-  /** Stable key: 'draft:<id>' | 'capture:<id>' | 'memory:<id>'. */
+  /** Stable key: 'draft:<id>' | 'capture:<id>' | 'memory:<id>' | 'reminder:<plan item id>'. */
   key: string
-  type: 'draft' | 'capture' | 'memory'
+  type: 'draft' | 'capture' | 'memory' | 'reminder'
   id: number
   origin: QueueOrigin
   what: QueueWhat
-  /** Proposals made together (one chat answer's drafts) share a group; null = on its own. */
+  /** Proposals made together share a group — a plan (`plan:<id>`, see QueueList.plans) or one chat
+   *  answer's drafts (`message:<id>`); null = on its own. */
   group: string | null
   voucherKind: string | null
   date: string | null
@@ -69,10 +75,15 @@ export interface QueueProposal {
   fileName?: string
   captureStatus?: string
   memoryText?: string
+  /** type 'reminder': the customer's late reminder as on today (the People page's facts; null =
+   *  nothing late any more) and the numbers the card sends to. */
+  reminder?: { partyId: number; phone: string | null; whatsapp: string | null; facts: PersonReminder | null }
 }
 
 export interface QueueList {
   proposals: QueueProposal[]
+  /** The plans (tasks) whose proposals are listed — the headers of their groups. */
+  plans: QueuePlan[]
   /** Proposals Approve can save in one click (the count Home / the panel show). */
   waiting: number
 }

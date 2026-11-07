@@ -9,6 +9,8 @@ import { aiApi } from './aiClient'
 import { useSession, type Screen } from '../state/stores'
 import type { VoucherKind } from '@shared/domain'
 import { approvableTogether, type QueueApproveResult, type QueueProposal } from '@shared/aiQueue'
+import { reminderMessage, whatsappLink, type ReminderVia } from '@shared/simple/people'
+import type { Language } from '@shared/i18n'
 
 export const QUEUE_KEY = ['aiQueue'] as const
 
@@ -22,10 +24,19 @@ export function useQueueList(enabled = true): ReturnType<typeof useQuery<Awaited
 export function queueEditTarget(p: QueueProposal, simple: boolean): Screen | null {
   if (p.type === 'capture') return { name: 'capture' }
   if (p.type === 'memory') return null
+  // A plan's reminder: the customer's page (People — the bills, the phone number, the history).
+  if (p.type === 'reminder') return p.reminder ? (simple ? { name: 'simple-person', id: p.reminder.partyId } : { name: 'ledger-statement', ledgerId: p.reminder.partyId }) : null
   // TDS is deducted in the full editor (owner, 8 Nov) — a chat draft that needs it opens there.
   if (simple && p.prefill && (p.approve !== 'tds' || p.origin === 'askTotal')) return { name: p.prefill.screen, ask: { draftId: p.id, prefill: p.prefill } } as Screen
   if (p.draftForm === 'tradeDoc' && p.voucherKind) return { name: 'trade-doc', kind: p.voucherKind, aiDraftId: p.id } as Screen
   return { name: 'voucher-entry', aiDraftId: p.id, ...(p.voucherKind ? { kindHint: p.voucherKind as VoucherKind } : {}) }
+}
+
+/** A plan's reminder message, in the reader's language — the People page's own words. */
+export function reminderText(p: QueueProposal, company: string, lang: Language): string | null {
+  const f = p.reminder?.facts
+  if (!f || !p.partyName) return null
+  return reminderMessage({ company, party: p.partyName, bucket: f.bucket, bills: f.bills, tone: f.tone ?? 'late' }, lang)
 }
 
 export interface QueueOutcome {
@@ -42,6 +53,9 @@ export function useQueueActions(): {
   approve: (p: QueueProposal) => Promise<QueueOutcome>
   approveAll: (list: readonly QueueProposal[]) => Promise<QueueOutcome[]>
   discard: (p: QueueProposal) => Promise<QueueOutcome>
+  /** Send a plan's reminder the way the person's page does — WhatsApp opens the OS browser with
+   *  the message (the app sends nothing), a copy goes to the clipboard — then log it. */
+  remind: (p: QueueProposal, via: ReminderVia, text: string) => Promise<QueueOutcome>
 } {
   const queryClient = useQueryClient()
   const today = useSession((s) => s.workingDate)
@@ -104,6 +118,7 @@ export function useQueueActions(): {
       const r = await run(p.key, async () => {
         if (p.type === 'memory') await aiApi.setMemoryStatus(p.id, 'archived')
         else if (p.type === 'draft') await aiApi.discardDraft(p.id)
+        else if (p.type === 'reminder') await aiApi.planDiscard(p.id)
         return undefined
       })
       await refresh()
@@ -111,5 +126,18 @@ export function useQueueActions(): {
     },
     [run, refresh]
   )
-  return { busy, approve, approveAll, discard }
+  const remind = useCallback(
+    async (p: QueueProposal, via: ReminderVia, text: string) => {
+      const r = await run(p.key, async () => {
+        if (via === 'whatsapp') window.open(whatsappLink(p.reminder?.whatsapp ?? p.reminder?.phone, text))
+        else await navigator.clipboard.writeText(text)
+        await aiApi.planReminded(p.id, via, today)
+        return undefined
+      })
+      await refresh()
+      return r
+    },
+    [run, refresh, today]
+  )
+  return { busy, approve, approveAll, discard, remind }
 }

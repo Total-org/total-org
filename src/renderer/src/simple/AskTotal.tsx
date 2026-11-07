@@ -99,11 +99,14 @@ function Sentence({ text, figures, onOpen }: { text: string; figures: AssistFigu
   )
 }
 
-function AnswerView({ turn, onAsk, onOpen, onEntry, busy }: {
+const APPROVALS = { name: 'simple-approvals' } as const // i18n-technical
+
+function AnswerView({ turn, onAsk, onOpen, onEntry, onPlan, busy }: {
   turn: Turn
   onAsk: (text: string, picks?: Turn['picks']) => void
   onOpen: (s: Screen) => void
   onEntry: (turn: Turn) => void
+  onPlan: (turn: Turn) => void
   busy: boolean
 }): React.JSX.Element {
   const t = useT()
@@ -142,6 +145,13 @@ function AnswerView({ turn, onAsk, onOpen, onEntry, busy }: {
             <div className="mt-3">
               <Button size="sm" variant="primary" data-testid="ask-open-entry" disabled={busy} onClick={() => onEntry(turn)}>
                 {t('assist.panel.openFlow', { screen: t(FLOW_LABEL[a.entry.prefill.screen]) }) /* i18n-technical: keyed in FLOW_LABEL */}
+              </Button>
+            </div>
+          )}
+          {a.task?.canPlan && (
+            <div className="mt-3">
+              <Button size="sm" variant="primary" data-testid="ask-prepare-plan" disabled={busy} onClick={() => onPlan(turn)}>
+                {t('assist.task.prepare')}
               </Button>
             </div>
           )}
@@ -306,6 +316,22 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate }
     }
   }
 
+  /** Phase 3b part 2: "Prepare them" — the task becomes ONE plan in Things to approve (accountant+);
+   *  nothing is sent or recorded. */
+  const preparePlan = async (turn: Turn): Promise<void> => {
+    setBusy(true)
+    try {
+      await api.assist.plan({ text: turn.text, today: workingDate, lang: lang as Language })
+      toast.push('success', t('assist.task.prepared'))
+      nav.go(APPROVALS)
+      if (overlay) onClose()
+    } catch {
+      toast.push('error', t('assist.panel.draftError'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const send = (): void => {
     const q = text
     setText('')
@@ -355,7 +381,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate }
           </div>
         )}
         {turns.map((turn) => (
-          <AnswerView key={turn.id} turn={turn} onAsk={(q, picks) => void ask(q, picks)} onOpen={open} onEntry={(x) => void openEntry(x)} busy={busy} />
+          <AnswerView key={turn.id} turn={turn} onAsk={(q, picks) => void ask(q, picks)} onOpen={open} onEntry={(x) => void openEntry(x)} onPlan={(x) => void preparePlan(x)} busy={busy} />
         ))}
         <div ref={endRef} />
       </div>
