@@ -304,6 +304,36 @@ describe('approval queue', () => {
     expect((await newest((x) => x.what === 'money_out' && x.amount === 1_000_000)).approve).toBe('voucher')
   })
 
+  it('a purchase entered as ledger lines keeps the supplier\'s bill name on Approve (only a marked advance follows the number)', async () => {
+    ids.mohan ??= await mkLedger('Mohan Supplies', 'Sundry Creditors', { stateCode: '27' })
+    ids.purchase ??= await mkLedger('Purchases', 'Purchase Accounts')
+    const typeId = count("SELECT id AS n FROM voucher_types WHERE kind = 'purchase' ORDER BY id LIMIT 1")
+    const rows = [
+      { drCr: 'dr', ledgerId: ids.purchase, amount: 50_000, costAllocations: [] },
+      { drCr: 'cr', ledgerId: ids.mohan, amount: 50_000, costAllocations: [] }
+    ]
+    const original = { partyLedgerId: null, reference: 'INV-42', instrumentNo: null, instrumentDate: null, transporterId: null, vehicleNo: null, transportDistanceKm: null, posOverride: null, currencyCode: null, exchangeRate: null, ledgerIds: [], inventory: [] }
+    const payload = {
+      voucherTypeId: typeId, voucherKind: 'purchase', date: T, partyLedgerId: ids.mohan, narration: null, reference: 'INV-42',
+      lines: rows.map(({ drCr, ledgerId, amount }) => ({ drCr, ledgerId, amount })), form: 'accounting', total: 50_000,
+      billRefs: [{ kind: 'new', name: 'INV-42', amount: 50_000, dueDate: null }],
+      state: { date: T, number: '', rows, narration: '', instrumentNo: '', billRefs: [{ kind: 'new', name: 'INV-42', amount: 50_000, dueDate: null }], advanceReceipt: false, optional: false, tds: null, tcs: null, original }
+    }
+    const w = companyDb(false)
+    let id = 0
+    try {
+      id = Number(w.prepare("INSERT INTO ai_drafts (thread_id, message_id, kind, summary, payload_json, source) VALUES (NULL, NULL, 'voucher', 'Purchase INV-42', ?, 'chat')").run(JSON.stringify(payload)).lastInsertRowid)
+    } finally {
+      w.close()
+    }
+    expect((await newest((x) => x.key === `draft:${id}`)).approve).toBe('voucher')
+    const r = await ok<{ voucherIds: number[] }>('ai:queue:approve', { key: `draft:${id}`, today: T })
+    const v = await ok<{ reference: string | null; number: string; billRefs: { kind: string; name: string; amount: number }[] }>('voucher:get', { id: r.voucherIds[0] })
+    expect(v.reference).toBe('INV-42')
+    expect(v.billRefs.map((b) => [b.kind, b.name, b.amount])).toEqual([['new', 'INV-42', 50_000]])
+    expect(v.number).not.toBe('INV-42')
+  })
+
   it('a viewer and an accountant without the posting right cannot approve', async () => {
     await ask('Pay 300 shop rent in cash')
     const p = await newest((x) => x.what === 'money_out' && x.amount === 30_000)

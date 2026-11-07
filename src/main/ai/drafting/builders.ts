@@ -326,11 +326,12 @@ export function buildAccountingDraft(w: DraftWork, input: AccountingDraftInput):
     const accountRow: AccountingRowState = { drCr: input.kind === 'payment' ? 'cr' : 'dr', ledgerId: account!.id, amount: alloc.total, costAllocations: [] }
     rows.push(...(input.kind === 'payment' ? [partyRow, accountRow] : [accountRow, partyRow]))
     w.fields.add('line:0').add('line:1')
-    return accountingResult(w, type, date, rows, input, alloc.refs, alloc.note)
+    return accountingResult(w, type, date, rows, input, alloc.refs, alloc.note, alloc.advance)
   }
   w.settle()
   let refs: NonNullable<AiVoucherDraftPayload['billRefs']> = []
   let note = ''
+  let advance: string | undefined
   if (input.bills?.length || input.oldestBillsFirst) {
     if (!party) {
       const ids = [...new Set(rows.map((r) => r.ledgerId).filter((x): x is number => x != null))]
@@ -343,8 +344,9 @@ export function buildAccountingDraft(w: DraftWork, input: AccountingDraftInput):
     const alloc = allocateBills(w, party, input.kind, date, partyTotal, input.bills, !!input.oldestBillsFirst, advanceNameFor(w, type, date))
     refs = alloc.refs
     note = alloc.note
+    advance = alloc.advance
   }
-  return accountingResult(w, type, date, rows, input, refs, note)
+  return accountingResult(w, type, date, rows, input, refs, note, advance)
 }
 
 function accountingResult(
@@ -354,7 +356,8 @@ function accountingResult(
   rows: AccountingRowState[],
   input: AccountingDraftInput,
   refs: NonNullable<AiVoucherDraftPayload['billRefs']>,
-  billNote: string
+  billNote: string,
+  advance?: string
 ): BuiltDraft {
   const m = w.m
   if (input.narration) w.fields.add('narration')
@@ -381,7 +384,7 @@ function accountingResult(
     {
       voucherTypeId: type.id, voucherKind: type.kind, date, partyLedgerId: payload.partyLedgerId, narration: payload.narration, reference: payload.reference,
       lines: lines.map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount })),
-      form: 'accounting' as AiDraftForm, state, total: dr, ...(refs.length ? { billRefs: refs } : {})
+      form: 'accounting' as AiDraftForm, state, total: dr, ...(refs.length ? { billRefs: refs } : {}), ...(advance ? { advanceRef: advance } : {})
     },
     summary
   )
@@ -412,7 +415,7 @@ function allocateBills(
   oldestFirst: boolean,
   /** Name of the 'new' bill an excess becomes — the voucher number, as the accounting form names it. */
   advanceName: string
-): { total: number; refs: NonNullable<AiVoucherDraftPayload['billRefs']>; note: string } {
+): { total: number; refs: NonNullable<AiVoucherDraftPayload['billRefs']>; note: string; advance?: string } {
   const open = openBills(w.m.db, party.id, date).filter((b) => b.pending > 0)
   // A settlement names a bill, and the allocation settles the OLDEST open bill of that name
   // (shared/outstanding.ts settleNamed): with duplicate names only that one can be targeted.
@@ -475,7 +478,7 @@ function allocateBills(
   if (refs.length) w.fields.add('bills')
   else if (open.length && !bills?.length) w.assume(`Not allocated against ${party.name}'s open bills (on account) — name the bills to settle them`)
   const against = refs.filter((r) => r.kind === 'against')
-  return { total, refs, note: against.length ? ` against ${against.map((r) => `${r.name} (${rs(r.amount)})`).join(', ')}` : '' }
+  return { total, refs, ...(refs.some((r) => r.kind === 'new' && r.name === advanceName) ? { advance: advanceName } : {}), note: against.length ? ` against ${against.map((r) => `${r.name} (${rs(r.amount)})`).join(', ')}` : '' }
 }
 
 // ---------- invoices: sales / purchase / credit note / debit note ----------

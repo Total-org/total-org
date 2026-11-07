@@ -29,7 +29,7 @@ import { nextVoucherNumber, saveVoucher } from '../services/vouchers'
 import { getFeatures } from '../services/config'
 import { tdsEligible } from '../services/tdsWorkbench'
 import { previewIntent } from '../services/simplePost'
-import { listVoucherTypes } from '../services/masters'
+import { listVoucherTypes, partyGroupIdsBySide } from '../services/masters'
 import { statementLineOpen } from '../services/bankImport'
 import { getDraft, listDrafts } from './store'
 import { listMemory } from './memory'
@@ -127,14 +127,17 @@ function counterparty(kind: string, lines: readonly QueueLine[]): string | null 
 /** The payload the draft's editor would save today, built with the editor's shared mapping. Called
  *  INSIDE a transaction (the save's, or a rehearsal): like the editor on first use, it creates a
  *  missing GST / Round Off ledger (audited by createLedger); the number is the series' next one
- *  (what the editor suggests; saveVoucher would pick the same), and an advance kept as a new bill is
- *  named after it, as the accounting form names it (the draft named it after the number of its day). */
+ *  (what the editor suggests; saveVoucher would pick the same), and the advance the builder marked
+ *  (`payload.advanceRef`, named after the number of the draft's day) is named after it, as the
+ *  accounting form names it. */
 export function draftVoucherPayload(m: DraftMasters, d: AiDraftDto, type: VoucherType): VoucherInputParsed {
   const p = d.payload
   const number = nextVoucherNumber(m.db, type.id, (p.state as { date: string }).date)
   if (p.form === 'invoice') return voucherInputSchema.parse(invoiceSavePayload(m, p.voucherKind as VoucherKind, type.id, p.state as InvoiceFormState, number))
   const state = p.state as AccountingFormState
-  const billRefs = state.billRefs.map((r) => (r.kind === 'new' ? { ...r, name: number } : r))
+  // Only the ref the builder marked as the advance follows the number (review of #221: a captured
+  // bill's `new` ref carries the supplier's invoice number and keeps it, as the editor's save does).
+  const billRefs = p.advanceRef ? state.billRefs.map((r) => (r.kind === 'new' && r.name === p.advanceRef ? { ...r, name: number } : r)) : state.billRefs
   return voucherInputSchema.parse(accountingSavePayload(m, type, { ...state, number, billRefs }))
 }
 
@@ -166,6 +169,16 @@ export function postsAsDrafted(d: AiDraftDto, built: VoucherInputParsed): boolea
  *  a rehearsal or the save's transaction — the payload is saved in a nested rehearsal to ask. */
 function needsTds(db: DB, built: VoucherInputParsed, kind: string): boolean {
   if ((kind !== 'payment' && kind !== 'purchase') || !getFeatures(db).tds) return false
+  // Cheap pre-check (review of #221, R2): a TDS event needs a section — from a ledger of the entry
+  // (its own or default section) or, for a supplier, from its earlier bills (tdsEvents
+  // `sectionFrom: 'credits'`). An entry with neither (Dr Rent / Cr Cash) skips the FY-wide pass.
+  const ids = [...new Set(built.lines.map((l) => l.ledgerId))]
+  if (!ids.length) return false
+  const creditors = partyGroupIdsBySide(db, 'creditor')
+  const rows = db
+    .prepare(`SELECT group_id AS groupId, tds_section_id AS s, tds_default_section_id AS d FROM ledgers WHERE id IN (${ids.map(() => '?').join(', ')})`)
+    .all(...ids) as { groupId: number; s: number | null; d: number | null }[]
+  if (!rows.some((r) => r.s != null || r.d != null || creditors.has(r.groupId))) return false
   return rehearse(db, () => {
     const v = saveVoucher(db, built)
     return tdsEligible(db, built.date, built.date).some((r) => r.voucherId === v.id)
