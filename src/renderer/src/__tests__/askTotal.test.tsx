@@ -177,7 +177,7 @@ describe('Ask Total — answers', () => {
   })
 
   it('a task becomes one plan in Things to approve ("Prepare them"); nothing is sent or posted here', async () => {
-    const preview = { task: 'remind_late' as const, params: { minDays: 30 }, count: 2, amount: 1_500_000, unread: 0, existingPlanId: null }
+    const preview = { task: 'remind_late' as const, params: { minDays: 30 }, totalCount: 2, totalAmount: 1_500_000, count: 2, amount: 1_500_000, waiting: 0, unread: 0, existingPlanId: null }
     answers.set('remind everyone 30 days late', base({ intent: 'task', sentences: ['2 customers are 30+ days late, owing ₹15,000.00.'], task: { preview, canPlan: true } }))
     wrap(<AssistantPanel />)
     await askIt('remind everyone 30 days late')

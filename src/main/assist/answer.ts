@@ -696,21 +696,24 @@ function directionAnswer(intent: Extract<AssistIntent, { kind: 'direction' }>, t
 function taskAnswer(db: DB, intent: Extract<AssistIntent, { kind: 'task' }>, input: AskInput, env: AskEnv, t: Translate): AssistAnswer {
   const params = intent.task === 'remind_late' ? { minDays: intent.minDays } : { month: intent.month }
   const preview = previewPlan(db, intent.task, params, input.today)
-  const amount = formatPaise(preview.amount, { symbol: true })
+  const amount = formatPaise(preview.totalAmount, { symbol: true })
   const sentences: string[] = []
+  const any = intent.task === 'remind_late' && intent.minDays <= 1
   if (intent.task === 'remind_late') {
-    sentences.push(preview.count ? t('assist.task.remindLate', { count: preview.count, days: intent.minDays, amount }) : t('assist.task.remindNone', { days: intent.minDays }))
+    if (!preview.totalCount) sentences.push(any ? t('assist.task.remindNoneAny') : t('assist.task.remindNone', { days: intent.minDays }))
+    else sentences.push(any ? t('assist.task.remindLateAny', { count: preview.totalCount, amount }) : t('assist.task.remindLate', { count: preview.totalCount, days: intent.minDays, amount }))
   } else {
     const month = toMonthLabel(intent.month, 'long', t.lang)
     if (!intent.monthSaid) sentences.push(t('assist.task.thisMonth', { month }))
-    sentences.push(preview.count ? t('assist.task.bookBills', { count: preview.count, month, amount }) : t('assist.task.bookNone', { month }))
+    sentences.push(preview.totalCount ? t('assist.task.bookBills', { count: preview.totalCount, month, amount }) : t('assist.task.bookNone', { month }))
     if (preview.unread) sentences.push(t('assist.task.unread', { count: preview.unread }))
   }
-  if (preview.existingPlanId) sentences.push(t('assist.task.existing'))
+  // Already waiting in a plan: said, never listed twice; "Prepare them" adds only the others.
+  if (preview.waiting) sentences.push(t('assist.task.waiting', { count: preview.waiting }))
   return {
     intent: intent.kind, answeredBy: 'total', sentences, figures: [],
-    links: preview.existingPlanId ? [{ label: t('assist.task.open'), target: { screen: 'simple-approvals' } }] : [],
-    ...(preview.count && !preview.existingPlanId ? { task: { preview, canPlan: env.canDraft } } : {}),
+    links: preview.waiting ? [{ label: t('assist.task.open'), target: { screen: 'simple-approvals' } }] : [],
+    ...(preview.count ? { task: { preview, canPlan: env.canDraft } } : {}),
     help: [], understood: true
   }
 }

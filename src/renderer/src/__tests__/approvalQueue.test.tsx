@@ -175,6 +175,24 @@ describe('approval queue — simple mode', () => {
     open.mockRestore()
   })
 
+  it('inside the reminder interval a card asks "Send again?" first, as the person\'s page does', async () => {
+    const facts = { bucket: 'gentle' as const, bills: [{ name: '7', voucherId: 7, date: '2026-08-30', dueDate: '2026-08-31', amount: 1_200_000, pending: 1_200_000, overdueDays: 44 }], amount: 1_200_000, lastSent: '2026-10-12', allowed: false, nextAllowed: '2026-10-19' }
+    const R = base({ key: 'reminder:5', type: 'reminder', id: 5, origin: 'askTotal', what: 'reminder', group: 'plan:4', voucherKind: null, date: null, partyName: 'Ramesh Traders', amount: 1_200_000, lines: [], approve: 'reminder', reminder: { partyId: 10, phone: null, whatsapp: null, facts } })
+    list = { proposals: [R], waiting: 1, plans: [{ key: 'plan:4', id: 4, task: 'remind_late', params: { minDays: 1 }, question: 'remind everyone who is late', source: 'ask-total', createdAt: '2026-10-14T10:00:00Z' }] }
+    Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => undefined) } })
+    renderUi(<ApprovalQueue />)
+    expect((await screen.findByTestId('queue-group-plan:4')).textContent).toContain('Reminders to customers with late bills (1)')
+    expect(screen.getByTestId('queue-card-reminder:5').textContent).toContain('Last reminded on')
+    fireEvent.click(screen.getByTestId('queue-copy-reminder:5'))
+    expect(screen.getByTestId('queue-again-reminder:5').textContent).toContain('You reminded them 2 days ago. Send again?')
+    expect(calls('ai:plan:reminded')).toEqual([])
+    fireEvent.click(screen.getByTestId('queue-again-no-reminder:5'))
+    expect(screen.queryByTestId('queue-again-reminder:5')).toBeNull()
+    fireEvent.click(screen.getByTestId('queue-copy-reminder:5'))
+    fireEvent.click(screen.getByTestId('queue-again-yes-reminder:5'))
+    await waitFor(() => expect(calls('ai:plan:reminded')).toEqual([{ itemId: 5, via: 'copied', today: '2026-10-14' }]))
+  })
+
   it('an empty queue teaches what lands here', async () => {
     list = { proposals: [], waiting: 0, plans: [] }
     renderUi(<ApprovalQueue />)

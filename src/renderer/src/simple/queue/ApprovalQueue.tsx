@@ -4,6 +4,8 @@
 // The accountant view (accounts + Dr / Cr) is screens/ApprovalQueue.tsx.
 import { formatPaise } from '@shared/money'
 import { toMonthLabel, toPlainDate } from '@shared/dates'
+import { daysBetweenIso } from '@shared/receivables/interest'
+import { useState } from 'react'
 import type { MessageKey } from '@shared/i18n'
 import { mapError, type CaughtError } from '@shared/errors'
 import { approvableTogether, groupProposals, oneClick, type QueueOrigin, type QueueProposal, type QueueWhat } from '@shared/aiQueue'
@@ -76,7 +78,7 @@ const planOf = (group: string | null, plans: readonly QueuePlan[]): QueuePlan | 
 /** A group's heading: the plan's task in plain words, else "Prepared together (n)". */
 function groupTitle(group: string | null, count: number, plans: readonly QueuePlan[], t: T): string {
   const plan = planOf(group, plans)
-  if (plan?.task === 'remind_late') return t('simple.queue.plan.remindLate', { days: plan.params.minDays ?? 1, count })
+  if (plan?.task === 'remind_late') return (plan.params.minDays ?? 1) > 1 ? t('simple.queue.plan.remindLate', { days: plan.params.minDays!, count }) : t('simple.queue.plan.remindAll', { count })
   if (plan?.task === 'book_bills' && plan.params.month) return t('simple.queue.plan.bookBills', { month: toMonthLabel(plan.params.month, 'long', t.lang), count })
   return t('simple.queue.together', { count })
 }
@@ -91,6 +93,14 @@ function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; act
   const editKey: MessageKey = p.type === 'capture' || p.type === 'reminder' ? 'simple.queue.open' : 'simple.queue.edit' // i18n-technical
   const edit = queueEditTarget(p, true)
   const company = useSession((st) => st.info?.name ?? '')
+  const today = useSession((st) => st.workingDate)
+  // Inside the "don't remind again within N days" window, ask first — as the person's page does
+  // (the click on "Send again" is itself a user gesture, so WhatsApp / the clipboard still work).
+  const [asking, setAsking] = useState<(() => void) | null>(null)
+  const facts = p.reminder?.facts
+  const insideWindow = !!facts?.lastSent && !facts.allowed
+  const daysAgo = facts?.lastSent ? Math.max(0, daysBetweenIso(facts.lastSent, today)) : 0
+  const askFirst = (send: () => void): void => (insideWindow ? setAsking(() => send) : send())
   const message = p.approve === 'reminder' ? reminderText(p, company, t.lang ?? 'en') : null
   // A draft needs the posting right; a memory and a discard only a non-viewer.
   const mayApprove = oneClick(p) && (p.type === 'memory' ? canWrite : canSave)
@@ -139,11 +149,11 @@ function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; act
           {message && (
             <>
               <Button size="sm" variant="primary" loading={busy} data-testid={`queue-whatsapp-${p.key}`}
-                onClick={() => void actions.remind(p, WHATSAPP, message).then((o) => onDone(o, REMINDED))}>
+                onClick={() => askFirst(() => void actions.remind(p, WHATSAPP, message).then((o) => onDone(o, REMINDED)))}>
                 {t('simple.queue.sendWhatsapp')}
               </Button>
               <Button size="sm" disabled={busy} data-testid={`queue-copy-${p.key}`}
-                onClick={() => void actions.remind(p, COPIED, message).then((o) => onDone(o, REMINDED))}>
+                onClick={() => askFirst(() => void actions.remind(p, COPIED, message).then((o) => onDone(o, REMINDED)))}>
                 {t('simple.queue.copyMessage')}
               </Button>
             </>
@@ -159,6 +169,15 @@ function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; act
               {t('simple.queue.discard')}
             </Button>
           )}
+        </div>
+      )}
+      {asking && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber/60 bg-panel2 p-2" role="group" aria-labelledby={`again-${p.key}`} data-testid={`queue-again-${p.key}`}>
+          <p id={`again-${p.key}`} className="text-body text-ink">{t('simple.people.reminder.again', { days: daysAgo })}</p>
+          <Button size="sm" variant="primary" data-testid={`queue-again-yes-${p.key}`} onClick={() => { const send = asking; setAsking(null); send() }}>
+            {t('simple.people.reminder.againYes')}
+          </Button>
+          <Button size="sm" data-testid={`queue-again-no-${p.key}`} onClick={() => setAsking(null)}>{t('simple.people.reminder.againNo')}</Button>
         </div>
       )}
     </li>

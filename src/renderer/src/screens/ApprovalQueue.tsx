@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react'
 import { formatPaise } from '@shared/money'
 import { approvableTogether, oneClick, type QueueOrigin, type QueueProposal } from '@shared/aiQueue'
 import { useNav, useSession, useToasts } from '../state/stores'
+import { confirmDialog } from '../lib/dialogs'
+import { toDisplayDate } from '@shared/dates'
 import type { QueuePlan } from '@shared/aiPlans'
 import { Badge, Banner, Button, Page, PageHeader, Panel } from '../components/ui'
 import { DataTable, defineColumns } from '../components/table'
@@ -25,6 +27,13 @@ const BLOCKED: Partial<Record<QueueProposal['approve'], string>> = {
   nothing_late: 'Nothing is overdue for this customer any more — discard it'
 }
 const TASK: Record<QueuePlan['task'], string> = { remind_late: 'Reminders', book_bills: 'Bills to book' }
+
+/** Inside the reminder interval: ask first, as the person's page does. */
+async function remindOk(p: QueueProposal): Promise<boolean> {
+  const f = p.reminder?.facts
+  if (!f?.lastSent || f.allowed) return true
+  return confirmDialog({ title: 'Send again?', message: `${p.partyName} was reminded on ${toDisplayDate(f.lastSent)}; the reminder interval runs until ${f.nextAllowed ? toDisplayDate(f.nextAllowed) : 'later'}.`, confirmLabel: 'Send again' })
+}
 
 const COLUMNS = defineColumns<QueueProposal>([
   { id: 'date', header: 'Date', kind: 'date', value: (r) => r.date, width: 110 },
@@ -166,7 +175,7 @@ export function ApprovalQueueScreen(): React.JSX.Element {
             <Detail
               p={r}
               plan={data?.plans.find((x) => x.key === r.group)}
-              onRemind={(via, text) => void remind(r, via, text).then((o) => report(o, 'Reminder logged as sent'))}
+              onRemind={(via, text) => void remindOk(r).then((go) => (go ? remind(r, via, text).then((o) => report(o, 'Reminder logged as sent')) : undefined))}
               busy={busy.has(r.key)}
               onApprove={() => void approve(r).then((o) => report(o, r.type === 'memory' ? 'Remembered' : 'Approved and saved'))}
               onDiscard={() => void discard(r).then((o) => report(o, 'Discarded'))}

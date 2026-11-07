@@ -20,10 +20,15 @@ export interface PlanParams {
 export interface PlanPreview {
   task: PlanTask
   params: PlanParams
-  /** Proposals the plan would hold. */
+  /** Everything the task matches now, and its amount (remind_late: what those customers owe late,
+   *  paise; book_bills: the bills' totals). */
+  totalCount: number
+  totalAmount: number
+  /** What a plan would ADD: matches not already waiting in an open plan. */
   count: number
-  /** remind_late: what those customers owe late (paise); book_bills: the bills' total. */
   amount: number
+  /** Matches already waiting in an open plan (never listed twice). */
+  waiting: number
   /** book_bills: captured bills of any month still being read / waiting for answers (not in the plan). */
   unread: number
   /** An open plan for the same task and parameters (asking again returns it). */
@@ -32,7 +37,10 @@ export interface PlanPreview {
 
 export interface PlanCreated {
   planId: number
+  /** Items the plan holds open now. */
   count: number
+  /** Items this call added (a new plan: all of them; asked again: what matched since). */
+  added: number
   /** true = the open plan for the same task was returned (nothing new stored). */
   existing: boolean
 }

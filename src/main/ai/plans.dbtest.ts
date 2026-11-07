@@ -90,7 +90,7 @@ describe('tasks → plans (Phase 3b part 2)', () => {
     const a = await ok<AssistAnswer>('assist:ask', { text: 'remind everyone 30 days late', today: TODAY })
     expect(a.intent).toBe('task')
     // Only Ramesh: ₹12,000 is 44 days late (Sita's ₹3,000 is 9 days late).
-    expect(a.task?.preview).toMatchObject({ task: 'remind_late', params: { minDays: 30 }, count: 1, amount: 1_200_000, existingPlanId: null })
+    expect(a.task?.preview).toMatchObject({ task: 'remind_late', params: { minDays: 30 }, totalCount: 1, totalAmount: 1_200_000, count: 1, amount: 1_200_000, waiting: 0, existingPlanId: null })
     expect(a.task?.canPlan).toBe(true)
     expect(a.sentences[0]).toContain('₹12,000.00')
     expect(count('SELECT COUNT(*) AS n FROM ai_plans')).toBe(0)
@@ -98,8 +98,8 @@ describe('tasks → plans (Phase 3b part 2)', () => {
 
   it('assist:plan stores ONE plan (audited); asking again returns it; the queue lists the reminder in the plan\'s group', async () => {
     const p = await ok<{ planId: number; count: number; existing: boolean }>('assist:plan', { text: 'remind everyone 30 days late', today: TODAY })
-    expect(p).toMatchObject({ count: 1, existing: false })
-    expect(await ok('assist:plan', { text: 'Remind everyone 30 days late', today: TODAY })).toMatchObject({ planId: p.planId, existing: true })
+    expect(p).toMatchObject({ count: 1, added: 1, existing: false })
+    expect(await ok('assist:plan', { text: 'Remind everyone 30 days late', today: TODAY })).toEqual({ planId: p.planId, count: 1, added: 0, existing: true })
     expect(count("SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'ai_plan' AND action = 'create'")).toBe(1)
     const q = await queue()
     expect(q.plans.map((x) => [x.key, x.task, x.params.minDays, x.source])).toEqual([[`plan:${p.planId}`, 'remind_late', 30, 'ask-total']])
@@ -121,31 +121,51 @@ describe('tasks → plans (Phase 3b part 2)', () => {
     expect((await call('ai:plan:reminded', { itemId: r.id, via: 'copied', today: TODAY })).code).toBe('queue_not_open')
   })
 
-  it('"remind everyone late" (any days) is its own plan; a dropped reminder is discarded (audited)', async () => {
-    const p = await ok<{ planId: number; count: number }>('assist:plan', { text: 'sabko reminder bhejo jo late hain', today: TODAY })
-    expect(p.count).toBe(2)
+  it('a customer waits in ONE plan only; asking again tops the open plan up (audited); a dropped one is discarded', async () => {
+    // Ramesh's 30-day reminder is done: "anything late" holds both customers.
+    const p = await ok<{ planId: number; count: number; added: number }>('assist:plan', { text: 'sabko reminder bhejo jo late hain', today: TODAY })
+    expect(p).toMatchObject({ count: 2, added: 2 })
+    // Ramesh now waits in that plan: the 30-day task says so and offers nothing new (review of #229).
+    const again = await ok<AssistAnswer>('assist:ask', { text: 'remind everyone 30 days late', today: TODAY })
+    expect(again.task).toBeUndefined()
+    expect(again.sentences.join(' ')).toContain('1 of them is already waiting in Things to approve')
+    expect((await call('assist:plan', { text: 'remind everyone 30 days late', today: TODAY })).code).toBe('plan_nothing')
+    expect((await queue()).proposals.filter((x) => x.type === 'reminder' && x.partyName === 'Ramesh Traders')).toHaveLength(1)
+    // Sita is dropped (audited); asking the same task again adds her back to the SAME plan.
     const sita = (await queue()).proposals.find((x) => x.type === 'reminder' && x.partyName === 'Sita Stores')!
     await ok('ai:plan:discard', { itemId: sita.id })
     expect(count(`SELECT COUNT(*) AS n FROM ai_plan_items WHERE id = ${sita.id} AND status = 'discarded'`)).toBe(1)
-    expect(count("SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'ai_plan' AND action = 'update'")).toBe(2)
+    const top = await ok<{ planId: number; count: number; added: number; existing: boolean }>('assist:plan', { text: 'remind everyone who is late', today: TODAY })
+    expect(top).toEqual({ planId: p.planId, count: 2, added: 1, existing: true })
+    expect(count(`SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'ai_plan' AND entity_id = ${p.planId} AND action = 'update' AND after_json LIKE '%added%'`)).toBe(1)
+    // "Anything late" says it in words without "1+ days".
+    const any = await ok<AssistAnswer>('assist:ask', { text: 'remind everyone who is late', today: TODAY })
+    expect(any.sentences[0]).toBe('2 customers have late bills, owing ₹15,000.00. I can prepare a reminder for each — you send them yourself.')
   })
 
-  it('"book October\'s bills" with nothing captured says so; the agent prepares the same plan only when asked', async () => {
+  it('"book October\'s bills" with nothing captured says so; the agent prepares a plan only when asked, never twice', async () => {
     const a = await ok<AssistAnswer>('assist:ask', { text: "book October's bills", today: TODAY })
     expect(a.intent).toBe('task')
     expect(a.task).toBeUndefined()
     expect(a.sentences.join(' ')).toMatch(/No bill from Oct 20\d\d/)
-    // The agent (mock provider): the same task through plan_task.
     await ok('ai:notice:accept')
     await ok('ai:settings:set', { enabled: true })
     await ok('ai:testConnection')
+    const send = async (text: string): Promise<void> => {
+      const sent = await ok<{ runId: string }>('ai:send', { text })
+      await until(() => events.some((e) => e.runId === sent.runId && (e.type === 'done' || e.type === 'error')))
+    }
+    // Both customers already wait in the Ask Total plan: the agent's plan_task adds nothing.
     const plansBefore = count('SELECT COUNT(*) AS n FROM ai_plans')
-    const sent = await ok<{ runId: string }>('ai:send', { text: 'Remind everyone who is 30 days late' })
-    await until(() => events.some((e) => e.runId === sent.runId && (e.type === 'done' || e.type === 'error')))
-    // Ramesh was reminded already today, but is still 44 days late: the new plan holds him again.
-    expect(count('SELECT COUNT(*) AS n FROM ai_plans')).toBe(plansBefore + 1)
+    await send('Remind everyone who is 30 days late')
+    expect(count('SELECT COUNT(*) AS n FROM ai_plans')).toBe(plansBefore)
+    // Drop them; the agent's 30-day plan then holds Ramesh (source chat).
+    for (const r of (await queue()).proposals.filter((x) => x.type === 'reminder')) await ok('ai:plan:discard', { itemId: r.id })
+    await send('Remind everyone who is 30 days late')
     expect(count("SELECT COUNT(*) AS n FROM ai_plans WHERE source = 'chat' AND task = 'remind_late' AND json_extract(params_json, '$.minDays') = 30")).toBe(1)
+    expect((await queue()).proposals.filter((x) => x.type === 'reminder').map((x) => x.partyName)).toEqual(['Ramesh Traders'])
   })
+
   it('"book this month\'s bills" gathers the open captured-bill drafts of the month into one plan group', async () => {
     const w = testFileDb(dbPath())
     try {
@@ -158,7 +178,7 @@ describe('tasks → plans (Phase 3b part 2)', () => {
       w.close()
     }
     const a = await ok<AssistAnswer>('assist:ask', { text: "book this month's bills", today: TODAY })
-    expect(a.task?.preview).toMatchObject({ task: 'book_bills', params: { month: TODAY.slice(0, 7) }, count: 1, amount: 59_000 })
+    expect(a.task?.preview).toMatchObject({ task: 'book_bills', params: { month: TODAY.slice(0, 7) }, totalCount: 1, count: 1, amount: 59_000 })
     const p = await ok<{ planId: number; count: number }>('assist:plan', { text: "book this month's bills", today: TODAY })
     expect(p.count).toBe(1)
     const inPlan = (await queue()).proposals.filter((x) => x.group === `plan:${p.planId}`)

@@ -34,11 +34,13 @@ export const planTaskTool = defineTool({
     // The user's own words decide the parameters when they said them (never the model's guess).
     const params = asked.task === 'remind_late' ? { minDays: asked.minDays } : { month: asked.month }
     const preview = previewPlan(ctx.db, args.task, params, ctx.today)
-    if (!preview.count && !preview.existingPlanId) return { data: { planned: 0, note: 'Nothing to prepare for this right now.', unread: preview.unread }, sources: [] }
+    if (!preview.count) {
+      return { data: { planned: 0, alreadyWaiting: preview.waiting, note: preview.waiting ? 'They are already waiting in the approval queue.' : 'Nothing to prepare for this right now.', unread: preview.unread }, sources: [] }
+    }
     const p = createPlan(ctx.db, { task: args.task, params, question: ctx.userRequest ?? '', source: 'chat', threadId: ctx.threadId, createdBy: ctx.userName }, ctx.today)
     return {
       data: {
-        planId: p.planId, proposals: p.count, existing: p.existing, amount: formatPaise(preview.amount, { symbol: true }), ...(preview.unread ? { stillBeingRead: preview.unread } : {}),
+        planId: p.planId, proposals: p.added, waitingInQueue: p.count, amount: formatPaise(preview.amount, { symbol: true }), ...(preview.unread ? { stillBeingRead: preview.unread } : {}),
         note: 'Prepared as one group in the approval queue. Nothing was sent or recorded — the user approves each one.'
       },
       sources: [{ kind: 'screen', screen: 'ai-queue', label: 'Approval queue' }]

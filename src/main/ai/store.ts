@@ -560,6 +560,8 @@ export interface AiDataCounts {
   agentDrafts: number
   /** mcp_log rows (left by the removed MCP server) — counted for the record, never deleted here. */
   mcpLog: number
+  /** Phase 3b part 2: plans (tasks) — deleted with their items. */
+  plans: number
 }
 
 export function aiDataCounts(db: DB): AiDataCounts {
@@ -573,7 +575,8 @@ export function aiDataCounts(db: DB): AiDataCounts {
     outbound: n('ai_outbound_log'),
     pseudonyms: n('ai_pseudonyms'),
     agentDrafts: (db.prepare("SELECT COUNT(*) AS n FROM ai_drafts WHERE source IN ('mcp', 'inbox')").get() as { n: number }).n,
-    mcpLog: n('mcp_log')
+    mcpLog: n('mcp_log'),
+    plans: n('ai_plans')
   }
 }
 

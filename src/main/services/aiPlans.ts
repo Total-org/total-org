@@ -45,6 +45,35 @@ const unreadBills = (db: DB): number =>
       .get() as { n: number }
   ).n
 
+/** Customers / bill drafts already waiting in ANY plan (an open reminder item; a draft item whose
+ *  draft is still open) — a new plan, or a top-up, never lists them twice (review of #229). */
+function waitingInPlans(db: DB): { parties: Set<number>; drafts: Set<number> } {
+  const rows = db
+    .prepare(
+      `SELECT i.kind, i.party_ledger_id AS partyId, i.draft_id AS draftId FROM ai_plan_items i LEFT JOIN ai_drafts d ON d.id = i.draft_id
+       WHERE i.status = 'open' AND (i.kind = 'reminder' OR d.status = 'open')`
+    )
+    .all() as { kind: 'draft' | 'reminder'; partyId: number | null; draftId: number | null }[]
+  return { parties: new Set(rows.filter((r) => r.kind === 'reminder').map((r) => r.partyId!)), drafts: new Set(rows.filter((r) => r.kind === 'draft').map((r) => r.draftId!)) }
+}
+
+interface Candidate {
+  kind: 'draft' | 'reminder'
+  partyId: number | null
+  draftId: number | null
+  amount: number
+}
+
+/** Everything the task matches now, and which of it is not yet waiting in any plan. */
+function candidates(db: DB, task: PlanTask, params: PlanParams, today: string): { all: Candidate[]; fresh: Candidate[] } {
+  const all: Candidate[] =
+    task === 'remind_late'
+      ? lateReminders(db, today, params.minDays ?? 1).map((r) => ({ kind: 'reminder', partyId: r.ledgerId, draftId: null, amount: r.reminder.amount }))
+      : monthBillDrafts(db, params.month!).map((b) => ({ kind: 'draft', partyId: null, draftId: b.id, amount: b.total }))
+  const w = waitingInPlans(db)
+  return { all, fresh: all.filter((c) => (c.kind === 'reminder' ? !w.parties.has(c.partyId!) : !w.drafts.has(c.draftId!))) }
+}
+
 const paramsKey = (p: PlanParams): string => JSON.stringify({ minDays: p.minDays ?? null, month: p.month ?? null })
 
 /** An open plan (some item still open) for the same task and parameters. */
@@ -69,14 +98,15 @@ function openItems(db: DB, planId: number): number {
   ).n
 }
 
-/** What the task would gather now (nothing stored). */
+/** What the task matches now (nothing stored): everything (`total*`), what a plan would ADD
+ *  (`count` / `amount` — not yet waiting in any plan) and what already waits (`waiting`). */
 export function previewPlan(db: DB, task: PlanTask, params: PlanParams, today: string): PlanPreview {
-  if (task === 'remind_late') {
-    const late = lateReminders(db, today, params.minDays ?? 1)
-    return { task, params, count: late.length, amount: late.reduce((s, r) => s + r.reminder.amount, 0), unread: 0, existingPlanId: openPlanFor(db, task, params) }
+  const { all, fresh } = candidates(db, task, params, today)
+  const sum = (l: Candidate[]): number => l.reduce((s, c) => s + c.amount, 0)
+  return {
+    task, params, totalCount: all.length, totalAmount: sum(all), count: fresh.length, amount: sum(fresh), waiting: all.length - fresh.length,
+    unread: task === 'book_bills' ? unreadBills(db) : 0, existingPlanId: openPlanFor(db, task, params)
   }
-  const bills = monthBillDrafts(db, params.month!)
-  return { task, params, count: bills.length, amount: bills.reduce((s, b) => s + b.total, 0), unread: unreadBills(db), existingPlanId: openPlanFor(db, task, params) }
 }
 
 /** Store the plan with its proposals (one transaction, audited 'ai_plan'). Asking again while a
@@ -87,25 +117,29 @@ export function createPlan(
   today: string
 ): PlanCreated {
   return db.transaction((): PlanCreated => {
+    // Only what is not already waiting in a plan (a customer late 44 days is in the 30-day plan;
+    // "remind everyone late" afterwards adds only the others).
+    const { fresh } = candidates(db, input.task, input.params, today)
     const existing = openPlanFor(db, input.task, input.params)
-    if (existing) return { planId: existing, count: openItems(db, existing), existing: true }
-    const items =
-      input.task === 'remind_late'
-        ? lateReminders(db, today, input.params.minDays ?? 1).map((r) => ({ kind: 'reminder' as const, partyId: r.ledgerId, draftId: null }))
-        : monthBillDrafts(db, input.params.month!).map((b) => ({ kind: 'draft' as const, partyId: null, draftId: b.id }))
-    if (!items.length) throw new AppError('plan_nothing', 'There is nothing to do for this task right now')
+    const ins = db.prepare('INSERT INTO ai_plan_items (plan_id, kind, draft_id, party_ledger_id) VALUES (?, ?, ?, ?)')
+    const itemsOf = (l: Candidate[]): unknown[] => l.map((i) => (i.kind === 'reminder' ? { reminder: i.partyId } : { draft: i.draftId }))
+    if (existing) {
+      // The same task asked again: the open plan gets what matches since (audited), never a second plan.
+      for (const it of fresh) ins.run(existing, it.kind, it.draftId, it.partyId)
+      if (fresh.length) writeAudit(db, 'ai_plan', existing, 'update', null, { added: itemsOf(fresh), question: input.question.slice(0, 500), source: input.source })
+      return { planId: existing, count: openItems(db, existing), added: fresh.length, existing: true }
+    }
+    if (!fresh.length) throw new AppError('plan_nothing', 'There is nothing to do for this task right now')
     const planId = Number(
       db
         .prepare('INSERT INTO ai_plans (task, params_json, question, source, thread_id, created_by) VALUES (?, ?, ?, ?, ?, ?)')
         .run(input.task, JSON.stringify(input.params), input.question.slice(0, 500), input.source, input.threadId ?? null, input.createdBy ?? null).lastInsertRowid
     )
-    const ins = db.prepare('INSERT INTO ai_plan_items (plan_id, kind, draft_id, party_ledger_id) VALUES (?, ?, ?, ?)')
-    for (const it of items) ins.run(planId, it.kind, it.draftId, it.partyId)
+    for (const it of fresh) ins.run(planId, it.kind, it.draftId, it.partyId)
     writeAudit(db, 'ai_plan', planId, 'create', null, {
-      task: input.task, params: input.params, question: input.question.slice(0, 500), source: input.source,
-      items: items.map((i) => (i.kind === 'reminder' ? { reminder: i.partyId } : { draft: i.draftId }))
+      task: input.task, params: input.params, question: input.question.slice(0, 500), source: input.source, items: itemsOf(fresh)
     })
-    return { planId, count: items.length, existing: false }
+    return { planId, count: fresh.length, added: fresh.length, existing: false }
   })()
 }
 
@@ -132,7 +166,7 @@ function openItem(db: DB, itemId: number, kind: 'reminder' | null): ItemRow {
 export function planReminded(db: DB, itemId: number, via: ReminderVia, today: string): { logId: number } {
   return db.transaction(() => {
     const it = openItem(db, itemId, 'reminder')
-    const { logId } = personReminded(db, it.partyId!, via, today)
+    const { logId } = personReminded(db, it.partyId!, via, today, 'late', 'plan')
     db.prepare("UPDATE ai_plan_items SET status = 'done', reminder_log_id = ?, done_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(logId, itemId)
     writeAudit(db, 'ai_plan', it.planId, 'update', { item: itemId, status: 'open' }, { item: itemId, status: 'done', reminderLogId: logId, via })
     return { logId }

@@ -763,15 +763,29 @@ export function classify(text: string, today: string): AssistIntent {
  *  - "book October's bills", "enter all bills of last month", "october ke bills chadha do" →
  *    book_bills (the month said, else this month). A "how do I …" question stays a how-to. */
 const REMIND_WORD = /\b(?:remind|reminders?|yaad dila\w*|tagada|tagaada)\b/
-const REMIND_WHO = /\b(?:everyone|everybody|all|every|customers|sab\w*|jo|who|whoever|late|overdue|pending)\b/
-const BOOK_WORD = /\b(?:book|enter|record|post|add|chadha\w*|chadh\w*|daal\w*|dal do|entry kar\w*)\b/
+/** Who: everyone with something late — never one named person ("remind Ramesh who is late"). */
+const REMIND_EVERYONE = /\b(?:everyone|everybody|all|customers|sab\w*|whoever)\b/
+const REMIND_LATE = /\b(?:late|overdue|pending|baaki|baki|udhaar|udhar)\b/
+/** "30 days", "2 weeks", "3 months", "30 din", "2 hafte", "3 mahine" (a month read as 30 days). */
+const LATE_SPAN = /(\d{1,4})\s*\+?\s*(days?|din|weeks?|hafte?|hafta|months?|mahin[ae])\b/
+const SPAN_DAYS: Record<string, number> = { d: 1, w: 7, h: 7, m: 30 }
+const MONTH_ALT = MONTH_NAMES.map((m) => (m.length > 3 ? `${m}|${m.slice(0, 3)}` : m)).join('|')
+const MONTH_SAID = `(?:${MONTH_ALT}|this month|last month)`
+/** "book October's bills", "enter all bills of last month", "book the bills" — the whole sentence,
+ *  so a named supplier, a kind of bill or a question never reads as "every captured bill". */
+const BOOK_EN = new RegExp(`^(?:please\\s+)?(?:book|enter|record|post|add)\\s+(?:(?:all|the|my|captured|scanned)\\s+)*(?:${MONTH_SAID}(?:'s|s)?\\s+)?bills(?:\\s+(?:of|from|for|in)\\s+(?:the\\s+)?${MONTH_SAID})?$`)
+/** "september ke bills chadha do", "is mahine ke sab bills daal do" (after normalise: "this month ke …"). */
+const BOOK_HI = new RegExp(`^(?:${MONTH_SAID}\\s+ke\\s+)?(?:sab(?:hi)?\\s+)?bills?\\s+(?:chadha\\w*|chadh\\w*|daal\\w*|dal do|entry kar\\w*|book kar\\w*)(?:\\s+do)?$`)
 function taskOf(q: string, today: string): AssistIntent | null {
-  if (/^(?:how|kaise|kaise kare)\b|\bhow (?:do|can|to)\b/.test(q)) return null
-  if (REMIND_WORD.test(q) && REMIND_WHO.test(q)) {
-    const days = /(\d{1,4})\s*(?:\+\s*)?(?:days?|din)\b/.exec(q)?.[1]
-    return { kind: 'task', task: 'remind_late', minDays: days ? Math.max(1, Number(days)) : 1 }
+  if (/^(?:how|kaise|kaise kare|did|have|has|are|is|was|were|do|does|kya|why|when)\b|\bhow (?:do|can|to)\b/.test(q)) return null
+  if (REMIND_WORD.test(q) && REMIND_EVERYONE.test(q) && REMIND_LATE.test(q)) {
+    const span = LATE_SPAN.exec(q)
+    // Any other number (an amount: "who owes more than 5000") is a condition this task can't keep.
+    if (/\d|\brs\b/.test(span ? q.replace(span[0], ' ') : q)) return null
+    const minDays = span ? Number(span[1]) * SPAN_DAYS[span[2]![0]!]! : 1
+    return { kind: 'task', task: 'remind_late', minDays: Math.max(1, Math.min(3650, minDays)) }
   }
-  if (BOOK_WORD.test(q) && /\bbills\b|\ball (?:the )?bills?\b|\bbills? (?:of|from|for)\b|\bke bills?\b/.test(q) && !/\d{2,}/.test(q.replace(MONTH_RE, ''))) {
+  if (BOOK_EN.test(q) || BOOK_HI.test(q)) {
     const said = periodOf(q, today)
     const monthly = said && (said.rule === 'month' || said.rule === 'thisMonth' || said.rule === 'lastMonth')
     if (said && !monthly) return null

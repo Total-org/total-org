@@ -247,7 +247,7 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
   }
   // A plan's reminders: the People page's reminder facts as on today (one Outstandings run).
   if (planned.reminders.length) {
-    const late = new Map(lateReminders(db, today, 1).map((r) => [r.ledgerId, r]))
+    const late = new Map(lateReminders(db, today, 1, new Set(planned.reminders.map((r) => r.partyId))).map((r) => [r.ledgerId, r]))
     const sourceOf = new Map(planned.plans.map((p) => [p.id, p.source === 'ask-total' ? ('askTotal' as const) : ('chat' as const)]))
     for (const r of planned.reminders) {
       const l = late.get(r.partyId)
@@ -282,7 +282,7 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
     })
   }
   out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
-  return { proposals: out, plans: planned.plans, waiting: out.filter((p) => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory').length }
+  return { proposals: out, plans: planned.plans, waiting: out.filter((p) => p.approve === 'voucher' || p.approve === 'simple' || p.approve === 'memory' || p.approve === 'reminder').length }
 }
 
 const REFUSAL: Partial<Record<QueueApprove, () => AppError>> = {
