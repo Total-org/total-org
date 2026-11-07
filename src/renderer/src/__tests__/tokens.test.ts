@@ -30,7 +30,7 @@ function color(vars: Record<string, string>, name: string, depth = 0): RGBA {
 }
 
 const TEXT = ['--t-ink', '--t-muted', '--t-dr', '--t-cr', '--t-blue', '--t-amber']
-const SURFACES = ['--t-bg', '--t-panel', '--t-panel2', '--t-raised']
+const SURFACES = ['--t-bg', '--t-panel', '--t-panel2', '--t-raised', '--t-sidebar']
 const STATUS: [string, string][] = [
   ['--t-success', '--t-success-soft'],
   ['--t-warning', '--t-warning-soft'],

@@ -12,6 +12,7 @@ import { Button, SkeletonTiles, Why } from '../components/kit'
 import { OpeningsHomeCard } from './OpeningsHomeCard'
 import { useCanWrite, ViewerBackupNote } from './ViewerNote'
 import { HomeTour } from './help/Tour'
+import { PlainIcon } from './icons'
 import { HOME_TASKS, accountScreen, attentionScreen, deadlineScreen, homeReportScreen, type HomeReport } from './homeTasks'
 import { onboardingFromDashSetup, type OnboardingChecklist, type OnboardingStepId } from '@shared/onboarding'
 import { todayISO, toPlainDate } from '@shared/dates'
@@ -34,7 +35,10 @@ const STEP_LABEL: Record<OnboardingStepId, { label: MessageKey; hint: MessageKey
   backup: { label: 'simple.setupSteps.backup.label', hint: 'simple.setupSteps.backup.hint' }
 }
 
-const cardCls = 'rounded-lg border border-line bg-panel p-panel shadow-elev-1'
+const cardCls = 'rounded-xl border border-line bg-panel p-panel shadow-elev-1'
+
+/** UI overhaul: each task's icon; + Sale is the one filled (primary) button on Home (audit UX-15). */
+const TASK_ICON: Record<string, string> = { sale: 'receipt', purchase: 'cart', 'money-in': 'in', 'money-out': 'out' } // i18n-technical: icon ids
 const CMP08 = 'cmp08' // i18n-technical
 const GSTR4 = 'gstr4' // i18n-technical
 
@@ -57,7 +61,7 @@ export function SimpleHome(): React.JSX.Element {
   return (
     <Page data-testid="simple-home">
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.home.title')}</h1>
+        <h1 className="font-serif text-display font-semibold tracking-[-0.025em] text-ink">{t('simple.home.title')}</h1>
         <span className="text-small text-muted" data-testid="simple-home-date">
           {t('simple.home.asOn', { date: toPlainDate(today, t.lang) })}
         </span>
@@ -109,7 +113,7 @@ function AskBox(): React.JSX.Element {
         placeholder={t('assist.home.placeholder')}
         aria-label={t('assist.home.label')}
         data-testid="simple-home-ask-input"
-        className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2.5 text-body text-ink shadow-elev-1 placeholder:text-muted focus-visible:border-amber focus-visible:outline-none"
+        className="min-w-0 flex-1 rounded-lg border border-line-strong/80 bg-panel px-3.5 py-2.5 text-body text-ink shadow-elev-1 transition-colors placeholder:text-muted hover:border-line-strong focus-visible:border-focus"
       />
       <Button type="submit" variant="primary" disabled={!q.trim()} data-testid="simple-home-ask-send">
         {t('assist.home.ask')}
@@ -123,14 +127,24 @@ function Tasks(): React.JSX.Element {
   const nav = useNav()
   return (
     <nav aria-label={t('simple.home.tasks')} className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {HOME_TASKS.map((task) => (
+      {HOME_TASKS.map((task, i) => (
         <button
           key={task.id}
           type="button"
           data-testid={`simple-task-${task.id}`}
           onClick={() => nav.go(task.screen)}
-          className="rounded-lg border border-amber/50 bg-amber/10 px-panel py-4 text-center text-lead font-semibold text-ink shadow-elev-1 transition-colors hover:border-amber hover:bg-amber/20 focus-visible:border-amber"
+          className={`t-btn flex min-h-14 items-center gap-3 rounded-xl border px-4 py-3 text-left text-lead font-semibold shadow-elev-1 ${
+            i === 0
+              ? 't-btn-primary border-primary bg-primary text-on-primary hover:bg-primary-hover'
+              : 'border-line bg-panel text-ink hover:border-line-strong hover:shadow-elev-2'
+          }`}
         >
+          <span
+            aria-hidden="true"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${i === 0 ? 'bg-on-primary/15' : 'bg-amberbar/15 text-amber'}`}
+          >
+            <PlainIcon id={TASK_ICON[task.id] ?? 'plus'} />
+          </span>
           {t(task.label) /* i18n-technical: keyed in homeTasks.ts */}
         </button>
       ))}
@@ -155,6 +169,9 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
   }
   const empty = isEmptyHome(home)
   const canSave = useCanWrite()
+  // The profit sentence takes the rest of its row: the whole row after a GST tile (3 + 3 tiles on
+  // a wide window), else the one cell left beside who-owes-whom.
+  const profitSpan = gstRegular || home.gst?.kind === 'composition' ? 'md:col-span-2 xl:col-span-3' : 'md:col-span-2 xl:col-span-1'
   const backupsScreen = homeReportScreen('backups', home) // i18n-technical
 
   return (
@@ -171,7 +188,17 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
       {empty && <EmptyHome checklist={checklist} />}
 
       {!empty && (
-      <ul className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <ul className="t-rise mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <Tile
+          id="cash"
+          wide
+          title={t('simple.home.cashAndBank')}
+          paise={home.cash.total}
+          why={cashWhy(home.cash, t)}
+          link={links.cash}
+        >
+          {home.cash.accounts.length > 0 && <CashSplit accounts={home.cash.accounts} />}
+        </Tile>
         <Tile
           id="money-in"
           title={t('simple.home.moneyInToday')}
@@ -186,32 +213,6 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
           why={moneyOutWhy(home.moneyOut, t)}
           link={links.day}
         />
-        <Tile
-          id="cash"
-          title={t('simple.home.cashAndBank')}
-          paise={home.cash.total}
-          why={cashWhy(home.cash, t)}
-          link={links.cash}
-        >
-          {home.cash.accounts.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-0.5" data-testid="simple-home-accounts">
-              {home.cash.accounts.map((a) => (
-                <li key={a.ledgerId}>
-                  <button
-                    type="button"
-                    data-testid={`simple-home-account-${a.ledgerId}`}
-                    data-paise={a.balance}
-                    onClick={() => nav.go(accountScreen(a.ledgerId))}
-                    className="flex w-full items-baseline justify-between gap-3 text-left text-small hover:underline"
-                  >
-                    <span className="min-w-0 truncate text-muted">{a.kind === 'cash' ? t('simple.home.cashInHand') : a.name}</span>
-                    <span className={`num ${a.balance < 0 ? 'text-cr' : 'text-ink'}`}>{money(a.balance)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Tile>
         <Tile
           id="receivables"
           title={t('simple.home.customersOwe')}
@@ -275,12 +276,12 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
           </li>
         )}
         {home.profitHidden ? (
-          <li className={`${cardCls} md:col-span-2 xl:col-span-1`} data-testid="simple-tile-profit-hidden">
+          <li className={`${cardCls} ${profitSpan}`} data-testid="simple-tile-profit-hidden">
             <h2 className="text-small font-medium text-muted">{t('simple.home.profitTitle')}</h2>
             <p className="mt-2 text-detail text-muted">{t('simple.home.profitHidden')}</p>
           </li>
         ) : (
-        <li className={`${cardCls} md:col-span-2 xl:col-span-1`} data-testid="simple-tile-profit" data-paise={home.profit.year.netProfit} data-month-paise={home.profit.month.netProfit}>
+        <li className={`${cardCls} ${profitSpan}`} data-testid="simple-tile-profit" data-paise={home.profit.year.netProfit} data-month-paise={home.profit.month.netProfit}>
           <h2 className="text-small font-medium text-muted">{t('simple.home.profitTitle')}</h2>
           <p className="mt-2 text-lead text-ink" data-testid="simple-tile-profit-sentence">
             {profitSentence(home.profit, t)}
@@ -369,6 +370,43 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
   )
 }
 
+/** Cash and bank, per account: a proportional bar (accounts above zero) over the account rows. */
+function CashSplit({ accounts }: { accounts: SimpleHomeData['cash']['accounts'] }): React.JSX.Element {
+  const t = useT()
+  const nav = useNav()
+  const positive = accounts.filter((a) => a.balance > 0)
+  const total = positive.reduce((sum, a) => sum + a.balance, 0)
+  // The cash drawer is amber; banks are shades of ink (decorative — the rows below say it).
+  const tone = (i: number, kind: string): string => (kind === 'cash' ? 'bg-amberbar' : i % 2 === 0 ? 'bg-ink/70' : 'bg-ink/35')
+  return (
+    <>
+      {positive.length > 1 && total > 0 && (
+        <div aria-hidden="true" className="mt-3 flex h-2 gap-0.5 overflow-hidden rounded-full" data-testid="simple-home-cash-bar">
+          {positive.map((a, i) => (
+            <span key={a.ledgerId} className={`h-full rounded-full ${tone(i, a.kind)}`} style={{ flexGrow: a.balance, flexBasis: 0 }} />
+          ))}
+        </div>
+      )}
+      <ul className="mt-3 flex flex-col divide-y divide-line" data-testid="simple-home-accounts">
+        {accounts.map((a) => (
+          <li key={a.ledgerId}>
+            <button
+              type="button"
+              data-testid={`simple-home-account-${a.ledgerId}`}
+              data-paise={a.balance}
+              onClick={() => nav.go(accountScreen(a.ledgerId))}
+              className="group flex w-full items-baseline justify-between gap-3 rounded-sm py-1.5 text-left text-detail"
+            >
+              <span className="min-w-0 truncate text-muted group-hover:text-ink">{a.kind === 'cash' ? t('simple.home.cashInHand') : a.name}</span>
+              <span className={`num font-medium ${a.balance < 0 ? 'text-cr' : 'text-ink'}`}>{money(a.balance)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
 function Tile({
   id,
   title,
@@ -376,11 +414,14 @@ function Tile({
   value,
   why,
   link,
+  wide = false,
   children
 }: {
   id: string
   title: string
   paise: number
+  /** The wide headline tile (Cash and bank): two columns, the bigger figure. */
+  wide?: boolean
   /** Shown instead of the amount (the GST tile's "₹Z by 20 Nov"). */
   value?: string
   why: string
@@ -389,13 +430,16 @@ function Tile({
 }): React.JSX.Element {
   const t = useT()
   return (
-    <li className={cardCls} data-testid={`simple-tile-${id}`} data-paise={paise}>
+    <li className={`${cardCls} flex flex-col ${wide ? 'md:col-span-2 xl:row-span-2' : ''}`} data-testid={`simple-tile-${id}`} data-paise={paise}>
       <h2 className="text-small font-medium text-muted">{title}</h2>
-      <p className={`num mt-1 text-heading font-semibold ${paise < 0 ? 'text-cr' : 'text-ink'}`} data-testid={`simple-tile-${id}-value`}>
+      <p
+        className={`num mt-1 font-semibold tracking-[-0.02em] ${wide ? 'text-display' : 'text-heading'} ${paise < 0 ? 'text-cr' : 'text-ink'}`}
+        data-testid={`simple-tile-${id}-value`}
+      >
         {value ?? money(paise)}
       </p>
       {children}
-      <div className="mt-2">
+      <div className="mt-auto pt-2">
         <Why
           label={t('common.why')}
           ariaLabel={t('simple.home.whyLabel', { what: title })}
@@ -422,7 +466,7 @@ function Attention({ home }: { home: SimpleHomeData }): React.JSX.Element | null
   const items = homeAttentionRows(owedAttention(home.receivables, home.payables), attention?.items ?? [])
   if (items.length === 0) return null
   return (
-    <section className={`${cardCls} mt-5 border-amber/50`} data-testid="simple-home-attention" data-loading={attentionQ.isLoading ? 'true' : 'false'}>
+    <section className={`${cardCls} mt-5`} data-testid="simple-home-attention" data-loading={attentionQ.isLoading ? 'true' : 'false'}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-title font-semibold text-ink">{t('simple.home.needsAttention')}</h2>
         <span className="text-small text-muted" data-testid="simple-home-attention-count">
@@ -436,19 +480,19 @@ function Attention({ home }: { home: SimpleHomeData }): React.JSX.Element | null
               type="button"
               data-testid={`simple-attention-${item.source}-${item.key}`}
               onClick={() => nav.go(attentionScreen(item, period))}
-              className="flex w-full items-start justify-between gap-3 py-2 text-left hover:bg-panel2 focus-visible:bg-panel2"
+              className="-mx-2 flex w-[calc(100%+1rem)] items-start justify-between gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-panel2 focus-visible:bg-panel2"
             >
               <span className="flex min-w-0 items-start gap-2">
                 <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.level === 'high' ? 'bg-cr' : 'bg-amber'}`} />
                 <span className="text-detail text-ink">{attentionText(item, period, t)}</span>
               </span>
-              <span className="shrink-0 text-hint text-blue">{t('simple.home.attentionOpen')} →</span>
+              <span className="t-link shrink-0 text-hint font-medium">{t('simple.home.attentionOpen')} →</span>
             </button>
           </li>
         ))}
       </ul>
       {items.length > 3 && (
-        <button type="button" data-testid="simple-home-attention-all" className="mt-2 text-hint text-blue hover:underline" onClick={() => nav.go(attentionScreen(items[3]!, period))}>
+        <button type="button" data-testid="simple-home-attention-all" className="t-link mt-2 text-hint font-medium" onClick={() => nav.go(attentionScreen(items[3]!, period))}>
           {t('simple.home.attentionSeeAll', { count: items.length })}
         </button>
       )}

@@ -145,7 +145,6 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.shell.period': 'दिखाई गई तारीखें: {from} से {to}। इन्हें बदलें',
   'simple.shell.periodThisYear': 'यह साल: {from} – {to}',
   'simple.shell.periodRange': '{from} – {to}',
-  'simple.shell.theme': '{theme, select, light {डार्क} other {लाइट}}',
   'simple.shell.themeHint': '{theme, select, light {गहरे रंग वाली स्क्रीन पर जाएँ} other {हल्के रंग वाली स्क्रीन पर जाएँ}}',
   'simple.shell.user': '{name} · {role, select, owner {मालिक} accountant {अकाउंटेंट} other {सिर्फ़ देखने वाले}}',
   'simple.viewer.cantSave': 'आप सब कुछ देख सकते हैं, पर आपके साइन-इन से एंट्री सेव नहीं होती। ज़रूरत हो तो मालिक से पूछें।',

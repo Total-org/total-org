@@ -35,7 +35,7 @@ export function Why({
       align="left"
       width={320}
       testId={testId}
-      className="!border-transparent !bg-transparent !px-0 !py-0 text-hint !text-blue hover:underline"
+      className="t-link !border-transparent !bg-transparent !px-0 !py-0 text-hint !text-muted hover:!text-ink"
       render={(close) => (
         <div className="flex flex-col gap-2" data-testid={testId && `${testId}-body`}>
           <p className="text-detail text-ink" data-testid={testId && `${testId}-sentence`}>
@@ -46,7 +46,7 @@ export function Why({
             <button
               type="button"
               data-testid={testId && `${testId}-link`}
-              className="self-start text-hint text-blue hover:underline"
+              className="t-link self-start text-hint font-medium"
               onClick={() => {
                 close()
                 link.onOpen()

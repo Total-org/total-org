@@ -67,8 +67,8 @@ export function DashCard<T>({
   return (
     <section aria-label={title} data-testid={testId} data-state={card.state} className={`h-full min-w-0 ${className}`}>
       <Panel className="flex h-full flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2">
-          <h2 className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{title}</h2>
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+          <h2 className="text-detail font-semibold text-ink">{title}</h2>
           {action}
         </header>
         <div className="min-h-0 flex-1">
@@ -100,7 +100,7 @@ function Deferred({ render }: { render: () => ReactNode }): React.JSX.Element {
 /** Small header link-button for a card ("Open register →"). */
 export function CardLink({ onClick, children, testId }: { onClick: () => void; children: ReactNode; testId?: string }): React.JSX.Element {
   return (
-    <button type="button" data-testid={testId} onClick={onClick} className="text-hint text-blue hover:underline focus-visible:underline focus-visible:outline-none">
+    <button type="button" data-testid={testId} onClick={onClick} className="t-link text-hint font-medium">
       {children}
     </button>
   )

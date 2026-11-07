@@ -140,7 +140,6 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.shell.period': 'Dikhayi gayi dates: {from} se {to}. Inhein badlein',
   'simple.shell.periodThisYear': 'Is saal: {from} – {to}',
   'simple.shell.periodRange': '{from} – {to}',
-  'simple.shell.theme': '{theme, select, light {Dark} other {Light}}',
   'simple.shell.themeHint': '{theme, select, light {Dark look par jaayein} other {Light look par jaayein}}',
   'simple.shell.user': '{name} · {role, select, owner {Owner} accountant {Accountant} other {Sirf dekhne wale}}',
   'simple.viewer.cantSave': 'Aap sab kuch dekh sakte hain, par aapke sign-in se entry save nahi hoti. Zaroorat ho to owner se poochhein.',

@@ -21,11 +21,30 @@ import { HelpPanel } from '../simple/help/HelpPanel'
 import { DockModeContext } from './kit'
 import { useSimplePanelsOverlay } from '../lib/simpleLayout'
 import { handleRadioArrows, handleSlashKey, useRovingRadios } from '../lib/simpleKeys'
+import { PlainIcon } from '../simple/icons'
 
 /** Sidebar derived from the single screen registry (lib/screens.ts) — accountant-mode screens. */
 const NAV = ACCOUNTANT_NAV
 
-const HEADER_CHIP = 'rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink'
+// UI overhaul: header controls are quiet ghost chips; the amber stays for the current item.
+const HEADER_CHIP = 't-btn inline-flex items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-small font-medium text-muted hover:bg-panel2 hover:text-ink'
+
+/** Decorative icons beside the accountant sidebar's section heads and top items (aria-hidden; the
+ *  pinned sidebar snapshot reads text only, so the shape is unchanged). */
+const NAV_ICON: Record<string, string> = {
+  books: 'book', // i18n-technical: icon ids
+  trade: 'truck', // i18n-technical
+  analysis: 'chart', // i18n-technical
+  banking: 'bank', // i18n-technical
+  payroll: 'users', // i18n-technical
+  gst: 'percent', // i18n-technical
+  system: 'gear', // i18n-technical
+  gateway: 'home', // i18n-technical
+  'voucher-entry': 'pen', // i18n-technical
+  manufacture: 'factory', // i18n-technical
+  'counter-billing': 'shop', // i18n-technical
+  masters: 'list' // i18n-technical
+}
 
 export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpenPalette: () => void }): React.JSX.Element {
   const { info, from, to, user, setUser, setLocked } = useSession()
@@ -68,10 +87,8 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
     ...s,
     items: s.items.filter((i) => (!i.feature || features[i.feature]) && screenApplies(i, info?.gstRegistrationType))
   }))
-  const navBtnCls = (active: boolean): string =>
-    `block w-full rounded-md px-2.5 py-[5px] text-left text-detail transition-colors ${
-      active ? 'bg-amberbar/20 font-medium text-ink' : 'text-muted hover:bg-panel2 hover:text-ink'
-    }`
+  const navBtnCls = (top: boolean): string =>
+    `t-nav-item flex w-full items-center gap-2 rounded-md py-[5px] text-left text-detail text-muted hover:bg-ink/5 hover:text-ink ${top ? 'px-2.5' : 'pr-2.5 pl-8'}`
 
   return (
     <div className="flex h-full flex-col">
@@ -88,7 +105,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
         {simple ? t('simple.shell.skip') : 'Skip to content'}
       </a>
       {simple ? <SimpleHeader onOpenPalette={onOpenPalette} /> : <header
-        className={`drag-region flex h-12 shrink-0 items-center gap-3 border-b border-line bg-panel pr-4 panel-shadow ${
+        className={`drag-region flex h-12 shrink-0 items-center gap-1.5 border-b border-line bg-panel pr-3 ${
           window.total.platform === 'darwin' ? 'pl-24' : 'pl-4'
         }`}
       >
@@ -107,7 +124,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
         <ViewToggle screen={screen} className={HEADER_CHIP} />
         <button
           type="button"
-          className="num rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink"
+          className={`num ${HEADER_CHIP} border-line bg-panel2`}
           onClick={() => setPeriodOpen(true)}
           title="Change period"
           aria-label={`Working period ${toDisplayDate(from)} to ${toDisplayDate(to)} — change`}
@@ -126,31 +143,36 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
         <button
           type="button"
           data-testid="btn-theme"
-          className="rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink"
+          className={HEADER_CHIP}
           onClick={toggle}
           title="Switch theme (Settings → Appearance for density and more)"
           aria-label={theme === 'light' ? 'Switch to the dark theme' : 'Switch to the light theme'}
         >
+          <PlainIcon id={theme === 'light' ? 'moon' : 'sun'} size={15} />
           {theme === 'light' ? 'Dark' : 'Light'}
         </button>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink"
+          className={`${HEADER_CHIP} min-w-44 justify-between border-line bg-panel2 hover:bg-panel`}
           onClick={onOpenPalette}
           aria-label="Go anywhere (command palette, ⌘K)"
         >
-          Anywhere <Kbd>⌘K</Kbd>
+          <span className="inline-flex items-center gap-1.5">
+            <PlainIcon id="search" size={14} />
+            Anywhere
+          </span>{' '}
+          <Kbd>⌘K</Kbd>
         </button>
         {user && (
           <>
-            <span className="num rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted capitalize">
+            <span className="rounded-md px-2.5 py-1 text-small text-muted capitalize">
               {user.name} · {user.role}
             </span>
             <button
               type="button"
               data-testid="btn-lock"
               aria-label="Lock the company"
-              className="rounded-md border border-line bg-panel2 px-2.5 py-1 text-small text-muted hover:border-amber/60 hover:text-ink"
+              className={HEADER_CHIP}
               onClick={async () => {
                 try {
                   await api.auth.logout()
@@ -168,7 +190,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
       </header>}
 
       <div className="flex min-h-0 flex-1">
-        {simple ? <SimpleSidebar /> : <nav aria-label="Main" className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel p-2">
+        {simple ? <SimpleSidebar /> : <nav aria-label="Main" className="flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-sidebar p-2">
           <div className="mb-2 flex items-center gap-2 px-2 py-2">
             <TotalLogo size={28} />
             <span className="font-serif text-brand font-semibold tracking-tight">Total</span>
@@ -192,16 +214,18 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
                         sections.setOpen(section.id, e.key === 'ArrowRight')
                       }
                     }}
-                    className="mt-3 mb-1 flex w-full items-center gap-1 rounded-md px-2.5 text-left text-label font-semibold tracking-[0.1em] text-muted uppercase hover:text-ink"
+                    className="t-nav-item mt-2 flex w-full items-center gap-2 rounded-md px-2.5 py-[5px] text-left text-detail font-semibold text-ink/80 hover:bg-ink/5 hover:text-ink"
                   >
+                    <PlainIcon id={NAV_ICON[section.id] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />
                     <span className="flex-1">{section.title}</span>
-                    <span aria-hidden className="inline-block w-3 text-center text-micro">{open ? '▾' : '▸'}</span>
+                    <span aria-hidden className="inline-block w-3 text-center text-micro text-muted">{open ? '▾' : '▸'}</span>
                   </button>
                 )}
                 {/* Collapsed items stay in the DOM (hidden) so aria-controls always resolves. */}
                 <div id={listId} hidden={!open}>
                   {section.items.map((item) => {
                     const active = screen.name === item.screen.name
+                    const top = !section.title
                     return (
                       <button
                         type="button"
@@ -209,8 +233,9 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
                         data-testid={`nav-${item.screen.name}`}
                         aria-current={active ? 'page' : undefined}
                         onClick={() => nav.go(item.screen)}
-                        className={navBtnCls(active)}
+                        className={navBtnCls(top)}
                       >
+                        {top && <PlainIcon id={NAV_ICON[item.screen.name] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />}
                         {item.label}
                       </button>
                     )

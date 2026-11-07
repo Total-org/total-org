@@ -77,18 +77,19 @@ export function SimpleSidebar(): React.JSX.Element {
     const r = el.getBoundingClientRect()
     setTip({ label, top: r.top + r.height / 2, left: r.right + 8 })
   }
-  const btn = (on: boolean): string =>
-    `flex w-full items-center gap-2.5 rounded-md py-2 text-left text-body ${collapsed ? 'justify-center px-0' : 'px-3'} ${
-      on ? 'bg-amberbar/20 font-semibold text-ink' : 'text-muted hover:bg-panel2 hover:text-ink'
-    }`
-  const foot = `flex w-full items-center gap-2.5 rounded-md py-1.5 text-left text-body-sm text-muted hover:bg-panel2 hover:text-ink ${collapsed ? 'justify-center px-0' : 'px-3'}`
+  // UI overhaul: icon + label on every item (the icon alone when narrow); the current section is
+  // the raised chip with the amber bar (`t-nav-item[aria-current]`, app.css).
+  const btn = `t-nav-item flex w-full items-center gap-3 rounded-lg py-2 text-left text-body font-medium text-muted hover:bg-ink/5 hover:text-ink ${
+    collapsed ? 'justify-center px-0' : 'px-3'
+  }`
+  const foot = `t-nav-item flex w-full items-center gap-3 rounded-lg py-1.5 text-left text-body-sm text-muted hover:bg-ink/5 hover:text-ink ${collapsed ? 'justify-center px-0' : 'px-3'}`
 
   return (
     <nav
       aria-label={t('simple.shell.nav')}
       data-testid="simple-nav"
       data-collapsed={collapsed ? 'true' : undefined}
-      className={`flex shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-panel p-2 ${collapsed ? 'w-16' : 'w-52'}`}
+      className={`flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-sidebar p-2 ${collapsed ? 'w-16' : 'w-52'}`}
     >
       <div className={`mb-2 flex items-center gap-2 py-2 ${collapsed ? 'justify-center' : 'px-2'}`}>
         <TotalLogo size={28} />
@@ -103,10 +104,10 @@ export function SimpleSidebar(): React.JSX.Element {
             data-testid={`simple-nav-${s.id}`}
             aria-current={active === s.id ? 'page' : undefined}
             onClick={() => nav.go(target(s.id))}
-            className={btn(active === s.id)}
+            className={btn}
             {...tipFor(label)}
           >
-            {collapsed && <PlainIcon id={SECTION_ICON[s.id]} />}
+            <PlainIcon id={SECTION_ICON[s.id]} className="t-nav-icon shrink-0" />
             {!collapsed && label}
           </button>
         )
@@ -115,7 +116,8 @@ export function SimpleSidebar(): React.JSX.Element {
       {/* to-do §4: backups are accountant+ (main refuses a viewer) — no button that only says no. */}
       {canSave ? (
         <button type="button" data-testid="btn-backup-now" className={foot} onClick={() => void backup()} {...tipFor(t('simple.nav.backupNow'))}>
-          {collapsed ? <PlainIcon id="save" /> : t('simple.nav.backupNow')}
+          <PlainIcon id="save" size={16} className="t-nav-icon shrink-0" />
+          {!collapsed && t('simple.nav.backupNow')}
         </button>
       ) : (
         !collapsed && (
@@ -125,7 +127,8 @@ export function SimpleSidebar(): React.JSX.Element {
         )
       )}
       <button type="button" data-testid="btn-switch-company" className={foot} onClick={() => void onSwitchCompany()} {...tipFor(t('simple.nav.switchCompany'))}>
-        {collapsed ? <PlainIcon id="swap" /> : t('simple.nav.switchCompany')}
+        <PlainIcon id="swap" size={16} className="t-nav-icon shrink-0" />
+        {!collapsed && t('simple.nav.switchCompany')}
       </button>
       <div className={`mt-2 border-t border-line pt-2 ${collapsed ? 'flex justify-center' : ''}`}>
         <SupportLink compact={collapsed} />
