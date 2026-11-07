@@ -57,10 +57,10 @@ export function TaxesScreen({ period }: { period?: string }): React.JSX.Element 
       )}
       {x?.kind === 'composition' && (
         <section className={cardCls} data-testid="taxes-composition">
-          <h2 className="text-lead font-semibold text-ink">
-            {t('simple.taxes.gst.compositionTitle')}
+          <div className="flex flex-wrap items-baseline">
+            <h2 className="text-lead font-semibold text-ink">{t('simple.taxes.gst.compositionTitle')}</h2>
             <CaCheck place="simple.taxes.composition" />
-          </h2>
+          </div>
           <ul className="mt-2 flex flex-col gap-1 text-body text-ink">
             <li className="flex flex-wrap items-baseline justify-between gap-x-3">
               <span data-testid="taxes-cmp08">{t('simple.taxes.composition.cmp08', { from: toPlainDate(x.composition.cmp08.from, t.lang), to: toPlainDate(x.composition.cmp08.to, t.lang), date: toPlainDate(x.composition.cmp08.due, t.lang) })}</span>
@@ -98,10 +98,10 @@ export function EinvoiceTurnOnCard(): React.JSX.Element | null {
   if (!n) return null
   return (
     <section className={`${cardCls} mb-4`} data-testid="taxes-einvoice-turn-on">
-      <h2 className="text-lead font-semibold text-ink">
-        {t('simple.taxes.einvoice.title', { date: toPlainDate(n.since, t.lang) })}
+      <div className="flex flex-wrap items-baseline">
+        <h2 className="text-lead font-semibold text-ink">{t('simple.taxes.einvoice.title', { date: toPlainDate(n.since, t.lang) })}</h2>
         <CaCheck place="simple.taxes.einvoice" />
-      </h2>
+      </div>
       <p className="mt-1 text-body text-ink">{t('simple.taxes.einvoice.why', { fy: n.fy, amount: money(n.thresholdPaise) })}</p>
       {isOwner ? (
         <button type="button" className="mt-2 text-body font-medium text-blue hover:underline" data-testid="btn-taxes-einvoice-turn-on" onClick={() => nav.go(COMPANY_DETAILS)}>

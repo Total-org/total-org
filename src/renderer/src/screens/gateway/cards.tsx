@@ -300,7 +300,6 @@ export function ComplianceCard({
                     </span>
                   )}
                   {g.gstr3bDue && <Badge tone={dueTone(g.gstr3bDue, today)} testId="chip-gstr3b">GSTR-3B {dueIn(g.gstr3bDue, today)}</Badge>}
-                  <CaCheck place="gateway.compliance" quarterly={gstFiling === 'quarterly'} />
                   {gstFiling === 'quarterly' && (
                     <span title={GST_FILING_UNVERIFIED.join(' · ')}>
                       <Badge tone="neutral" testId="chip-gst-quarterly">Quarterly filer — dates UNVERIFIED</Badge>
@@ -315,6 +314,12 @@ export function ComplianceCard({
               </div>
             )
           )}
+          {/* Phase 2b: outside the role=button row, so the row's name stays its own. */}
+          {typeof g !== 'string' && g && (
+            <div className="px-4 pb-1">
+              <CaCheck place="gateway.compliance" quarterly={gstFiling === 'quarterly'} />
+            </div>
+          )}
           {typeof t === 'string' ? (
             <p className="px-4 py-2 text-small text-cr">TDS unavailable</p>
           ) : (
@@ -322,10 +327,7 @@ export function ComplianceCard({
               <div data-testid="dash-tds" {...drillRowProps(() => nav.go({ name: 'tds' }))} className={stackRowCls}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-body-sm text-ink">TDS · {t.quarter}</span>
-                  <span className="flex items-center">
-                    {t.nextDue && <Badge tone={dueTone(t.nextDue, today)} testId="chip-tds">Challan {dueIn(t.nextDue, today)}</Badge>}
-                    <CaCheck place="gateway.tds" />
-                  </span>
+                  {t.nextDue && <Badge tone={dueTone(t.nextDue, today)} testId="chip-tds">Challan {dueIn(t.nextDue, today)}</Badge>}
                 </div>
                 <dl className="grid grid-cols-3 gap-2 text-caption">
                   <div><dt className="text-muted">This quarter</dt><dd className="num text-ink">{formatPaiseCompact(t.deducted)}</dd></div>
@@ -333,6 +335,11 @@ export function ComplianceCard({
                 </dl>
               </div>
             )
+          )}
+          {typeof t !== 'string' && t && (
+            <div className="px-4 pb-1">
+              <CaCheck place="gateway.tds" />
+            </div>
           )}
           {einvoiceTurnOn && (
             <div data-testid="dash-einvoice-turn-on" {...drillRowProps(() => nav.go({ name: 'company-info' }))} className={stackRowCls}>

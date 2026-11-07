@@ -257,10 +257,10 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
         )}
         {home.gst?.kind === 'composition' && (
           <li className={cardCls} data-testid="simple-tile-gst-composition">
-            <h2 className="text-small font-medium text-muted">
-              {t('simple.home.gstTitle')}
+            <div className="flex flex-wrap items-baseline">
+              <h2 className="text-small font-medium text-muted">{t('simple.home.gstTitle')}</h2>
               <CaCheck place="simple.home.gstComposition" />
-            </h2>
+            </div>
             <p className="mt-2 text-detail text-ink">{t('simple.home.gstComposition')}</p>
             {home.gst.composition && (
               <div className="mt-2">
@@ -398,10 +398,10 @@ function Tile({
   const t = useT()
   return (
     <li className={cardCls} data-testid={`simple-tile-${id}`} data-paise={paise}>
-      <h2 className="text-small font-medium text-muted">
-        {title}
+      <div className="flex flex-wrap items-baseline">
+        <h2 className="text-small font-medium text-muted">{title}</h2>
         {titleExtra}
-      </h2>
+      </div>
       <p className={`num mt-1 text-heading font-semibold ${paise < 0 ? 'text-cr' : 'text-ink'}`} data-testid={`simple-tile-${id}-value`}>
         {value ?? money(paise)}
       </p>

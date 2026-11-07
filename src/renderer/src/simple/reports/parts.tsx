@@ -98,10 +98,10 @@ export function FigureTile({
 }): React.JSX.Element {
   return (
     <li className={`${cardCls} ${emphasis ? 'border-amber/60' : ''}`} data-testid={`tile-${id}`} data-paise={paise}>
-      <h2 className="text-small font-medium text-muted">
-        {title}
+      <div className="flex flex-wrap items-baseline">
+        <h2 className="text-small font-medium text-muted">{title}</h2>
         {titleExtra}
-      </h2>
+      </div>
       <p className={`num mt-2 font-semibold ${paise < 0 ? 'text-cr' : 'text-ink'} ${emphasis ? 'text-heading' : 'text-title'}`} data-testid={`tile-${id}-value`}>
         {value ?? money(paise)}
       </p>

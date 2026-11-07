@@ -25,10 +25,11 @@ export function CaCheckBadge({
   testId?: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  // Inside a clickable row (the Gateway's drill rows) the badge and its popover — portalled, but
-  // still a React child — must not open the row.
+  // A click on the badge or in its popover (portalled, but still a React child) must not reach a
+  // clickable parent. Keys are left alone: app shortcuts (⌘K, ⌘L, Esc-back) listen on window,
+  // and drill rows already ignore keys from their children.
   return (
-    <span className="contents" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <span className="contents" onClick={(e) => e.stopPropagation()}>
     <PopoverButton
       label={ariaLabel}
       popoverLabel={ariaLabel}

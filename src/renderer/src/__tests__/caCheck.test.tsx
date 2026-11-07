@@ -102,14 +102,34 @@ describe('CaCheck badge', () => {
   it('inside a clickable row, opening the badge does not open the row', () => {
     const onRow = vi.fn()
     render(
-      <div onClick={onRow} onKeyDown={onRow}>
+      <div onClick={onRow}>
         <CaCheck place="gateway.tds" />
       </div>
     )
     fireEvent.click(screen.getByTestId('ca-check-gateway-tds'))
     fireEvent.click(screen.getByTestId('ca-check-gateway-tds-point-tds-deposit-date'))
-    fireEvent.keyDown(screen.getByTestId('ca-check-gateway-tds'), { key: 'Enter' })
     expect(onRow).not.toHaveBeenCalled()
+  })
+
+  it('a focused badge leaves the app shortcuts alone (⌘K reaches the window)', () => {
+    const onKey = vi.fn()
+    window.addEventListener('keydown', onKey)
+    try {
+      render(<CaCheck place="gateway.tds" />)
+      const badge = screen.getByTestId('ca-check-gateway-tds')
+      badge.focus()
+      fireEvent.keyDown(badge, { key: 'k', metaKey: true })
+      fireEvent.keyDown(badge, { key: '?' })
+      expect(onKey).toHaveBeenCalledTimes(2)
+    } finally {
+      window.removeEventListener('keydown', onKey)
+    }
+  })
+
+  it('a heading next to a badge keeps its own name (the badge is not inside it)', async () => {
+    renderTaxes()
+    await screen.findByTestId('taxes-figures')
+    for (const h of screen.getAllByRole('heading')) expect(h.textContent).not.toContain('Check with your CA')
   })
 })
 

@@ -655,7 +655,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
             {row('4(B)(1) Reversed — rules 38/42/43 and s.17(5)', data.manual.itcRevRul, { negative: true, extra: <CaCheck place="gstr3b.itc" /> })}
             {row('4(B)(2) Reversed — others (rule 37 …)', data.manual.itcRevOth, { negative: true })}
             {row('4(C) Net eligible ITC', data.itc, { className: 'total-row' })}
-            {row('4(D)(1) ITC reclaimed (reversed under 4(B)(2) earlier)', data.itcParts.blocked)}
+            {row('4(D)(1) ITC reclaimed (reversed under 4(B)(2) earlier)', data.itcParts.blocked, { extra: <CaCheck place="gstr3b.itc" testId="ca-check-gstr3b-itc-4d" /> })}
             {row('5.1 Interest payable (manual, below)', data.manual.interest)}
             {row('5.1 Late fee (manual, below)', { igst: 0, cgst: data.manual.lateFee.camt, sgst: data.manual.lateFee.samt, cess: 0 })}
           </tbody>
