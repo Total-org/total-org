@@ -21,6 +21,8 @@ import { readCaptureFile } from './files'
 import { prepareDocument, type ImageConverter } from './prepare'
 import { extractBill } from './extract'
 import { draftFromBill, type BillDraftOutcome } from './billDraft'
+import { loadHsnIndex, loadedHsnIndex } from '../../hsnMaster'
+import type { HsnIndex } from '@shared/gst/hsn'
 import { getItem, nextPending, patchItem, type CaptureItemRow } from './store'
 
 export interface CaptureEnv {
@@ -64,7 +66,7 @@ export function applyOutcome(db: DB, id: number, o: BillDraftOutcome, extra: { c
 }
 
 /** Re-run bill → draft on the stored extraction (after the user answered the questions). */
-export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: number, user: string | null): CaptureItemRow {
+export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: number, user: string | null, hsnIndex: HsnIndex | null = loadedHsnIndex()): CaptureItemRow {
   const it = getItem(env.db, id)
   if (!it) throw new Error('Capture item not found')
   if (!it.extractionJson) throw new Error('This file has not been read yet')
@@ -76,7 +78,7 @@ export function redraft(env: Pick<CaptureEnv, 'db' | 'company' | 'today'>, id: n
       const parsed = parseExtraction(extraction, env.today())
       if (it.review?.parsed.gstinCandidates) parsed.gstinCandidates = it.review.parsed.gstinCandidates
       const outcome = draftFromBill({
-        db: env.db, company: env.company, item: { id, fileName: it.fileName }, parsed, mode: it.review?.mode ?? 'text', mapping: it.mapping ?? {}, today: env.today()
+        db: env.db, company: env.company, item: { id, fileName: it.fileName }, parsed, mode: it.review?.mode ?? 'text', mapping: it.mapping ?? {}, today: env.today(), hsnIndex
       })
       return applyOutcome(env.db, id, outcome)
     })()
@@ -178,6 +180,8 @@ export class CaptureRunner {
       doc,
       item.fileName
     )
+    // Phase 2c: the HSN / SAC list for the line check (a list that cannot be read only skips the note).
+    const hsnIndex = await loadHsnIndex().catch(() => null)
     if (signal.aborted) throw new AiAbortError()
     const current = getItem(db, item.id)
     if (!current || current.status !== 'processing') return // cancelled or removed meanwhile
@@ -186,7 +190,7 @@ export class CaptureRunner {
     // `f?.(x)` skips evaluating x when f is absent.)
     const done = runAsAuditUser(user, () =>
       db.transaction(() => {
-        const outcome = draftFromBill({ db, company: env.company, item: { id: item.id, fileName: item.fileName }, parsed: res.parsed, mode: doc.mode, mapping: current.mapping ?? {}, today: env.today() })
+        const outcome = draftFromBill({ db, company: env.company, item: { id: item.id, fileName: item.fileName }, parsed: res.parsed, mode: doc.mode, mapping: current.mapping ?? {}, today: env.today(), hsnIndex })
         return applyOutcome(db, item.id, outcome, { costMicroUsd: cost, extractionJson: JSON.stringify(res.extraction) })
       })()
     )

@@ -3,8 +3,8 @@
 // Tax rules are never written from memory: every slab below cites the notification that sets it,
 // and what could not be checked against the official text is listed in GST_RATE_UNVERIFIED.
 // This table offers the SLABS only — which slab a product falls in is the HSN-level mapping in the
-// schedules of the notifications, OUT OF SCOPE here (plan §4.2 / owner decision D4: a bundled,
-// cited HSN list comes later). The picker therefore never pre-picks a rate: blank and required in
+// schedules of the notifications, OUT OF SCOPE here (plan §4.2 / owner decision D4: the bundled
+// HSN / SAC list, Phase 2c, carries no rates). The picker therefore never pre-picks a rate: blank and required in
 // a regular company (WP 8.0), the user picks it (0 for nil-rated / exempt goods), and "Other
 // rate" stays open for a rate the table does not list.
 //
@@ -104,7 +104,7 @@ export const GST_RATE_UNVERIFIED: readonly string[] = [
   'Rates on SERVICES after 22 September 2025 (the services notification replacing No. 11/2017) are not reflected — whether 12% or 28% remain for any service is unverified.',
   'Compensation cess: nil on goods other than tobacco from 22 September 2025 (Notification No. 02/2025-Compensation Cess (Rate)), and ended on tobacco from 1 February 2026 (replaced by central excise plus a new cess) — both per secondary sources only.',
   'Biris at 18% from 1 February 2026 (Notification No. 19/2025-Central Tax (Rate)) — secondary sources only.',
-  'Which product falls in which slab (the HSN mapping) is not covered at all — the user picks the slab.'
+  'Which product falls in which slab (the HSN mapping) is not covered — the bundled GST portal HSN / SAC list (shared/gst/hsnMaster, Phase 2c) has codes and descriptions only, no rates; the user picks the slab.'
 ]
 
 /** The period in force on `date` (ISO). Before the first period → the first one. */

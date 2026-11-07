@@ -7,3 +7,7 @@ src/shared/fixtures/windows/*crlf* binary
 # Phase 2a: official GSTN / NIC schema files, vendored byte-for-byte (SHA-256 in sources.json).
 src/main/services/gstGolden/schemas/*.schema.json binary
 src/main/services/gstGolden/schemas/*.sample.json binary
+# Phase 2c: the GST portal's HSN / SAC master, vendored byte-for-byte (SHA-256 in sources.json);
+# hsnSac.json is generated from it (hsnMaster.test.ts) — not hand-edited, no text diff needed.
+src/shared/gst/hsnMaster/*.xlsx binary
+src/shared/gst/hsnMaster/hsnSac.json -diff linguist-generated
