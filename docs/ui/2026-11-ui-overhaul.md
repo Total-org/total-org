@@ -67,4 +67,10 @@ screens with real demo figures; the owner chose **A · Ledger** — refined cont
   Make a bill; one "Ask" AI panel; interest, fixed assets and payroll PF / ESI / PT are being cut —
   those screens are not restyled.
 
+  Done in c: sentence-case labels and ink links across the flow screens (sweep, 90 files), voucher
+  type tabs as underline tabs, save-card tick, People status column (UX-13 clipping), rounded flow
+  cards, empty-state card. Left for their own PRs (behaviour / wording, not presentation): UX-7
+  pickers opening on autofocus, UX-13 "credit" wording, UX-5 section hubs with figures, UX-16 one
+  Save bar for every write flow, UX-20 number abbreviations.
+
 Before / after shots of each PR live under `docs/ui/shots/<pr>/`.

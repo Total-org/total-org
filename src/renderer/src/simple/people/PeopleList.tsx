@@ -104,7 +104,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
         { id: 'youOwe', header: t('simple.people.col.youOwe'), kind: 'money', value: (r) => (r.side === 'supplier' ? r.open : 0), aggregate: 'sum', explainable: false }, // i18n-technical
         {
           // UI overhaul (audit UX-13): room for a late chip ("₹2,33,920.00 late · 23 days") without clipping.
-          id: 'status', header: t('simple.people.col.status'), kind: 'text', groupable: false, filterable: false, minWidth: 250, // i18n-technical
+          id: 'status', header: t('simple.people.col.status'), kind: 'text', groupable: false, filterable: false, width: 190, // i18n-technical
           value: (r) => [r.late > 0 ? t('simple.people.chip.late', { amount: money(r.late) }) : '', r.ahead > 0 ? t('simple.people.chip.ahead', { amount: money(r.ahead) }) : '', r.onHold ? t('simple.people.chip.hold') : ''].filter(Boolean).join(', '),
           cell: (r) => (
             <span>
@@ -128,7 +128,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
           )
         },
         {
-          id: 'creditDays', header: t('simple.people.col.creditDays'), kind: 'text', width: 110, groupable: false, // i18n-technical
+          id: 'creditDays', header: t('simple.people.col.creditDays'), kind: 'text', width: 100, groupable: false, // i18n-technical
           value: (r) => (r.creditDays != null ? t('simple.people.days', { days: r.creditDays }) : '')
         }
       ]),
