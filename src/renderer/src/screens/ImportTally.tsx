@@ -33,7 +33,7 @@ function CountsGrid({ summary }: { summary: TallyImportSummary }): React.JSX.Ele
           <div className={`num text-heading font-semibold ${key === 'skipped' && summary[key] > 0 ? 'text-cr' : ''}`}>
             {summary[key] ?? 0}
           </div>
-          <div className="text-caption text-muted uppercase tracking-[0.06em]">{label}</div>
+          <div className="text-small text-muted">{label}</div>
         </div>
       ))}
     </div>
@@ -80,7 +80,7 @@ function WarningsBox({ warnings }: { warnings: string[] }): React.JSX.Element | 
       {hidden > 0 && (
         <button
           data-testid="btn-import-tally-warnings-more"
-          className="py-0.5 text-body-sm text-blue hover:underline"
+          className="py-0.5 text-body-sm t-link"
           onClick={() => setExpanded(true)}
         >
           {hidden} more…

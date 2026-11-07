@@ -158,7 +158,7 @@ export function PartyNotesPanel({
         trailing={(n) => (
           <span className="flex items-center justify-end gap-3">
             {n.kind === 'task' && (
-              <button type="button" className="text-hint text-blue hover:underline" onClick={() => void setDone(n, !n.doneAt)} data-testid="btn-note-done">
+              <button type="button" className="text-hint t-link" onClick={() => void setDone(n, !n.doneAt)} data-testid="btn-note-done">
                 {n.doneAt ? 'Reopen' : 'Done'}
               </button>
             )}

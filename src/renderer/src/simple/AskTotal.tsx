@@ -187,7 +187,7 @@ function AnswerView({ turn, onAsk, onOpen, onEntry, onPlan, busy }: {
                     data-testid="ask-help-article"
                     data-article={h.article.id}
                     onClick={() => useHelpPanel.getState().openArticle(h.article.id)}
-                    className="text-left text-hint text-blue hover:underline"
+                    className="text-left text-hint t-link"
                   >
                     {h.article.title}
                   </button>

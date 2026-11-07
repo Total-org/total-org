@@ -424,7 +424,7 @@ function EdocsDocuments(): React.JSX.Element {
         <span className="text-muted">to</span>
         <DateInput value={einvTo} context={to} onChange={setEinvTo} allowEmpty placeholder={toDisplayDate(to)} ariaLabel="e-Invoice JSON to" testId="input-edocs-einvoice-to" className="w-32" />
         {einvRange ? (
-          <button type="button" className="text-small text-blue hover:underline" onClick={() => { setEinvFrom(''); setEinvTo('') }} data-testid="btn-edocs-einvoice-range-clear">
+          <button type="button" className="text-small t-link" onClick={() => { setEinvFrom(''); setEinvTo('') }} data-testid="btn-edocs-einvoice-range-clear">
             Whole period
           </button>
         ) : (
@@ -451,7 +451,7 @@ function EdocsDocuments(): React.JSX.Element {
               allRows.length > 0 && docTypeFilter !== 'all' ? (
                 <button
                   type="button"
-                  className="text-small text-blue hover:underline"
+                  className="text-small t-link"
                   onClick={() => setDocTypeFilter('all')}
                   data-testid="edocs-clear-doctype"
                 >
@@ -483,7 +483,7 @@ function EdocsDocuments(): React.JSX.Element {
             <span className="whitespace-nowrap">
               {live && r.partyGstin && !r.irn && r.docType !== 'CHL' && (
                 <button
-                  className="mr-2 text-small text-blue hover:underline disabled:opacity-40"
+                  className="mr-2 text-small t-link disabled:opacity-40"
                   disabled={busy === r.voucherId}
                   onClick={() => requestGenerate('irn', r.voucherId)}
                 >
@@ -492,7 +492,7 @@ function EdocsDocuments(): React.JSX.Element {
               )}
               {live && r.irn && !r.ewbNo && (
                 <button
-                  className="mr-2 text-small text-blue hover:underline disabled:opacity-40"
+                  className="mr-2 text-small t-link disabled:opacity-40"
                   disabled={busy === r.voucherId}
                   onClick={() => requestGenerate('ewb', r.voucherId)}
                 >
@@ -501,7 +501,7 @@ function EdocsDocuments(): React.JSX.Element {
               )}
               {(r.irn || r.irnCancelledAt || (r.ewbNo && r.docType !== 'CHL')) && (
                 <button
-                  className="mr-2 text-small text-blue hover:underline"
+                  className="mr-2 text-small t-link"
                   data-testid="btn-edocs-details"
                   onClick={() => setDetailsFor(r.voucherId)}
                 >
@@ -510,7 +510,7 @@ function EdocsDocuments(): React.JSX.Element {
               )}
               {!exportRefused && r.docType !== 'CRN' && !r.ewbReason?.startsWith('Goods moved on challan') && (
                 <button
-                  className="mr-2 text-small text-blue hover:underline disabled:opacity-40"
+                  className="mr-2 text-small t-link disabled:opacity-40"
                   data-testid="btn-edocs-ewb-json"
                   disabled={busy === r.voucherId}
                   title="Write this bill's single-bill EWB JSON (overrides the ₹50,000 threshold)"
@@ -521,7 +521,7 @@ function EdocsDocuments(): React.JSX.Element {
               )}
               {info?.gstin && r.partyGstin && r.docType !== 'CHL' && (
                 <button
-                  className="mr-2 text-small text-blue hover:underline"
+                  className="mr-2 text-small t-link"
                   data-testid="btn-edocs-gateway"
                   title="Send this document to the portal through the GST gateway — test mode: nothing is sent"
                   onClick={() => setGatewayFor({ voucherId: r.voucherId, number: r.number })}
@@ -530,14 +530,14 @@ function EdocsDocuments(): React.JSX.Element {
                 </button>
               )}
               <button
-                className="mr-2 text-small text-blue hover:underline"
+                className="mr-2 text-small t-link"
                 data-testid="btn-edocs-transport"
                 onClick={() => setTransportFor({ voucherId: r.voucherId, number: r.number })}
               >
                 Transport
               </button>
               <button
-                className="mr-2 text-small text-blue hover:underline"
+                className="mr-2 text-small t-link"
                 onClick={() => {
                   api.invoice.pdf(r.voucherId).catch((err: Error) => toast.push('error', err.message))
                 }}

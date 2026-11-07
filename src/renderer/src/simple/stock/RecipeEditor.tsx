@@ -137,10 +137,10 @@ export function RecipeSection({ product }: { product: StockProductView }): React
   return (
     <section className="mt-4 rounded-md border border-line bg-panel2 px-3 py-3" aria-label={t('simple.stock.recipe.title')} data-testid="stock-recipe-section">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.recipe.title')}</h2>
+        <h2 className="text-small font-semibold text-muted">{t('simple.stock.recipe.title')}</h2>
         <button
           type="button"
-          className="text-detail text-blue hover:underline"
+          className="text-detail t-link"
           title={t('simple.stock.recipe.accountantHint')}
           data-testid="btn-recipe-accountant-view"
           onClick={() => nav.go(fullItemScreen(product.itemId))}

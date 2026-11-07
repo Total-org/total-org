@@ -47,7 +47,7 @@ export function Plain({ children }: { children: React.ReactNode }): React.JSX.El
   return <>{children}</>
 }
 
-const cardCls = 'mb-4 rounded-lg border border-line bg-panel px-panel py-4 shadow-elev-1'
+const cardCls = 'mb-4 rounded-xl border border-line bg-panel px-panel py-4 shadow-elev-1'
 
 /** The plain message for a failed call (the technical wording stays in the log). */
 function usePlain(): (err: unknown) => string {

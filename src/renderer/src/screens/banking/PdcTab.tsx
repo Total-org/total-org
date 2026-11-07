@@ -143,7 +143,7 @@ export function PdcTab(): React.JSX.Element {
           trailing={(r) =>
             r.status === 'pending' || r.status === 'due' ? (
               <>
-                <button className="mr-3 text-small text-blue hover:underline" data-testid="btn-banking-pdc-mature" onClick={() => void mature(r)}>
+                <button className="mr-3 text-small t-link" data-testid="btn-banking-pdc-mature" onClick={() => void mature(r)}>
                   Mature now
                 </button>
                 <button className="text-small text-muted hover:text-ink" data-testid="btn-banking-pdc-edit" onClick={() => nav.go({ name: 'voucher-entry', voucherId: r.voucherId })}>

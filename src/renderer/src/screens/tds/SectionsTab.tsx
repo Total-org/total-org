@@ -141,7 +141,7 @@ function SectionsBody(): React.JSX.Element {
           empty={{ title: 'No sections yet', hint: 'Add one — e.g. 194C Contractors' }}
           trailingWidth={canEdit ? 64 : 0}
           trailing={canEdit ? (s) => (
-            <button data-testid={`btn-${k}-section-edit-${s.id}`} className="text-small text-blue hover:underline" onClick={() => setEditing(s)}>
+            <button data-testid={`btn-${k}-section-edit-${s.id}`} className="text-small t-link" onClick={() => setEditing(s)}>
               Edit
             </button>
           ) : undefined}
@@ -196,7 +196,7 @@ function SectionsBody(): React.JSX.Element {
           empty={{ title: 'No certificates', hint: k === 'tcs' ? 'Record a section 206C(9) lower-collection certificate the buyer gave you' : 'Record a section 197 certificate the deductee gave you' }}
           trailingWidth={canEdit ? 64 : 0}
           trailing={canEdit ? (c) => (
-            <button data-testid={`btn-${k}-cert-edit-${c.id}`} className="text-small text-blue hover:underline" onClick={() => setCert(c)}>
+            <button data-testid={`btn-${k}-cert-edit-${c.id}`} className="text-small t-link" onClick={() => setCert(c)}>
               Edit
             </button>
           ) : undefined}
@@ -513,7 +513,7 @@ function RatesEditor({ sectionId }: { sectionId: number }): React.JSX.Element {
               <td className="r num">{pct(r.noPanRateBp)}</td>
               <td className="num text-muted">{r.returnCode ?? ''}</td>
               <td className="r whitespace-nowrap">
-                <button className="text-small text-blue hover:underline" onClick={() => edit(r)}>Edit</button>{' '}
+                <button className="text-small t-link" onClick={() => edit(r)}>Edit</button>{' '}
                 <button className="text-small text-cr hover:underline" onClick={() => void remove(r.id)}>Delete</button>
               </td>
             </tr>

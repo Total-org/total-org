@@ -111,7 +111,7 @@ export function RulesTab(): React.JSX.Element {
     <>
       <Panel className="mb-3">
         <div className="border-b border-line px-4 py-2.5">
-          <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase">Learned from your matches · {learned?.length ?? 0}</p>
+          <p className="text-small font-semibold text-muted">Learned from your matches · {learned?.length ?? 0}</p>
           <p className="text-hint text-muted">
             Each confirmed match or voucher made from a statement line teaches these. They suggest a ledger for unmatched lines on the next import; accept one to trust it.
           </p>
@@ -249,7 +249,7 @@ function ruleColumns(onToggleActive: (r: BankRuleRecord) => void): TableColumn<B
       cell: (r) => (
         <button
           type="button"
-          className="text-small text-blue hover:underline"
+          className="text-small t-link"
           onClick={(e) => {
             e.stopPropagation()
             onToggleActive(r)
@@ -332,7 +332,7 @@ export function BankRulesPanel({ prefill }: { prefill?: { pattern: string; kind:
   return (
     <Panel>
       <div className="border-b border-line px-4 py-2.5">
-        <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase">Your pattern rules · {rules?.length ?? 0}</p>
+        <p className="text-small font-semibold text-muted">Your pattern rules · {rules?.length ?? 0}</p>
         <p className="text-hint text-muted">Written by hand: narration contains the pattern → ledger. They win over learned rules.</p>
       </div>
       <DataTable
@@ -350,7 +350,7 @@ export function BankRulesPanel({ prefill }: { prefill?: { pattern: string; kind:
         trailingWidth={120}
         trailing={(r) => (
           <>
-            <button className="mr-3 text-small text-blue hover:underline" onClick={() => edit(r)}>
+            <button className="mr-3 text-small t-link" onClick={() => edit(r)}>
               Edit
             </button>
             <button className="text-small text-cr hover:underline" onClick={() => void remove(r)}>
@@ -360,7 +360,7 @@ export function BankRulesPanel({ prefill }: { prefill?: { pattern: string; kind:
         )}
       />
       <div className="border-t border-line p-4">
-        <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">{editingId ? 'Edit rule' : 'Add rule'}</p>
+        <p className="mb-2 text-small font-semibold text-muted">{editingId ? 'Edit rule' : 'Add rule'}</p>
         <div className="grid grid-cols-4 gap-3">
           <Field label="Pattern" hint={pattern && /\d/.test(pattern) ? `Tip: “${suggestPattern(pattern)}” ignores reference numbers` : undefined}>
             <TextInput value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="e.g. ACME SUPPLIES" data-testid="input-banking-rule-pattern" />

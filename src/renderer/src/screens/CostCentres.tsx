@@ -124,7 +124,7 @@ export function CostCentresScreen(): React.JSX.Element {
           trailingWidth={128}
           trailing={(c) => (
             <>
-              <button type="button" className="mr-3 text-small text-blue hover:underline" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c)}>
+              <button type="button" className="mr-3 text-small t-link" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c)}>
                 Edit
               </button>
               <button type="button" className="text-small text-danger hover:underline" aria-label={`Delete ${c.name}`} onClick={() => void remove(c)}>
@@ -186,7 +186,7 @@ function DrillList({ ccId, from, to }: { ccId: number; from: string; to: string 
         {rows.map((r, i) => (
           <tr key={i}>
             <td className="w-28 py-0.5 pr-3">
-              <VoucherLink voucherId={r.voucherId} label={r.number} className="num text-muted hover:text-blue" />
+              <VoucherLink voucherId={r.voucherId} label={r.number} className="num text-muted hover:text-ink hover:underline" />
             </td>
             <td className="num w-24 py-0.5 pr-3 text-muted">{toDisplayDate(r.date)}</td>
             <td className="py-0.5 pr-3 text-muted">

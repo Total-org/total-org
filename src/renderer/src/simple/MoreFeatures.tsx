@@ -63,7 +63,7 @@ export function MoreFeatures({ stored, noData, canEdit }: { stored: CompanyFeatu
       </button>
       <div id="features-more-list" hidden={!open}>
         <p className="mb-3 mt-1 text-small text-muted">{t('simple.features.moreHint')}</p>
-        <div className="divide-y divide-line rounded-lg border border-line bg-panel shadow-elev-1">
+        <div className="divide-y divide-line rounded-xl border border-line bg-panel shadow-elev-1">
           {list.map(({ feature, on }) => {
             const names = NAMES[feature]
             return (

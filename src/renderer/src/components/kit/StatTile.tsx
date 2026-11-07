@@ -5,7 +5,7 @@ import { looksLikeMoney, nodeText, useAiAffordances, type ExplainInput } from '.
 import { useKitLabels } from './labels'
 
 /**
- * A headline figure: uppercase label, a large mono value, an optional delta / hint line and a
+ * A headline figure: a sentence-case label, a large tabular value, an optional delta / hint line and a
  * sparkline slot, then an optional footer line. `onClick` makes the whole tile a button (drill
  * into the figure; `openLabel` says where it goes). `loading` shows a skeleton, `error` an
  * "Unavailable" alert in place of the value. `tone` colours the value (dr / cr / amber); the

@@ -116,7 +116,7 @@ export function RatiosScreen(): React.JSX.Element {
           </Panel>
           <div className="flex flex-col gap-3">
             <Panel className="p-4" testId="ratio-detail">
-              <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{RATIO_CATEGORIES.find((c) => c.id === focusDef.category)?.label}</p>
+              <p className="text-small font-semibold text-muted">{RATIO_CATEGORIES.find((c) => c.id === focusDef.category)?.label}</p>
               <h2 className="mt-1 font-serif text-subtitle font-semibold">{focusDef.label}</h2>
               <p className="num mt-1 text-heading">{formatRatio(data.period.ratios[focus], focusDef.unit)}</p>
               <p className="mt-2 text-detail"><span className="text-muted">Formula: </span>{focusDef.formula}</p>
@@ -138,7 +138,7 @@ export function RatiosScreen(): React.JSX.Element {
               )}
             </Panel>
             <Panel className="p-4">
-              <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Worked from</p>
+              <p className="text-small font-semibold text-muted">Worked from</p>
               <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-small">
                 {(
                   [

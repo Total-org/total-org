@@ -150,7 +150,7 @@ export function PriceHint({ pricing, onReset }: { pricing?: RowPricing; onReset:
             {manual ? (
               <button
                 type="button"
-                className="self-start text-hint text-blue hover:underline"
+                className="self-start text-hint t-link"
                 data-testid="btn-line-price-reset"
                 onClick={() => {
                   setOpen(false)

@@ -105,7 +105,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
   if (!p) {
     return (
       <Page data-testid="simple-stock-product">
-        <button type="button" className="mb-3 text-detail text-blue hover:underline" onClick={() => nav.back()}>
+        <button type="button" className="mb-3 text-detail t-link" onClick={() => nav.back()}>
           {t('simple.stock.back')}
         </button>
         <p className="text-detail text-muted" data-testid="simple-stock-product-missing">{t('simple.stock.missing')}</p>
@@ -168,10 +168,10 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
 
   return (
     <Page data-testid="simple-stock-product" data-item={p.itemId}>
-      <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-stock-product-back" onClick={() => nav.back()}>
+      <button type="button" className="mb-3 text-detail t-link" data-testid="btn-stock-product-back" onClick={() => nav.back()}>
         {t('simple.stock.back')}
       </button>
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{p.name}</h1>
@@ -182,20 +182,20 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
 
         <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 text-body sm:grid-cols-2">
           <div>
-            <dt className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.col.onHand')}</dt>
+            <dt className="text-small font-semibold text-muted">{t('simple.stock.col.onHand')}</dt>
             <dd className="num text-lead font-semibold text-ink" data-testid="stock-product-qty" data-milli={p.qtyMilli}>
               {t('simple.stock.qtyUnit', { qty: formatQtyMilli(p.qtyMilli), unit })}
             </dd>
           </div>
           <div>
-            <dt className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.col.worth')}</dt>
+            <dt className="text-small font-semibold text-muted">{t('simple.stock.col.worth')}</dt>
             <dd className="num text-lead font-semibold text-ink" data-testid="stock-product-value" data-paise={p.value}>
               {money(p.value)}
             </dd>
             {p.unitCost != null && <dd className="text-small text-muted">{t('simple.stock.unitCost', { amount: money(p.unitCost), unit })}</dd>}
           </div>
           <div>
-            <dt className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.col.price')}</dt>
+            <dt className="text-small font-semibold text-muted">{t('simple.stock.col.price')}</dt>
             {editingPrice ? (
               <dd className="mt-1 flex flex-wrap items-end gap-2">
                 <Field label={t('simple.stock.newPrice', { unit })} name="price" error={priceError}>
@@ -216,7 +216,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
                 {canSave && (
                   <button
                     type="button"
-                    className="text-detail text-blue hover:underline"
+                    className="text-detail t-link"
                     data-testid="btn-stock-change-price"
                     onClick={() => {
                       setPrice(p.sellingPrice)
@@ -232,7 +232,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
             {editingPrice && <dd className="mt-1 text-small text-muted">{t('simple.stock.priceFrom', { date: toPlainDate(workingDate, t.lang) })}</dd>}
           </div>
           <div>
-            <dt className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.lowAt')}</dt>
+            <dt className="text-small font-semibold text-muted">{t('simple.stock.lowAt')}</dt>
             {editingLow ? (
               <dd className="mt-1 flex flex-wrap items-end gap-2">
                 <Field label={t('simple.stock.lowField', { unit })} name="reorderLevel" error={lowError} hint={t('simple.stock.lowHint')}>
@@ -265,7 +265,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
                 {canSave && (
                   <button
                     type="button"
-                    className="text-detail text-blue hover:underline"
+                    className="text-detail t-link"
                     data-testid="btn-stock-change-low"
                     onClick={() => {
                       setLowText(p.reorderLevelMilli ? formatQtyMilli(p.reorderLevelMilli) : '')
@@ -281,7 +281,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
           </div>
           {(p.gstRate != null || p.hsn) && (
             <div>
-              <dt className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.stock.gst')}</dt>
+              <dt className="text-small font-semibold text-muted">{t('simple.stock.gst')}</dt>
               <dd className="text-body text-ink">
                 {[p.gstRate != null ? t('simple.stock.gstRate', { rate: p.gstRate }) : null, p.hsn ? t('simple.stock.hsn', { code: p.hsn }) : null].filter(Boolean).join(' · ')}
               </dd>
@@ -311,7 +311,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
         </div>
       </section>
 
-      <section className="mt-5 rounded-lg border border-line bg-panel shadow-elev-1" aria-label={t('simple.stock.history')}>
+      <section className="mt-5 rounded-xl border border-line bg-panel shadow-elev-1" aria-label={t('simple.stock.history')}>
         <div className="flex flex-wrap items-baseline justify-between gap-3 px-panel pt-panel">
           <h2 className="text-subtitle font-semibold text-ink">{t('simple.stock.history')}</h2>
           <span className="text-small text-muted" data-testid="stock-history-opening">
@@ -330,7 +330,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
           maxHeight={NO_MAX}
         />
         <div className="px-panel pb-panel">
-          <button type="button" className="mt-2 text-detail text-blue hover:underline" data-testid="btn-stock-history-full" onClick={() => nav.go(movementsScreen(p.itemId))}>
+          <button type="button" className="mt-2 text-detail t-link" data-testid="btn-stock-history-full" onClick={() => nav.go(movementsScreen(p.itemId))}>
             {t('simple.stock.historyFull')}
           </button>
         </div>

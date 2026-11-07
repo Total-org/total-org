@@ -377,7 +377,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       ) : (
         <div className="flex flex-col gap-4">
           {/* Who is it for? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.who')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.who')}>
             <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.sell.who')}</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
               <Field label={t('simple.sell.customer')} name="party" error={errors.get(F.party)}>
@@ -400,14 +400,14 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 {t('simple.sell.cashCustomer')}
               </p>
             ) : (
-              <button type="button" className="mt-2 text-detail text-blue hover:underline" data-testid="btn-sell-cash-customer" onClick={() => pickCustomer(null)}>
+              <button type="button" className="mt-2 text-detail t-link" data-testid="btn-sell-cash-customer" onClick={() => pickCustomer(null)}>
                 {t('simple.sell.pickCashCustomer')}
               </button>
             )}
           </section>
 
           {/* What was sold? */}
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.what')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.sell.what')}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-subtitle font-semibold text-ink">{t('simple.sell.what')}</h2>
               {charges && (
@@ -447,14 +447,14 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
             )}
             <div className="mt-3 flex flex-wrap gap-4">
               {form.mode === 'items' && !showDiscount && (
-                <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-sell-add-discount" onClick={() => setShowDiscount(true)}>
+                <button type="button" className="text-detail t-link" data-testid="btn-sell-add-discount" onClick={() => setShowDiscount(true)}>
                   {t('simple.sell.addDiscount')}
                 </button>
               )}
               {stockOn && (
                 <button
                   type="button"
-                  className="text-detail text-blue hover:underline"
+                  className="text-detail t-link"
                   data-testid="btn-sell-toggle-mode"
                   onClick={() => update(form.mode === 'items' ? { mode: 'amount', lines: [] } : { mode: 'items', lines: [newLine()], amount: null })} // i18n-technical
                 >

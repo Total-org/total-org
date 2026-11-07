@@ -81,7 +81,7 @@ export function DataFolderSetting(): React.JSX.Element {
   if (!data) return <div data-testid="data-folder-setting" data-loading="true" />
 
   return (
-    <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="data-folder-setting">
+    <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="data-folder-setting">
       <h2 className="text-subtitle font-semibold text-ink">{t('simple.dataFolder.title')}</h2>
       <p className="mt-1 text-detail text-muted">{t('simple.dataFolder.current')}</p>
       <p className="mt-1 break-all font-mono text-detail text-ink" data-testid="data-folder-path">

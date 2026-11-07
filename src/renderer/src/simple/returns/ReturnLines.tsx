@@ -58,7 +58,7 @@ export function ReturnLines({
                     />
                     <button
                       type="button"
-                      className="text-small text-blue hover:underline"
+                      className="text-small t-link"
                       title={t('simple.returns.allLeftHint', { qty: formatQtyMilli(l.leftMilli), unit: l.unit })}
                       onClick={() => set(l.lineUid, formatQtyMilli(l.leftMilli).replace(/,/g, ''))}
                       data-testid={`btn-return-all-${i}`}

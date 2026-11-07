@@ -113,7 +113,7 @@ export function ProviderCard({
   }
 
   return (
-    <section className="rounded-lg border border-line bg-panel px-panel py-4 shadow-elev-1" data-testid="simple-ai-provider">
+    <section className="rounded-xl border border-line bg-panel px-panel py-4 shadow-elev-1" data-testid="simple-ai-provider">
       <h2 className="mb-2 text-detail font-semibold text-ink">{t('simple.ai.provider.title')}</h2>
       <p className="mb-3 text-small text-muted">{t('simple.ai.provider.what')}</p>
       <div role="radiogroup" aria-label={t('simple.ai.provider.title')} className="flex flex-wrap gap-2">

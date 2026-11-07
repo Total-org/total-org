@@ -104,7 +104,7 @@ export function EinvoiceTurnOnCard(): React.JSX.Element | null {
       </div>
       <p className="mt-1 text-body text-ink">{t('simple.taxes.einvoice.why', { fy: n.fy, amount: money(n.thresholdPaise) })}</p>
       {isOwner ? (
-        <button type="button" className="mt-2 text-body font-medium text-blue hover:underline" data-testid="btn-taxes-einvoice-turn-on" onClick={() => nav.go(COMPANY_DETAILS)}>
+        <button type="button" className="mt-2 text-body font-medium t-link" data-testid="btn-taxes-einvoice-turn-on" onClick={() => nav.go(COMPANY_DETAILS)}>
           {t('simple.taxes.einvoice.action')}
         </button>
       ) : (
@@ -178,7 +178,7 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
       {x.running && (
         <p className="mb-3 text-detail text-ink" data-testid="taxes-running">
           {t('simple.taxes.runningSoFar', { period: taxesPeriodLabel(x.running.period, t), collected: money(x.running.collected), purchases: money(x.running.onPurchases) })}{' '}
-          <button type="button" className="text-blue hover:underline" data-testid="btn-taxes-running" onClick={() => nav.replace(taxesScreen(x.running!.period.period))}>
+          <button type="button" className="t-link" data-testid="btn-taxes-running" onClick={() => nav.replace(taxesScreen(x.running!.period.period))}>
             {t('simple.taxes.runningOpen')}
           </button>
         </p>

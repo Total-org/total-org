@@ -104,7 +104,7 @@ export function BalanceSheetScreen(): React.JSX.Element {
       ) : (
       <div className={`grid grid-cols-2 gap-3 transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
         <Panel className="p-4">
-          <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Liabilities</p>
+          <p className="mb-2 text-small font-semibold text-muted">Liabilities</p>
           <StatementTree key={`l-${treeKey}`} nodes={data.liabilities} {...tree} />
           <div className="total-row mt-2 flex justify-between px-2 pt-1.5 pb-0.5">
             <span>Total</span>
@@ -112,7 +112,7 @@ export function BalanceSheetScreen(): React.JSX.Element {
           </div>
         </Panel>
         <Panel className="p-4">
-          <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Assets</p>
+          <p className="mb-2 text-small font-semibold text-muted">Assets</p>
           <StatementTree key={`a-${treeKey}`} nodes={data.assets} {...tree} />
           <div className="total-row mt-2 flex justify-between px-2 pt-1.5 pb-0.5">
             <span>Total</span>

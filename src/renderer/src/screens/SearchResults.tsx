@@ -174,7 +174,7 @@ export function SearchResultsScreen({ q = '', kind }: { q?: string; kind?: Searc
     r.kind === 'voucher' && LINKABLE_VOUCHER_KINDS.has(r.voucherKind) ? (
       <button
         type="button"
-        className="text-hint text-blue hover:underline"
+        className="text-hint t-link"
         title="Linked documents"
         data-testid="btn-search-links"
         onClick={(e) => {
@@ -253,12 +253,12 @@ export function SearchResultsScreen({ q = '', kind }: { q?: string; kind?: Searc
               return (
                 <Panel key={k}>
                   <div className="flex items-center justify-between border-b border-line px-4 py-2">
-                    <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">
+                    <p className="text-small font-semibold text-muted">
                       {KIND_TITLE[k]}{' '}
                       <span className="num font-normal normal-case tracking-normal">· showing {sec.rows.length} of {sec.total}</span>
                     </p>
                     {sec.total > sec.rows.length && (
-                      <button data-testid={`btn-search-show-all-${k}`} className="text-small text-blue hover:underline" onClick={() => setTab(k)}>
+                      <button data-testid={`btn-search-show-all-${k}`} className="text-small t-link" onClick={() => setTab(k)}>
                         See all {sec.total}
                       </button>
                     )}

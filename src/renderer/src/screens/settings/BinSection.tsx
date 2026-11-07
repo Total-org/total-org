@@ -84,7 +84,7 @@ export function BinSection(): React.JSX.Element {
               ? (r) => (
                   <span className="whitespace-nowrap">
                     {canRestore && (
-                      <button className="mr-2 text-small text-blue hover:underline" onClick={() => void restore(r)}>
+                      <button className="mr-2 text-small t-link" onClick={() => void restore(r)}>
                         Restore
                       </button>
                     )}
@@ -131,7 +131,7 @@ function PurgeModal({ row, onClose }: { row: BinRow; onClose: () => void }): Rea
         Permanently delete voucher {row.number} ({toDisplayDate(row.date)})? This cannot be undone.
       </p>
       <div className="mt-4">
-        <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">
+        <span className="mb-1.5 block text-small font-medium text-muted">
           Type DELETE to confirm
         </span>
         <TextInput value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoFocus />

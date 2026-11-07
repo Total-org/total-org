@@ -186,7 +186,7 @@ export function BatchTab({ tabs }: { tabs: ReactNode }): React.JSX.Element {
                 <td>
                   <button
                     type="button"
-                    className="text-hint text-blue hover:underline disabled:text-muted"
+                    className="text-hint t-link disabled:text-muted"
                     disabled={r.partyLedgerId == null}
                     data-testid={`btn-payables-batch-bills-${i}`}
                     onClick={() => setBillsFor(r.key)}
