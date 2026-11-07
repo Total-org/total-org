@@ -92,6 +92,58 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
   }))
   const navBtnCls = (top: boolean): string =>
     `t-nav-item flex w-full items-center gap-2 rounded-md py-[5px] text-left text-detail text-muted hover:bg-ink/5 hover:text-ink ${top ? 'px-2.5' : 'pr-2.5 pl-8'}`
+  const renderSection = (section: (typeof visibleNav)[number]): React.JSX.Element => {
+    const open = sections.isOpen(section.id)
+    const listId = `nav-list-${section.id}`
+    return (
+      <div key={section.id}>
+        {section.title && (
+          <button
+            type="button"
+            data-testid={`nav-section-${section.id}`}
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => sections.toggle(section.id)}
+            onKeyDown={(e) => {
+              // ←/→ collapse/expand, like a tree; ↵/Space toggle via the native button.
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault()
+                sections.setOpen(section.id, e.key === 'ArrowRight')
+              }
+            }}
+            className="t-nav-item mt-2 flex w-full items-center gap-2 rounded-md px-2.5 py-[5px] text-left text-detail font-semibold text-ink/80 hover:bg-ink/5 hover:text-ink"
+          >
+            <PlainIcon id={NAV_ICON[section.id] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />
+            <span className="flex-1">{section.title}</span>
+            <span aria-hidden className="inline-block w-3 text-center text-micro text-muted">{open ? '▾' : '▸'}</span>
+          </button>
+        )}
+        {/* Collapsed items stay in the DOM (hidden) so aria-controls always resolves. */}
+        <div id={listId} hidden={!open}>
+          {section.items.map((item) => {
+            const active = screen.name === item.screen.name
+            const top = !section.title
+            return (
+              <button
+                type="button"
+                key={item.label}
+                data-testid={`nav-${item.screen.name}`}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => nav.go(item.screen)}
+                className={navBtnCls(top)}
+              >
+                {top && <PlainIcon id={NAV_ICON[item.screen.name] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />}
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+  const topSection = visibleNav.find((sct) => !sct.title)
+  const scrollSections = visibleNav.filter((sct) => sct !== topSection)
+
 
   return (
     <div className="flex h-full flex-col">
@@ -198,56 +250,16 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
             <TotalLogo size={28} />
             <span className="font-serif text-brand font-semibold tracking-tight">Total</span>
           </div>
-          {visibleNav.map((section) => {
-            const open = sections.isOpen(section.id)
-            const listId = `nav-list-${section.id}`
-            return (
-              <div key={section.id}>
-                {section.title && (
-                  <button
-                    type="button"
-                    data-testid={`nav-section-${section.id}`}
-                    aria-expanded={open}
-                    aria-controls={listId}
-                    onClick={() => sections.toggle(section.id)}
-                    onKeyDown={(e) => {
-                      // ←/→ collapse/expand, like a tree; ↵/Space toggle via the native button.
-                      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                        e.preventDefault()
-                        sections.setOpen(section.id, e.key === 'ArrowRight')
-                      }
-                    }}
-                    className="t-nav-item mt-2 flex w-full items-center gap-2 rounded-md px-2.5 py-[5px] text-left text-detail font-semibold text-ink/80 hover:bg-ink/5 hover:text-ink"
-                  >
-                    <PlainIcon id={NAV_ICON[section.id] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />
-                    <span className="flex-1">{section.title}</span>
-                    <span aria-hidden className="inline-block w-3 text-center text-micro text-muted">{open ? '▾' : '▸'}</span>
-                  </button>
-                )}
-                {/* Collapsed items stay in the DOM (hidden) so aria-controls always resolves. */}
-                <div id={listId} hidden={!open}>
-                  {section.items.map((item) => {
-                    const active = screen.name === item.screen.name
-                    const top = !section.title
-                    return (
-                      <button
-                        type="button"
-                        key={item.label}
-                        data-testid={`nav-${item.screen.name}`}
-                        aria-current={active ? 'page' : undefined}
-                        onClick={() => nav.go(item.screen)}
-                        className={navBtnCls(top)}
-                      >
-                        {top && <PlainIcon id={NAV_ICON[item.screen.name] ?? 'dot'} size={16} className="t-nav-icon shrink-0" />}
-                        {item.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-          <div className="flex-1" />
+          {topSection && renderSection(topSection)}
+          {/* UX-11: the top block (Gateway … Masters) stays put; the sections scroll beneath it. The
+              accountantSidebar test reads through this wrapper, so the pinned shape is unchanged.
+              min-h-24 + the nav's own overflow: at a high zoom the nav itself scrolls once this area
+              hits its floor, so the foot (Back up now, Switch company) is always reachable;
+              scroll-py / pb keep a focus ring at the edge from being clipped. */}
+          <div data-nav-scroll="" className="-mx-2 mt-1 flex min-h-24 flex-1 scroll-py-1.5 flex-col gap-0.5 overflow-y-auto border-t border-line px-2 pt-1 pb-1">
+            {scrollSections.map(renderSection)}
+            <div className="flex-1" />
+          </div>
           <button
             type="button"
             className="rounded-md px-2.5 py-1.5 text-left text-body-sm text-muted hover:bg-panel2 hover:text-ink"
