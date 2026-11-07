@@ -745,7 +745,7 @@ function QueueLink(): React.JSX.Element {
     <li className="pt-1">
       <button
         type="button"
-        className="text-caption text-blue hover:underline"
+        className="t-link text-caption"
         data-testid="ai-open-queue"
         onClick={() => {
           useAssistantPanel.getState().setOpen(false)

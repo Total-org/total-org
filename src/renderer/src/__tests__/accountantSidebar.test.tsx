@@ -17,7 +17,10 @@ let features: Partial<CompanyFeatures> = {}
 function sidebarShape(): unknown {
   const nav = screen.getByRole('navigation', { name: 'Main' })
   const out: unknown[] = []
-  for (const block of Array.from(nav.children)) {
+  // UX-11 (owner, 7 Nov): the sections scroll inside one wrapper under the pinned top block — read
+  // through it, so the pinned shape (blocks, ids, labels, order, expanded states) is unchanged.
+  const blocks = Array.from(nav.children).flatMap((b) => (b.hasAttribute('data-nav-scroll') ? Array.from(b.children) : [b]))
+  for (const block of blocks) {
     const list = block.querySelector('[id^="nav-list-"]')
     if (!list) {
       out.push({ footer: block.textContent?.trim() })
