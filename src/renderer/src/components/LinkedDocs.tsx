@@ -202,7 +202,7 @@ export function LinkedDocsDrawer({ target, onClose }: { target: LinkedDocsTarget
               <div key={lv} className="flex items-start gap-2">
                 {i > 0 && <span aria-hidden="true" className="pt-7 text-muted">→</span>}
                 <section className="flex w-[240px] shrink-0 flex-col gap-2" data-testid="chain-level" aria-label={[...new Set(ns.map((n) => KIND_PLURAL[n.kind]))].join(', ')}>
-                  <h3 className="truncate text-label font-semibold tracking-[0.08em] text-muted uppercase">
+                  <h3 className="truncate text-small font-semibold text-muted">
                     {[...new Set(ns.map((n) => KIND_PLURAL[n.kind]))].join(' · ')}
                   </h3>
                   {ns.map((n) => <NodeCard key={n.key} n={n} onNavigate={onClose} />)}
@@ -210,7 +210,7 @@ export function LinkedDocsDrawer({ target, onClose }: { target: LinkedDocsTarget
               </div>
             ))}
           </div>
-          <h3 className="mt-4 mb-2 text-label font-semibold tracking-[0.08em] text-muted uppercase">Links</h3>
+          <h3 className="mt-4 mb-2 text-small font-semibold text-muted">Links</h3>
           <DataTable
             testId="chain-edges"
             ariaLabel="Links between the documents"

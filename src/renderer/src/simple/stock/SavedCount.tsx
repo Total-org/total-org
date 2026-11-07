@@ -22,7 +22,7 @@ export function SavedCount({ voucherId }: { voucherId: number }): React.JSX.Elem
   const { data: c, isLoading } = useQuery({ queryKey: [QUERY_KEY, voucherId], queryFn: () => api.simpleStock.count(voucherId) })
   const money = (v: number): string => formatPaise(v, { symbol: true })
   const back = (
-    <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-saved-count-back" onClick={() => nav.back()}>
+    <button type="button" className="mb-3 text-detail t-link" data-testid="btn-saved-count-back" onClick={() => nav.back()}>
       {t('common.back')}
     </button>
   )
@@ -38,7 +38,7 @@ export function SavedCount({ voucherId }: { voucherId: number }): React.JSX.Elem
   return (
     <Page data-testid="simple-saved-count" data-voucher={c.voucherId}>
       {back}
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.stock.saved.title', { number: c.number })}</h1>

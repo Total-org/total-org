@@ -133,7 +133,7 @@ export function BackupsSection(): React.JSX.Element {
           trailing={
             isOwner
               ? (b) => (
-                  <button className="text-small text-blue hover:underline" onClick={() => setRestoring(b)}>
+                  <button className="text-small t-link" onClick={() => setRestoring(b)}>
                     Restore…
                   </button>
                 )

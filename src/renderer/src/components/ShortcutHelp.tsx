@@ -68,7 +68,7 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }): React.JSX.El
       <div className="grid grid-cols-2 gap-x-8 gap-y-6">
         {SHORTCUT_GROUPS.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">{group.title}</p>
+            <p className="mb-2 text-small font-semibold text-muted">{group.title}</p>
             <div className="flex flex-col gap-1.5">
               {group.rows.map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-4">

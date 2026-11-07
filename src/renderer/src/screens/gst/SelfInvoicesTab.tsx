@@ -111,12 +111,12 @@ export function SelfInvoicesTab({ from, to }: { from: string; to: string }): Rea
         trailing={(r) => (
           <span className="whitespace-nowrap">
             {r.selfInvoiceNumber == null && r.status !== 'cancelled' && canEdit && (
-              <button className="mr-2 text-small text-blue hover:underline disabled:opacity-40" data-testid={`btn-self-invoice-generate-${r.voucherId}`} disabled={busy === r.voucherId} onClick={() => void generate(r)}>
+              <button className="mr-2 text-small t-link disabled:opacity-40" data-testid={`btn-self-invoice-generate-${r.voucherId}`} disabled={busy === r.voucherId} onClick={() => void generate(r)}>
                 Generate
               </button>
             )}
             {r.selfInvoiceNumber != null && (
-              <button className="mr-2 text-small text-blue hover:underline" data-testid={`btn-self-invoice-pdf-${r.voucherId}`}
+              <button className="mr-2 text-small t-link" data-testid={`btn-self-invoice-pdf-${r.voucherId}`}
                 onClick={() => { api.gst.selfInvoicePdf(r.voucherId).catch((err: Error) => toast.push('error', err.message)) }}>
                 PDF
               </button>

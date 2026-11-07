@@ -138,7 +138,7 @@ export function AuditRowDetail({ row }: { row: EditLogRow }): React.JSX.Element 
       ) : (
         <table className="w-full max-w-4xl text-left">
           <thead>
-            <tr className="text-caption tracking-[0.08em] text-muted uppercase">
+            <tr className="text-small text-muted">
               <th className="py-1 pr-4 font-semibold">Field</th>
               <th className="py-1 pr-4 font-semibold">Before</th>
               <th className="py-1 font-semibold">After</th>
@@ -232,7 +232,7 @@ export function EditLogScreen({ voucherId: initialVoucherId }: { voucherId?: num
   }
 
   const label = (text: string): React.JSX.Element => (
-    <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{text}</span>
+    <span className="mb-1.5 block text-small font-medium text-muted">{text}</span>
   )
 
   return (

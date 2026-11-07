@@ -230,7 +230,7 @@ function ControlTab({ showDoneTasks, onShowDoneTasks }: { showDoneTasks: boolean
           empty={{ title: 'No customers with a balance, a limit or a hold' }}
           trailing={(r) =>
             canHold ? (
-              <button type="button" data-testid="btn-credit-hold" className="text-hint text-blue hover:underline" onClick={() => void toggleHold(r)}>
+              <button type="button" data-testid="btn-credit-hold" className="text-hint t-link" onClick={() => void toggleHold(r)}>
                 {r.hold ? 'Release' : 'Hold'}
               </button>
             ) : null
@@ -339,8 +339,8 @@ function RemindersTab(): React.JSX.Element {
           }
           trailing={(r) => (
             <span className="flex justify-end gap-3">
-              <button type="button" data-testid="btn-reminder-pdf" className="text-hint text-blue hover:underline" onClick={() => void send(r, false)}>PDF</button>
-              <button type="button" data-testid="btn-reminder-email" className="text-hint text-blue hover:underline" onClick={() => void send(r, true)}>Email</button>
+              <button type="button" data-testid="btn-reminder-pdf" className="text-hint t-link" onClick={() => void send(r, false)}>PDF</button>
+              <button type="button" data-testid="btn-reminder-email" className="text-hint t-link" onClick={() => void send(r, true)}>Email</button>
             </span>
           )}
           trailingWidth={100}
@@ -361,7 +361,7 @@ function RemindersTab(): React.JSX.Element {
           empty={{ title: 'No reminders sent in this period' }}
           trailing={(r) =>
             r.documentPath ? (
-              <button type="button" className="text-hint text-blue hover:underline" onClick={() => void receivablesApi.reveal(r.documentPath!).catch((e: Error) => toast.push('error', e.message))}>
+              <button type="button" className="text-hint t-link" onClick={() => void receivablesApi.reveal(r.documentPath!).catch((e: Error) => toast.push('error', e.message))}>
                 Show
               </button>
             ) : null
@@ -442,7 +442,7 @@ function InterestTab({ gst }: { gst: boolean }): React.JSX.Element {
             </Button>
           }
           trailing={(r) => (
-            <button type="button" data-testid="btn-interest-post" className="text-hint text-blue hover:underline" disabled={busy} onClick={() => void post([r.ledgerId])}>
+            <button type="button" data-testid="btn-interest-post" className="text-hint t-link" disabled={busy} onClick={() => void post([r.ledgerId])}>
               Post party
             </button>
           )}

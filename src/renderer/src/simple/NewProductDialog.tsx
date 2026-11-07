@@ -214,7 +214,7 @@ export function NewProductDialog({
 
         {showGst && (
           <div data-testid="product-gst">
-            <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.newProduct.gstRate')}<CaCheck place="simple.ratePicker" date={workingDate} /></span>
+            <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.newProduct.gstRate')}<CaCheck place="simple.ratePicker" date={workingDate} /></span>
             <p className="mb-2 text-small text-muted">{t('simple.newProduct.gstRateWhat')}</p>
             <div role="radiogroup" aria-label={t('simple.newProduct.gstRate')} className="flex flex-wrap gap-2">
               {slabs.filter((s) => s.common).map((s) => chip(s.rate, s.rate === 0 ? t('simple.newProduct.gstNil') : `${s.rate}%`))}

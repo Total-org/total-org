@@ -109,7 +109,7 @@ function GroupRow({
             {isOpen ? '▾' : '▸'}
           </span>
           <span className={`truncate text-detail ${depth === 0 ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{node.name}</span>
-          {depth === 0 && <span className={`text-label uppercase tracking-wider ${NATURE_TONE[node.nature]}`}>{node.nature}</span>}
+          {depth === 0 && <span className={`text-label font-medium capitalize ${NATURE_TONE[node.nature]}`}>{node.nature}</span>}
         </button>
         {groupActions && <span className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">{groupActions(node)}</span>}
         <span className="w-20 shrink-0 text-right text-hint text-muted" data-testid="coa-count">

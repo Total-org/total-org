@@ -30,7 +30,7 @@ export const REGISTER_COLUMNS = defineColumns<RegisterMonthRow>([
     text: (r) => monthLabel(r.month),
     hideable: false,
     groupable: false,
-    className: 'text-blue'
+    className: 't-link font-medium'
   },
   { id: 'vouchers', header: 'Vouchers', kind: 'number', value: (r) => r.vouchers, aggregate: 'sum', width: 130 },
   { id: 'taxable', header: 'Taxable value', kind: 'money', value: (r) => r.taxable, aggregate: 'sum', width: 160 },

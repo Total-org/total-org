@@ -480,7 +480,7 @@ export function CounterBillingScreen({ title }: { title?: string } = {}): React.
               Bill <b className="num" data-testid="counter-next-number">{nextNo ?? '…'}</b>
             </span>
             <span className="text-muted">·</span>
-            <button type="button" className="text-blue hover:underline" data-testid="btn-counter-party" onClick={() => setModal('party')}>
+            <button type="button" className="t-link" data-testid="btn-counter-party" onClick={() => setModal('party')}>
               {party ? party.name : `${walkInName} (walk-in)`} <Kbd>F2</Kbd>
             </button>
           </span>
@@ -517,10 +517,10 @@ export function CounterBillingScreen({ title }: { title?: string } = {}): React.
               <b data-testid="counter-change">Change {formatPaise(lastSale.changePaise, { symbol: true })}</b>
             )}
             {lastSale.balancePaise > 0 && <span>{formatPaise(lastSale.balancePaise, { symbol: true })} on account</span>}
-            <button type="button" className="text-blue hover:underline" data-testid="btn-counter-print" onClick={() => void print(lastSale.invoiceId, config?.templateId ?? 'receipt-80mm')}>
+            <button type="button" className="t-link" data-testid="btn-counter-print" onClick={() => void print(lastSale.invoiceId, config?.templateId ?? 'receipt-80mm')}>
               Print again
             </button>
-            <button type="button" className="text-blue hover:underline" data-testid="btn-counter-print-a4" onClick={() => void print(lastSale.invoiceId, 'classic')}>
+            <button type="button" className="t-link" data-testid="btn-counter-print-a4" onClick={() => void print(lastSale.invoiceId, 'classic')}>
               A4 invoice
             </button>
           </span>
@@ -705,7 +705,7 @@ export function CounterBillingScreen({ title }: { title?: string } = {}): React.
 
           <Panel className="p-panel" data-testid="counter-payment">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Payment</h2>
+              <h2 className="text-small font-semibold text-muted">Payment</h2>
               {!payOpen && (
                 <Button size="sm" variant="primary" data-testid="btn-counter-pay" onClick={() => openPay('cash')} disabled={lines.length === 0}>
                   Pay <Kbd>F9</Kbd>
@@ -920,7 +920,7 @@ function DayEndModal({ date, onClose }: { date: string; onClose: () => void }): 
         </StatGrid>
         <div className="grid grid-cols-2 gap-section">
           <div>
-            <h3 className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">By payment mode</h3>
+            <h3 className="mb-2 text-small font-semibold text-muted">By payment mode</h3>
             <table className="ledger-table" data-testid="counter-day-end-modes">
               <tbody>
                 {(data?.byMode ?? []).map((m) => (

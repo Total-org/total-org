@@ -249,7 +249,7 @@ function OpeningsFlow({ state }: { state: OpeningsState }): React.JSX.Element {
 
         <div className="rounded-xl border border-line bg-panel px-6 py-5">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase" data-testid="openings-step-label">
+            <p className="text-small font-semibold text-muted" data-testid="openings-step-label">
               {t('simple.openings.step', {
                 step: stepIdx + 1,
                 total: steps.length

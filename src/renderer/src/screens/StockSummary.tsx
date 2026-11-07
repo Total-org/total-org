@@ -219,7 +219,7 @@ function ItemDetail({
   return (
     <div className="flex flex-wrap gap-8 py-1 text-ink" data-testid="stock-item-detail">
       <div className="min-w-[22rem]" data-testid="stock-item-movements">
-        <p className="mb-1 text-label font-semibold tracking-[0.08em] text-muted uppercase">Movements this period</p>
+        <p className="mb-1 text-small font-semibold text-muted">Movements this period</p>
         {moves.length === 0 ? (
           <p className="text-small text-muted">No movements between {toDisplayDate(from)} and {toDisplayDate(asOn)}.</p>
         ) : (
@@ -250,7 +250,7 @@ function ItemDetail({
       )}
       {godownRows.length > 0 && (
         <div>
-          <p className="mb-1 text-label font-semibold tracking-[0.08em] text-muted uppercase">By godown</p>
+          <p className="mb-1 text-small font-semibold text-muted">By godown</p>
           {godownRows.map((g) => (
             <p key={`${g.godownId}`} className="num text-body-sm">
               {g.godownName}: {fmtQty(g.closingQtyMilli, decimals)} {unitSymbol} · <Money paise={g.closingValue} />
@@ -260,7 +260,7 @@ function ItemDetail({
       )}
       {batchRows.length > 0 && (
         <div>
-          <p className="mb-1 text-label font-semibold tracking-[0.08em] text-muted uppercase">By batch</p>
+          <p className="mb-1 text-small font-semibold text-muted">By batch</p>
           {batchRows.map((b) => (
             <p key={b.batchId} className="num text-body-sm">
               {b.batchName}: {fmtQty(b.closingQtyMilli, decimals)} {unitSymbol}

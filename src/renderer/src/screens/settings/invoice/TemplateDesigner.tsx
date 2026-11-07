@@ -275,7 +275,7 @@ export function TemplateDesigner(): React.JSX.Element {
             </div>
 
             <div className="mt-5 border-t border-line pt-3">
-              <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Default for</p>
+              <p className="mb-2 text-small font-semibold text-muted">Default for</p>
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Set as default template per document kind">
                 {value.kinds
                   .filter((k) => !PHASE2_KINDS.includes(k))
@@ -327,7 +327,7 @@ export function TemplateDesigner(): React.JSX.Element {
 
           <div className="sticky top-0 flex max-h-[calc(100vh-7rem)] flex-col">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="mr-auto text-caption font-semibold tracking-[0.08em] text-muted uppercase">Live preview</span>
+              <span className="mr-auto text-small font-semibold text-muted">Live preview</span>
               <Select aria-label="Sample document" className="max-w-40 py-1 text-detail" value={kind} onChange={(e) => setPreviewKind(e.target.value as PrintDocKind)}>
                 {value.kinds.map((k) => <option key={k} value={k}>{PRINT_DOC_KIND_LABELS[k]}</option>)}
               </Select>

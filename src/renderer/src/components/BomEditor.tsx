@@ -108,7 +108,7 @@ export function BomVersionsEditor({ itemId }: { itemId: number }): React.JSX.Ele
 
   return (
     <div data-testid="bom-editor">
-      <span className="mb-1.5 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">Bill of materials — components per 1 unit</span>
+      <span className="mb-1.5 block text-small font-medium text-muted">Bill of materials — components per 1 unit</span>
       <div className="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
         <Field label="Version">
           <Select
@@ -156,7 +156,7 @@ export function BomVersionsEditor({ itemId }: { itemId: number }): React.JSX.Ele
         </Field>
       </div>
       {(current.effectiveFrom || current.effectiveTo) && (
-        <button type="button" className="mb-2 text-hint text-blue hover:underline" onClick={() => edit({ effectiveFrom: null, effectiveTo: null })}>
+        <button type="button" className="mb-2 text-hint t-link" onClick={() => edit({ effectiveFrom: null, effectiveTo: null })}>
           Clear dates (in force always)
         </button>
       )}

@@ -259,7 +259,7 @@ export function BankScreen({ bankId }: { bankId?: number }): React.JSX.Element {
                 </Select>
               </Field>
             </div>
-            <button type="button" className="mb-2 text-detail text-blue hover:underline" data-testid="btn-bank-add-another" onClick={() => setCreating({ what: 'bank', name: '', lineId: null })} // i18n-technical
+            <button type="button" className="mb-2 text-detail t-link" data-testid="btn-bank-add-another" onClick={() => setCreating({ what: 'bank', name: '', lineId: null })} // i18n-technical
             >
               {t('simple.bank.addBank')}
             </button>
@@ -278,7 +278,7 @@ export function BankScreen({ bankId }: { bankId?: number }): React.JSX.Element {
             >
               {sentence.tone === 'differ' ? (
                 <>
-                  <button type="button" className="text-left text-body font-medium text-blue hover:underline" data-testid="btn-bank-see-them" onClick={seeThem}>
+                  <button type="button" className="text-left text-body font-medium t-link" data-testid="btn-bank-see-them" onClick={seeThem}>
                     {sentenceText}
                   </button>
                   <p className="mt-1 text-small text-muted" data-testid="bank-differ-hint">

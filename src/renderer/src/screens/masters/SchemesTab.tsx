@@ -266,7 +266,7 @@ function SchemeModal({ scheme, others, onClose }: { scheme: DiscountSchemeRow | 
             </tbody>
           </table>
           {kind !== 'flat' && (
-            <button type="button" className="self-start text-hint text-blue hover:underline" data-testid="btn-scheme-slab-add" onClick={() => setSlabs((ss) => [...ss, { min: '', discount: '', free: '' }])}>
+            <button type="button" className="self-start text-hint t-link" data-testid="btn-scheme-slab-add" onClick={() => setSlabs((ss) => [...ss, { min: '', discount: '', free: '' }])}>
               + Add a slab
             </button>
           )}
@@ -274,7 +274,7 @@ function SchemeModal({ scheme, others, onClose }: { scheme: DiscountSchemeRow | 
         </div>
 
         <aside className="flex flex-col gap-3 rounded-lg border border-line bg-panel2 p-3" data-testid="scheme-try-it">
-          <h3 className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Try it</h3>
+          <h3 className="text-small font-semibold text-muted">Try it</h3>
           <Field label="Rate before the scheme">
             <AmountInput paise={tryRate} onPaise={setTryRate} testId="input-scheme-try-rate" />
           </Field>

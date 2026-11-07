@@ -100,7 +100,7 @@ function Body({ b }: { b: SimpleByMonth }): React.JSX.Element {
         </ul>
         <p className="mt-3 text-small text-muted">{t('simple.reports.byMonth.note')}</p>
       </section>
-      <section className="mt-4 rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="mt-4 rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="by-month"
           columns={columns}

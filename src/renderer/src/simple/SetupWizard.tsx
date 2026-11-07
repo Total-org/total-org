@@ -149,7 +149,7 @@ export function SetupWizard({
 
       <div className="rounded-xl border border-line bg-panel px-6 py-5">
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase" data-testid="setup-step-label">
+          <p className="text-small font-semibold text-muted" data-testid="setup-step-label">
             {t('simple.setup.step', { step: stepIdx + 1, total: SETUP_STEPS.length })}
           </p>
           <div className="flex gap-1" aria-hidden="true">

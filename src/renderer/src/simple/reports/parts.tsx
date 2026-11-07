@@ -8,7 +8,7 @@ import type { Screen } from '../../state/stores'
 import { Button, Why } from '../../components/kit'
 
 export const money = (paise: number): string => formatPaise(paise, { symbol: true })
-export const cardCls = 'rounded-lg border border-line bg-panel p-panel shadow-elev-1'
+export const cardCls = 'rounded-xl border border-line bg-panel p-panel shadow-elev-1'
 
 /** A report's title, one plain line under it and its Accountant view (the full report) — with the
  *  ⋯ "Always open the full app for this" beside it, as every simple screen's (WP 9.10). */

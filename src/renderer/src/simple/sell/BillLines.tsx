@@ -54,7 +54,7 @@ export function BillLines({
 
   return (
     <div data-testid="sell-lines">
-      <div className={`hidden gap-2 px-1 pb-1 text-caption font-semibold tracking-[0.08em] text-muted uppercase md:grid ${cols}`}>
+      <div className={`hidden gap-2 px-1 pb-1 text-small font-semibold text-muted md:grid ${cols}`}>
         <span>{t('simple.sell.product')}</span>
         <span>{t('simple.sell.qty')}</span>
         <span className="text-right">{priceLabel}</span>
@@ -121,7 +121,7 @@ export function BillLines({
         })}
       </ul>
       <FieldError name="items" error={error} />
-      <button type="button" className="mt-2 text-detail text-blue hover:underline" data-testid="btn-sell-add-line" onClick={onAdd}>
+      <button type="button" className="mt-2 text-detail t-link" data-testid="btn-sell-add-line" onClick={onAdd}>
         {t('simple.sell.addLine')}
       </button>
     </div>

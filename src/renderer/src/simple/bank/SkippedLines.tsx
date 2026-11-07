@@ -30,7 +30,7 @@ export function SkippedLines({ lines, onBringBack }: { lines: BankLineView[]; on
             </div>
             <div className="flex items-center gap-3">
               <span className="num text-detail font-semibold text-ink">{formatPaise(l.amount, { symbol: true })}</span>
-              <button type="button" className="text-small text-blue hover:underline" data-testid={`btn-bank-bring-back-${l.id}`} onClick={() => onBringBack(lineKey(l))}>
+              <button type="button" className="text-small t-link" data-testid={`btn-bank-bring-back-${l.id}`} onClick={() => onBringBack(lineKey(l))}>
                 {t('simple.bank.bringBack')}
               </button>
             </div>

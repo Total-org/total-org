@@ -239,7 +239,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
           onUndone={() => void queryClient.invalidateQueries({ queryKey: ['simpleStock'] })} // i18n-technical
         />
       ) : setup && products.length === 0 ? (
-        <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="made-no-recipes">
+        <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="made-no-recipes">
           <p className="text-body text-ink">{t('simple.made.noRecipes')}</p>
           <p className="mt-1 text-detail text-muted">{t('simple.made.noRecipesHint')}</p>
           <Button className="mt-3" data-testid="btn-made-set-recipe" onClick={() => nav.go(PRODUCTS_SCREEN)}>
@@ -248,7 +248,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
         </section>
       ) : (
         <div className="flex flex-col gap-4">
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.made.what')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.made.what')}>
             <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.made.what')}</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr_1fr]">
               <Field label={t('simple.made.product')} name="item" error={errors.get(F.item)}>
@@ -308,7 +308,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
             )}
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.made.moneyPart')}>
+          <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={t('simple.made.moneyPart')}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label={picked ? t('simple.made.price', { name: picked.name }) : t('simple.made.priceNoProduct')} name="price" error={errors.get(F.price)} hint={t('simple.made.priceHint')}>
                 <AmountInput
@@ -333,7 +333,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
             </div>
             {(form.labour ?? 0) > 0 && (
               <div className="mt-4" data-testid="made-labour-question">
-                <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.made.labourRecorded')}</span>
+                <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.made.labourRecorded')}</span>
                 <div role="radiogroup" aria-label={t('simple.made.labourRecorded')} className="flex flex-wrap gap-2">
                   {[true, false].map((yes) => (
                     <button

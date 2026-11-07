@@ -51,7 +51,7 @@ export function ColumnsEditor({
       </p>
       <table className="w-full border-collapse text-body-sm">
         <thead>
-          <tr className="text-left text-caption tracking-[0.06em] text-muted uppercase">
+          <tr className="text-left text-small text-muted">
             <th className="w-5 py-1" aria-label="Reorder" />
             <th className="w-11 py-1 pr-1">Show</th>
             <th className="py-1 pr-2">Column</th>
