@@ -48,6 +48,8 @@
 
   /* charts: a slate series beside the bright amber (no saturated blue next to the amber) */
   --t-chart-slate: #4a5670;
+  /* the amber series, dark enough for 3:1 on white / panel2 (the bar amber is 1.8:1) */
+  --t-chart-amber: #a87000;
 
   /* the primary action: ink-filled in light, amber in dark */
   --t-primary: #1c1e24;
@@ -148,6 +150,7 @@
   --t-rule: #ebeae4;
 
   --t-chart-slate: #a9b4cf;
+  --t-chart-amber: #f0b429;
 
   --t-primary: #f0b429;
   --t-primary-hover: #f5c34f;

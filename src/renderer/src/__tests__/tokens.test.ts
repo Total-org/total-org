@@ -80,6 +80,14 @@ describe.each([
     }
   )
 
+  // UI overhaul: chart series fills are graphical objects (WCAG 1.4.11).
+  it.each(['--t-chart-slate', '--t-chart-amber'].flatMap((fg) => ['--t-panel', '--t-panel2'].map((bg) => [fg, bg] as const)))(
+    'chart fill %s on %s ≥ 3',
+    (fg, bg) => {
+      expect(contrastRatio(color(vars, fg), color(vars, bg))).toBeGreaterThanOrEqual(3)
+    }
+  )
+
   // The focus ring colour is also the TabBar's selected-tab indicator (app.css .t-tab::after).
   it.each(['--t-bg', '--t-panel', '--t-panel2'])('focus ring on %s ≥ 3 (non-text contrast)', (bg) => {
     expect(contrastRatio(color(vars, '--t-focus'), color(vars, bg))).toBeGreaterThanOrEqual(3)

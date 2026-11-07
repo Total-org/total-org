@@ -169,9 +169,10 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
   }
   const empty = isEmptyHome(home)
   const canSave = useCanWrite()
-  // The profit sentence takes the rest of its row: the whole row after a GST tile (3 + 3 tiles on
-  // a wide window), else the one cell left beside who-owes-whom.
-  const profitSpan = gstRegular || home.gst?.kind === 'composition' ? 'md:col-span-2 xl:col-span-3' : 'md:col-span-2 xl:col-span-1'
+  // The profit sentence fills what its row leaves. With a GST tile: the cell beside it on two
+  // columns, the whole row on three. Without one: the whole row on two columns, the one cell left
+  // beside who-owes-whom on three. (Cash and bank spans two columns, so every row is full.)
+  const profitSpan = gstRegular || home.gst?.kind === 'composition' ? 'md:col-span-1 xl:col-span-3' : 'md:col-span-2 xl:col-span-1'
   const backupsScreen = homeReportScreen('backups', home) // i18n-technical
 
   return (

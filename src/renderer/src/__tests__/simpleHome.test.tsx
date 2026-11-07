@@ -173,6 +173,20 @@ describe('simple Home (WP 8.6)', () => {
     expect(screen.getByTestId('simple-home-attention-capped')).toBeTruthy()
   })
 
+  // UI overhaul (review of #226): Cash and bank spans two columns, so the profit tile must fill
+  // what its row leaves — beside the GST tile on two columns, never leaving a hole.
+  it('the profit tile fills its row for every GST kind', async () => {
+    renderHome(home())
+    expect((await screen.findByTestId('simple-tile-profit')).className).toMatch(/md:col-span-1 xl:col-span-3/)
+    cleanup()
+    renderHome(home({ gst: { kind: 'composition' }, gstAnswer: 'composition' }))
+    expect((await screen.findByTestId('simple-tile-profit')).className).toMatch(/md:col-span-1 xl:col-span-3/)
+    cleanup()
+    renderHome(home({ gst: null, gstAnswer: 'no' }))
+    expect((await screen.findByTestId('simple-tile-profit')).className).toMatch(/md:col-span-2 xl:col-span-1/)
+    expect(screen.getByTestId('simple-tile-cash').className).toMatch(/md:col-span-2 xl:row-span-2/)
+  })
+
   it('GST: composition shows its return note, unregistered shows nothing; "not sure" gets its card', async () => {
     renderHome(home({ gst: { kind: 'composition' }, gstAnswer: 'composition' }))
     expect((await screen.findByTestId('simple-tile-gst-composition')).textContent).toContain('the composition return (CMP-08)')

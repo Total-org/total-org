@@ -27,7 +27,10 @@ import { PlainIcon } from '../simple/icons'
 const NAV = ACCOUNTANT_NAV
 
 // UI overhaul: header controls are quiet ghost chips; the amber stays for the current item.
-const HEADER_CHIP = 't-btn inline-flex items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-small font-medium text-muted hover:bg-panel2 hover:text-ink'
+const HEADER_CHIP_BASE = 't-btn inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-small font-medium text-muted hover:text-ink'
+const HEADER_CHIP = `${HEADER_CHIP_BASE} border-transparent hover:bg-panel2`
+/** Boxed (period, Anywhere): own border + fill, not HEADER_CHIP + overrides (Tailwind orders by name). */
+const HEADER_BOXED = `${HEADER_CHIP_BASE} border-line bg-panel2 hover:border-line-strong hover:bg-panel`
 
 /** Decorative icons beside the accountant sidebar's section heads and top items (aria-hidden; the
  *  pinned sidebar snapshot reads text only, so the shape is unchanged). */
@@ -124,7 +127,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
         <ViewToggle screen={screen} className={HEADER_CHIP} />
         <button
           type="button"
-          className={`num ${HEADER_CHIP} border-line bg-panel2`}
+          className={`num ${HEADER_BOXED}`}
           onClick={() => setPeriodOpen(true)}
           title="Change period"
           aria-label={`Working period ${toDisplayDate(from)} to ${toDisplayDate(to)} — change`}
@@ -153,7 +156,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
         </button>
         <button
           type="button"
-          className={`${HEADER_CHIP} min-w-44 justify-between border-line bg-panel2 hover:bg-panel`}
+          className={`${HEADER_BOXED} min-w-44 justify-between`}
           onClick={onOpenPalette}
           aria-label="Go anywhere (command palette, ⌘K)"
         >

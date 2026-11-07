@@ -8,9 +8,9 @@ import { crisp, linearScale, nearestIndex, niceTicks, pointXs, stepIndex, type L
 import { useChartWidth } from './useChartWidth'
 
 export type ChartColor = 'blue' | 'amber' | 'dr' | 'cr' | 'ink' | 'muted'
-/** UI overhaul: chart fills — 'blue' is the slate series and 'amber' the bright bar amber (the text
- *  tokens --t-blue / --t-amber are for words, too dark / too saturated as fills). */
-const CHART_FILL: Partial<Record<ChartColor, string>> = { blue: 'var(--t-chart-slate)', amber: 'var(--t-amber-bar)' } // i18n-technical: CSS values
+/** UI overhaul: chart fills — 'blue' is the slate series and 'amber' the chart amber (both ≥ 3:1 on
+ *  panel / panel2, tokens.test; no saturated blue beside the amber). */
+const CHART_FILL: Partial<Record<ChartColor, string>> = { blue: 'var(--t-chart-slate)', amber: 'var(--t-chart-amber)' } // i18n-technical: CSS values
 export const chartColor = (c: ChartColor): string => CHART_FILL[c] ?? `var(--t-${c})`
 
 export interface ChartSeries {

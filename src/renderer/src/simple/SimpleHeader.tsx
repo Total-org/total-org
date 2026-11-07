@@ -8,27 +8,21 @@ import { AssistantButton } from '../components/ai/AssistantButton'
 import { useHelpPanel } from '../help/store'
 import { helpKeyFor } from '../lib/screens'
 import { PlainIcon } from './icons'
+import { INTENT_SCREEN } from '@shared/simple/handoff'
 
 // WP 10.5: chips never shrink or wrap (a two-line chip overflowed the 48 px header at 1024 px);
 // the business name gives way instead (truncated, its full name in the accessible name), and the
 // key hints (⌘J, ?, ⌘K) hide under 1200 px (app.css).
 // UI overhaul: quiet ghost chips; Search reads as a search box; the theme switch is an icon.
-const CHIP =
-  't-btn inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2.5 py-1 text-small font-medium text-muted hover:bg-panel2 hover:text-ink'
+const CHIP_BASE = 't-btn inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-small font-medium text-muted hover:text-ink'
+const CHIP = `${CHIP_BASE} border-transparent hover:bg-panel2`
+/** A boxed chip (the period, Search): its own border and fill — never CHIP plus overrides, since
+ *  Tailwind orders utilities by name, not by their place in the class string. */
+const BOXED = `${CHIP_BASE} border-line bg-panel2 hover:border-line-strong hover:bg-panel`
 
-/** Entry flows: the period means nothing while a bill / payment is being written (audit UX-8). */
-const ENTRY_SCREENS = new Set([
-  'simple-sell', // i18n-technical: registry screen names
-  'simple-buy', // i18n-technical
-  'simple-money-in', // i18n-technical
-  'simple-money-out', // i18n-technical
-  'simple-move-money', // i18n-technical
-  'simple-return-sale', // i18n-technical
-  'simple-return-purchase', // i18n-technical
-  'simple-quick-bill', // i18n-technical
-  'simple-stock-count', // i18n-technical
-  'simple-made-goods' // i18n-technical
-])
+/** Entry flows — every intent's screen and Quick bill: the period means nothing while a bill /
+ *  payment is being written (audit UX-8). */
+const ENTRY_SCREENS = new Set<string>([...Object.values(INTENT_SCREEN), 'simple-quick-bill']) // i18n-technical: registry screen name
 
 /**
  * WP 8.1: the simple shell's header — the business name (→ business details), the dates shown,
@@ -82,7 +76,7 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
       {!ENTRY_SCREENS.has(screen.name) && (
         <button
           type="button"
-          className={`${CHIP} border-line bg-panel2`}
+          className={BOXED}
           onClick={() => setPeriodOpen(true)}
           aria-label={t('simple.shell.period', { from: periodDate(from), to: periodDate(to) })}
           data-testid="btn-period"
@@ -124,7 +118,7 @@ export function SimpleHeader({ onOpenPalette }: { onOpenPalette: () => void }): 
       <button
         type="button"
         data-testid="btn-search"
-        className={`${CHIP} min-w-40 justify-between border-line bg-panel2 hover:bg-panel`}
+        className={`${BOXED} min-w-40 justify-between`}
         onClick={onOpenPalette}
         title={t('simple.nav.searchHint')}
       >
