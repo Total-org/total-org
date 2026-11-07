@@ -214,7 +214,7 @@ export function TypeAhead({
         }}
       />
       {open && (filtered.length > 0 || showCreate) && (
-        <div id={listId} role="listbox" className="absolute top-full right-0 left-0 z-30 mt-1 max-h-64 overflow-auto rounded-md border border-line bg-raised shadow-elev-2">
+        <div id={listId} role="listbox" className="t-menu-in absolute top-full right-0 left-0 z-30 mt-1 max-h-64 overflow-auto rounded-lg border border-line bg-raised p-1 shadow-elev-2">
           {filtered.map((o, i) => (
             <div
               key={o.id}
@@ -223,7 +223,7 @@ export function TypeAhead({
               aria-selected={!onCreateRow && i === active}
               data-active={!onCreateRow && i === active}
 
-              className="kbar-row cursor-pointer px-3 py-1.5"
+              className="kbar-row cursor-pointer rounded-md px-2.5 py-1.5"
               onMouseEnter={() => {
                 setActive(i)
                 setOnCreateRow(false)
@@ -245,7 +245,7 @@ export function TypeAhead({
               data-create="true"
               data-active={onCreateRow}
               data-testid={testId ? `${testId}-create` : undefined}
-              className="kbar-row cursor-pointer border-t border-line px-3 py-1.5 text-detail text-amber"
+              className="kbar-row mt-1 cursor-pointer rounded-md border-t border-line px-2.5 py-1.5 text-detail font-medium text-amber"
               onMouseEnter={() => setOnCreateRow(true)}
               onMouseDown={(e) => {
                 e.preventDefault()

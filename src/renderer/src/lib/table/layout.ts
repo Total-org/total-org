@@ -33,9 +33,11 @@ const HEADER_PADDING = 24
 /** Room for the sort arrow that appears next to the label of a sorted column. */
 const SORT_ARROW = 13
 
-// Approximate advance widths of IBM Plex Sans semibold at the header's 10.5px, upper-cased, plus
+// Approximate advance widths of IBM Plex Sans semibold at 10.5px, upper-cased, plus
 // its 0.08em letter-spacing. An estimate on purpose (no DOM measuring): it only has to be a
-// little generous so a default width never truncates its own label.
+// little generous so a default width never truncates its own label. (Since the UI overhaul the
+// headers are sentence-case Geist at 12px medium — narrower than this upper-case estimate, so
+// it stays on the generous side and default widths are unchanged.)
 const NARROW = new Set([' ', '.', ',', ':', ';', '!', '|', "'", 'I', 'J', '1', '(', ')', '/', '-'])
 const WIDE = new Set(['M', 'W', '%', '&', '@', '—', '₹'])
 function charWidth(ch: string): number {

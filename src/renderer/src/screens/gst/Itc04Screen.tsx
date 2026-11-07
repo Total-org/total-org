@@ -23,7 +23,7 @@ const jwText = (r: { jwGstin: string | null; jwStateCode: string | null }): stri
 const jwCols = <T extends { jwGstin: string | null; jwStateCode: string | null; jwName: string; partyLedgerId: number | null }>() =>
   [
     { id: 'jw', header: 'Job worker', kind: 'text' as const, value: (r: T) => r.jwName, minWidth: 120, cell: (r: T) => <LedgerLink ledgerId={r.partyLedgerId} name={r.jwName} /> },
-    { id: 'gstin', header: 'GSTIN / State', kind: 'text' as const, value: (r: T) => jwText(r), width: 150, className: 'num text-muted' }
+    { id: 'gstin', header: 'GSTIN / State', kind: 'text' as const, value: (r: T) => jwText(r), width: 150, className: 'font-mono text-muted' }
   ]
 
 export const ITC04_SENT_COLUMNS = defineColumns<Itc04SentRow>([

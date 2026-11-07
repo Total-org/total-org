@@ -14,6 +14,8 @@ import { useGroups, useLedgers, useStockItems } from '../components/pickers'
 import { LedgerFormModal } from '../components/LedgerFormModal'
 import { ChartOfAccounts } from '../components/ChartOfAccounts'
 import { validateHsn } from '@shared/gst/validate'
+import { cleanHsn } from '@shared/gst/hsn'
+import { HsnInput, HsnStatusLines, useHsnStatus } from '../components/HsnInput'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 import { ItemLink, LedgerLink } from '../components/links'
 import { useFeatures } from '../lib/useFeatures'
@@ -119,8 +121,8 @@ export const LEDGER_COLUMNS = defineColumns<LedgerRow>([
     cell: (l) => <LedgerLink ledgerId={l.id} name={l.name} />
   },
   { id: 'group', header: 'Group', kind: 'text', value: (l) => l.groupName, className: 'text-muted', width: 200 },
-  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (l) => l.gstin ?? '', className: 'num text-muted', width: 170, groupable: false },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (l) => l.pan ?? '', className: 'num text-muted', width: 120, groupable: false, defaultHidden: true },
+  { id: 'gstin', header: 'GSTIN', kind: 'text', value: (l) => l.gstin ?? '', className: 'font-mono text-muted', width: 170, groupable: false },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (l) => l.pan ?? '', className: 'font-mono text-muted', width: 120, groupable: false, defaultHidden: true },
   // WP 8.4: a party's phone (WhatsApp in the form); empty for other accounts.
   { id: 'phone', header: 'Phone', kind: 'text', value: (l) => l.phone ?? '', className: 'num text-muted', width: 140, groupable: false },
   // Signed dr-positive paise. Not totalled: a sum of mixed openings isn't a figure anyone reads here.
@@ -566,15 +568,24 @@ export function ItemFormModal({ item, onClose }: { item: StockItem | null; onClo
   const [gstTried, setGstTried] = useState(false)
   const gstError = !item && gstTried ? newItemGstRateError(regType, gstRate) : null
 
-  const hsnCheck = hsn.trim() ? validateHsn(hsn) : null
+  // Phase 2c: the box also searches by words, so its structural error shows only after a save
+  // attempt. A code typed with spaces / dots is checked and saved cleaned ("1006 30" → 100630, as
+  // the simple dialog does); an HSN left as stored is saved exactly as stored and not re-checked.
+  const [hsnTried, setHsnTried] = useState(false)
+  const hsnChanged = hsn !== (item?.hsn ?? '')
+  const hsnCheck = hsnChanged && hsn.trim() ? validateHsn(cleanHsn(hsn) ?? hsn) : null
   const hsnError = hsnCheck && !hsnCheck.valid ? hsnCheck.error : null
+  const hsnStatus = useHsnStatus(hsn)
 
   if (units && unitId == null && units.length > 0) setUnitId(defaultUnitId(units))
 
   const save = async (): Promise<void> => {
     try {
       if (!unitId) return void toast.push('error', 'Pick a unit')
-      if (hsnError) return void toast.push('error', hsnError)
+      if (hsnError) {
+        setHsnTried(true)
+        return void toast.push('error', hsnError)
+      }
       const rateError = item ? null : newItemGstRateError(regType, gstRate)
       if (rateError) {
         setGstTried(true)
@@ -589,7 +600,7 @@ export function ItemFormModal({ item, onClose }: { item: StockItem | null; onClo
         name: name.trim(),
         groupId: item?.groupId ?? null,
         unitId,
-        hsn: hsn.trim() || null,
+        hsn: hsnChanged ? (hsn.trim() ? (cleanHsn(hsn) ?? hsn.trim()) : null) : (item?.hsn ?? null),
         // Hidden GST fields keep what an existing item has stored (a new one gets none).
         gstRate: gstRate.trim() ? Number(gstRate) : null,
         cessRate: cessRate.trim() ? Number(cessRate) : null,
@@ -650,8 +661,8 @@ export function ItemFormModal({ item, onClose }: { item: StockItem | null; onClo
             </Select>
           </Field>
           {(itemShowsHsn(regType) || !!item?.hsn) && (
-            <Field label="HSN" error={hsnError}>
-              <TextInput value={hsn} onChange={(e) => setHsn(e.target.value)} className="num" />
+            <Field label="HSN" error={hsnTried ? hsnError : null} hint={hsnStatus.length ? <HsnStatusLines lines={hsnStatus} testId="input-item-hsn-status" /> : undefined}>
+              <HsnInput value={hsn} onChange={setHsn} testId="input-item-hsn" placeholder="Code or words to search" />
             </Field>
           )}
           {showGst && (

@@ -4,22 +4,24 @@ import { Spinner } from './Feedback'
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 export type ButtonSize = 'sm' | 'md'
 
+// UI overhaul: primary = ink-filled in light / amber in dark (`--t-primary`); `t-btn-primary`
+// marks it for the simple shell's disabled style and for tests.
 const VARIANTS: Record<ButtonVariant, string> = {
-  secondary: 'border border-line bg-panel text-ink shadow-elev-1 hover:border-amber/60',
-  primary: 'border border-amberbar bg-amberbar/90 font-semibold text-on-amber hover:bg-amberbar',
-  danger: 'border border-danger/50 bg-danger-soft text-danger hover:border-danger',
-  ghost: 'border border-transparent text-muted hover:border-line hover:text-ink'
+  secondary: 'border border-line-strong/80 bg-panel text-ink shadow-elev-1 hover:border-line-strong hover:bg-panel2',
+  primary: 't-btn-primary border border-primary bg-primary font-semibold text-on-primary shadow-elev-1 hover:border-primary-hover hover:bg-primary-hover',
+  danger: 'border border-danger/45 bg-danger-soft font-medium text-danger hover:border-danger',
+  ghost: 'border border-transparent text-muted hover:bg-panel2 hover:text-ink'
 }
 
 const SIZES: Record<ButtonSize, string> = {
-  md: 'min-h-control px-3 py-1 text-detail',
-  sm: 'min-h-control-sm px-2 py-0.5 text-small'
+  md: 'min-h-control px-3 py-1 text-detail font-medium',
+  sm: 'min-h-control-sm px-2 py-0.5 text-small font-medium'
 }
 
 /** Class string for something that should LOOK like a Button (a label wrapping a file input…). */
 export function buttonClass(variant: ButtonVariant | 'default' = 'secondary', size: ButtonSize = 'md'): string {
   const v = variant === 'default' ? 'secondary' : variant
-  return `inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors disabled:pointer-events-none disabled:opacity-40 ${SIZES[size]} ${VARIANTS[v]}`
+  return `t-btn inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md disabled:pointer-events-none disabled:opacity-40 ${SIZES[size]} ${VARIANTS[v]}`
 }
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -36,7 +38,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 /**
- * The one button. Variants: primary (amber, one per view), secondary (default outline), ghost
+ * The one button. Variants: primary (ink in light / amber in dark, one per view), secondary (default outline), ghost
  * (toolbar/inline), danger. Sizes md (control height, follows density) and sm (toolbars).
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -79,7 +81,7 @@ export const IconButton = forwardRef<
       aria-label={label}
       title={props.title ?? label}
       {...props}
-      className={`inline-flex items-center justify-center rounded-md border border-transparent leading-none text-muted transition-colors hover:border-line hover:text-ink disabled:pointer-events-none disabled:opacity-40 ${
+      className={`t-btn inline-flex items-center justify-center rounded-md border border-transparent leading-none text-muted hover:bg-panel2 hover:text-ink disabled:pointer-events-none disabled:opacity-40 ${
         size === 'sm' ? 'h-control-sm w-control-sm text-small' : 'h-control w-control text-subtitle'
       } ${className ?? ''}`}
     >

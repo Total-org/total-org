@@ -175,10 +175,20 @@ await scenario('50-quick-create', async (h) => {
   await page.waitForSelector('[data-testid="field-error-gstRate"]', { timeout: 5000 })
   await both('05-new-product-regular')
   await h.click('gst-rate-18')
+  // Phase 2c: the HSN box searches the GST portal's list (loaded on demand) by words; ↓ + Enter
+  // picks a code; no rate is suggested — the slab stays the one picked.
+  await page.fill('[data-testid="input-product-hsn"]', 'exercise book')
+  await page.waitForSelector('[role="listbox"] [data-code]', { timeout: 10000 })
+  await page.press('[data-testid="input-product-hsn"]', 'ArrowDown')
+  const hsnCode = await page.getAttribute('[role="listbox"] [data-code][data-active="true"]', 'data-code')
+  await page.press('[data-testid="input-product-hsn"]', 'Enter')
+  assertEq(await page.inputValue('[data-testid="input-product-hsn"]'), hsnCode, 'the picked HSN code fills the box')
+  assert(/check it with your CA/.test((await page.textContent('[data-testid="input-product-hsn-status"]')) ?? ''), 'no rate is suggested for the code')
   await h.click('btn-product-create')
   await page.waitForSelector('[data-testid="dialog-new-product"]', { state: 'detached', timeout: 5000 })
   const notebook = (await h.invoke('master:stockItems:list')).find((i) => i.name === 'Notebook A5')
   assertEq(notebook?.gstRate, 18, 'the product carries the picked slab')
+  assertEq(notebook?.hsn, hsnCode, 'the product carries the picked HSN')
 
   // Save the bill (leaving nothing unsaved): an existing customer picked with Enter, Sales from the
   // categories (created on the click, with its key), the new product on the line.

@@ -595,7 +595,7 @@ function CreateCompanyModal({ onClose, onCreated }: { onClose: () => void; onCre
           </Field>
         </div>
         <Field label="GSTIN" hint="Leave empty if not GST-registered" error={gstinError}>
-          <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} placeholder="GSTIN (15 characters)" className="num" data-testid="input-company-gstin" />
+          <TextInput value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} placeholder="GSTIN (15 characters)" className="font-mono" data-testid="input-company-gstin" />
         </Field>
         {gstin.trim() && (
           <Field label="Registration type">

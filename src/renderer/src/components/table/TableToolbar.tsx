@@ -116,7 +116,7 @@ export function TableToolbar<Row>({
           {features.density && (
             <button
               type="button"
-              className="rounded-md border border-line bg-panel2 px-2 py-1 text-small text-muted hover:border-amber/60 hover:text-ink"
+              className="t-btn rounded-md border border-line bg-panel px-2 py-1 text-small font-medium text-muted hover:border-line-strong hover:text-ink"
               aria-pressed={density === 'compact'}
               aria-label={labels.table.compactRows}
               title={labels.table.compactTitle(!!view.density)}
@@ -200,7 +200,7 @@ export function TableToolbar<Row>({
           ))}
           <button
             type="button"
-            className="text-small text-blue hover:underline"
+            className="t-link text-small"
             onClick={() => setView((v) => ({ ...v, filters: {} }))}
             data-testid={`${area}-table-clear-filters`}
           >
@@ -218,7 +218,7 @@ function ColumnChooser<Row>({ columns, controller, area }: { columns: TableColum
   const order = view.order.filter((id) => byId.has(id))
   return (
     <div className="flex flex-col gap-1">
-      <p className="mb-1 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Columns</p>
+      <p className="mb-1 text-small font-semibold text-muted">Columns</p>
       <ul className="flex max-h-72 flex-col gap-0.5 overflow-y-auto">
         {order.map((id, i) => {
           const c = byId.get(id)!
@@ -261,7 +261,7 @@ function ColumnChooser<Row>({ columns, controller, area }: { columns: TableColum
       </ul>
       <button
         type="button"
-        className="mt-1 self-start text-small text-blue hover:underline"
+        className="t-link mt-1 self-start text-small"
         onClick={() =>
           setView((v) => ({ ...v, order: controller.defaults.order, hidden: controller.defaults.hidden, widths: {} }))
         }
@@ -287,7 +287,7 @@ function ViewsMenu({ controller, close, area }: { controller: TableViewControlle
     }
     return (
       <div className="flex flex-col gap-2">
-        <label className="text-caption font-semibold tracking-[0.08em] text-muted uppercase" htmlFor={`${area}-view-name`}>
+        <label className="text-small font-semibold text-muted" htmlFor={`${area}-view-name`}>
           {mode === 'save' ? 'Save current view as' : 'Rename view'}
         </label>
         <input
@@ -326,7 +326,7 @@ function ViewsMenu({ controller, close, area }: { controller: TableViewControlle
 
   return (
     <div className="flex flex-col gap-0.5">
-      <p className="mb-1 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Views</p>
+      <p className="mb-1 text-small font-semibold text-muted">Views</p>
       <button
         type="button"
         className={itemCls}

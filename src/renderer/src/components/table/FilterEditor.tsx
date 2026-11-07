@@ -106,7 +106,7 @@ export function FilterEditor<Row>({
 
   return (
     <div className="flex flex-col gap-2" data-testid={testId}>
-      <p className="text-caption font-semibold tracking-[0.08em] text-muted uppercase">Filter · {columnLabel(column)}</p>
+      <p className="text-small font-semibold text-muted">Filter · {columnLabel(column)}</p>
       {type === 'enum' ? (
         <fieldset className="flex max-h-56 flex-col gap-1 overflow-y-auto">
           <legend className="sr-only">Show only</legend>

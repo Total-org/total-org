@@ -136,6 +136,20 @@ export const GST_SOURCES = {
     id: 'gstr3bAutoPopulation', title: 'GSTN — auto-population of GSTR-3B from GSTR-1 (Table 3.1(a) takes 11A advances received less 11B advances adjusted)',
     url: 'https://tutorial.gst.gov.in/userguide/returns/Manual_GSTR3B.htm', accessed: '2026-11-07', verified: false,
     note: 'Not read in an official text for this rule; worked into the golden fixtures ADV-01 / ADV-02 and pending the CA.'
+  },
+  // Phase 2c (accessed 2026-11-07): the bundled HSN / SAC list and the HSN-digits rules.
+  hsnMaster: {
+    id: 'hsnMaster', title: 'GST portal — HSN / SAC master (HSN_SAC.xlsx: sheets HSN_MSTR and SAC_MSTR, last modified 24 Apr 2026), bundled in src/shared/gst/hsnMaster/',
+    url: 'https://tutorial.gst.gov.in/downloads/HSN_SAC.xlsx', accessed: '2026-11-07', verified: true,
+    note: 'Codes and descriptions only — the file maps no code to a GST rate.'
+  },
+  n78_2020: {
+    id: 'n78_2020', title: 'Notification 78/2020-Central Tax (15-10-2020) — from 1 April 2021, HSN digits on a tax invoice: 4 up to ₹5 crore aggregate turnover in the preceding FY, 6 above; up to ₹5 crore the code may be left off invoices to unregistered persons',
+    url: 'https://www.gstcouncil.gov.in/sites/default/files/2024-05/notfctn-78-central-tax-english-2020.pdf', accessed: '2026-11-07', verified: true
+  },
+  n90_2020: {
+    id: 'n90_2020', title: 'Notification 90/2020-Central Tax (01-12-2020) — 8 digits of HSN on a tax invoice for the 49 chemicals in its Table',
+    url: 'https://cbic-gst.gov.in/pdf/central-tax/notfctn-90-central-tax-english-2020.pdf', accessed: '2026-11-07', verified: true
   }
 } satisfies Record<string, GstSource>
 
@@ -158,6 +172,8 @@ export const GST_UNVERIFIED: { id: string; text: string; sources: GstSourceId[] 
   { id: 'posted-tax-rupee', text: 'An amount-only bill whose tax was typed rounded to the rupee is reported at its inferred rate on its value (e.g. 111.06), not the tax it charged (111.00) — which one GSTR-1 / 3B should carry is unconfirmed (golden fixture LDG-04).', sources: ['gstr1Schema'] },
   { id: 'gstr3b-negative', text: 'In a month with only credit notes, GSTR-3B 3.1 / 3.2 and 4(A) come out negative (the save schema allows it; whether the portal accepts it or shows 0 and carries it forward is unconfirmed).', sources: ['gstr3bSchema'] },
   { id: 'hsn-sac-uqc', text: 'GSTR-1 Table 12: a line without an HSN / SAC is left out, and a service (SAC) line goes in with UQC OTH and quantity 0 — GSTN\'s Table 12 advisories may require an HSN on every line and UQC "NA" for services (not read in an official text).', sources: ['gstr1Schema'] },
+  { id: 'hsn-master-list', text: 'HSN / SAC codes are checked against the GST portal\'s downloadable list (April 2026). A code not in it is flagged, never refused — how complete that list is, and whether the portal or the e-invoice system accepts codes outside it, is unconfirmed. The list carries no GST rates, so Total never suggests a rate for a code.', sources: ['hsnMaster'] },
+  { id: 'hsn-digits', text: 'The HSN digits check does not know the business\'s turnover: 4 digits are accepted with a note that above ₹5 crore (preceding FY) 6 are needed (Notification 78/2020-CT); a code that starts like one of the 49 chemicals of Notification 90/2020-CT is told it needs all 8 digits.', sources: ['n78_2020', 'n90_2020'] },
   { id: 'gstr3b-advances', text: 'Whether GSTR-3B 3.1(a) must include tax on advances (GSTR-1 11A less 11B) — the app leaves it out; the golden fixtures expect it in (GSTN auto-population). Ask the CA.', sources: ['gstr3bAutoPopulation'] }
 ]
 

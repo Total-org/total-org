@@ -102,7 +102,7 @@ export function Popover({
       data-testid={testId}
       data-table-popover=""
       style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width }}
-      className="z-50 rounded-lg border border-line bg-raised p-3 text-detail text-ink shadow-elev-2"
+      className="t-menu-in z-50 rounded-lg border border-line bg-raised p-3 text-detail text-ink shadow-elev-2"
     >
       {children}
     </div>,
@@ -150,9 +150,9 @@ export function PopoverButton({
         aria-expanded={open}
         data-testid={testId}
         onClick={() => setOpen(!open)}
-        className={`rounded-md border px-2 py-1 text-small transition-colors ${
-          active || open ? 'border-amber/60 text-ink' : 'border-line text-muted hover:border-amber/60 hover:text-ink'
-        } bg-panel2 ${className}`}
+        className={`t-btn rounded-md border px-2 py-1 text-small font-medium ${
+          active || open ? 'border-amber/60 text-ink' : 'border-line text-muted hover:border-line-strong hover:text-ink'
+        } bg-panel ${className}`}
       >
         {children}
       </button>

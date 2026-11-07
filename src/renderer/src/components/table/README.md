@@ -362,8 +362,10 @@ key is read only, never deleted. If the old toggle keys don't match the new colu
 - Detail rows aren't exported, and a detail row can't contain another table that claims the
   keyboard independently. A DataTable nested in a detail is just one more table on the
   screen. A plain `<table>` there can have its own `<thead>`.
-- Header width estimates (`headerMinWidth` in `lib/table/layout.ts`) are tuned for IBM Plex
-  Sans at the header's 10.5px. A much wider header font would need them re-tuned.
+- Header width estimates (`headerMinWidth` in `lib/table/layout.ts`) are an upper-case IBM Plex
+  Sans 10.5px estimate; since the UI overhaul the headers are sentence-case Geist 12px medium,
+  which measures under it (all-caps acronyms within the padding). A much wider header font would
+  need them re-tuned.
 - When a detail row's height first gets measured, Chromium's scroll anchoring keeps the visible
   rows still while you scroll. The scrollbar thumb can shift slightly as estimates turn into
   measurements.
