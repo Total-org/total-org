@@ -408,7 +408,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                   <TextInput value={form.billNo} onChange={(e) => update({ billNo: e.target.value })} placeholder={t('simple.buy.billNoPlaceholder')} data-testid="input-buy-bill-no" />
                 </Field>
                 {errors.get(F.billNo) && dupId != null && (
-                  <button type="button" className="mt-1 text-detail text-blue hover:underline" data-testid="btn-buy-open-duplicate" onClick={() => nav.go(billScreen(dupId))}>
+                  <button type="button" className="mt-1 text-detail t-link" data-testid="btn-buy-open-duplicate" onClick={() => nav.go(billScreen(dupId))}>
                     {t('simple.buy.openDuplicate')}
                   </button>
                 )}
@@ -432,7 +432,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
 
             {asksGst && (
               <div className="mb-4" data-testid="buy-gst-question">
-                <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.buy.billShowsGst')}</span>
+                <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.billShowsGst')}</span>
                 <p className="mb-2 text-small text-muted">{t('simple.buy.gstQuestionWhat')}</p>
                 <div role="radiogroup" aria-label={t('simple.buy.billShowsGst')} className="flex flex-wrap gap-2">
                   {[true, false].map((yes) => (
@@ -451,7 +451,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                 </div>
                 <FieldError name="gstOnBill" error={errors.get(F.gstOnBill)} />
                 {form.mode === 'items' && !form.gstOnBill && ctx && productsNeedGst(form, ctx) && (
-                  <button type="button" className="mt-1 text-detail text-blue hover:underline" data-testid="btn-buy-as-amount" onClick={() => setMode(AMOUNT_MODE)}>
+                  <button type="button" className="mt-1 text-detail t-link" data-testid="btn-buy-as-amount" onClick={() => setMode(AMOUNT_MODE)}>
                     {t('simple.buy.recordAsAmount')}
                   </button>
                 )}
@@ -492,7 +492,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                   onCreate={canSave ? (name, lineKey) => setCreating({ what: 'product', name, lineKey }) : undefined} // i18n-technical
                 />
                 {!showDiscount && (
-                  <button type="button" className="mt-3 text-detail text-blue hover:underline" data-testid="btn-buy-add-discount" onClick={() => setShowDiscount(true)}>
+                  <button type="button" className="mt-3 text-detail t-link" data-testid="btn-buy-add-discount" onClick={() => setShowDiscount(true)}>
                     {t('simple.buy.addDiscount')}
                   </button>
                 )}

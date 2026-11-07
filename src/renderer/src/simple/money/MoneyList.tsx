@@ -155,7 +155,7 @@ function EntryView({ entryId }: { entryId: number }): React.JSX.Element {
   const { data: e, isLoading } = useQuery({ queryKey: ['simpleMoneyEntry', entryId], queryFn: () => api.simpleMoney.entry(entryId) }) // i18n-technical
   const money = (p: number): string => formatPaise(p, { symbol: true })
   const back = (
-    <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-money-entry-back" onClick={() => nav.back()}>
+    <button type="button" className="mb-3 text-detail t-link" data-testid="btn-money-entry-back" onClick={() => nav.back()}>
       {t('simple.money.entry.back')}
     </button>
   )

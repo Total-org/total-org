@@ -51,7 +51,7 @@ export function PersonView({ id }: { id: number }): React.JSX.Element {
   if (!p) {
     return (
       <Page data-testid="simple-person">
-        <button type="button" className="mb-3 text-detail text-blue hover:underline" onClick={() => nav.back()}>
+        <button type="button" className="mb-3 text-detail t-link" onClick={() => nav.back()}>
           {t('simple.people.back')}
         </button>
         <p className="text-detail text-muted" data-testid="simple-person-missing">{t('simple.people.missing')}</p>
@@ -148,7 +148,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
 
   return (
     <Page data-testid="simple-person" data-person={p.ledgerId} data-side={p.side}>
-      <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-person-back" onClick={() => nav.back()}>
+      <button type="button" className="mb-3 text-detail t-link" data-testid="btn-person-back" onClick={() => nav.back()}>
         {t('simple.people.back')}
       </button>
 
@@ -239,7 +239,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         {statement && (
           <p className="mt-3 text-detail text-ink" data-testid="person-statement-saved">
             {t('simple.people.statementSaved')}{' '}
-            <button type="button" className="text-blue hover:underline" data-testid="btn-person-statement-show" onClick={() => void reveal(statement.path)}>
+            <button type="button" className="t-link" data-testid="btn-person-statement-show" onClick={() => void reveal(statement.path)}>
               {t('simple.people.statementShow')}
             </button>
           </p>
@@ -267,7 +267,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
               ? (b) => (
                   <button
                     type="button"
-                    className="text-small font-medium text-blue hover:underline"
+                    className="text-small font-medium t-link"
                     data-testid={customer ? 'btn-person-bill-paid' : 'btn-person-bill-pay'}
                     onClick={() => nav.go((customer ? moneyInScreen : moneyOutScreen)({ party: p.ledgerId, amount: b.pending, bill: b.name, billId: b.voucherId }))}
                   >

@@ -181,7 +181,7 @@ function LedgersTab({ partiesOnly: partiesInitially = false }: { partiesOnly?: b
               filter || groupFilter !== null ? (
                 <button
                   type="button"
-                  className="text-small text-blue hover:underline"
+                  className="text-small t-link"
                   onClick={() => {
                     setFilter('')
                     setGroupFilter(null)
@@ -244,7 +244,7 @@ function LedgersTab({ partiesOnly: partiesInitially = false }: { partiesOnly?: b
             <button
               type="button"
               data-testid="btn-masters-edit-ledger"
-              className="text-small text-blue hover:underline"
+              className="text-small t-link"
               onClick={() => setEditing(l)}
             >
               Edit
@@ -349,10 +349,10 @@ function GroupsTab(): React.JSX.Element {
           groupActions={(node) =>
             node.isSystem ? null : (
               <>
-                <button data-testid="btn-masters-group-rename" className="text-hint text-blue hover:underline" onClick={() => void rename(node)}>
+                <button data-testid="btn-masters-group-rename" className="text-hint t-link" onClick={() => void rename(node)}>
                   Rename
                 </button>
-                <button data-testid="btn-masters-group-move" className="text-hint text-blue hover:underline" onClick={() => setMoving(node)}>
+                <button data-testid="btn-masters-group-move" className="text-hint t-link" onClick={() => setMoving(node)}>
                   Move
                 </button>
                 <button data-testid="btn-masters-group-delete" className="text-hint text-cr hover:underline" onClick={() => void remove(node)}>
@@ -525,7 +525,7 @@ function ItemsTab({ openItemId }: { openItemId?: number }): React.JSX.Element {
           selection={bulk.selection}
           toolbarEnd={bulk.historyButton}
           trailing={(i) => (
-            <button type="button" className="text-small text-blue hover:underline" data-testid="btn-masters-edit-item" onClick={() => setEditing(i)}>
+            <button type="button" className="text-small t-link" data-testid="btn-masters-edit-item" onClick={() => setEditing(i)}>
               Edit
             </button>
           )}
@@ -926,7 +926,7 @@ function TypesTab(): React.JSX.Element {
           activateOn="dblclick"
           onRowActivate={(t) => setEditing(t)}
           trailing={(t) => (
-            <button type="button" className="text-small text-blue hover:underline" data-testid="btn-masters-edit-type" onClick={() => setEditing(t)}>
+            <button type="button" className="text-small t-link" data-testid="btn-masters-edit-type" onClick={() => setEditing(t)}>
               Edit
             </button>
           )}
@@ -966,7 +966,7 @@ function TradeDocTypesSection(): React.JSX.Element {
           activateOn="dblclick"
           onRowActivate={(t) => setEditing(t as TradeDocType)}
           trailing={(t) => (
-            <button type="button" className="text-small text-blue hover:underline" data-testid="btn-masters-edit-trade-type" onClick={() => setEditing(t as TradeDocType)}>
+            <button type="button" className="text-small t-link" data-testid="btn-masters-edit-trade-type" onClick={() => setEditing(t as TradeDocType)}>
               Edit
             </button>
           )}
@@ -1128,7 +1128,7 @@ function GodownsTab(): React.JSX.Element {
           activateOn="dblclick"
           onRowActivate={(g) => setEditing(g)}
           trailing={(g) => (
-            <button data-testid="btn-masters-edit-godown" type="button" className="text-small text-blue hover:underline" onClick={() => setEditing(g)}>
+            <button data-testid="btn-masters-edit-godown" type="button" className="text-small t-link" onClick={() => setEditing(g)}>
               Edit
             </button>
           )}

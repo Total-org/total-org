@@ -90,7 +90,7 @@ export function SimpleBackups(): React.JSX.Element {
         {saved && (
           <p className="mt-3 text-detail text-ink" role="status" data-testid="simple-backups-saved">
             {t('simple.backups.savedWhere')}{' '}
-            <button type="button" className="text-blue hover:underline" data-testid="btn-simple-backups-reveal-saved" onClick={() => void reveal(fileOf(saved))}>
+            <button type="button" className="t-link" data-testid="btn-simple-backups-reveal-saved" onClick={() => void reveal(fileOf(saved))}>
               {t('simple.backups.showInFinder')}
             </button>
           </p>

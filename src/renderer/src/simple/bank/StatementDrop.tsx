@@ -162,12 +162,12 @@ export function StatementDrop({
           {problem && <p className="mt-1 text-muted">{problem}</p>}
           <div className="mt-2 flex flex-wrap gap-3">
             {unreadable && (
-              <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-bank-set-up-once" onClick={() => nav.go({ name: 'banking', tab: IMPORT_TAB, ledgerId: bankLedgerId })} // i18n-technical
+              <button type="button" className="text-detail t-link" data-testid="btn-bank-set-up-once" onClick={() => nav.go({ name: 'banking', tab: IMPORT_TAB, ledgerId: bankLedgerId })} // i18n-technical
               >
                 {t('simple.bank.setUpOnce')}
               </button>
             )}
-            <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-bank-try-again" onClick={reset}>
+            <button type="button" className="text-detail t-link" data-testid="btn-bank-try-again" onClick={reset}>
               {t('simple.bank.cancelFile')}
             </button>
           </div>

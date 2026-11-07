@@ -71,7 +71,7 @@ export function PaidNow({
             <AmountInput paise={form.partAmount} onPaise={(p) => onChange({ partAmount: p })} testId="input-buy-part-amount" />
           </Field>
           <div>
-            <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.buy.partHow')}</span>
+            <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.partHow')}</span>
             <div role="radiogroup" aria-label={t('simple.buy.partHow')} className="flex flex-wrap gap-2">
               {BUY_PART_HOWS.map((h) => (
                 <button

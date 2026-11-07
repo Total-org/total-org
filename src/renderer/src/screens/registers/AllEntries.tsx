@@ -206,7 +206,7 @@ export function AllEntriesPanel({ from, to, periodLabel, scope, onScope, kind, v
             <span className="flex items-center justify-end gap-2">
               <button
                 type="button"
-                className="text-hint text-blue hover:underline"
+                className="text-hint t-link"
                 title="Attached files"
                 data-testid="btn-entries-files"
                 onClick={(e) => {
@@ -219,7 +219,7 @@ export function AllEntriesPanel({ from, to, periodLabel, scope, onScope, kind, v
               {ordersOn && LINKABLE_VOUCHER_KINDS.has(r.kind) && (
                 <button
                   type="button"
-                  className="text-hint text-blue hover:underline"
+                  className="text-hint t-link"
                   title="Linked documents"
                   data-testid="btn-entries-links"
                   onClick={(e) => {
@@ -233,7 +233,7 @@ export function AllEntriesPanel({ from, to, periodLabel, scope, onScope, kind, v
               {printKindForVoucherKind(r.kind) ? (
                 <button
                   type="button"
-                  className="text-hint text-blue hover:underline"
+                  className="text-hint t-link"
                   title={r.kind === 'sales' ? 'Invoice PDF' : 'Print PDF (default template for this kind)'}
                   data-testid="btn-entries-invoice-pdf"
                   onClick={() => {

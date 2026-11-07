@@ -80,7 +80,7 @@ export function BillsToPay(): React.JSX.Element {
             canPay ? (
               <button
                 type="button"
-                className="text-small font-medium text-blue hover:underline"
+                className="text-small font-medium t-link"
                 data-testid="btn-bill-pay"
                 onClick={() => nav.go(moneyOutScreen({ party: b.ledgerId, amount: b.pending, bill: b.name, billId: b.voucherId }))}
               >

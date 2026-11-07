@@ -400,7 +400,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 {t('simple.sell.cashCustomer')}
               </p>
             ) : (
-              <button type="button" className="mt-2 text-detail text-blue hover:underline" data-testid="btn-sell-cash-customer" onClick={() => pickCustomer(null)}>
+              <button type="button" className="mt-2 text-detail t-link" data-testid="btn-sell-cash-customer" onClick={() => pickCustomer(null)}>
                 {t('simple.sell.pickCashCustomer')}
               </button>
             )}
@@ -447,14 +447,14 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
             )}
             <div className="mt-3 flex flex-wrap gap-4">
               {form.mode === 'items' && !showDiscount && (
-                <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-sell-add-discount" onClick={() => setShowDiscount(true)}>
+                <button type="button" className="text-detail t-link" data-testid="btn-sell-add-discount" onClick={() => setShowDiscount(true)}>
                   {t('simple.sell.addDiscount')}
                 </button>
               )}
               {stockOn && (
                 <button
                   type="button"
-                  className="text-detail text-blue hover:underline"
+                  className="text-detail t-link"
                   data-testid="btn-sell-toggle-mode"
                   onClick={() => update(form.mode === 'items' ? { mode: 'amount', lines: [] } : { mode: 'items', lines: [newLine()], amount: null })} // i18n-technical
                 >

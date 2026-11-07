@@ -333,7 +333,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
             </div>
             {(form.labour ?? 0) > 0 && (
               <div className="mt-4" data-testid="made-labour-question">
-                <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.made.labourRecorded')}</span>
+                <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.made.labourRecorded')}</span>
                 <div role="radiogroup" aria-label={t('simple.made.labourRecorded')} className="flex flex-wrap gap-2">
                   {[true, false].map((yes) => (
                     <button

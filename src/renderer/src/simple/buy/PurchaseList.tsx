@@ -149,7 +149,7 @@ function PurchaseBillView({ billId }: { billId: number }): React.JSX.Element {
   if (!bill) {
     return (
       <Page data-testid="simple-purchase">
-        <button type="button" className="mb-3 text-detail text-blue hover:underline" onClick={() => nav.back()}>
+        <button type="button" className="mb-3 text-detail t-link" onClick={() => nav.back()}>
           {t('simple.purchase.back')}
         </button>
         <p className="text-detail text-muted" data-testid="simple-purchase-missing">{t('simple.purchase.missing')}</p>
@@ -161,7 +161,7 @@ function PurchaseBillView({ billId }: { billId: number }): React.JSX.Element {
   const offByReturns = offBillByReturns(bill)
   return (
     <Page data-testid="simple-purchase" data-bill={bill.voucherId}>
-      <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-purchase-back" onClick={() => nav.back()}>
+      <button type="button" className="mb-3 text-detail t-link" data-testid="btn-purchase-back" onClick={() => nav.back()}>
         {t('simple.purchase.back')}
       </button>
       <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">

@@ -75,7 +75,7 @@ export function PaidHow({
             <AmountInput paise={form.partAmount} onPaise={(p) => onChange({ partAmount: p })} testId="input-sell-part-amount" />
           </Field>
           <div>
-            <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.sell.partHow')}</span>
+            <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.sell.partHow')}</span>
             <div role="radiogroup" aria-label={t('simple.sell.partHow')} className="flex flex-wrap gap-2">
               {PART_HOWS.map((h) => (
                 <button

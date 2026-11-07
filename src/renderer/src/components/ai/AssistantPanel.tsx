@@ -910,7 +910,7 @@ function ToolChip({ name, input, result, pending }: { name: string; input: unkno
 function JsonBlock({ label, value }: { label: string; value: unknown }): React.JSX.Element {
   return (
     <div>
-      <div className="mb-0.5 text-label font-semibold tracking-[0.08em] text-muted uppercase">{label}</div>
+      <div className="mb-0.5 text-small font-semibold text-muted">{label}</div>
       <pre className="num max-h-48 overflow-auto rounded-sm bg-panel2 p-2 text-caption whitespace-pre-wrap text-ink">{JSON.stringify(value, null, 2)}</pre>
     </div>
   )

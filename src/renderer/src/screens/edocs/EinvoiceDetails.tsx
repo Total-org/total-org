@@ -66,7 +66,7 @@ function IrnCancel({ rec, live }: { rec: NicRecord; live: boolean }): React.JSX.
   if (rec.irnCancelledAt) {
     return (
       <section aria-label="IRN cancelled" className="flex flex-col gap-1" data-testid="edoc-irn-cancelled-state">
-        <h3 className="text-label font-semibold uppercase text-muted">Cancelled</h3>
+        <h3 className="text-small font-semibold text-muted">Cancelled</h3>
         <p>
           Cancelled on the IRP on <span className="num">{rec.irnCancelledAt}</span>
           {rec.irnCancelReason ? ` · ${NIC_CANCEL_REASON_LABEL[rec.irnCancelReason]}` : ''}
@@ -94,7 +94,7 @@ function IrnCancel({ rec, live }: { rec: NicRecord; live: boolean }): React.JSX.
   }
   return (
     <section aria-label="Cancel IRN" className="flex flex-col gap-2" data-testid="edoc-irn-cancel">
-      <h3 className="text-label font-semibold uppercase text-muted">Cancel IRN</h3>
+      <h3 className="text-small font-semibold text-muted">Cancel IRN</h3>
       {!win.allowed ? (
         <p className="text-hint text-muted" data-testid="edoc-irn-cancel-closed">{win.reason}</p>
       ) : !live ? (
@@ -175,7 +175,7 @@ function SignedCopies({ rec }: { rec: NicRecord }): React.JSX.Element {
   const hasSigned = !!(rec.signedInvoice || rec.signedQrCode)
   return (
     <section aria-label="IRN and signed copies" className="flex flex-col gap-2">
-      <h3 className="text-label font-semibold uppercase text-muted">IRN</h3>
+      <h3 className="text-small font-semibold text-muted">IRN</h3>
       <Fact label="IRN" value={rec.irn} testId="edoc-details-irn" />
       <Fact label="Ack no." value={rec.ackNo} testId="edoc-details-ack-no" />
       <Fact label="Ack date" value={rec.ackDate} testId="edoc-details-ack-date" />
@@ -216,7 +216,7 @@ function SignedField({ label, value, testId, onCopy }: { label: string; value: s
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="text-muted">{label}</span>
-        <button type="button" className="text-small text-blue hover:underline" data-testid={`${testId}-copy`} onClick={onCopy}>
+        <button type="button" className="text-small t-link" data-testid={`${testId}-copy`} onClick={onCopy}>
           Copy
         </button>
       </div>
@@ -246,7 +246,7 @@ function eventDetail(e: EwbEvent): string {
 function EwayBill({ rec, live }: { rec: NicRecord; live: boolean }): React.JSX.Element {
   return (
     <section aria-label="e-Way bill" className="flex flex-col gap-2" data-testid="edoc-ewb">
-      <h3 className="text-label font-semibold uppercase text-muted">e-Way bill</h3>
+      <h3 className="text-small font-semibold text-muted">e-Way bill</h3>
       {rec.ewbNo ? (
         <>
           <Fact label="EWB no." value={rec.ewbNo} testId="edoc-details-ewb-no" />

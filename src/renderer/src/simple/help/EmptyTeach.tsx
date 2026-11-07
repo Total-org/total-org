@@ -33,7 +33,7 @@ export function EmptyTeach({ testId, purpose, action, help }: {
       )}
       <button
         type="button"
-        className="mt-3 text-detail text-blue underline-offset-2 hover:underline"
+        className="t-link mt-3 text-detail font-medium"
         data-testid="empty-learn"
         data-help={help}
         onClick={() => useHelpPanel.getState().openArticle(help)}

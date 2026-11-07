@@ -54,7 +54,7 @@ interface FlatLine {
 
 function HeaderRow({ labels }: { labels: string[] }): React.JSX.Element {
   return (
-    <div className="flex items-end justify-between border-b border-line px-2 pb-1.5 text-caption font-semibold tracking-[0.06em] text-muted uppercase">
+    <div className="flex items-end justify-between border-b border-line px-2 pb-1.5 text-small font-semibold text-muted">
       <span>Particulars</span>
       <span className="flex">
         {labels.map((l) => <span key={l} className={`${STATEMENT_COLUMN_W} text-right`}>{l}</span>)}
@@ -96,7 +96,7 @@ function Section({ title, trees, columns, tree, labels }: {
   if (merged.length === 0) return null
   return (
     <div className="mb-3">
-      <p className="mt-2 mb-1 px-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">{title}</p>
+      <p className="mt-2 mb-1 px-2 text-small font-semibold text-muted">{title}</p>
       <StatementTree nodes={merged} columns={extra} {...tree} key={`${tree.expandAll}-${tree.hideZero}-${labels.length}`} />
     </div>
   )

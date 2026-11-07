@@ -169,7 +169,7 @@ export function EligibleTab({ period, kind = 'tds' }: { period: TdsPeriod; kind?
             {canEdit && movable.length > 0 && (
               <button
                 type="button"
-                className="text-small text-blue hover:underline"
+                className="text-small t-link"
                 data-testid={`btn-${k}-select-all`}
                 onClick={() => setSelected(chosen.length === movable.length ? new Set() : new Set(movable.map((r) => r.voucherId)))}
               >

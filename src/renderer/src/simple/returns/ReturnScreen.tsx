@@ -262,7 +262,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
                 )}
               </div>
               {initialBill == null && (
-                <button type="button" className="text-detail text-blue hover:underline" data-testid="btn-return-change-bill" onClick={startNew}>
+                <button type="button" className="text-detail t-link" data-testid="btn-return-change-bill" onClick={startNew}>
                   {t('simple.returns.changeBill')}
                 </button>
               )}
@@ -305,7 +305,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
                     </div>
                     {asks.rate && (
                       <div data-testid="return-gst">
-                        <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.sell.gstRate')}<CaCheck place="simple.ratePicker" date={form.date} /></span>
+                        <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.sell.gstRate')}<CaCheck place="simple.ratePicker" date={form.date} /></span>
                         <p className="mb-2 text-small text-muted">{t('simple.returns.gstRateWhat')}</p>
                         <div role="radiogroup" aria-label={t('simple.sell.gstRate')} className="flex flex-wrap gap-2">
                           {rateChoices.map((rate) => (
