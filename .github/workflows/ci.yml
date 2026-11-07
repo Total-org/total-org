@@ -33,6 +33,11 @@ jobs:
       - name: Renderer tests (jsdom + RTL)
         run: npm run test:renderer
 
+      # The site's own rules (redirects that keep /api on devjindal.tech for old installs, the
+      # GitHub lookup's token fallback, the waitlist). Node builtins only — no site npm ci.
+      - name: Site tests (node --test)
+        run: node --experimental-strip-types --test 'site/lib/*.test.ts'
+
       - name: DB-layer tests (Electron-as-Node — headless-safe, no display needed)
         run: npm run test:db
 

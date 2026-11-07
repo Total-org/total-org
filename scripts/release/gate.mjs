@@ -8,7 +8,7 @@
 //   issue <decision.json> [released|failed]   open / update / close the "Scheduled release skipped" issue
 //   bump <version> <date>                     package.json + lock + CHANGELOG (no commit)
 //   notes <version>                           this version's CHANGELOG section (release notes)
-//   verify <version>                          /releases/latest + the site's /api/latest show it
+//   verify <version>                          /releases/latest + the site's /api/latest (both hosts) show it
 //
 // Env: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT / GITHUB_STEP_SUMMARY (optional), GATE_SHA (the
 // main commit under test, default HEAD).
@@ -31,7 +31,8 @@ import {
 } from './lib.mjs'
 
 const REPO = process.env.GITHUB_REPOSITORY ?? 'Total-org/total-org'
-const SITE_LATEST = process.env.SITE_LATEST_URL ?? 'https://devjindal.tech/api/latest'
+// Both hosts: the canonical one, and the old one every app built before 8 Nov 2026 still asks.
+const SITE_LATEST = (process.env.SITE_LATEST_URL ?? 'https://irminflow.com/api/latest https://devjindal.tech/api/latest').split(/[\s,]+/).filter(Boolean)
 export const ISSUE_TITLE = 'Scheduled release skipped'
 
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opts }).trim()
@@ -267,19 +268,22 @@ async function verify(version) {
   const missing = missingAssets(version, (latest.assets ?? []).map((a) => a.name))
   if (missing.length) problems.push(`missing assets: ${missing.join(', ')}`)
   // The site caches the GitHub lookup for 5 minutes (site/lib/release.ts revalidate: 300).
-  let site = null
-  for (let i = 0; i < 12; i++) {
-    try {
-      const res = await fetch(SITE_LATEST, { headers: { 'user-agent': 'total-release-check' } })
-      site = res.status === 200 ? (await res.json()).version : `HTTP ${res.status}`
-    } catch (err) {
-      site = `error ${err.message}`
+  for (const url of SITE_LATEST) {
+    let site = null
+    for (let i = 0; i < 12; i++) {
+      try {
+        // redirect: 'manual' — /api/latest must answer on each host itself (old installs).
+        const res = await fetch(url, { headers: { 'user-agent': 'total-release-check' }, redirect: 'manual' })
+        site = res.status === 200 ? (await res.json()).version : `HTTP ${res.status}`
+      } catch (err) {
+        site = `error ${err.message}`
+      }
+      if (site === version) break
+      await new Promise((r) => setTimeout(r, 60_000))
     }
-    if (site === version) break
-    await new Promise((r) => setTimeout(r, 60_000))
+    if (site !== version) problems.push(`${url} reports ${site}, not ${version}`)
   }
-  if (site !== version) problems.push(`${SITE_LATEST} reports ${site}, not ${version}`)
-  summary(problems.length ? `### Release check FAILED\n\n${problems.map((p) => `- ${p}`).join('\n')}` : `### Release check passed\n\nv${version}: /releases/latest has every asset; ${SITE_LATEST} reports ${version}.`)
+  summary(problems.length ? `### Release check FAILED\n\n${problems.map((p) => `- ${p}`).join('\n')}` : `### Release check passed\n\nv${version}: /releases/latest has every asset; ${SITE_LATEST.join(' and ')} report ${version}.`)
   if (problems.length) process.exit(1)
 }
 

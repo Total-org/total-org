@@ -19,8 +19,8 @@
 #                   tagged by github-actions[bot], pushed to main (refused if main moved).
 #   5. release    — calls release.yml (mac DMG/ZIP, Windows EXE, latest.yml name check,
 #                   packaged smoke). Releases publish directly, never drafts.
-#   6. verify     — /releases/latest carries every asset and devjindal.tech/api/latest says the
-#                   new version.
+#   6. verify     — /releases/latest carries every asset and irminflow.com/api/latest AND
+#                   devjindal.tech/api/latest (old installs ask it) say the new version.
 #
 # workflow_dispatch with dry_run = run the whole gate, never bump or release. A pull request that
 # touches the release machinery runs the same dry run (a workflow can be dispatched only once it

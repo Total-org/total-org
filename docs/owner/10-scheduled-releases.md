@@ -37,7 +37,8 @@ When a slot skips for a reason (not the quiet kinds), GitHub opens one issue cal
 issue closes itself after the next release goes out.
 
 After a release, GitHub checks that the release page has the Mac and Windows files and that the
-website's update feed (`devjindal.tech/api/latest`) shows the new version. Installed copies of
+website's update feed shows the new version on both addresses — `irminflow.com/api/latest` and the old
+`devjindal.tech/api/latest` (copies installed before 8 Nov 2026 still ask the old one). Installed copies of
 Total learn about updates from that feed.
 
 ## How to hold a release

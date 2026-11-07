@@ -1,4 +1,4 @@
-// Site screenshots (landing page, devjindal.tech): launches the BUILT app (out/) on a fresh
+// Site screenshots (landing page, irminflow.com): launches the BUILT app (out/) on a fresh
 // scratch data dir (never ~/Documents/total), creates the Demo Traders sample company in SIMPLE
 // mode ("Try with sample data", WP 8.3) and captures real screens into site/public/shots/:
 //
