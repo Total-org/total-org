@@ -19,6 +19,7 @@ import { payablesApi } from '../../lib/payablesClient'
 import { useToasts } from '../../state/stores'
 import { pct, usePayablesAsOn } from './common'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../../lib/capabilities'
+import { CaCheck } from '../../components/CaCheck'
 
 const BASIS = { agreed: 'Agreed', agreed_capped: 'Agreed > 45 d: capped', no_agreement: 'No agreement: 15 d' } as const
 
@@ -168,6 +169,7 @@ export function MsmeTab({ tabs }: { tabs: ReactNode }): React.JSX.Element {
       <PageHeader
         title="Payables"
         period={`MSME as on ${toDisplayDate(asOn)}`}
+        subtitle={<CaCheck place="payables.msme" />}
         tabs={tabs}
         controls={<DateInput value={asOn} context={asOn} onChange={setAsOn} testId="input-msme-as-on" ariaLabel="As on" className="w-32" />}
         secondary={

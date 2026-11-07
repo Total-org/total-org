@@ -143,7 +143,7 @@ export function Gstr9Screen(): React.JSX.Element {
         }}
       />
 
-      <UnverifiedBanner ids={['gstr9-layout', 'gstr9-json', 'gstr9-exempt']} testId="gstr9-unverified" />
+      <UnverifiedBanner ids={['gstr9-layout', 'gstr9-json', 'gstr9-exempt']} place="gstr9.screen" testId="gstr9-unverified" />
       {data && <Thresholds r={data} />}
 
       {data && (

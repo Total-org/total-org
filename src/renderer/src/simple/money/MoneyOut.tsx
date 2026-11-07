@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Ledger } from '@shared/domain'
 import type { MessageKey } from '@shared/i18n'
@@ -302,7 +303,7 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
                     </Field>
                   </div>
                   <div className="mt-3">
-                    <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.money.gstRate')}</span>
+                    <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.money.gstRate')}<CaCheck place="simple.ratePicker" date={form.date} /></span>
                     <Choices
                       label={t('simple.money.gstRate')}
                       value={form.gstRate == null ? null : String(form.gstRate)}

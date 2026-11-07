@@ -16,6 +16,7 @@ import { ChartOfAccounts } from '../components/ChartOfAccounts'
 import { validateHsn } from '@shared/gst/validate'
 import { cleanHsn } from '@shared/gst/hsn'
 import { HsnInput, HsnStatusLines, useHsnStatus } from '../components/HsnInput'
+import { CaCheck } from '../components/CaCheck'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 import { ItemLink, LedgerLink } from '../components/links'
 import { useFeatures } from '../lib/useFeatures'
@@ -661,7 +662,13 @@ export function ItemFormModal({ item, onClose }: { item: StockItem | null; onClo
             </Select>
           </Field>
           {(itemShowsHsn(regType) || !!item?.hsn) && (
-            <Field label="HSN" error={hsnTried ? hsnError : null} hint={hsnStatus.length ? <HsnStatusLines lines={hsnStatus} testId="input-item-hsn-status" /> : undefined}>
+            <Field label="HSN" error={hsnTried ? hsnError : null} hint={
+                <>
+                  {hsnStatus.length ? <HsnStatusLines lines={hsnStatus} testId="input-item-hsn-status" /> : null}
+                  <CaCheck place="masters.hsnField" />
+                </>
+              }
+            >
               <HsnInput value={hsn} onChange={setHsn} testId="input-item-hsn" placeholder="Code or words to search" />
             </Field>
           )}

@@ -19,6 +19,7 @@ import { DeclarationsModal, TdsWorkingsModal } from './payroll/EmployeeTax'
 import { StatutoryTab, useFyChoices } from './payroll/StatutoryTab'
 import { RatesTab } from './payroll/RatesTab'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
+import { CaCheck } from '../components/CaCheck'
 
 type Tab = 'employees' | 'runs' | 'statutory' | 'rates'
 
@@ -194,6 +195,7 @@ function EmployeesTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
     <>
       <PageHeader
         title="Payroll"
+        subtitle={<CaCheck place="payroll.screen" />}
         tabs={tabs}
         secondary={
           <Button data-testid="btn-payroll-pay-heads" onClick={() => setHeadsOpen(true)}>
