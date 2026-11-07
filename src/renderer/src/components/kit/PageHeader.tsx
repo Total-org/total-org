@@ -134,7 +134,7 @@ export function PageHeader({
       {breadcrumb && <div className="mb-0.5 text-hint text-muted">{breadcrumb}</div>}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-baseline gap-3">
-          <h1 data-testid="page-title" className="truncate font-serif text-heading font-semibold tracking-tight">
+          <h1 data-testid="page-title" className="truncate font-serif text-heading font-semibold tracking-[-0.02em]">
             {title}
           </h1>
           {period && (

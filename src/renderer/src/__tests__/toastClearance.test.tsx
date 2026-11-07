@@ -11,14 +11,16 @@ import { clearanceOf } from '../components/kit/toastClearance'
 
 const css = readFileSync(resolve(__dirname, '../app.css'), 'utf8')
 
-/** Mocked layout: the Save bar is `barH` tall, a docked panel `panelW` wide. */
-function mockLayout(barH: number, panelW: number): void {
+/** Mocked layout: the Save bar is `barH` tall, a docked panel `panelW` wide. The bar's top sits
+ *  `barH` above the window's bottom (stuck there), or at `barTop` when given (a short form). */
+function mockLayout(barH: number, panelW: number, barTop?: number): void {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const isBar = this.getAttribute('data-testid') === 'save-bar'
     const isPanel = this.hasAttribute('data-docked')
     const w = isPanel ? panelW : isBar ? 1000 : 0
     const h = isBar ? barH : isPanel ? 850 : 0
-    return { x: 0, y: 0, top: 0, left: 0, right: w, bottom: h, width: w, height: h, toJSON: () => ({}) } as DOMRect
+    const top = isBar ? (barTop ?? window.innerHeight - barH) : 0
+    return { x: 0, y: top, top, left: 0, right: w, bottom: top + h, width: w, height: h, toJSON: () => ({}) } as DOMRect
   })
 }
 
@@ -42,6 +44,14 @@ describe('toast clearance', () => {
     mockLayout(132, 0) // a bar wrapped to two rows (1024 px, long preview line)
     const { unmount } = render(bar())
     expect(clearanceOf('--t-save-bar-h')).toBe(132)
+    unmount()
+    expect(clearanceOf('--t-save-bar-h')).toBe(0)
+  })
+
+  it('a Save bar above the window bottom (a short form) keeps the whole space below its top clear', () => {
+    mockLayout(83, 0, window.innerHeight - 209) // the bar 126 px above the bottom edge (Money in, 1280×800)
+    const { unmount } = render(bar())
+    expect(clearanceOf('--t-save-bar-h')).toBe(209)
     unmount()
     expect(clearanceOf('--t-save-bar-h')).toBe(0)
   })

@@ -29,6 +29,17 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
+- **New look, part 1 — the foundation** (#PRNUM; UI overhaul, plan Phase 5). Plain words: Total
+  gets a calmer, sharper look in both modes and both themes. Amounts are in a clean typeface with
+  even-width digits instead of the typewriter face, titles and labels are in normal sentence case,
+  links are dark text with an amber underline instead of blue, the main button is solid ink (amber
+  in dark mode), fields are white with a clear amber edge when you type, and dialogs, menus, side
+  panels and messages slide in gently (about a fifth of a second; off when "Reduce motion" is on).
+  Messages are dark chips with a tick or warning sign. Hindi screens use Noto Sans Devanagari. No
+  figure, word or step changed. A message no longer covers the Save button on a short form. For
+  developers: tokens and the motion classes in `app.css` (`t-pop-in`, `t-menu-in`, `t-toast-in`,
+  `t-rise`, `t-tick`, `t-skeleton`, `t-tab`, `t-btn`), the kit README, `docs/ui/2026-11-ui-overhaul.md`;
+  the accountant-dialog snapshot test now compares structure without CSS classes (owner decision).
 - Site (#218): the landing page at devjindal.tech is rebuilt — one big headline (with a Hindi line),
   real screenshots of the app (simple Home, Make a bill, Taxes, GSTR-1, the accountant view, Home in
   Hindi; captured from the built app by `scripts/shots-site.mjs`), a Shop owner / Accountant switch,

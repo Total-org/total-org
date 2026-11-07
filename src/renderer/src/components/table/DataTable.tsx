@@ -1145,7 +1145,7 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
                       hasTableFilters ? (
                         <button
                           type="button"
-                          className="text-small text-blue hover:underline"
+                          className="t-link text-small"
                           onClick={clearAllFilters}
                           data-testid={`${area}-table-reset-filters`}
                         >
@@ -1276,7 +1276,7 @@ function HeaderCell<Row>({
         {sortable ? (
           <button
             type="button"
-            className={`inline-flex min-w-0 items-center gap-1 uppercase hover:text-ink ${sortDir ? 'text-ink' : ''}`}
+            className={`inline-flex min-w-0 items-center gap-1 hover:text-ink ${sortDir ? 'text-ink' : ''}`}
             onClick={(e) => onSort(e.shiftKey)}
             title={labels.table.sortBy(label)}
             data-testid={`sort-${area}-${col.id}`}

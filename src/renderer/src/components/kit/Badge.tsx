@@ -34,7 +34,7 @@ export function Badge({
       title={title}
       data-testid={testId}
       data-tone={tone}
-      className={`inline-flex items-center rounded border px-1.5 py-px align-middle text-micro font-medium whitespace-nowrap ${BADGE[tone]} ${className}`}
+      className={`inline-flex items-center rounded-sm border px-1.5 py-px align-middle text-label font-medium whitespace-nowrap ${BADGE[tone]} ${className}`}
     >
       {children}
     </span>
@@ -65,8 +65,8 @@ export function Chip({
   className?: string
   testId?: string
 }): React.JSX.Element {
-  const toneCls = tone === 'amber' ? 'border-amberbar/50 bg-amberbar/10 text-ink' : BADGE[tone]
-  const base = `inline-flex items-center gap-1.5 rounded-full border py-0.5 text-small ${onRemove ? 'pr-1 pl-2.5' : 'px-2.5'} ${toneCls} ${className}`
+  const toneCls = tone === 'amber' ? 'border-amberbar/45 bg-amberbar/10 text-ink' : BADGE[tone]
+  const base = `inline-flex items-center gap-1.5 rounded-full border py-0.5 text-small font-medium transition-colors ${onRemove ? 'pr-1 pl-2.5' : 'px-2.5'} ${toneCls} ${className}`
   if (onClick) {
     return (
       <button
