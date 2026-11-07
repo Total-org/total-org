@@ -304,6 +304,24 @@ describe('payments and receipts against open bills (outstandings)', () => {
       { kind: 'against', name: 'P-15', amount: 590_000, dueDate: null },
       { kind: 'new', name: nextVoucherNumber(db, typeId('payment'), TODAY), amount: 1_410_000, dueDate: null }
     ])
+    // Phase 3b: the advance is marked, so the approval queue renames only it to the number the save
+    // takes (another payment saved in between moves the series on by one).
+    const advName = nextVoucherNumber(db, typeId('payment'), TODAY)
+    expect(payloadOf(adv.draftId!).advanceRef).toBe(advName)
+    expect(payloadOf(r.draftId!).advanceRef).toBeUndefined()
+    const { draftVoucherPayload } = await import('./queue')
+    const { loadMasters } = await import('./drafting/work')
+    const { listVoucherTypes } = await import('../services/masters')
+    const payType = listVoucherTypes(db).find((t) => t.id === typeId('payment'))!
+    const between = await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', amount: '100' })
+    saveVoucher(db, draftVoucherPayload(loadMasters(db, INFO, TODAY), store.getDraft(db, between.draftId!)!, payType))
+    const rebuilt = draftVoucherPayload(loadMasters(db, INFO, TODAY), store.getDraft(db, adv.draftId!)!, payType)
+    const now = nextVoucherNumber(db, typeId('payment'), TODAY)
+    expect(now).not.toBe(advName)
+    expect(rebuilt.billRefs).toEqual([
+      { kind: 'against', name: 'P-15', amount: 590_000, dueDate: null },
+      { kind: 'new', name: now, amount: 1_410_000, dueDate: null }
+    ])
     expect((await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', bills: [{ bill: 'P-15', amount: '9000' }] })).error).toMatch(/more than the ₹5,900.00 pending/)
     const unknown = await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', bills: [{ bill: 'P-99' }] })
     expect(unknown.data.status).toBe('needs_clarification')

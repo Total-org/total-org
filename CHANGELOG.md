@@ -26,6 +26,23 @@ feed (`/api/latest`, `/api/download`) keeps answering directly, so every copy in
 still finds updates. For developers: `SITE_URL` in `src/shared/product.ts`, `site/lib/redirects.ts`,
 the release check verifies `/api/latest` on both hosts. The site's GitHub lookup now retries without `GITHUB_TOKEN` when GitHub refuses the token (the update feed had been answering "nothing released"). Nothing changes in your books.
 
+**One place to approve what the assistants prepare** (Phase 3b, part 1). Everything the AI helper,
+Ask Total, a bill you added, your bank statement or the supplier-bill check proposes — and the
+things the assistant suggests remembering — now waits in one list: Money → Things to approve in
+simple mode (each one in plain words, with Approve / Edit / Discard, and "Approve all" for the ones
+prepared together), the Approval queue in the full app (each entry's accounts with Dr / Cr; open it
+from the palette or the AI panel). Home says when something is waiting. Nothing is recorded until
+you approve it, and approving saves it exactly as if you had saved it yourself — lock dates,
+roles, credit holds and the GST rules all apply. Approve records exactly the figures the list shows:
+if a price or rate changed since, or a bill the reader flagged (a possible duplicate, GST or total
+that differs from the printed one), or a bank line already sorted out elsewhere, or a payment that needs TDS deducted, it asks you
+to open it instead. A proposal nobody asked for, and every captured bill, is left out of "Approve all".
+*For developers:* `ai:queue` (viewer, a read over open `ai_drafts`, `capture_items` still being
+read and `suggested` memories — `main/ai/queue.ts`, shapes in `shared/aiQueue.ts`) and
+`ai:queue:approve` (accountant; a draft's stored form state → the editor's shared voucherEdit
+payload → voucher:save's own save, factored out as `saveVoucherRequest`; an Ask Total offer →
+simple:post's `postIntent`; a memory → active). No migration.
+
 **Releases come by themselves** (#216). Twice a day (about 09:00 and 21:00 India time) GitHub
 releases what is new on `main` as the next patch version, but only when every test on `main` passed,
 books made by the last release open in the new one with every report unchanged (trial balance, P&L,

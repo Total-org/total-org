@@ -224,6 +224,30 @@ export function invoiceCtx(m: DraftMasters, kind: VoucherKind): InvoiceContext {
   }
 }
 
+/** The payload the invoice editor saves for this form state — the ONE mapping the drafting
+ *  rehearsal and the approval queue's Approve (main/ai/queue.ts) share: GST / Round Off ledgers
+ *  the editor would create on first use are created (inside the caller's transaction), the bill
+ *  name follows the number. */
+export function invoiceSavePayload(m: DraftMasters, kind: VoucherKind, voucherTypeId: number, state: InvoiceFormState, number: string): VoucherInputParsed {
+  const ctx = invoiceCtx(m, kind)
+  const taxLedgers = ensureTaxLedgers(m.db, m, requiredTaxLedgers(computeInvoice(state, ctx)), taxLedgerIdsFrom(m.ledgers, taxSideOf(kind)))
+  const built = buildInvoicePayload({ ...state, number, billName: state.billName || number }, ctx, voucherTypeId, taxLedgers)
+  if (!built.ok) throw new Error(built.error)
+  return built.payload as VoucherInputParsed
+}
+
+/** The payload the accounting editor saves for this form state (the party derived as the form
+ *  does) — shared by the drafting rehearsal and the approval queue's Approve. */
+export function accountingSavePayload(m: DraftMasters, type: VoucherType, state: AccountingFormState): VoucherInputParsed {
+  const isPartyOrTds = (id: number): boolean => {
+    const l = m.ledgers.find((x) => x.id === id)
+    return !!l && (isParty(m, l) || l.tdsSectionId != null)
+  }
+  const built = buildAccountingPayload(state, { kind: type.kind, voucherTypeId: type.id, derivedPartyId: derivePartyId(state.rows, isPartyOrTds, null) })
+  if (!built.ok) throw new Error(built.error)
+  return built.payload as VoucherInputParsed
+}
+
 // ---------- accounting: payment / receipt / contra / journal ----------
 
 export interface AccountingDraftInput {
@@ -302,11 +326,12 @@ export function buildAccountingDraft(w: DraftWork, input: AccountingDraftInput):
     const accountRow: AccountingRowState = { drCr: input.kind === 'payment' ? 'cr' : 'dr', ledgerId: account!.id, amount: alloc.total, costAllocations: [] }
     rows.push(...(input.kind === 'payment' ? [partyRow, accountRow] : [accountRow, partyRow]))
     w.fields.add('line:0').add('line:1')
-    return accountingResult(w, type, date, rows, input, alloc.refs, alloc.note)
+    return accountingResult(w, type, date, rows, input, alloc.refs, alloc.note, alloc.advance)
   }
   w.settle()
   let refs: NonNullable<AiVoucherDraftPayload['billRefs']> = []
   let note = ''
+  let advance: string | undefined
   if (input.bills?.length || input.oldestBillsFirst) {
     if (!party) {
       const ids = [...new Set(rows.map((r) => r.ledgerId).filter((x): x is number => x != null))]
@@ -319,8 +344,9 @@ export function buildAccountingDraft(w: DraftWork, input: AccountingDraftInput):
     const alloc = allocateBills(w, party, input.kind, date, partyTotal, input.bills, !!input.oldestBillsFirst, advanceNameFor(w, type, date))
     refs = alloc.refs
     note = alloc.note
+    advance = alloc.advance
   }
-  return accountingResult(w, type, date, rows, input, refs, note)
+  return accountingResult(w, type, date, rows, input, refs, note, advance)
 }
 
 function accountingResult(
@@ -330,7 +356,8 @@ function accountingResult(
   rows: AccountingRowState[],
   input: AccountingDraftInput,
   refs: NonNullable<AiVoucherDraftPayload['billRefs']>,
-  billNote: string
+  billNote: string,
+  advance?: string
 ): BuiltDraft {
   const m = w.m
   if (input.narration) w.fields.add('narration')
@@ -339,13 +366,7 @@ function accountingResult(
     date, number: '', rows, narration: input.narration?.trim() ?? '', instrumentNo: input.instrumentNo?.trim() ?? '',
     billRefs: refs, advanceReceipt: false, optional: false, tds: null, tcs: null, original: null
   }
-  const isPartyOrTds = (id: number): boolean => {
-    const l = m.ledgers.find((x) => x.id === id)
-    return !!l && (isParty(m, l) || l.tdsSectionId != null)
-  }
-  const derived = derivePartyId(rows, isPartyOrTds, null)
-  const built = buildAccountingPayload(state, { kind: type.kind, voucherTypeId: type.id, derivedPartyId: derived })
-  if (!built.ok) throw new Error(built.error)
+  const built = { payload: accountingSavePayload(m, type, state) }
   // The 5.1 tool carried `reference` straight onto the voucher; the accounting form passes the
   // stored reference through `original`, so a new draft keeps it the same way.
   const payload: VoucherInputParsed = { ...built.payload, reference: input.reference?.trim() || null }
@@ -363,7 +384,7 @@ function accountingResult(
     {
       voucherTypeId: type.id, voucherKind: type.kind, date, partyLedgerId: payload.partyLedgerId, narration: payload.narration, reference: payload.reference,
       lines: lines.map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount })),
-      form: 'accounting' as AiDraftForm, state, total: dr, ...(refs.length ? { billRefs: refs } : {})
+      form: 'accounting' as AiDraftForm, state, total: dr, ...(refs.length ? { billRefs: refs } : {}), ...(advance ? { advanceRef: advance } : {})
     },
     summary
   )
@@ -394,7 +415,7 @@ function allocateBills(
   oldestFirst: boolean,
   /** Name of the 'new' bill an excess becomes — the voucher number, as the accounting form names it. */
   advanceName: string
-): { total: number; refs: NonNullable<AiVoucherDraftPayload['billRefs']>; note: string } {
+): { total: number; refs: NonNullable<AiVoucherDraftPayload['billRefs']>; note: string; advance?: string } {
   const open = openBills(w.m.db, party.id, date).filter((b) => b.pending > 0)
   // A settlement names a bill, and the allocation settles the OLDEST open bill of that name
   // (shared/outstanding.ts settleNamed): with duplicate names only that one can be targeted.
@@ -457,7 +478,7 @@ function allocateBills(
   if (refs.length) w.fields.add('bills')
   else if (open.length && !bills?.length) w.assume(`Not allocated against ${party.name}'s open bills (on account) — name the bills to settle them`)
   const against = refs.filter((r) => r.kind === 'against')
-  return { total, refs, note: against.length ? ` against ${against.map((r) => `${r.name} (${rs(r.amount)})`).join(', ')}` : '' }
+  return { total, refs, ...(refs.some((r) => r.kind === 'new' && r.name === advanceName) ? { advance: advanceName } : {}), note: against.length ? ` against ${against.map((r) => `${r.name} (${rs(r.amount)})`).join(', ')}` : '' }
 }
 
 // ---------- invoices: sales / purchase / credit note / debit note ----------
@@ -650,14 +671,10 @@ export function buildInvoiceDraft(w: DraftWork, input: InvoiceDraftInput): Built
   const need = requiredTaxLedgers(computed)
   for (const k of need) if (taxHave[k] == null) w.assume(`No ${k === 'roundOff' ? 'Round Off' : k.toUpperCase()} ledger yet — the editor creates it when you save`)
   const rehearsed = rehearse(m.db, () => {
-    const taxLedgers = ensureTaxLedgers(m.db, m, need, taxHave)
-    const number = rehearsalNumber(w, type, date)
-    const built = buildInvoicePayload({ ...state, number, billName: state.billName || number }, ctx, type.id, taxLedgers)
-    if (!built.ok) throw new Error(built.error)
-    const parsed = precheck(m.db, built.payload, kind)
+    const parsed = precheck(m.db, invoiceSavePayload(m, kind, type.id, state, rehearsalNumber(w, type, date)), kind)
     const res = saveVoucher(m.db, parsed)
     saveWarnings(w, res.warnings)
-    return built.payload
+    return parsed
   })
   // Ledger lines for the 5.1 fields: only ledgers that already exist (a tax ledger the editor will
   // create has no id outside the rehearsal).
