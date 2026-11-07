@@ -56,6 +56,7 @@ export default function ModeSwitch({ panels }: { panels: ModePanel[] }): React.J
           id={`${base}-panel-${p.key}`}
           aria-labelledby={`${base}-tab-${p.key}`}
           hidden={i !== active}
+          tabIndex={0}
           className={styles.panel}
         >
           <div className={styles.body}>{p.body}</div>

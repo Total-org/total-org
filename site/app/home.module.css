@@ -24,7 +24,14 @@
   min-height: 100vh;
   overflow-x: clip;
 }
+/* Over-scroll shows the body: give it the page's paper on this page only. */
+:global(body):has(.page) {
+  background: #fcfcfa;
+}
 @media (prefers-color-scheme: dark) {
+  :global(body):has(.page) {
+    background: #101217;
+  }
   .page {
     --paper: #101217;
     --raised: #171a21;
@@ -423,6 +430,11 @@
     width: calc(100% - 2 * var(--gutter));
     padding-inline: 56px;
   }
+}
+.closing a:focus-visible,
+.closing button:focus-visible,
+.closing input:focus-visible {
+  outline-color: #15171c;
 }
 .closingTitle {
   margin: 0;

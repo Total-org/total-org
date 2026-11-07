@@ -25,14 +25,30 @@ export function clientIp(forwardedFor: string | null, realIp: string | null): st
   return first || realIp?.trim() || 'unknown'
 }
 
-/** Rate-limit key: a salted hash, so raw IP addresses are never written anywhere. */
-export function ipKey(ip: string, salt: string): string {
-  return createHash('sha256').update(`${salt}:${ip}`).digest('hex').slice(0, 32)
+/** IPv6 addresses count by their /64 (one home or phone gets a whole /64 to rotate through). */
+export function ipBucket(ip: string): string {
+  if (!ip.includes(':')) return ip
+  const [head] = ip.split('%')
+  const halves = head.split('::')
+  const left = halves[0] ? halves[0].split(':') : []
+  const right = halves.length > 1 && halves[1] ? halves[1].split(':') : []
+  const groups = halves.length > 1 ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right] : left
+  return `${groups.slice(0, 4).map((g) => (g || '0').toLowerCase().replace(/^0+(?=.)/, '')).join(':')}::/64`
 }
 
-/** Fixed window the limit counts in (seconds) and how many tries an address gets in it. */
+/** Rate-limit key: a salted hash, so raw IP addresses are never written anywhere. */
+export function ipKey(ip: string, salt: string): string {
+  return createHash('sha256').update(`${salt}:${ipBucket(ip)}`).digest('hex').slice(0, 32)
+}
+
+/**
+ * Fixed window the limits count in (seconds); tries per connection in it (generous: Indian mobile
+ * networks put many people behind one address); tries from everyone together in it (a flood stops
+ * here and the store never grows without bound).
+ */
 export const RATE_WINDOW_S = 600
-export const RATE_LIMIT = 5
+export const RATE_LIMIT = 20
+export const GLOBAL_LIMIT = 600
 
 export function rateWindow(nowMs: number): number {
   return Math.floor(nowMs / 1000 / RATE_WINDOW_S)

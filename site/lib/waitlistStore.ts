@@ -5,11 +5,11 @@
  * connected directly). Without them the page shows "opens soon" and nothing is sent anywhere.
  *
  * Keys: `waitlist` (hash: e-mail → {"at": ISO time}; HSETNX, so a second sign-up of the same
- * address changes nothing) and `waitlist:rl:<window>:<salted ip hash>` (counter, expires with
- * its window).
+ * address changes nothing) and `waitlist:rl:<window>:<salted ip hash>` / `waitlist:rl:<window>:all` (counters,
+ * expire with their window).
  */
 import 'server-only'
-import { RATE_LIMIT, RATE_WINDOW_S, entriesFromHash, rateWindow, type WaitlistEntry } from './waitlist'
+import { GLOBAL_LIMIT, RATE_LIMIT, RATE_WINDOW_S, entriesFromHash, rateWindow, type WaitlistEntry } from './waitlist'
 
 const URL_ENV = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL
 const TOKEN_ENV = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN
@@ -38,14 +38,19 @@ async function pipeline(commands: Command[]): Promise<unknown[]> {
   return data.map((d) => d.result)
 }
 
-/** Counts this try against the address's window; true while it is within the limit. */
+/** Counts this try against the connection's and everyone's window; true while both are within limits. */
 export async function withinRateLimit(ipHash: string, nowMs = Date.now()): Promise<boolean> {
-  const key = `${WAITLIST_KEY}:rl:${rateWindow(nowMs)}:${ipHash}`
-  const [count] = await pipeline([
+  const slot = rateWindow(nowMs)
+  const key = `${WAITLIST_KEY}:rl:${slot}:${ipHash}`
+  const all = `${WAITLIST_KEY}:rl:${slot}:all`
+  const [count, , total] = await pipeline([
     ['INCR', key],
-    ['EXPIRE', key, RATE_WINDOW_S * 2]
+    ['EXPIRE', key, RATE_WINDOW_S * 2],
+    ['INCR', all],
+    ['EXPIRE', all, RATE_WINDOW_S * 2]
   ])
-  return Number(count) <= RATE_LIMIT
+  if (Number(total) > GLOBAL_LIMIT) console.error(`waitlist: more than ${GLOBAL_LIMIT} tries in one window; refusing until it ends`)
+  return Number(count) <= RATE_LIMIT && Number(total) <= GLOBAL_LIMIT
 }
 
 /** Adds the address once; a repeat leaves the first sign-up time as it was. */

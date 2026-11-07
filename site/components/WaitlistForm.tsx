@@ -6,7 +6,7 @@ import styles from './WaitlistForm.module.css'
 
 const MESSAGES: Record<Exclude<WaitlistState['status'], 'idle' | 'joined'>, string> = {
   invalid: 'That doesn’t look like an e-mail address. Check it and try again.',
-  limited: 'Too many tries from this connection. Wait ten minutes and try again.',
+  limited: 'Too many tries just now. Wait ten minutes and try again.',
   closed: 'The waitlist isn’t open yet. Follow the releases on GitHub in the meantime.',
   failed: 'Something went wrong on our side and your address wasn’t saved. Try again in a minute.'
 }
@@ -21,13 +21,24 @@ interface Props {
 }
 
 export default function WaitlistForm({ id, enabled, releasesUrl, tone = 'light' }: Props): React.JSX.Element {
-  const [state, action, pending] = useActionState<WaitlistState, FormData>(joinWaitlist, { status: 'idle' })
+  // A request that never reaches the server (dropped connection) would otherwise throw into the
+  // page; it becomes the same "try again" message as a store failure.
+  const [state, action, pending] = useActionState<WaitlistState, FormData>(async (prev, form) => {
+    try {
+      return await joinWaitlist(prev, form)
+    } catch {
+      return { status: 'failed', email: String(form.get('email') ?? '') }
+    }
+  }, { status: 'idle' })
+  const done = useRef<HTMLParagraphElement>(null)
   const toneClass = tone === 'inverse' ? styles.inverse : ''
   // One request at a time: a second click before React re-renders the disabled button would
   // otherwise queue another submission (stored once by the server, but it spends a rate-limit try).
   const inFlight = useRef(false)
   useEffect(() => {
     if (!pending) inFlight.current = false
+    // The form is replaced by the confirmation: keep focus (and the screen reader) on it.
+    if (state.status === 'joined') done.current?.focus()
   }, [pending, state])
 
   if (!enabled) {
@@ -40,7 +51,7 @@ export default function WaitlistForm({ id, enabled, releasesUrl, tone = 'light' 
 
   if (state.status === 'joined') {
     return (
-      <p className={`${styles.done} ${toneClass}`} role="status">
+      <p ref={done} tabIndex={-1} className={`${styles.done} ${toneClass}`} role="status">
         You’re on the list. We’ll write once, when 1.0 is out.
       </p>
     )
@@ -80,8 +91,8 @@ export default function WaitlistForm({ id, enabled, releasesUrl, tone = 'light' 
       </div>
       {/* Honeypot: hidden from people and screen readers; bots fill every box. */}
       <div className={styles.trap} aria-hidden="true">
-        <label htmlFor={`${id}-company`}>Company website</label>
-        <input id={`${id}-company`} name="company_website" type="text" tabIndex={-1} autoComplete="off" />
+        <label htmlFor={`${id}-hp`}>Leave this empty</label>
+        <input id={`${id}-hp`} name="hp_leave_empty" type="text" tabIndex={-1} autoComplete="off" data-1p-ignore data-lpignore="true" />
       </div>
       <p id={`${msgId}-error`} className={styles.error} role="alert">
         {error}

@@ -14,7 +14,7 @@ export interface WaitlistState {
 export async function joinWaitlist(_prev: WaitlistState, form: FormData): Promise<WaitlistState> {
   const typed = String(form.get('email') ?? '').slice(0, 300)
   // Honeypot: people never see this box; bots fill it. Answer as if it worked, store nothing.
-  if (String(form.get('company_website') ?? '') !== '') return { status: 'joined' }
+  if (String(form.get('hp_leave_empty') ?? '') !== '') return { status: 'joined' }
 
   const email = normaliseEmail(typed)
   if (!email) return { status: 'invalid', email: typed }

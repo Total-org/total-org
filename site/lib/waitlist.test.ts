@@ -1,7 +1,7 @@
 // Waitlist rules: `npm test` (node --test, Node's own TypeScript stripping — no extra packages).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clientIp, entriesFromHash, ipKey, normaliseEmail, rateWindow, RATE_WINDOW_S, toCsv, tokenMatches } from './waitlist.ts'
+import { clientIp, entriesFromHash, ipBucket, ipKey, normaliseEmail, rateWindow, RATE_WINDOW_S, toCsv, tokenMatches } from './waitlist.ts'
 
 test('normaliseEmail accepts real addresses, trimmed and lower-cased', () => {
   assert.equal(normaliseEmail('  Ramesh.Kumar@Example.IN '), 'ramesh.kumar@example.in')
@@ -70,4 +70,14 @@ test('toCsv: header, oldest first, quoted, CRLF, formulas neutralised', () => {
       '"q""uote@example.com","2026-11-09T09:00:00.000Z"\r\n'
   )
   assert.equal(toCsv([]), 'email,joined_at\r\n')
+})
+
+test('ipBucket keeps IPv4 as is and puts IPv6 in its /64', () => {
+  assert.equal(ipBucket('203.0.113.7'), '203.0.113.7')
+  assert.equal(ipBucket('2401:4900:1c2a:5d10:a1b2:c3d4:e5f6:0789'), '2401:4900:1c2a:5d10::/64')
+  assert.equal(ipBucket('2401:4900:1C2A:5D10::1'), '2401:4900:1c2a:5d10::/64')
+  assert.equal(ipBucket('2401:4900::1'), '2401:4900:0:0::/64')
+  assert.equal(ipBucket('2401:0db8:0001:0000:ffff::%eth0'), '2401:db8:1:0::/64')
+  assert.equal(ipKey('2401:4900:1c2a:5d10::1', 's'), ipKey('2401:4900:1c2a:5d10:ffff:ffff:ffff:ffff', 's'))
+  assert.notEqual(ipKey('2401:4900:1c2a:5d10::1', 's'), ipKey('2401:4900:1c2a:5d11::1', 's'))
 })

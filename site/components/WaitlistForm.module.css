@@ -116,3 +116,15 @@
   background: rgb(255 255 255 / 0.55);
   color: #1d1400;
 }
+
+.inverse .input::placeholder {
+  color: rgb(29 20 0 / 0.55);
+}
+.inverse .input:focus-visible,
+.inverse .button:focus-visible,
+.inverse a:focus-visible {
+  outline-color: #15171c;
+}
+.done:focus {
+  outline: none;
+}

@@ -188,7 +188,7 @@ export default async function Home(): Promise<React.JSX.Element> {
             </div>
             <div>
               <dt>Backups that are checked</dt>
-              <dd>Total backs up as you work and opens each backup to make sure it would restore. You can also lock a business with a passphrase.</dd>
+              <dd>Total backs up as you work and regularly opens a backup to check it would restore. You can also lock a business with a passphrase.</dd>
             </div>
           </dl>
         </section>
@@ -220,8 +220,7 @@ export default async function Home(): Promise<React.JSX.Element> {
           </div>
           <ul className={s.gstList}>
             <li>
-              <b>GSTR-1 and GSTR-3B</b> worked out from your bills and exported as the JSON the portal’s offline tool
-              accepts.
+              <b>GSTR-1 and GSTR-3B</b> worked out from your bills and exported in the GST portal’s JSON format.
             </li>
             <li>
               <b>GSTR-2B check:</b> import the portal’s file and see which supplier bills are missing or differ.
