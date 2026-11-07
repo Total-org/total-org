@@ -52,6 +52,10 @@ npm run e2e          # full UI E2E suite (scripts/e2e/*.mjs) against out/; build
 cd site && npm run dev / npm run build   # marketing site
 ```
 
+## How work is run
+
+See `AGENTS.md` → "How work is run": one thread per work package / PR, 2–3 feature threads at a time, the feature ↔ review thread loop (OK TO MERGE on the exact head), the merge conditions, no silent figure changes, and cleanup after merge. **Keep this file and `AGENTS.md` current**: a PR that adds or changes a convention updates the matching bullet here in the same PR (and `AGENTS.md` when its summary or the process changes).
+
 ## Hard rules & conventions
 
 - **Money is integer paise everywhere**; quantities are integer thousandths (`qtyMilli`). Floats never touch amounts. Formatting/parsing only via `src/shared/money.ts`.
