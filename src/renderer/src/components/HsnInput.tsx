@@ -135,7 +135,9 @@ export function HsnInput({
             return
           }
           if (e.key === 'Escape') {
+            // This Esc closes the list only: stop it reaching App's window handler, which blurs the field.
             e.preventDefault()
+            e.stopPropagation()
             setOpen(false)
             setActive(-1)
           } else if (e.key === 'ArrowDown' && options.length) {

@@ -134,17 +134,29 @@ describe('accountant: the item master HSN field', () => {
   })
 })
 
-describe('Esc closes the open list, never the dialog around it', () => {
+// App.tsx blurs a focused input on a window-level (bubbling) Esc; the list's Esc must not reach it.
+function appLikeBlur(): () => void {
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && document.activeElement instanceof HTMLInputElement) document.activeElement.blur()
+  }
+  window.addEventListener('keydown', onKey)
+  return () => window.removeEventListener('keydown', onKey)
+}
+
+describe('Esc closes the open list, never the dialog around it, and keeps focus in the box', () => {
   it('item master (accountant)', async () => {
     const onClose = vi.fn()
     renderUi(<ItemFormModal item={null} onClose={onClose} />)
     const input = await screen.findByTestId('input-item-hsn')
-    fireEvent.focus(input)
+    const stop = appLikeBlur()
+    input.focus()
     fireEvent.change(input, { target: { value: 'rice' } })
     await waitFor(() => expect(options().length).toBeGreaterThan(0))
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+    stop()
     // The next Esc is the dialog's again.
     fireEvent.keyDown(input, { key: 'Escape' })
     await waitFor(() => expect(onClose).toHaveBeenCalled())
@@ -156,12 +168,15 @@ describe('Esc closes the open list, never the dialog around it', () => {
     renderUi(<NewProductDialog name="Basmati" onClose={onClose} onCreated={() => {}} />)
     await screen.findByText('Pcs')
     const input = screen.getByTestId('input-product-hsn')
-    fireEvent.focus(input)
+    const stop = appLikeBlur()
+    input.focus()
     fireEvent.change(input, { target: { value: 'rice' } })
     await waitFor(() => expect(options().length).toBeGreaterThan(0))
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+    stop()
     expect(screen.getByTestId('dialog-new-product')).toBeTruthy()
   })
 })
