@@ -66,6 +66,10 @@ export function TypeAhead({
   const selected = options.find((o) => o.id === value) ?? null
   const [text, setText] = useState(selected?.label ?? '')
   const [open, setOpen] = useState(false)
+  // Audit UX-7: the focus a picker gets on ARRIVAL (autoFocus) selects its text but leaves the list
+  // closed, so it doesn't cover the form the user is about to read. Any later focus (Tab back, a
+  // click), typing, ↓ or Enter opens it exactly as before.
+  const arrival = useRef(!!autoFocus)
   const [active, setActive] = useState(0)
   // WP 8.4: Enter never creates. The "Create …" row is reached only explicitly — ↓ past the last
   // match (or onto it when nothing matches) or the mouse — and only then does Enter open the
@@ -148,10 +152,16 @@ export function TypeAhead({
         autoFocus={autoFocus}
         onFocus={(e) => {
           e.target.select()
-          setOpen(true)
+          if (arrival.current) arrival.current = false
+          else setOpen(true)
           // Highlight the current value, not the first option — a pre-filled line (an AI or
           // GSTR-2B draft) must not change ledger on a stray Enter.
           setActive(selectedIndex())
+        }}
+        onMouseDown={() => {
+          // A click on the arrival-focused box (already focused, so no focus event) opens it.
+          arrival.current = false
+          setOpen(true)
         }}
         onChange={(e) => {
           setText(e.target.value)

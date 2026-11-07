@@ -19,7 +19,7 @@ export function ApprovalsHomeCard(): React.JSX.Element | null {
       onClick={() => nav.go(QUEUE)}
     >
       <span className="text-detail font-medium text-ink">{t('simple.queue.homeWaiting', { count: data.waiting })}</span>
-      <span className="shrink-0 text-hint text-blue">{t('simple.queue.open')} →</span>
+      <span className="t-link shrink-0 text-hint font-medium">{t('simple.queue.open')} →</span>
     </button>
   )
 }
