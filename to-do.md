@@ -9,7 +9,7 @@ done on main were dropped. One line each; the pointer says where to look.
 - D1: WP 8.0 correctness fixes change behaviour in both modes [yes — existing vouchers round-trip unchanged] — plan §D1, `docs/superpowers/specs/2026-10-13-simple-for-everyone-plan.md`
 - D2: mode of the sample company and of new companies [simple for both; "show the full app" in setup] — plan §D2
 - D3: who may switch a company's mode [owner only; anyone may open the accountant view per screen] — plan §D3
-- D4: HSN search needs a bundled CBIC HSN / SAC list [not bundled; code-only field, the user picks the slab] — plan §D4, `src/shared/gst/rateTable.ts`
+- ~~D4: HSN search needs a bundled CBIC HSN / SAC list [not bundled; code-only field, the user picks the slab] — plan §D4, `src/shared/gst/rateTable.ts`~~ DONE — PR #219: the GST portal's HSN / SAC list is bundled (searchable by code or words); no rate is ever suggested (the list has none) — the user still picks the slab. **Rate suggestions are deferred**: they need an official, cited HSN → rate mapping, which the portal list does not carry (owner brief 7 Nov: "only where an official, cited rate mapping exists")
 - D5: recruit 5+ real beginner testers [owner recruits; the scripted proxy study stood in] — plan §D5, PR #111
 - D6: Hindi / Hinglish by a native reviewer [machine-drafted text shipped; Hinglish may ship as "beta"] — plan §D6, PR #105 (28 unsure phrases listed)
 - D7: Phase 7 hardening items from the GPT review are prerequisites for 1.0 [yes] — plan §D7

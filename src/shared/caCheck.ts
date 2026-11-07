@@ -33,6 +33,7 @@ export const CA_PLACES = {
   'simple.taxes.tcs': 'Taxes → TCS card',
   'simple.ratePicker': 'Every simple GST rate picker (new product, bill, purchase, money out, return, bank line)',
   'simple.returns.total': 'Returns → the return\'s total',
+  'simple.hsnField': 'New product → HSN / SAC code',
   'gateway.compliance': 'Gateway → Compliance card, GST returns row',
   'gateway.tds': 'Gateway → Compliance card, TDS row',
   'gstr1.screen': 'GSTR-1 screen header',
@@ -49,6 +50,7 @@ export const CA_PLACES = {
   'company.einvoiceProfile': 'Company details → e-invoicing',
   'company.registration': 'Company details → GST registration',
   'company.state': 'Company details → state',
+  'masters.hsnField': 'Masters → stock item → HSN / SAC code',
   'tds.screen': 'TDS screen header (rates, due dates, returns)',
   'tds.lateInterest': 'TDS → late-deduction interest',
   'tcs.screen': 'TCS screen header',
@@ -259,6 +261,16 @@ export const CA_POINTS = [
     covers: [{ list: 'GST_UNVERIFIED', id: 'hsn-sac-uqc' }],
     questions: [],
     places: ['simple.taxes.export', 'gstr1.screen']
+  },
+  {
+    id: 'hsn-master',
+    rule: 'GST portal HSN / SAC list (April 2026); Notifications 78/2020-CT and 90/2020-CT (HSN digits)',
+    covers: [
+      { list: 'GST_UNVERIFIED', id: 'hsn-master-list' },
+      { list: 'GST_UNVERIFIED', id: 'hsn-digits' }
+    ],
+    questions: [],
+    places: ['simple.hsnField', 'masters.hsnField']
   },
   {
     id: 'b2cl-limit',

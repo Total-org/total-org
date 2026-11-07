@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { CaCheck } from '../components/CaCheck'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { slabsOn } from '@shared/gst/rateTable'
+import { checkHsn, cleanHsn } from '@shared/gst/hsn'
+import { HsnInput, HsnStatusLines, useHsnStatus } from '../components/HsnInput'
+import { useSimpleHsnLabels } from './hsnLabels'
 import { nearDuplicates } from '@shared/simple/nearDuplicate'
 import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
@@ -12,7 +15,7 @@ import { AmountInput, Button, Field, Modal, Select, TextInput, useFormErrors } f
 import { useStockItems } from '../components/pickers'
 import { useFeatures } from '../lib/useFeatures'
 
-const F = { name: 'name', unit: 'unit', gstRate: 'gstRate', sellingPrice: 'sellingPrice' } as const // i18n-technical: form field paths
+const F = { name: 'name', unit: 'unit', gstRate: 'gstRate', sellingPrice: 'sellingPrice', hsn: 'hsn' } as const // i18n-technical: form field paths
 type FieldName = (typeof F)[keyof typeof F]
 
 /** The rate text as a number in 0–100, or null when it isn't one. */
@@ -48,6 +51,7 @@ export function NewProductDialog({
   const businessType = isBusinessType(businessTypeRaw) ? businessTypeRaw : null
   const workingDate = useSession((s) => s.workingDate)
   const showGst = itemShowsGst(regType)
+  const hsnLabels = useSimpleHsnLabels()
   const slabs = useMemo(() => slabsOn(workingDate), [workingDate])
 
   const [itemName, setItemName] = useState(name)
@@ -61,6 +65,7 @@ export function NewProductDialog({
   // WP 9.2: with stock off a product is a name and a price — the unit is not asked (the preset's).
   const stockOn = useFeatures().inventory !== false
   const [hsn, setHsn] = useState('')
+  const hsnStatus = useHsnStatus(hsn, hsnLabels)
   const [saving, setSaving] = useState(false)
   const [asked, setAsked] = useState(false)
   const [confirmed, setConfirmed] = useState<string | null>(null)
@@ -69,7 +74,7 @@ export function NewProductDialog({
     if (unitId == null && units?.length) setUnitId(presetUnitId(units, businessType))
   }, [units, unitId, businessType])
 
-  const errors = useFormErrors<FieldName>({ name: itemName, unit: unitId, gstRate: rate, sellingPrice: selling }, { simple: true, t })
+  const errors = useFormErrors<FieldName>({ name: itemName, unit: unitId, gstRate: rate, sellingPrice: selling, hsn }, { simple: true, t })
   const dups = useMemo(() => nearDuplicates(itemName, items), [itemName, items])
   const sameName = dups.find((d) => d.same)
   const special = slabs.filter((s) => !s.common)
@@ -92,6 +97,12 @@ export function NewProductDialog({
         bad = true
       }
     }
+    // Phase 2c: an HSN typed must be a code (4, 6 or 8 numbers) — words are for searching the list.
+    const hsnProblem = itemShowsHsn(regType) && hsn.trim() ? checkHsn(hsn).problem : null
+    if (hsnProblem) {
+      errors.set(F.hsn, hsnProblem === 'digits' ? t('simple.hsn.digits') : t('simple.hsn.length'))
+      bad = true
+    }
     if (bad || unitId == null) return
     if (dups.length > 0 && (sameName || confirmed !== trimmed)) {
       setAsked(true)
@@ -104,7 +115,7 @@ export function NewProductDialog({
           name: trimmed,
           groupId: null,
           unitId,
-          hsn: itemShowsHsn(regType) && hsn.trim() ? hsn.trim() : null,
+          hsn: itemShowsHsn(regType) && hsn.trim() ? cleanHsn(hsn) : null,
           gstRate: showGst ? picked : null,
           cessRate: null,
           openingQtyMilli: 0,
@@ -256,8 +267,17 @@ export function NewProductDialog({
         )}
 
         {itemShowsHsn(regType) && (
-          <Field label={showGst ? t('simple.newProduct.hsnRegular') : t('simple.newProduct.hsn')} hint={t('simple.newProduct.hsnHint')}>
-            <TextInput value={hsn} onChange={(e) => setHsn(e.target.value)} className="num" data-testid="input-product-hsn" />
+          <Field label={showGst ? t('simple.newProduct.hsnRegular') : t('simple.newProduct.hsn')} hint={
+              <>
+                {t('simple.newProduct.hsnHint')}
+                <CaCheck place="simple.hsnField" />
+                <HsnStatusLines lines={hsnStatus} testId="input-product-hsn-status" />
+              </>
+            }
+            name={F.hsn}
+            error={errors.get(F.hsn)}
+          >
+            <HsnInput value={hsn} onChange={setHsn} testId="input-product-hsn" labels={hsnLabels} />
           </Field>
         )}
 
