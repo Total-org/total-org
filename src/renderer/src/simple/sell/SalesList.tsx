@@ -238,6 +238,7 @@ function BillView({ billId }: { billId: number }): React.JSX.Element {
               ? t('simple.bill.dueBy', { amount: money(bill.due), date: toPlainDate(bill.dueDate, t.lang) })
               : t('simple.bill.due', { amount: money(bill.due) })}
           {bill.due > 0 && bill.paid > 0 && ` ${t('simple.bill.paidSoFar', { amount: money(bill.paid) })}`}
+          {(bill.added ?? 0) > 0 && <span data-testid="sale-view-added">{` ${t('simple.bill.addedLater', { amount: money(bill.added!) })}`}</span>}
           {bill.due > 0 && offByReturns > 0 && ` ${t('simple.bill.offByReturns', { amount: money(offByReturns) })}`}
         </p>
 

@@ -17,6 +17,7 @@
 import type { DB } from '../db/connection'
 import type { MoneyHow } from '@shared/simple/intents'
 import type { BuySetup, PurchaseRow, PurchaseView } from '@shared/simple/buy'
+import { billFigures } from '@shared/simple/sell'
 import { getVoucher, IN_BOOKS } from './vouchers'
 import { counterAccounts } from './counter'
 import { outstandingsWithAdvances, partyAllocation } from './analysis'
@@ -100,18 +101,18 @@ function bills(db: DB, where: string, ...args: unknown[]): BillRow[] {
 
 /** Every in-books purchase bill dated `from`…`to`, newest first, with what is still due on it. */
 export function purchasesList(db: DB, from: string, to: string, today: string): PurchaseRow[] {
-  const open = new Map<number, { pending: number; dueDate: string | null; overdueDays: number }>()
+  const open = new Map<number, { pending: number; amount: number; dueDate: string | null; overdueDays: number }>()
   for (const p of outstandingsWithAdvances(db, 'payable', today).parties) {
-    for (const b of p.bills) if (b.voucherId != null) open.set(b.voucherId, { pending: b.pending, dueDate: b.dueDate, overdueDays: lateDays(b) })
+    for (const b of p.bills) if (b.voucherId != null) open.set(b.voucherId, { pending: b.pending, amount: b.amount, dueDate: b.dueDate, overdueDays: lateDays(b) })
   }
   const rows = bills(db, 'v.date BETWEEN ? AND ?', from, to)
   // WP 9.5: the returns against each bill — a chip, and what they took off it is not "paid".
   const returns = returnsOfBills(db, 'purchase', rows)
   return rows.map((r) => {
     const o = open.get(r.id)
-    const due = Math.min(o?.pending ?? 0, r.total)
     const back = returns.get(r.id) ?? []
     const offBill = back.reduce((s, x) => s + x.offBill, 0)
+    const { due, paid, added } = billFigures(r.total, o, offBill)
     return {
       voucherId: r.id,
       number: r.number,
@@ -121,11 +122,12 @@ export function purchasesList(db: DB, from: string, to: string, today: string): 
       partyName: r.partyName ?? '',
       total: r.total,
       tax: r.tax,
-      paid: Math.max(0, r.total - due - offBill),
+      paid,
       due,
       dueDate: o?.dueDate ?? null,
       overdueDays: o?.overdueDays ?? 0,
-      returned: back.reduce((s, x) => s + x.total, 0)
+      returned: back.reduce((s, x) => s + x.total, 0),
+      ...(added ? { added } : {})
     }
   })
 }
@@ -150,9 +152,9 @@ export function purchaseView(db: DB, id: number, today: string): PurchaseView | 
   }
   const billName = v.billRefs.find((r) => r.kind === 'new')?.name ?? v.number
   const open = v.partyLedgerId != null ? partyAllocation(db, v.partyLedgerId, today).bills.find((b) => b.voucherId === v.id && b.number === billName) : undefined
-  const due = Math.min(open?.pending ?? 0, row.total)
   const back = returnsOfBills(db, 'purchase', [row]).get(v.id) ?? []
   const offBill = back.reduce((s, x) => s + x.offBill, 0)
+  const { due, paid, added } = billFigures(row.total, open, offBill)
   return {
     voucherId: v.id,
     number: v.number,
@@ -162,11 +164,12 @@ export function purchaseView(db: DB, id: number, today: string): PurchaseView | 
     partyName: row.partyName ?? '',
     total: row.total,
     tax: row.tax,
-    paid: Math.max(0, row.total - due - offBill),
+    paid,
     due,
     dueDate: open?.dueDate ?? null,
     overdueDays: open?.overdueDays ?? 0,
     returned: back.reduce((s, x) => s + x.total, 0),
+    ...(added ? { added } : {}),
     items: v.inventory.map((l) => {
       const it = item.get(l.stockItemId) as { name: string; symbol: string | null } | undefined
       return { name: it?.name ?? '', qtyMilli: l.qtyMilli, unit: it?.symbol ?? '', ratePaise: l.ratePaise, discountPaise: l.discountPaise, amount: l.amount }

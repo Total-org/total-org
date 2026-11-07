@@ -12,11 +12,12 @@ import { GST_STATES, GST_STATE_LIST } from '@shared/gst/states'
 import { formatPaise, amountInWords } from '@shared/money'
 import { toDisplayDate } from '@shared/dates'
 import { api } from '../../lib/client'
-import { tickBillAmount, BILL_TICK_FULL_MESSAGE } from '@shared/voucherEdit/billTick'
+import { tickBillAmount, raisesPartySide, BILL_TICK_MESSAGES } from '@shared/voucherEdit/billTick'
+import { partyRoleOf } from '@shared/chartOfAccounts'
 import { useNav, useSession, useToasts, type VoucherDraft } from '../../state/stores'
 import { AmountInput, Banner, Button, DateInput, Field, FieldError, isAnyModalOpen, Kbd, Money, Panel, Select, TextInput, inputCls, useFormErrors } from '../../components/ui'
 import { SaveCard } from '../../simple/SaveCard'
-import { LedgerPicker, useLedgers, useStockItems, useTaxLedgers } from '../../components/pickers'
+import { LedgerPicker, useGroups, useLedgers, useStockItems, useTaxLedgers } from '../../components/pickers'
 import { LedgerFormModal } from '../../components/LedgerFormModal'
 import { useFeatures } from '../../lib/useFeatures'
 import { confirmDialog, promptDialog } from '../../lib/dialogs'
@@ -95,6 +96,7 @@ export function InvoiceEntry({
   const queryClient = useQueryClient()
   const features = useFeatures()
   const ledgers = useLedgers()
+  const groups = useGroups()
   const items = useStockItems()
   const { ensure: ensureTax, ensureRoundOff } = useTaxLedgers()
 
@@ -378,8 +380,11 @@ export function InvoiceEntry({
   const toggleNoteBill = (bill: OutstandingBill, checked: boolean): void => {
     if (!checked) return setNoteBillRefs((refs) => refs.filter((r) => !(r.kind === 'against' && r.name === bill.number)))
     // Audit A1 / COR-2: never more than what is left of the note (shared/voucherEdit/billTick.ts).
-    const amount = tickBillAmount(bill.pending, computed.rounded, noteBillRefs)
-    if (amount == null) return void toast.push('error', BILL_TICK_FULL_MESSAGE)
+    // A debit note to a customer / credit note to a supplier adds to the bill (A1): pending is no limit.
+    const partyGroup = ledgers.find((l) => l.id === partyId)?.groupId
+    const raises = partyGroup != null && raisesPartySide(partyRoleOf(partyGroup, groups), kind === 'debit_note' ? 'dr' : 'cr')
+    const amount = tickBillAmount(bill.pending, computed.rounded, noteBillRefs, raises)
+    if (typeof amount !== 'number') return void toast.push('error', BILL_TICK_MESSAGES[amount])
     setNoteBillRefs((refs) => [...refs, { kind: 'against', name: bill.number, amount, dueDate: null }])
   }
   const setNoteBillAmount = (name: string, amount: number): void =>

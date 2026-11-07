@@ -8,6 +8,8 @@ import { seededDb } from '../db/testdb'
 import { createLedger } from './masters'
 import { saveVoucher } from './vouchers'
 import { outstandingsWithAdvances, openBills, partyAllocation } from './analysis'
+import { salesList, saleView } from './simpleSell'
+import { purchasesList, purchaseView } from './simpleBuy'
 import type { VoucherInputParsed } from '@shared/schemas'
 
 type DB = ReturnType<typeof seededDb>
@@ -150,5 +152,55 @@ describe('A1 mirrored: an `against` ref on a credit to a supplier adds to their 
     expect(ledgerNet(db, b)).toBe(0)
     expect(openBills(db, b, AS_ON)).toEqual([])
     expect(partyAllocation(db, b, AS_ON).unappliedCredit).toBe(0)
+  })
+})
+
+describe('A1 on the simple Sales / Purchases lists (review of #233): due = the allocation, never capped at the bill', () => {
+  it('S/1 ₹11,800 + DN/1 ₹1,180 against it: due ₹12,980, ₹1,180 added later, nothing paid', () => {
+    const db = seededDb()
+    const a = ledger(db, 'Customer A', 'Sundry Debtors')
+    const sales = ledger(db, 'Sales A/c', 'Sales Accounts')
+    const s1 = post(db, 'sales', { date: '2025-05-01', number: 'S/1', party: a, dr: a, cr: sales, amount: 1_180_000, refs: [ref('new', 'S/1', 1_180_000)] })
+    post(db, 'debit_note', { date: '2025-05-20', number: 'DN/1', party: a, dr: a, cr: sales, amount: 118_000, refs: [ref('against', 'S/1', 118_000)] })
+    // By hand: total 11,800 (the bill), due 11,800 + 1,180 = 12,980, added 1,180, paid 11,800 + 1,180 − 12,980 = 0.
+    const row = salesList(db, '2025-04-01', AS_ON, AS_ON).find((r) => r.voucherId === s1)!
+    expect([row.total, row.due, row.added, row.paid]).toEqual([1_180_000, 1_298_000, 118_000, 0])
+    const view = saleView(db, s1, AS_ON)!
+    expect([view.total, view.due, view.added, view.paid]).toEqual([1_180_000, 1_298_000, 118_000, 0])
+  })
+
+  it('a paid ₹1,000 bill re-opened by ₹200: ₹1,000 paid, ₹200 due (not "₹800 paid")', () => {
+    const db = seededDb()
+    const a = ledger(db, 'Customer A', 'Sundry Debtors')
+    const sales = ledger(db, 'Sales A/c', 'Sales Accounts')
+    const cash = (db.prepare("SELECT id FROM ledgers WHERE name = 'Cash'").get() as { id: number }).id
+    const s1 = post(db, 'sales', { date: '2025-05-01', number: 'S/1', party: a, dr: a, cr: sales, amount: 100_000, refs: [ref('new', 'S/1', 100_000)] })
+    post(db, 'receipt', { date: '2025-05-15', number: 'R/1', party: a, dr: cash, cr: a, amount: 100_000, refs: [ref('against', 'S/1', 100_000)] })
+    post(db, 'debit_note', { date: '2025-06-01', number: 'DN/1', party: a, dr: a, cr: sales, amount: 20_000, refs: [ref('against', 'S/1', 20_000)] })
+    // By hand: due 200; allocated amount 1,200 − total 1,000 = 200 added; paid 1,000 + 200 − 200 = 1,000.
+    const row = salesList(db, '2025-04-01', AS_ON, AS_ON).find((r) => r.voucherId === s1)!
+    expect([row.total, row.due, row.added, row.paid]).toEqual([100_000, 20_000, 20_000, 100_000])
+  })
+
+  it('a bill with nothing added carries no `added` field (the pinned outputs keep their shape)', () => {
+    const db = seededDb()
+    const a = ledger(db, 'Customer A', 'Sundry Debtors')
+    const sales = ledger(db, 'Sales A/c', 'Sales Accounts')
+    const s1 = post(db, 'sales', { date: '2025-05-01', number: 'S/1', party: a, dr: a, cr: sales, amount: 100_000, refs: [ref('new', 'S/1', 100_000)] })
+    expect('added' in salesList(db, '2025-04-01', AS_ON, AS_ON).find((r) => r.voucherId === s1)!).toBe(false)
+    expect('added' in saleView(db, s1, AS_ON)!).toBe(false)
+  })
+
+  it('P/1 ₹5,900 + a credit of ₹590 to the supplier against it: ₹6,490 to pay, ₹590 added', () => {
+    const db = seededDb()
+    const b = ledger(db, 'Supplier B', 'Sundry Creditors')
+    const purchases = ledger(db, 'Purchase A/c', 'Purchase Accounts')
+    const p1 = post(db, 'purchase', { date: '2025-05-02', number: 'P/1', party: b, dr: purchases, cr: b, amount: 590_000, refs: [ref('new', 'P/1', 590_000)] })
+    post(db, 'credit_note', { date: '2025-05-22', number: 'CN/1', party: b, dr: purchases, cr: b, amount: 59_000, refs: [ref('against', 'P/1', 59_000)] })
+    // By hand: total 5,900, due 5,900 + 590 = 6,490, added 590, paid 0.
+    const row = purchasesList(db, '2025-04-01', AS_ON, AS_ON).find((r) => r.voucherId === p1)!
+    expect([row.total, row.due, row.added, row.paid]).toEqual([590_000, 649_000, 59_000, 0])
+    const view = purchaseView(db, p1, AS_ON)!
+    expect([view.total, view.due, view.added, view.paid]).toEqual([590_000, 649_000, 59_000, 0])
   })
 })

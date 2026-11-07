@@ -110,6 +110,7 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
   const out: HistoryBill[] = []
   let credit = 0
   const closedByName = new Map<string, OpenBill>()
+  const creditNames = new Set<string>()
   const due = (date: string, explicit: string | null): string => explicit ?? (creditDays != null ? addDaysISO(date, creditDays) : date)
   const add = (name: string, date: string, amount: number, explicitDue: string | null): void => {
     const rec: HistoryBill = { dueBasis: due(date, explicitDue), settledOn: null, amount }
@@ -131,7 +132,10 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
     return amount - take
   }
   // Audit A1, as shared/outstanding.ts: a positive event's 'against' ref adds to the bill it names
-  // (the open one, else the last one of that name paid in full, which is unpaid again).
+  // (the open one, else the last one of that name paid in full, which is unpaid again) — except a
+  // name a settling entry's 'new' ref gave (a named credit: an advance, a note's own credit), which
+  // this replay holds as a bill of its own: those keep the old path exactly (review of #233 — a
+  // refund against a note's credit, an invoice drawing on an advance).
   const raise = (name: string, date: string, amount: number, explicitDue: string | null): void => {
     const b = open.find((x) => x.name === name) ?? closedByName.get(name)
     if (!b) return add(name, date, amount, explicitDue)
@@ -156,8 +160,10 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
   for (const ev of events) {
     if (ev.refs.length > 0) {
       for (const r of ev.refs) {
-        if (r.kind === 'new') add(r.name, ev.date, r.amount, r.dueDate)
-        else if (ev.amount > 0) raise(r.name, ev.date, r.amount, r.dueDate)
+        if (r.kind === 'new') {
+          if (ev.amount < 0) creditNames.add(r.name)
+          add(r.name, ev.date, r.amount, r.dueDate)
+        } else if (ev.amount > 0 && !creditNames.has(r.name)) raise(r.name, ev.date, r.amount, r.dueDate)
         else {
           const idx = open.findIndex((b) => b.name === r.name)
           if (idx === -1) credit += r.amount
