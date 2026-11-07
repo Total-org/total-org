@@ -82,6 +82,8 @@ import {
   StaleDocumentsScreen,
   UnbilledGoodsScreen,
   CaptureScreen,
+  ApprovalQueueScreen,
+  SimpleApprovalQueue,
   BankingScreen,
   EdocsScreen,
   PayrollScreen,
@@ -236,6 +238,7 @@ export default function App(): React.JSX.Element {
           {screen.name === 'simple-quick-bill' && <QuickBill />}
           {screen.name === 'simple-return-sale' && <ReturnSale key={screen.billId ?? 'pick'} billId={screen.billId} />}
           {screen.name === 'simple-return-purchase' && <ReturnPurchase key={screen.billId ?? 'pick'} billId={screen.billId} />}
+          {screen.name === 'simple-approvals' && <SimpleApprovalQueue />}
           {screen.name === 'simple-bank' && <BankScreen key={screen.bankId ?? 'bank'} bankId={screen.bankId} />}
           {screen.name === 'simple-buy' && <RecordPurchase key={screen.ask ? JSON.stringify(screen.ask) : (screen.party ?? 'new')} party={screen.party} ask={screen.ask} />}
           {screen.name === 'simple-purchases' && <PurchaseList key={screen.billId ?? 'list'} billId={screen.billId} />}
@@ -335,6 +338,7 @@ export default function App(): React.JSX.Element {
           {screen.name === 'stale-documents' && <StaleDocumentsScreen />}
           {screen.name === 'banking' && <BankingScreen key={`${screen.tab ?? 'recon'}:${screen.ledgerId ?? ''}:${screen.asOn ?? ''}`} tab={screen.tab} ledgerId={screen.ledgerId} asOn={screen.asOn} />}
           {screen.name === 'capture' && <CaptureScreen />}
+          {screen.name === 'ai-queue' && <ApprovalQueueScreen />}
           {screen.name === 'payroll' && <PayrollScreen />}
           {screen.name === 'tds' && <TdsScreen />}
           {screen.name === 'tcs' && <TcsScreen />}

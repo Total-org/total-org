@@ -27,6 +27,7 @@ import { MockProvider, demoScript } from './mockProvider'
 import { createProvider, redactSecrets } from './provider'
 import { aiProviderSource, bindCustomOrigin, boundCustomOrigin, currentProvider, providerView, readPresetHeaders, readPresetKey, writePresetHeaders } from './providerConfig'
 import { AI_PRESETS, aiProviderSetSchema, checkBaseUrl, pickModels, type AiProviderSettings, type ResolvedAiProvider } from '@shared/aiProviders'
+import { listQueue } from './queue'
 import { discardDraft } from './drafts'
 import { createMemory, deleteMemory, forgetAllMemory, getMemory, memoryList, resolveDerived, setMemoryStatus, updateMemory } from './memory'
 import { todayISO } from '@shared/dates'
@@ -381,6 +382,12 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
     return store.listDrafts(db(), status, threadId)
   }, 'viewer')
   handle('ai:draft:discard', (p) => discardDraft(db(), idSchema.parse(p).id), 'accountant')
+  // Phase 3b: the approval queue — every open proposal (drafts, bills being read, memory
+  // suggestions). Approving is ai:queue:approve (ipc.ts, beside voucher:save).
+  handle('ai:queue', () => {
+    const c = deps.company()
+    return listQueue(c.db, c.info, today())
+  }, 'viewer')
   // WP 5.3: the drafts one answer made (a multi-draft turn), for the editor's "draft 2 of 3".
   handle('ai:draft:set', (p) => {
     const d = store.getDraft(db(), idSchema.parse(p).id)

@@ -86,6 +86,9 @@ export type Screen =
   | { name: 'simple-security' }
   | { name: 'simple-people-roles' }
   | { name: 'simple-ai' }
+  // Phase 3b: the approval queue — accountant (accounts + Dr / Cr) and simple (plain words).
+  | { name: 'ai-queue' }
+  | { name: 'simple-approvals' }
   | { name: 'simple-help' }
   | { name: 'simple-openings'; from?: 'home' }
   // WP 9.4: Money — Money in / out (optionally for a party, an amount and a bill: what "Record a
