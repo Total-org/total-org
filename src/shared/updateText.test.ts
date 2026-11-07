@@ -8,11 +8,11 @@ describe('updateText', () => {
     expect(dataFolderLabel('win32')).toBe('Documents\\total')
   })
   it('asks /api/download for this platform’s installer, leaving other URLs alone', () => {
-    expect(downloadUrlFor('https://devjindal.tech/api/download', 'win32')).toBe('https://devjindal.tech/api/download?platform=win')
-    expect(downloadUrlFor('https://devjindal.tech/api/download', 'darwin')).toBe('https://devjindal.tech/api/download?platform=mac')
-    expect(downloadUrlFor('https://devjindal.tech/api/download?platform=mac', 'win32')).toBe('https://devjindal.tech/api/download?platform=mac')
+    expect(downloadUrlFor('https://irminflow.com/api/download', 'win32')).toBe('https://irminflow.com/api/download?platform=win')
+    expect(downloadUrlFor('https://irminflow.com/api/download', 'darwin')).toBe('https://irminflow.com/api/download?platform=mac')
+    expect(downloadUrlFor('https://irminflow.com/api/download?platform=mac', 'win32')).toBe('https://irminflow.com/api/download?platform=mac')
     expect(downloadUrlFor('https://github.com/Total-org/total-org/releases/tag/v1', 'win32')).toBe('https://github.com/Total-org/total-org/releases/tag/v1')
-    expect(downloadUrlFor('https://devjindal.tech/api/download', 'linux')).toBe('https://devjindal.tech/api/download')
+    expect(downloadUrlFor('https://irminflow.com/api/download', 'linux')).toBe('https://irminflow.com/api/download')
   })
   it('scripted runs turn the startup check off', () => {
     expect(updateCheckDisabled({ TOTAL_NO_UPDATE_CHECK: '1' })).toBe(true)

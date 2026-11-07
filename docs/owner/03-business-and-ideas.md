@@ -1,6 +1,6 @@
 # Total — the business, the product and the ideas
 
-15 October 2026 · For the owner (IrminFlow, irminlabs@gmail.com) · Site: https://devjindal.tech
+15 October 2026 · For the owner (IrminFlow, irminlabs@gmail.com) · Site: https://irminflow.com (was devjindal.tech until 8 Nov 2026)
 
 This is a plain-language guide to Total as a business: what it is, who it is for, who else sells something similar, how it could make money, how to get it in front of people, what could go wrong, and what to build next. It ends with the decisions only you can take, and with a short list of things to count once people are using it.
 
