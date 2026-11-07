@@ -602,6 +602,33 @@ export const SCREENS: ScreenDef[] = [
     ]
   },
 
+  // Phase 3b: ONE approval queue — every proposal the assistants made (chat drafts, captured bills,
+  // bank lines, GSTR-2B fixes, Ask Total offers, memory suggestions), accounts + Dr / Cr. Not in
+  // the sidebar (the 0.10 sidebar snapshot); reached from the palette, the AI panel and Home.
+  {
+    name: 'ai-queue',
+    modes: ['accountant'],
+    simpleSection: 'money',
+    keywords: ['approval queue', 'approve', 'ai drafts', 'proposals', 'suggestions', 'pending drafts'],
+    title: 'Approval queue — AI proposals',
+    screen: { name: 'ai-queue' },
+    navSection: null,
+    invalidates: ['aiQueue']
+  },
+  // Phase 3b: the same queue in plain words (Money → Things to approve).
+  {
+    name: 'simple-approvals',
+    modes: ['simple'],
+    simpleView: 'queue/ApprovalQueue',
+    simpleSection: 'money',
+    simpleEntries: [{ id: 'approvals', label: 'simple.entries.approvals', screen: { name: 'simple-approvals' } }],
+    helpKey: 'getting-started',
+    title: 'Things to approve',
+    keywords: ['approve', 'suggestions', 'ai helper', 'ask total'],
+    screen: null, // simple shell only
+    navSection: null,
+    invalidates: ['aiQueue']
+  },
   // WP 5.4: bills → purchase drafts, the capture queue and inbox folder.
   {
     name: 'capture',
@@ -1345,7 +1372,7 @@ export const SIMPLE_ENTRY_ORDER: readonly string[] = [
   // Buy
   'record-purchase', 'purchase-list', 'purchase-returns', 'snap-bill', 'supplier-orders',
   // Money
-  'money-in', 'money-out', 'move-money', 'money-list', 'bank', 'all-entries', 'salaries',
+  'money-in', 'money-out', 'move-money', 'money-list', 'bank', 'approvals', 'all-entries', 'salaries',
   // Stock
   'products', 'low-stock', 'stock-count', 'made-goods', 'product-list', 'expiry-labels',
   // People

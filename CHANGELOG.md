@@ -20,6 +20,21 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**One place to approve what the assistants prepare** (Phase 3b, part 1). Everything the AI helper,
+Ask Total, a bill you added, your bank statement or the supplier-bill check proposes — and the
+things the assistant suggests remembering — now waits in one list: Money → Things to approve in
+simple mode (each one in plain words, with Approve / Edit / Discard, and "Approve all" for the ones
+prepared together), the Approval queue in the full app (each entry's accounts with Dr / Cr; open it
+from the palette or the AI panel). Home says when something is waiting. Nothing is recorded until
+you approve it, and approving saves it exactly as if you had saved it yourself — lock dates,
+roles, credit holds and the GST rules all apply. A proposal nobody asked for is flagged and never
+part of "Approve all".
+*For developers:* `ai:queue` (viewer, a read over open `ai_drafts`, `capture_items` still being
+read and `suggested` memories — `main/ai/queue.ts`, shapes in `shared/aiQueue.ts`) and
+`ai:queue:approve` (accountant; a draft's stored form state → the editor's shared voucherEdit
+payload → voucher:save's own save, factored out as `saveVoucherRequest`; an Ask Total offer →
+simple:post's `postIntent`; a memory → active). No migration.
+
 **Releases come by themselves** (#216). Twice a day (about 09:00 and 21:00 India time) GitHub
 releases what is new on `main` as the next patch version, but only when every test on `main` passed,
 books made by the last release open in the new one with every report unchanged (trial balance, P&L,

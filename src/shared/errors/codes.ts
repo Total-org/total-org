@@ -173,6 +173,11 @@ export const ERROR_MAP = {
   simple_duplicate_bill: e('errors.intent.duplicateBill', 'billNo', ['number'], 'errors.intent.duplicateBillPlain'),
   simple_client_reused: e('errors.intent.clientReused'),
   // WP 9.6: the simple Bank screen (services/simpleBank.ts) — on the line's row.
+  // Phase 3b: the approval queue (main/ai/queue.ts, ipc.ts ai:queue:approve) — on the proposal.
+  queue_not_found: e('errors.queue.notFound'),
+  queue_not_open: e('errors.queue.notOpen'),
+  queue_manual_number: e('errors.queue.manualNumber'),
+  queue_edit_only: e('errors.queue.editOnly'),
   simple_bank_not_bank: e('errors.bank.notBank', 'bank'),
   simple_bank_line_gone: e('errors.bank.lineGone', 'line'),
   simple_bank_line_done: e('errors.bank.lineDone', 'line'),

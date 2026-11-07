@@ -6,6 +6,7 @@ import type {
   AiUsageRow
 } from '@shared/ai'
 import type { AiProviderSetInput } from '@shared/aiProviders'
+import type { QueueApproveResult, QueueList } from '@shared/aiQueue'
 
 export type * from '@shared/ai'
 
@@ -39,6 +40,10 @@ export const aiApi = {
   discardDraft: (id: number) => call<AiDraftDto>('ai:draft:discard', { id }),
   /** WP 5.3: the drafts the same answer made (a multi-draft turn), in order. */
   draftSet: (id: number) => call<AiDraftDto[]>('ai:draft:set', { id }),
+  /** Phase 3b: every open proposal (drafts, bills being read, memory suggestions). */
+  queue: () => call<QueueList>('ai:queue'),
+  /** Approve one proposal — saved through voucher:save's / simple:post's own save. */
+  approveProposal: (key: string, today?: string) => call<QueueApproveResult>('ai:queue:approve', { key, ...(today ? { today } : {}) }),
   usage: () => call<AiUsageRow[]>('ai:usage'),
   outbound: () => call<AiOutboundRow[]>('ai:outbound'),
   deleteAll: (includeLogs = false) => call<Record<string, number>>('ai:data:deleteAll', { includeLogs }),
