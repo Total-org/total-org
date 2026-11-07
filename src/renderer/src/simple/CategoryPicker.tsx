@@ -153,6 +153,7 @@ export function CategoryPicker({
             }}
             filter={searchMode === 'party' ? isParty : filter}
             autoFocus
+            openOnArrival
             placeholder={searchMode === 'party' ? t('simple.category.searchSuppliers') : t('simple.category.searchAll')}
             onCreateRequest={(n) => setNewName(n)}
             className="flex-1"

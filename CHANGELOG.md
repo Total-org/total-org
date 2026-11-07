@@ -122,6 +122,14 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
+- **Pickers don't pop open over the form** (#232; audit UX-7, owner 7 Nov). Plain words: when a
+  screen opens with the cursor already in a picker (the customer on Make a bill, the party or
+  ledger on a voucher), its list no longer covers the next fields. Typing, ↓ or a click opens it;
+  ↓ also moves down a row as it always did, so ↓ then Enter picks the same row as before. One
+  difference: Enter as the very first key now opens the list instead of picking its first row.
+  Pickers you open on purpose (Pay a supplier's search, the Counter's customer box) still show
+  their list at once. Also: the approval queue's "Open →" on Home is the ink-and-amber link of the
+  new look.
 - **Accountant sidebar: the top items stay in view** (#230; audit UX-11, owner 7 Nov). Plain
   words: Gateway, Voucher entry, Manufacture, Counter and Masters no longer scroll away when GST or
   System is open on a smaller window — only the sections below them scroll. Also: the AI panel's
