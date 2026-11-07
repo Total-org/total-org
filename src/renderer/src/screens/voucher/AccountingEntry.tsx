@@ -719,7 +719,7 @@ export function AccountingEntry({
               {hasCc && (
                 <td className="r">
                   {r.ledgerId != null && (
-                    <button className="text-caption text-blue hover:underline" onClick={() => setCcModalRow(i)}>
+                    <button className="text-caption t-link" onClick={() => setCcModalRow(i)}>
                       CC{r.costAllocations.length ? ` (${r.costAllocations.length})` : ''}
                     </button>
                   )}
@@ -819,7 +819,7 @@ export function AccountingEntry({
       {showBillsSection && (
         <div className="mt-4 border-t border-line pt-3">
           <button
-            className="flex items-center gap-1.5 text-caption font-semibold tracking-[0.08em] text-muted uppercase"
+            className="flex items-center gap-1.5 text-small font-semibold text-muted"
             onClick={() => setBillsOpen((v) => !v)}
           >
             <span className="inline-block w-3 text-micro">{billsOpen ? '▾' : '▸'}</span>

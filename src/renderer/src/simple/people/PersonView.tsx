@@ -51,7 +51,7 @@ export function PersonView({ id }: { id: number }): React.JSX.Element {
   if (!p) {
     return (
       <Page data-testid="simple-person">
-        <button type="button" className="mb-3 text-detail text-blue hover:underline" onClick={() => nav.back()}>
+        <button type="button" className="mb-3 text-detail t-link" onClick={() => nav.back()}>
           {t('simple.people.back')}
         </button>
         <p className="text-detail text-muted" data-testid="simple-person-missing">{t('simple.people.missing')}</p>
@@ -148,11 +148,11 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
 
   return (
     <Page data-testid="simple-person" data-person={p.ledgerId} data-side={p.side}>
-      <button type="button" className="mb-3 text-detail text-blue hover:underline" data-testid="btn-person-back" onClick={() => nav.back()}>
+      <button type="button" className="mb-3 text-detail t-link" data-testid="btn-person-back" onClick={() => nav.back()}>
         {t('simple.people.back')}
       </button>
 
-      <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink" data-testid="person-name">{name}</h1>
@@ -239,7 +239,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         {statement && (
           <p className="mt-3 text-detail text-ink" data-testid="person-statement-saved">
             {t('simple.people.statementSaved')}{' '}
-            <button type="button" className="text-blue hover:underline" data-testid="btn-person-statement-show" onClick={() => void reveal(statement.path)}>
+            <button type="button" className="t-link" data-testid="btn-person-statement-show" onClick={() => void reveal(statement.path)}>
               {t('simple.people.statementShow')}
             </button>
           </p>
@@ -250,7 +250,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
       {panel === UPCOMING && p.upcoming && <ReminderPanel person={p} reminder={p.upcoming} startLang={reminderLang} onSent={refresh} />}
       {panel === HOLD && <HoldPanel person={p} onDone={() => { setPanel(null); refresh() }} />}
 
-      <section className="mt-4 rounded-lg border border-line bg-panel shadow-elev-1">
+      <section className="mt-4 rounded-xl border border-line bg-panel shadow-elev-1">
         <h2 className="px-panel pt-panel text-subtitle font-semibold text-ink">{t('simple.people.bills.title')}</h2>
         <DataTable
           testId="person-bills"
@@ -267,7 +267,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
               ? (b) => (
                   <button
                     type="button"
-                    className="text-small font-medium text-blue hover:underline"
+                    className="text-small font-medium t-link"
                     data-testid={customer ? 'btn-person-bill-paid' : 'btn-person-bill-pay'}
                     onClick={() => nav.go((customer ? moneyInScreen : moneyOutScreen)({ party: p.ledgerId, amount: b.pending, bill: b.name, billId: b.voucherId }))}
                   >
@@ -280,7 +280,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         />
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-panel p-panel shadow-elev-1" data-testid="person-contact">
+      <section className="mt-4 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="person-contact">
         <h2 className="mb-3 text-subtitle font-semibold text-ink">{t('simple.people.contact')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label={t('simple.people.phone')} name={F.phone} error={errors.get(F.phone)}>

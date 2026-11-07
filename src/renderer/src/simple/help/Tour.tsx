@@ -177,7 +177,7 @@ function TourStepView({ step, onEnd }: { step: number; onEnd: () => void }): Rea
         className="pointer-events-auto absolute rounded-xl border border-line bg-raised p-4 shadow-elev-3 outline-none"
         style={{ top: place.top, left: place.left, width: place.width }}
       >
-        <p id="tour-progress" className="text-caption font-semibold tracking-[0.08em] text-muted uppercase" data-testid="tour-progress">
+        <p id="tour-progress" className="text-small font-semibold text-muted" data-testid="tour-progress">
           {t('simple.tour.step', { step: step + 1, total: TOUR_STEPS.length })}
         </p>
         <p id="tour-text" aria-live="polite" className="mt-1.5 text-body text-ink" data-testid="tour-text">

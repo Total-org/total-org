@@ -261,7 +261,7 @@ export function TransferEntry({
               onChange={(k) => setCh({ kind: k, originalChallanVoucherId: null })}
             />
           ) : (
-            <span className="text-caption font-semibold text-muted uppercase">{challan.kind === 'send' ? 'Send' : 'Return'}</span>
+            <span className="text-small font-semibold text-muted">{challan.kind === 'send' ? 'Send' : 'Return'}</span>
           )}
           <Field label="Job worker" hint={workerParty ? `Party: ${workerParty}` : 'A godown of kind “Job worker” (Masters → Godowns)'}>
             <GodownPicker kind="job_worker" value={challan.godownId} onPick={(id) => setCh({ godownId: id, originalChallanVoucherId: null })} placeholder="Job worker" testId="picker-job-worker" />

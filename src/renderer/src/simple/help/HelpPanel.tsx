@@ -148,7 +148,7 @@ function ArticleView({ article, wanted, loading, isContext, onLink }: { article:
   const t = useT()
   return (
     <article data-testid="help-article" data-article={article.id} data-loading={loading ? 'true' : undefined} aria-labelledby="help-article-title">
-      {isContext && <p className="mb-1 text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.help.forScreen')}</p>}
+      {isContext && <p className="mb-1 text-small font-semibold text-muted">{t('simple.help.forScreen')}</p>}
       <h2 id="help-article-title" className="mb-3 font-serif text-title font-semibold text-ink" data-testid="help-article-title">
         {article.title}
       </h2>
@@ -167,7 +167,7 @@ function ArticleList({ context, onOpen, lang }: { context: HelpArticleId; onOpen
   const all = HELP.list(lang)
   return (
     <div className="flex flex-col gap-1" data-testid="help-list">
-      <h2 className="mb-2 text-label font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.help.all')}</h2>
+      <h2 className="mb-2 text-small font-semibold text-muted">{t('simple.help.all')}</h2>
       {all.map((a) => (
         <button
           key={a.id}

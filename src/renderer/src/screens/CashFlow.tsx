@@ -76,7 +76,7 @@ function Line({ r }: { r: CashFlowRow }): React.JSX.Element {
             <td className="pl-12">
               <button
                 type="button"
-                className="text-left text-blue hover:underline"
+                className="text-left t-link"
                 data-testid="cash-flow-ledger"
                 title={`Open ${p.name} statement`}
                 onClick={() => openLedgerStatement(p.ledgerId)}

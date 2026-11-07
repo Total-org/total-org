@@ -41,7 +41,7 @@ export function SimpleLooks(): React.JSX.Element {
   return (
     <Page width="narrow" data-testid="simple-looks">
       <h1 className="mb-5 font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.settings.looks')}</h1>
-      <div className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <div className="rounded-xl border border-line bg-panel shadow-elev-1">
         <ModeSetting />
         <Row title={t('simple.looks.theme')} hint={t('simple.looks.themeHint')}>
           <Segmented

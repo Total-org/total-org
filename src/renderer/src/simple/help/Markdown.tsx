@@ -74,7 +74,7 @@ function InlineNode({ node, onLink }: { node: Inline; onLink: (link: Exclude<Hel
       data-kind={link.kind}
       title={external ? t('simple.help.external') : undefined}
       onClick={() => onLink(link)}
-      className="inline text-left font-medium text-blue underline decoration-blue/40 underline-offset-2 hover:decoration-blue"
+      className="t-link inline text-left font-medium"
     >
       <Inlines nodes={node.children} onLink={onLink} />
       {external && <span aria-hidden="true"> ↗</span>}

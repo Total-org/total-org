@@ -115,7 +115,7 @@ export function TextArea({
 export function Group({ title, children, hint }: { title: string; children: ReactNode; hint?: string }): React.JSX.Element {
   return (
     <fieldset className="flex flex-col gap-2.5 border-t border-line pt-3 first:border-t-0 first:pt-0">
-      <legend className="float-left mb-1 w-full text-caption font-semibold tracking-[0.08em] text-muted uppercase">{title}</legend>
+      <legend className="float-left mb-1 w-full text-small font-semibold text-muted">{title}</legend>
       {hint && <p className="clear-left -mt-1 text-hint text-muted">{hint}</p>}
       <div className="clear-left flex flex-col gap-2.5">{children}</div>
     </fieldset>

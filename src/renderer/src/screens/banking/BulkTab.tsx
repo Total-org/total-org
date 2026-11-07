@@ -227,7 +227,7 @@ export function BulkTab({ bankLedgerId, bankName }: { bankLedgerId: number; bank
           {(batches ?? []).length > 0 && (
             <Panel className="mt-3">
               <div className="border-b border-line px-4 py-2.5">
-                <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase">Files exported · {batches!.length}</p>
+                <p className="text-small font-semibold text-muted">Files exported · {batches!.length}</p>
               </div>
               <ul className="divide-y divide-line/60" data-testid="banking-bulk-batches">
                 {batches!.slice(0, 8).map((b) => (
@@ -259,7 +259,7 @@ export function BulkTab({ bankLedgerId, bankName }: { bankLedgerId: number; bank
             empty={{ title: 'No parties yet', hint: 'Sundry creditors and debtors appear here' }}
             trailingWidth={70}
             trailing={(b) => (
-              <button className="text-small text-blue hover:underline" data-testid="btn-bulk-edit-beneficiary" onClick={() => setEditBen(b)}>
+              <button className="text-small t-link" data-testid="btn-bulk-edit-beneficiary" onClick={() => setEditBen(b)}>
                 Edit
               </button>
             )}

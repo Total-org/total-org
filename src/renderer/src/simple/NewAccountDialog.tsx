@@ -207,7 +207,7 @@ export function NewAccountDialog({
         )}
 
         <div>
-          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.people.thisIsA')}</span>
+          <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.people.thisIsA')}</span>
           <div role="radiogroup" aria-label={t('simple.people.thisIsA')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ACCOUNT_KINDS.map((k) => (
               <button

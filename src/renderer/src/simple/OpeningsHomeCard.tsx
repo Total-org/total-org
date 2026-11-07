@@ -34,7 +34,7 @@ export function OpeningsHomeCard({ owed }: { owed: { receivables: number; payabl
     const owedToYou = owed?.receivables ?? null
     const owe = owed?.payables ?? null
     return (
-      <section data-testid="simple-home-openings" data-done="true" className="mt-5 rounded-lg border border-line bg-panel p-panel shadow-elev-1">
+      <section data-testid="simple-home-openings" data-done="true" className="mt-5 rounded-xl border border-line bg-panel p-panel shadow-elev-1">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-title font-semibold text-ink">
             <span aria-hidden="true" className="mr-2 text-success">

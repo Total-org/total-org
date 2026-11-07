@@ -135,7 +135,7 @@ export function ProfitLossScreen({ from: askedFrom, to: askedTo }: { from?: stri
       <>
       <div className={`grid grid-cols-2 gap-3 transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
         <Panel className="p-4">
-          <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Expenses</p>
+          <p className="mb-2 text-small font-semibold text-muted">Expenses</p>
           {data.openingStock !== 0 && <FlatRow name="Opening stock" paise={data.openingStock} />}
           <StatementTree key={`te-${treeKey}`} nodes={data.tradingExpenses} {...tree} />
           {data.grossProfit > 0 && <FlatRow name="Gross profit c/o" paise={data.grossProfit} strong />}
@@ -145,7 +145,7 @@ export function ProfitLossScreen({ from: askedFrom, to: askedTo }: { from?: stri
         </Panel>
 
         <Panel className="p-4">
-          <p className="mb-2 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Incomes</p>
+          <p className="mb-2 text-small font-semibold text-muted">Incomes</p>
           <StatementTree key={`ti-${treeKey}`} nodes={data.tradingIncomes} {...tree} />
           {data.closingStock !== 0 && <FlatRow name="Closing stock" paise={data.closingStock} />}
           {data.grossProfit < 0 && <FlatRow name="Gross loss c/o" paise={-data.grossProfit} strong />}

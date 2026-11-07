@@ -68,7 +68,7 @@ export function DoneLines({ lines, bankLedgerId, onUnmatched }: { lines: BankLin
   return (
     <section aria-label={t('simple.bank.doneTitle')} data-testid="bank-done">
       <h2 className="mb-2 text-subtitle font-semibold text-ink">{t('simple.bank.doneTitle')}</h2>
-      <div className="rounded-lg border border-line bg-panel shadow-elev-1">
+      <div className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-bank-done"
           columns={columns}
@@ -81,14 +81,14 @@ export function DoneLines({ lines, bankLedgerId, onUnmatched }: { lines: BankLin
           trailing={(r) =>
             r.done[0] ? (
               <span className="flex items-center gap-3">
-                <button type="button" className="text-small text-blue hover:underline" data-testid="btn-bank-done-open" onClick={() => nav.go({ name: 'voucher-entry', voucherId: r.done[0]!.voucherId })} // i18n-technical
+                <button type="button" className="text-small t-link" data-testid="btn-bank-done-open" onClick={() => nav.go({ name: 'voucher-entry', voucherId: r.done[0]!.voucherId })} // i18n-technical
                 >
                   {t('simple.bank.open')}
                 </button>
                 {mayWrite && r.status === 'done' && (
                   <button
                     type="button"
-                    className="text-small text-blue hover:underline disabled:opacity-60"
+                    className="text-small t-link disabled:opacity-60"
                     data-testid={`btn-bank-not-this-${r.id}`}
                     title={t('simple.bank.notThisHint')}
                     disabled={busy != null}

@@ -79,6 +79,13 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
+- **New look, part 3 — the screens** (#227; UI overhaul). Plain words: the remaining screens
+  follow the new look. Labels and column heads everywhere are in normal case (no more ALL CAPS),
+  links are dark text with an amber underline instead of blue (help articles, "Learn how", register
+  months, card links), the accountant voucher-type tabs get the amber underline, and the cards on
+  the simple screens share one shape. After a save the confirmation card rises in with a tick that
+  draws itself (off with "Reduce motion"). On People the status chips ("₹2,33,920.00 late · 23
+  days") are no longer cut off. No figure, word or step changed.
 - **New look, part 2 — the shells** (#226; UI overhaul). Plain words: both sidebars get small
   icons and show the open screen as a raised item with the amber bar; the accountant sidebar's
   sections are in normal case. The top bar is quieter: Search looks like a search box, the simple

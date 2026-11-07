@@ -123,7 +123,7 @@ export function PriceListsTab(): React.JSX.Element {
             />
             <button
               type="button"
-              className="mt-0.5 text-hint text-blue hover:underline"
+              className="mt-0.5 text-hint t-link"
               data-testid={`btn-price-slabs-${l.id}-${r.itemId}`}
               onClick={() => setSlabsFor({ level: l, itemId: r.itemId, itemName: r.itemName })}
               title={cell ? `From ${toDisplayDate(cell.effectiveFrom)}${cell.effectiveTo ? ` to ${toDisplayDate(cell.effectiveTo)}` : ''}` : 'Quantity slabs and dates'}

@@ -43,7 +43,7 @@ export function BillTicks({
   const t = useT()
   const money = (p: number): string => formatPaise(p, { symbol: true })
   return (
-    <section className="rounded-lg border border-line bg-panel p-panel shadow-elev-1" aria-label={side === 'in' ? t('simple.money.billsIn') : t('simple.money.billsOut')} data-testid="money-bills">
+    <section className="rounded-xl border border-line bg-panel p-panel shadow-elev-1" aria-label={side === 'in' ? t('simple.money.billsIn') : t('simple.money.billsOut')} data-testid="money-bills">
       <h2 className="mb-1 text-subtitle font-semibold text-ink">{side === 'in' ? t('simple.money.billsIn') : t('simple.money.billsOut')}</h2>
       {bills.length === 0 ? (
         <p className="text-detail text-muted" data-testid="money-no-bills">{t('simple.money.noBills')}</p>

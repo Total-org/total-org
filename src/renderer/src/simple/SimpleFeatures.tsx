@@ -67,7 +67,7 @@ export function SimpleFeatures(): React.JSX.Element {
       <div data-testid="simple-features">
         <h1 className="mb-1 font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.settings.features')}</h1>
         <p className="mb-5 text-small text-muted">{t('simple.features.intro')}</p>
-        <div className="divide-y divide-line rounded-lg border border-line bg-panel shadow-elev-1" data-testid="features-cards">
+        <div className="divide-y divide-line rounded-xl border border-line bg-panel shadow-elev-1" data-testid="features-cards">
           {CARDS.filter((c) => flagCardShown(c.key, unused)).map((c) => {
             const on = !!value[c.key]
             return (

@@ -124,7 +124,7 @@ export function pairColumns(onCreatePurchase: (portal: NonNullable<Recon2bPair['
           <VoucherLink voucherId={p.book.voucherId} label={p.book.supplierRef ?? p.book.number} />
         ) : p.bucket === 'missingInBooks' && p.portal ? (
           <button
-            className="text-small text-blue hover:underline"
+            className="text-small t-link"
             data-testid="btn-2b-create-purchase"
             onClick={(e) => {
               e.stopPropagation()

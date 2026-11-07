@@ -292,7 +292,7 @@ function PlainAnswer({ message: m, all, question, rate }: { message: AiMessageDt
   const contextLines = screenContextLines(question?.context ?? null)
   return (
     <div className="flex flex-col gap-1.5" data-testid="ai-plain-answer" data-status={m.status}>
-      <p className="text-label font-semibold tracking-[0.08em] text-muted uppercase" data-testid="ai-plain-by">{t('simple.ai.panel.answeredBy')}</p>
+      <p className="text-small font-semibold text-muted" data-testid="ai-plain-by">{t('simple.ai.panel.answeredBy')}</p>
       {m.content && (
         <div>
           <AnswerMarkdown text={m.content} figures={m.figures} />
