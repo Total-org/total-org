@@ -686,6 +686,10 @@ export function classify(text: string, today: string): AssistIntent {
   const bill = billOf(q, n.question)
   if (bill) return { kind: 'bill', ...bill }
 
+  // Phase 3b part 2: tasks that become a plan of proposals (before entries: "book October's bills").
+  const task = taskOf(q, today)
+  if (task) return task
+
   const entry = entryOf(text, n, today)
   if (entry) return { kind: 'entry', entry }
 
@@ -750,6 +754,30 @@ export function classify(text: string, today: string): AssistIntent {
   const direction = directionOf(text)
   if (direction) return direction
   return { kind: 'unknown' }
+}
+
+/** Phase 3b part 2 — a task for the approval queue:
+ *  - "remind everyone 30 days late", "send reminders to all customers over 60 days overdue",
+ *    "sabko reminder bhejo jo 30 din se late hain", "late customers ko yaad dilao" → remind_late
+ *    (the number of days when said, else 1 = anything late);
+ *  - "book October's bills", "enter all bills of last month", "october ke bills chadha do" →
+ *    book_bills (the month said, else this month). A "how do I …" question stays a how-to. */
+const REMIND_WORD = /\b(?:remind|reminders?|yaad dila\w*|tagada|tagaada)\b/
+const REMIND_WHO = /\b(?:everyone|everybody|all|every|customers|sab\w*|jo|who|whoever|late|overdue|pending)\b/
+const BOOK_WORD = /\b(?:book|enter|record|post|add|chadha\w*|chadh\w*|daal\w*|dal do|entry kar\w*)\b/
+function taskOf(q: string, today: string): AssistIntent | null {
+  if (/^(?:how|kaise|kaise kare)\b|\bhow (?:do|can|to)\b/.test(q)) return null
+  if (REMIND_WORD.test(q) && REMIND_WHO.test(q)) {
+    const days = /(\d{1,4})\s*(?:\+\s*)?(?:days?|din)\b/.exec(q)?.[1]
+    return { kind: 'task', task: 'remind_late', minDays: days ? Math.max(1, Number(days)) : 1 }
+  }
+  if (BOOK_WORD.test(q) && /\bbills\b|\ball (?:the )?bills?\b|\bbills? (?:of|from|for)\b|\bke bills?\b/.test(q) && !/\d{2,}/.test(q.replace(MONTH_RE, ''))) {
+    const said = periodOf(q, today)
+    const monthly = said && (said.rule === 'month' || said.rule === 'thisMonth' || said.rule === 'lastMonth')
+    if (said && !monthly) return null
+    return { kind: 'task', task: 'book_bills', month: (monthly ? said!.from : today).slice(0, 7), monthSaid: !!monthly }
+  }
+  return null
 }
 
 /** WP 10.8: "5000 Ramesh" / "Ramesh 5000" / "₹5,000 Ramesh Traders" — an amount and a name and

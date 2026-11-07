@@ -36,13 +36,15 @@ function renderUi(ui: React.JSX.Element): void {
 }
 
 beforeEach(() => {
-  list = { proposals: [base({}), SALE, SALE2, ODD, MEMORY, BILL], waiting: 5 }
+  list = { proposals: [base({}), SALE, SALE2, ODD, MEMORY, BILL], waiting: 5, plans: [] }
   invoke.mockImplementation(async (channel: string, payload: { key?: string }) => {
     switch (channel) {
       case 'ai:queue': return { ok: true, data: list }
       case 'ai:queue:approve': return { ok: true, data: { key: payload.key, voucherIds: [50] } }
       case 'ai:draft:discard': return { ok: true, data: {} }
       case 'ai:memory:setStatus': return { ok: true, data: {} }
+      case 'ai:plan:reminded': return { ok: true, data: { logId: 9 } }
+      case 'ai:plan:discard': return { ok: true, data: null }
       default: return { ok: true, data: [] }
     }
   })
@@ -103,7 +105,7 @@ describe('approval queue — simple mode', () => {
   })
 
   it('Edit opens a chat draft in its simple flow when it has one, else the full editor', async () => {
-    list = { proposals: [base({ prefill: { screen: 'simple-money-out', who: 'expense', payee: 5, amount: 150_000 } }), SALE], waiting: 2 }
+    list = { proposals: [base({ prefill: { screen: 'simple-money-out', who: 'expense', payee: 5, amount: 150_000 } }), SALE], waiting: 2, plans: [] }
     renderUi(<ApprovalQueue />)
     fireEvent.click(await screen.findByTestId('queue-edit-draft:1'))
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'simple-money-out', ask: { draftId: 1, prefill: { screen: 'simple-money-out', who: 'expense', payee: 5, amount: 150_000 } } }))
@@ -126,7 +128,7 @@ describe('approval queue — simple mode', () => {
     const OK1 = base({ key: 'draft:15', id: 15, group: 'message:5' })
     const OK2 = base({ key: 'draft:16', id: 16, group: 'message:5' })
     const TDS = base({ key: 'draft:17', id: 17, approve: 'tds', group: 'message:5', prefill: { screen: 'simple-money-out', who: 'supplier', party: 9, amount: 3_500_000 } })
-    list = { proposals: [CHANGED, FLAGGED, DONE, CLEAN_BILL, OK1, OK2, TDS], waiting: 3 }
+    list = { proposals: [CHANGED, FLAGGED, DONE, CLEAN_BILL, OK1, OK2, TDS], waiting: 3, plans: [] }
     renderUi(<ApprovalQueue />)
     await waitFor(() => expect(screen.getByTestId('queue-card-draft:11')).toBeTruthy())
     expect(screen.getByTestId('queue-card-draft:11').textContent).toContain('The amounts changed since this was prepared')
@@ -143,8 +145,38 @@ describe('approval queue — simple mode', () => {
     await waitFor(() => expect(calls('ai:queue:approve').map((c) => c.key)).toEqual(['draft:15', 'draft:16']))
   })
 
+  it('a reminder plan: its task as the heading, each reminder in plain words; WhatsApp opens with the People message and is logged; copy; drop', async () => {
+    const facts = { bucket: 'gentle' as const, bills: [{ name: '7', voucherId: 7, date: '2026-08-30', dueDate: '2026-08-31', amount: 1_200_000, pending: 1_200_000, overdueDays: 44 }], amount: 1_200_000, lastSent: null, allowed: true, nextAllowed: null }
+    const R1 = base({ key: 'reminder:1', type: 'reminder', id: 1, origin: 'askTotal', what: 'reminder', group: 'plan:3', voucherKind: null, date: null, partyName: 'Ramesh Traders', amount: 1_200_000, lines: [], approve: 'reminder', reminder: { partyId: 10, phone: '9876543210', whatsapp: null, facts } })
+    const R2 = base({ key: 'reminder:2', type: 'reminder', id: 2, origin: 'askTotal', what: 'reminder', group: 'plan:3', voucherKind: null, date: null, partyName: 'Sita Stores', amount: 300_000, lines: [], approve: 'reminder', reminder: { partyId: 11, phone: null, whatsapp: null, facts: { ...facts, amount: 300_000 } } })
+    list = { proposals: [R1, R2], waiting: 0, plans: [{ key: 'plan:3', id: 3, task: 'remind_late', params: { minDays: 30 }, question: 'remind everyone 30 days late', source: 'ask-total', createdAt: '2026-10-14T10:00:00Z' }] }
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const writeText = vi.fn(async () => undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    renderUi(<ApprovalQueue />)
+    const group = await screen.findByTestId('queue-group-plan:3')
+    expect(group.textContent).toContain('Reminders to customers 30+ days late (2)')
+    expect(group.textContent).toContain('You asked: “remind everyone 30 days late”')
+    expect(screen.getByTestId('queue-card-reminder:1').textContent).toContain('Remind Ramesh Traders about ₹12,000.00 that is late')
+    // Never "Approve all" for reminders (each one opens WhatsApp).
+    expect(screen.queryByTestId('queue-approve-all-plan:3')).toBeNull()
+    fireEvent.click(screen.getByTestId('queue-whatsapp-reminder:1'))
+    await waitFor(() => expect(calls('ai:plan:reminded')).toEqual([{ itemId: 1, via: 'whatsapp', today: '2026-10-14' }]))
+    expect(String(open.mock.calls[0]![0])).toMatch(/^https:\/\/wa\.me\/919876543210\?text=/)
+    expect(decodeURIComponent(String(open.mock.calls[0]![0]))).toContain('Ramesh Traders')
+    fireEvent.click(screen.getByTestId('queue-copy-reminder:2'))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(calls('ai:plan:reminded')[1]).toEqual({ itemId: 2, via: 'copied', today: '2026-10-14' }))
+    fireEvent.click(screen.getByTestId('queue-discard-reminder:2'))
+    await waitFor(() => expect(calls('ai:plan:discard')).toEqual([{ itemId: 2 }]))
+    fireEvent.click(screen.getByTestId('queue-edit-reminder:1'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'simple-person', id: 10 }))
+    expect(bannedWordsIn(document.body.textContent ?? '')).toEqual([])
+    open.mockRestore()
+  })
+
   it('an empty queue teaches what lands here', async () => {
-    list = { proposals: [], waiting: 0 }
+    list = { proposals: [], waiting: 0, plans: [] }
     renderUi(<ApprovalQueue />)
     expect(await screen.findByTestId('simple-approvals-empty')).toBeTruthy()
   })

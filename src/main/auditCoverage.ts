@@ -480,6 +480,11 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   // Phase 3b: the approval queue (a read over drafts / capture items / memory suggestions) and its
   // Approve — voucher:save's save (+ a GST ledger the editor creates on first use) or simple:post's.
   'ai:queue': QUERY,
+  // Phase 3b part 2: plans — created by Ask Total (assist:plan) or the agent's plan_task tool; a
+  // reminder sent from a plan is logged as on the person's page (reminder) + the item (ai_plan).
+  'assist:plan': a('ai_plan'),
+  'ai:plan:reminded': a('reminder', 'ai_plan'),
+  'ai:plan:discard': a('ai_plan'),
   'ai:queue:approve': a('voucher', 'ledger', 'ai_draft', 'attachment', 'capture_item', 'voucher_line', 'bank_statement_line', 'bank_learned_rule', 'simple_intent', 'manufacture'),
   // ---------- document capture (WP 5.4, ai/capture/ipc.ts) ----------
   'capture:pick': a('capture_item'),

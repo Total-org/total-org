@@ -11,7 +11,7 @@ const num = (v: unknown): number | undefined => (typeof v === 'number' && Number
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined)
 const REPORTS: readonly string[] = ['doing', 'cash', 'owed', 'by-month'] // i18n-technical
 const PLAIN: readonly string[] = [
-  'simple-money', 'simple-money-in', 'simple-money-out', 'simple-move-money', 'simple-sell', 'simple-buy',
+  'simple-money', 'simple-approvals', 'simple-money-in', 'simple-money-out', 'simple-move-money', 'simple-sell', 'simple-buy',
   'simple-return-sale', 'simple-return-purchase', 'simple-stock-count', 'simple-looks', 'simple-features', 'simple-openings', 'gateway', 'profit-loss', 'stock-summary' // i18n-technical
 ]
 

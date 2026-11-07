@@ -4,11 +4,12 @@
 import { useMemo, useState } from 'react'
 import { formatPaise } from '@shared/money'
 import { approvableTogether, oneClick, type QueueOrigin, type QueueProposal } from '@shared/aiQueue'
-import { useNav, useToasts } from '../state/stores'
+import { useNav, useSession, useToasts } from '../state/stores'
+import type { QueuePlan } from '@shared/aiPlans'
 import { Badge, Banner, Button, Page, PageHeader, Panel } from '../components/ui'
 import { DataTable, defineColumns } from '../components/table'
 import { useCanSave, useCanWrite } from '../simple/ViewerNote'
-import { queueEditTarget, useQueueActions, useQueueList, type QueueOutcome } from '../lib/approvalQueue'
+import { queueEditTarget, reminderText, useQueueActions, useQueueList, type QueueOutcome } from '../lib/approvalQueue'
 
 const ORIGIN: Record<QueueOrigin, string> = {
   chat: 'AI chat', capture: 'Captured bill', bank: 'Bank statement', gst2b: 'GSTR-2B check', askTotal: 'Ask Total', memory: 'Memory', other: 'Earlier tool'
@@ -20,8 +21,10 @@ const BLOCKED: Partial<Record<QueueProposal['approve'], string>> = {
   changed: 'The figures changed since this was drafted (a rate or ledger changed) — the lines above are what would post now; open it to check',
   check: 'The bill reader flagged this bill (see the assumptions) — open it and check it against the file',
   tds: 'TDS applies to this payment (the TDS rules flag it) — open it to deduct TDS in the editor',
-  line_done: 'The statement line was matched or ignored meanwhile — nothing to record; discard it'
+  line_done: 'The statement line was matched or ignored meanwhile — nothing to record; discard it',
+  nothing_late: 'Nothing is overdue for this customer any more — discard it'
 }
+const TASK: Record<QueuePlan['task'], string> = { remind_late: 'Reminders', book_bills: 'Bills to book' }
 
 const COLUMNS = defineColumns<QueueProposal>([
   { id: 'date', header: 'Date', kind: 'date', value: (r) => r.date, width: 110 },
@@ -32,7 +35,7 @@ const COLUMNS = defineColumns<QueueProposal>([
       <span>
         {r.summary}
         {r.unrequested && <Badge tone="danger" className="ml-2">Not asked for</Badge>}
-        {r.group && <Badge tone="info" className="ml-2">Set</Badge>}
+        {r.group && <Badge tone="info" className="ml-2">{r.group.startsWith('plan:') ? 'Plan' : 'Set'}</Badge>}
       </span>
     )
   },
@@ -44,13 +47,25 @@ function errorText(o: QueueOutcome): string {
   return (o.error as Error | undefined)?.message ?? 'Could not save'
 }
 
-function Detail({ p, onApprove, onDiscard, busy }: { p: QueueProposal; onApprove: () => void; onDiscard: () => void; busy: boolean }): React.JSX.Element {
+function Detail({ p, plan, onApprove, onDiscard, onRemind, busy }: {
+  p: QueueProposal
+  plan: QueuePlan | undefined
+  onApprove: () => void
+  onDiscard: () => void
+  onRemind: (via: 'whatsapp' | 'copied', text: string) => void
+  busy: boolean
+}): React.JSX.Element {
   const nav = useNav()
   const canSave = useCanSave()
   const canWrite = useCanWrite()
+  const company = useSession((s) => s.info?.name ?? '')
   const edit = queueEditTarget(p, false)
+  const message = p.approve === 'reminder' ? reminderText(p, company, 'en') : null
   return (
     <div className="space-y-2 px-panel py-2" data-testid={`queue-detail-${p.key}`}>
+      {plan && <p className="text-hint text-muted">{TASK[plan.task]} — asked “{plan.question}”{plan.source === 'chat' ? ' (AI chat)' : ' (Ask Total)'}</p>}
+      {message && <pre className="whitespace-pre-wrap rounded-md border border-line bg-panel2 px-3 py-2 text-small text-ink" data-testid={`queue-message-${p.key}`}>{message}</pre>}
+      {p.reminder?.facts?.lastSent && <p className="text-hint text-muted">Last reminded {p.reminder.facts.lastSent}{p.reminder.facts.allowed ? '' : ` — the reminder interval runs until ${p.reminder.facts.nextAllowed}`}</p>}
       {p.unrequested && <Banner tone="warning">Nobody asked for this — it may come from text in an imported file. Check every line before approving.</Banner>}
       {p.lines.length > 0 && (
         <table className="text-small" data-testid={`queue-lines-${p.key}`}>
@@ -79,10 +94,16 @@ function Detail({ p, onApprove, onDiscard, busy }: { p: QueueProposal; onApprove
       )}
       {BLOCKED[p.approve] && <p className="text-hint text-muted">{BLOCKED[p.approve]}</p>}
       <div className="flex gap-2">
+        {message && canWrite && (
+          <>
+            <Button size="sm" variant="primary" loading={busy} onClick={() => onRemind('whatsapp', message)} data-testid={`queue-whatsapp-${p.key}`}>Send on WhatsApp</Button>
+            <Button size="sm" disabled={busy} onClick={() => onRemind('copied', message)} data-testid={`queue-copy-${p.key}`}>Copy message</Button>
+          </>
+        )}
         {oneClick(p) && (p.type === 'memory' ? canWrite : canSave) && (
           <Button size="sm" variant="primary" loading={busy} onClick={onApprove} data-testid={`queue-approve-${p.key}`}>Approve</Button>
         )}
-        {edit && p.approve !== 'line_done' && <Button size="sm" onClick={() => nav.go(edit)} data-testid={`queue-edit-${p.key}`}>{p.type === 'capture' ? 'Open' : 'Edit'}</Button>}
+        {edit && p.approve !== 'line_done' && <Button size="sm" onClick={() => nav.go(edit)} data-testid={`queue-edit-${p.key}`}>{p.type === 'capture' || p.type === 'reminder' ? 'Open' : 'Edit'}</Button>}
         {p.type !== 'capture' && canWrite && <Button size="sm" variant="ghost" disabled={busy} onClick={onDiscard} data-testid={`queue-discard-${p.key}`}>Discard</Button>}
       </div>
     </div>
@@ -91,7 +112,7 @@ function Detail({ p, onApprove, onDiscard, busy }: { p: QueueProposal; onApprove
 
 export function ApprovalQueueScreen(): React.JSX.Element {
   const { data, isLoading } = useQueueList()
-  const { busy, approve, approveAll, discard } = useQueueActions()
+  const { busy, approve, approveAll, discard, remind } = useQueueActions()
   const toast = useToasts()
   const rows = useMemo(() => data?.proposals ?? [], [data])
   const canSave = useCanSave()
@@ -144,6 +165,8 @@ export function ApprovalQueueScreen(): React.JSX.Element {
           renderDetail={(r) => (
             <Detail
               p={r}
+              plan={data?.plans.find((x) => x.key === r.group)}
+              onRemind={(via, text) => void remind(r, via, text).then((o) => report(o, 'Reminder logged as sent'))}
               busy={busy.has(r.key)}
               onApprove={() => void approve(r).then((o) => report(o, r.type === 'memory' ? 'Remembered' : 'Approved and saved'))}
               onDiscard={() => void discard(r).then((o) => report(o, 'Discarded'))}

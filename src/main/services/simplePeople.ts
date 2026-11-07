@@ -208,6 +208,21 @@ export function updatePerson(db: DB, patch: PersonUpdate): { ledgerId: number; p
 }
 
 /** A reminder sent from the People screen — logged like the letter (no document). */
+/** Phase 3b part 2: every customer's late reminder as on `today` (ONE Outstandings run — the
+ *  person page's own `reminderOf`), with the phone numbers the reminder card uses. A customer whose
+ *  oldest late bill is fewer than `minDays` days late is left out. */
+export function lateReminders(db: DB, today: string, minDays = 1): { ledgerId: number; name: string; phone: string | null; whatsapp: string | null; reminder: PersonReminder }[] {
+  const s = allocation(db, 'customer', today)
+  const out: { ledgerId: number; name: string; phone: string | null; whatsapp: string | null; reminder: PersonReminder }[] = []
+  for (const l of partyLedgers(db)) {
+    if (l.side !== 'customer') continue
+    const r = reminderOf(db, l.id, openBillsOf(s.rows.get(l.id)), today)
+    if (!r || r.bills.reduce((m, b) => Math.max(m, b.overdueDays), 0) < minDays) continue
+    out.push({ ledgerId: l.id, name: l.name, phone: l.phone, whatsapp: l.whatsapp, reminder: r })
+  }
+  return out
+}
+
 export function personReminded(db: DB, id: number, via: ReminderVia, today: string, tone: ReminderTone = 'late'): { logId: number } {
   const l = partyOrThrow(db, id)
   if (l.side !== 'customer') throw new AppError('simple_people_nothing_late', 'Nothing is late for this person')

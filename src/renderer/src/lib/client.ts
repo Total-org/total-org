@@ -719,6 +719,8 @@ export const api = {
   assist: {
     ask: (input: AssistAskInput) => call<AssistAnswer>('assist:ask', input),
     draft: (input: AssistAskInput) => call<AssistDraftResult>('assist:draft', input),
+    /** Phase 3b part 2: a task question → ONE plan of proposals in the approval queue. */
+    plan: (input: AssistAskInput) => call<import('@shared/aiPlans').PlanCreated>('assist:plan', input),
     /** The flow an Ask Total draft opened was left without saving: discard it (no-op for any other draft). */
     discardDraft: (draftId: number) => call<AiDraftDto | null>('assist:draft:discard', { draftId })
   },

@@ -15,6 +15,8 @@
 export const AUDIT_ENTITIES = [
   'ai_data',
   'ai_draft',
+  // Phase 3b part 2: a plan (a task turned into proposals) and its items' status changes.
+  'ai_plan',
   'ai_memory',
   'ai_settings',
   'ai_thread',
