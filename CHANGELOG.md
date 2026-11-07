@@ -29,6 +29,40 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
+- Fix (#217): e2e scenarios 39 / 41 / 43 / 44 / 45 turn the AI assistant on through the new harness
+  `h.enableAi()` — notice, switch, then Test connection, which picks the model from the mock's list —
+  since #210 there is no built-in model id. Tests only; no app change.
+
+**GST gateway on screen, test mode** (#211; upgrade plan Phase 4, part 2). Plain words: the
+e-Invoice & e-way bill screen has a **Portal (test)** button per document, and the GSTR-1 / GSTR-3B
+screens a **Send to the portal (test mode)** panel. It signs in with a code, sends the return,
+checks it, sets off the liability (GSTR-3B) and files it with the EVC code. The GSTR-2B screen can
+**Fetch from the portal (test mode)**. The simple Taxes screen's step 3 offers "Or send it to the GST
+portal from here", in plain words (Hindi and Hinglish too, machine-drafted). Every one of these says
+**test mode — nothing is sent to the GST portal**: the built-in Test GSP answers (its test code is
+shown), a simulated IRN / e-way bill never appears on the bill or its print, and a test filing is
+shown on Taxes as "Test filing only (not on the portal)", never as filed. A quarterly filer is told
+sending a quarter is not ready yet. For developers: `screens/gst/GatewayPanel.tsx`
+(`GatewayReturnPanel`, `Gateway2bFetch`), `screens/edocs/GatewayEdoc.tsx`,
+`simple/taxes/PortalSend.tsx`, `api.gateway` in the client, `SimpleTaxes.testFiled`, keys
+`simple.taxes.portal.*`; e2e 75; `__tests__/gatewayUi.test.tsx`.
+
+**Plain words** (#210 — AI service choice, upgrade plan Phase 3a). The AI helper can now use any
+service that works like OpenAI, with your own key — OpenRouter, Groq, Google Gemini, or a custom
+address — or a model running on this computer with **Ollama** or **LM Studio** (no key, nothing
+sent over the internet). Pick it in Settings → AI (or Settings → AI helper in simple mode). Total
+picks the model from the service's own list (or you type one when a local server lists none); it
+no longer assumes a model name. When a service can't do something — use Total's tools, read bills
+or bank lines, read photos or scanned PDFs — Total says so in plain words instead of failing.
+If you already use OpenAI nothing changes: same key, same models, same requests.
+
+- For developers: `shared/aiProviders.ts` (presets, capabilities, base-URL rule, `pickModels` moved
+  here), `main/ai/providerConfig.ts` (choice in `app-settings.json` → `aiProvider`, one key per
+  preset in the secret store — OpenAI keeps `openai_api_key` — headers under `ai_headers:<preset>`),
+  `provider.ts` gains a Chat Completions path, `createProvider` and capability refusals; new IPC
+  `ai:provider:set` (owner, the shared-key rule); `ai:testConnection` now saves a model picked from
+  the list when none is set or the set one is not offered (audited). No migration; no figure changes.
+
 - **GST golden fixtures and official schema checks** (#207, Phase 2a of the upgrade plan). Plain
   words: nothing changes on screen. 63 bills worked out by hand (intra / inter-state, B2B, B2C small /
   large by date, SEZ and exports with / without tax, reverse charge, imports, blocked credit,
@@ -340,6 +374,19 @@ comparatives' period maths to `shared/reportPeriod.ts`, `mulDivRound` / `instalm
   the folder after (it never did — found in #197's review); the scratch rekey checks that
   `journal_mode = MEMORY` took effect; a failed rekey of the restore's temp copy removes it; a swap that fails (copy / fsync / rename) removes its copy and
   reopens the untouched books instead of leaving a closed handle.
+- **GSTR-1's B2C (Large) row names the old limit for months before August 2024** (#204). Plain words:
+  the GSTR-1 screen said "inter-state > ₹1,00,000" even for months before 1 Aug 2024, when the
+  limit was ₹2,50,000 (Total already sorted those invoices by the old limit — only the label was
+  wrong). The screen now says "> ₹2,50,000" for those months. For developers: the label is chosen
+  on the screen (`b2clLabelForPeriod`, shared/gst/returns.ts); `buildGstr1`'s summary keeps
+  `B2CL_SUMMARY_LABEL` for every period, so exports, the CA pack's CSV and every pinned hash /
+  fixture (reportEquality's May 2024 GSTR-1, gstPostedRateParity, tradeLegacy) are unchanged.
+- **Bills to pay: a bill with no due date is not "due this week"** (#200). Plain words: on People →
+  Bills to pay, a supplier's bill with no due date (the row says "no due date") was still added to
+  "due this week" / "due this month" by its bill date. The totals, their "Why?" and the Due column
+  (here and on a person's page, now blank) now agree with the row. For developers:
+  `billsToPayTotals` / `billsToPayWhy` skip `dueDate == null`; opening bills keep their date as the due
+  date (`dueDateOf`), as before.
 - **A question for your CA about the old B2C Large limit** (#198). Docs only: `docs/owner/09-questions-for-your-ca.md`
   Q33 asks whether the portal applies the ₹2.5 lakh B2C Large limit (before 1 Aug 2024) by invoice
   date or by tax period, and how a note follows its original (the later questions move down by one).
