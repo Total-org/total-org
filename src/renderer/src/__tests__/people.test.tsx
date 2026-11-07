@@ -11,6 +11,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CompanyInfo, Group, Ledger } from '@shared/domain'
 import type { BillsToPay as BillsData, PeopleList as PeopleData, PersonView as PersonData } from '@shared/simple/people'
+import { translator } from '@shared/i18n'
 import { bannedWordsIn } from '@shared/simple/bannedWords'
 import { useNav, useSession } from '../state/stores'
 import { PeopleList } from '../simple/people/PeopleList'
@@ -115,9 +116,25 @@ describe('the People list', () => {
     expect(within(ramesh).getByTestId('person-chip-late').textContent).toBe('₹1,000.00 late · 25 days')
     expect(ramesh.textContent).toContain('15 days')
     const sita = rows.querySelector('tr[data-row-id="11"]') as HTMLElement
-    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('₹200.00 credit')
+    // Audit UX-13: the side is in the words — a customer paid ahead, never just "credit".
+    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('Paid ₹200.00 ahead')
     expect(within(sita).getByTestId('person-chip-hold')).toBeTruthy()
     expect(bannedWordsIn(visibleText())).toEqual([])
+  })
+
+  it('paid-ahead chip names who paid ahead, in every language (audit UX-13)', () => {
+    const en = translator('en')
+    expect(en('simple.people.chip.ahead', { side: 'customer', amount: '₹200.00' })).toBe('Paid ₹200.00 ahead')
+    expect(en('simple.people.chip.ahead', { side: 'supplier', amount: '₹200.00' })).toBe('You paid ₹200.00 ahead')
+    for (const lang of ['hi', 'hinglish'] as const) {
+      const t = translator(lang)
+      const customer = t('simple.people.chip.ahead', { side: 'customer', amount: '₹200.00' })
+      const supplier = t('simple.people.chip.ahead', { side: 'supplier', amount: '₹200.00' })
+      expect(customer).toContain('₹200.00')
+      expect(supplier).toContain('₹200.00')
+      expect(customer).not.toBe(supplier)
+      expect(bannedWordsIn(customer + ' ' + supplier)).toEqual([])
+    }
   })
 
   it('filters: suppliers, owe you, late to pay', async () => {

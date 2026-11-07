@@ -989,7 +989,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.people.col.pending': 'Abhi baaki',
   'simple.people.col.when': 'Kab',
   'simple.people.chip.late': '{amount} ki date nikli',
-  'simple.people.chip.ahead': '{amount} credit',
+  'simple.people.chip.ahead': '{side, select, customer {{amount} advance diya} other {Aapne {amount} advance diya}}',
   'simple.people.chip.hold': 'Hold par',
   'simple.people.days': '{days, plural, one {# din} other {# din}}',
   'simple.people.paidAhead': 'Agle bill ke liye {amount} ka credit hai',
