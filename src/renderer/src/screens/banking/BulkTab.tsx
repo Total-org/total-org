@@ -22,7 +22,7 @@ function candidateColumns(threshold: number, onFix: (c: PaymentCandidate) => voi
     { id: 'number', header: 'Voucher', kind: 'text', value: (c) => c.number, width: 110, className: 'num' },
     { id: 'payee', header: 'Payee', kind: 'text', value: (c) => c.payeeName, hideable: false, minWidth: 130 },
     { id: 'account', header: 'Account no.', kind: 'text', value: (c) => c.accountNo, width: 138, className: 'num text-muted' },
-    { id: 'ifsc', header: 'IFSC', kind: 'text', value: (c) => c.ifsc, width: 108, className: 'num text-muted' },
+    { id: 'ifsc', header: 'IFSC', kind: 'text', value: (c) => c.ifsc, width: 108, className: 'font-mono text-muted' },
     { id: 'amount', header: 'Amount', kind: 'money', value: (c) => c.amount, aggregate: 'sum', width: 130 },
     {
       id: 'mode',
@@ -64,7 +64,7 @@ const BENEFICIARY_COLUMNS = defineColumns<BeneficiaryRow>([
   { id: 'group', header: 'Group', kind: 'text', value: (b) => (b.isBank ? 'Our bank account' : b.groupName), width: 150, className: 'text-muted' },
   { id: 'accountName', header: 'Account name', kind: 'text', value: (b) => b.accountName, minWidth: 150 },
   { id: 'account', header: 'Account no.', kind: 'text', value: (b) => b.accountNo, width: 160, className: 'num' },
-  { id: 'ifsc', header: 'IFSC', kind: 'text', value: (b) => b.ifsc, width: 120, className: 'num' },
+  { id: 'ifsc', header: 'IFSC', kind: 'text', value: (b) => b.ifsc, width: 120, className: 'font-mono' },
   { id: 'email', header: 'E-mail', kind: 'text', value: (b) => b.email, width: 170, defaultHidden: true },
   {
     id: 'state',
@@ -356,7 +356,7 @@ function BeneficiaryModal({ row, onClose, onSaved }: { row: BeneficiaryRow; onCl
             <TextInput value={accountNo} onChange={(e) => setAccountNo(e.target.value)} className="num" data-testid="input-bulk-ben-account" />
           </Field>
           <Field label="IFSC" hint="11 characters: 4 letters, 0, then 6 letters/digits">
-            <TextInput value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} className="num" data-testid="input-bulk-ben-ifsc" />
+            <TextInput value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} className="font-mono" data-testid="input-bulk-ben-ifsc" />
           </Field>
         </div>
         <div className="flex justify-end gap-2">

@@ -29,7 +29,7 @@ export function Segmented<T extends string>({
     ref.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[(i + n) % n]?.focus()
   }
   return (
-    <div ref={ref} role="radiogroup" aria-label={label} className="inline-flex max-w-full flex-wrap rounded-md border border-line bg-panel2 p-0.5">
+    <div ref={ref} role="radiogroup" aria-label={label} className="inline-flex max-w-full flex-wrap rounded-lg border border-line bg-panel2 p-0.5">
       {options.map((o, i) => {
         const on = o.value === value
         return (
@@ -48,8 +48,8 @@ export function Segmented<T extends string>({
               e.preventDefault()
               e.stopPropagation()
             }}
-            className={`rounded px-3 whitespace-nowrap transition-colors ${size === 'sm' ? 'py-0.5 text-small' : 'py-1 text-detail'} ${
-              on ? 'bg-panel font-medium text-ink shadow-elev-1 ring-1 ring-line' : 'text-muted hover:text-ink'
+            className={`rounded-md px-3 font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 ${size === 'sm' ? 'py-0.5 text-small' : 'py-1 text-detail'} ${
+              on ? 'bg-panel text-ink shadow-elev-1 ring-1 ring-line' : 'text-muted hover:text-ink'
             }`}
           >
             {o.label}

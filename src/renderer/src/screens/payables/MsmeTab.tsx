@@ -62,7 +62,7 @@ const DISALLOW_COLUMNS = defineColumns<MsmeBill43Bh>([
 
 const FORM_COLUMNS = defineColumns<MsmeForm1Supplier>([
   { id: 'party', header: 'Name of MSE supplier', kind: 'text', value: (r) => r.partyName, minWidth: 170, hideable: false, cell: (r) => <LedgerLink ledgerId={r.ledgerId} name={r.partyName} /> },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan ?? '', width: 110, className: 'num' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan ?? '', width: 110, className: 'font-mono' },
   { id: 'withinN', header: 'No.', group: 'Paid ≤ 45 d', kind: 'number', value: (r) => r.paidWithin45.count, width: 60 },
   { id: 'within', header: 'Amount', group: 'Paid ≤ 45 d', kind: 'money', value: (r) => r.paidWithin45.amount, width: 120, aggregate: 'sum' },
   { id: 'afterN', header: 'No.', group: 'Paid > 45 d', kind: 'number', value: (r) => r.paidAfter45.count, width: 60 },

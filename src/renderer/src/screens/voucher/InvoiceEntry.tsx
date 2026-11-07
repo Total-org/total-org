@@ -768,7 +768,7 @@ export function InvoiceEntry({
       <div className="mt-2 flex items-center justify-between">
         {party ? (
           <p className="text-hint text-muted" data-testid="invoice-supply-line">
-            {party.gstin ? <>GSTIN <span className="num">{party.gstin}</span> · </> : 'Unregistered · '}
+            {party.gstin ? <>GSTIN <span className="font-mono">{party.gstin}</span> · </> : 'Unregistered · '}
             {!computed.chargesGst
               ? registrationOn(info!, date) === 'composition' ? 'No GST — composition scheme (bill of supply)' : 'No GST — the company is not GST-registered'
               : supply === 'intra' ? 'Intra-state — CGST + SGST' : 'Inter-state — IGST'}

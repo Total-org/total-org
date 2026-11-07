@@ -153,7 +153,7 @@ export function HsnInput({
         }}
       />
       {showList && (
-        <div id={listId} role="listbox" aria-label={labels.list} className="absolute top-full right-0 left-0 z-30 mt-1 max-h-64 overflow-auto rounded-md border border-line bg-raised shadow-elev-2">
+        <div id={listId} role="listbox" aria-label={labels.list} className="t-menu-in absolute top-full right-0 left-0 z-30 mt-1 max-h-64 overflow-auto rounded-lg border border-line bg-raised p-1 shadow-elev-2">
           {!index ? (
             <div className="px-3 py-1.5 text-caption text-muted">{labels.loading}</div>
           ) : options.length === 0 ? (
@@ -169,7 +169,7 @@ export function HsnInput({
                 aria-selected={i === active}
                 data-active={i === active}
                 data-code={o.code}
-                className="kbar-row cursor-pointer px-3 py-1.5"
+                className="kbar-row cursor-pointer rounded-md px-2.5 py-1.5"
                 onMouseEnter={() => setActive(i)}
                 onMouseDown={(e) => {
                   e.preventDefault()

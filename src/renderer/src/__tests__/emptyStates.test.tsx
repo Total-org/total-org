@@ -79,7 +79,7 @@ describe('empty states that teach (WP 10.3)', () => {
       const actions = box.querySelectorAll('[data-empty-action]')
       expect(actions).toHaveLength(1)
       expect(actions[0]!.getAttribute('data-testid')).toBe(c.action)
-      const primaries = [...document.querySelectorAll('button')].filter((b) => b.className.includes('bg-amberbar/90'))
+      const primaries = [...document.querySelectorAll('button')].filter((b) => b.classList.contains('t-btn-primary')) // the kit's primary marker (UI overhaul)
       const ownPrimary = actions[0]!
       expect(primaries.filter((b) => b !== ownPrimary && !box.contains(b))).toEqual([])
       // Learn how opens the screen's article in the help panel.

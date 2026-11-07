@@ -25,7 +25,7 @@ export function deducteeReturnColumns(kind: WithholdingKind) {
   return defineColumns<Form26qDeducteeRow>([
   { id: 'serial', header: '#', kind: 'number', value: (r) => r.serial, width: 44 },
   { id: 'party', header: w.party, kind: 'text', value: (r) => r.partyName, minWidth: 130, hideable: false, cell: (r) => <LedgerLink ledgerId={r.partyLedgerId} name={r.partyName} /> },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'PANNOTAVBL', className: 'num' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (r) => r.pan, width: 116, text: (r) => r.pan ?? 'PANNOTAVBL', className: 'font-mono' },
   { id: 'code', header: 'Type', kind: 'text', value: (r) => r.deducteeCode, width: 56, className: 'num', text: (r) => r.deducteeCode || '—' },
   { id: 'section', header: 'Section', kind: 'text', value: (r) => r.sectionCode, width: kind === 'tcs' ? 172 : 80, className: 'num' },
   { id: 'returnCode', header: kind === 'tcs' ? 'Code' : 'Return code', kind: 'text', value: (r) => r.returnCode, width: kind === 'tcs' ? 72 : 112, className: 'num', text: (r) => r.returnCode ?? '—' },
@@ -67,7 +67,7 @@ export function certificateColumns(kind: WithholdingKind) {
   const w = KIND_WORDS[kind]
   return defineColumns<Party16a>([
   { id: 'party', header: w.party, kind: 'text', value: (p) => p.partyName, hideable: false, cell: (p) => <LedgerLink ledgerId={p.partyLedgerId} name={p.partyName} /> },
-  { id: 'pan', header: 'PAN', kind: 'text', value: (p) => p.pan, width: 120, className: 'num', text: (p) => p.pan ?? 'Missing' },
+  { id: 'pan', header: 'PAN', kind: 'text', value: (p) => p.pan, width: 120, className: 'font-mono', text: (p) => p.pan ?? 'Missing' },
   { id: 'payments', header: kind === 'tcs' ? 'Sales' : 'Payments', kind: 'number', value: (p) => p.payments.length, width: 96 },
   { id: 'amount', header: 'Amount', kind: 'money', value: (p) => p.totals.amountPaise, aggregate: 'sum' },
   { id: 'tds', header: w.name, kind: 'money', value: (p) => p.totals.tdsPaise, aggregate: 'sum' },

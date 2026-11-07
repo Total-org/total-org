@@ -64,6 +64,23 @@ describe.each([
     expect(contrastRatio(color(vars, '--t-on-amber'), color(vars, '--t-amber-bar'))).toBeGreaterThanOrEqual(4.5)
   })
 
+  // UI overhaul: the primary button (ink in light, amber in dark) and the inverted toast chip.
+  it.each([
+    ['--t-on-primary', '--t-primary'],
+    ['--t-on-primary', '--t-primary-hover'],
+    ['--t-toast-ink', '--t-toast-bg']
+  ])('%s on %s ≥ 4.5', (fg, bg) => {
+    expect(contrastRatio(color(vars, fg), color(vars, bg))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(['--t-toast-success', '--t-toast-info', '--t-toast-warning', '--t-toast-error'])(
+    'toast icon %s on the toast chip ≥ 3 (non-text contrast)',
+    (fg) => {
+      expect(contrastRatio(color(vars, fg), color(vars, '--t-toast-bg'))).toBeGreaterThanOrEqual(3)
+    }
+  )
+
+  // The focus ring colour is also the TabBar's selected-tab indicator (app.css .t-tab::after).
   it.each(['--t-bg', '--t-panel', '--t-panel2'])('focus ring on %s ≥ 3 (non-text contrast)', (bg) => {
     expect(contrastRatio(color(vars, '--t-focus'), color(vars, bg))).toBeGreaterThanOrEqual(3)
   })
