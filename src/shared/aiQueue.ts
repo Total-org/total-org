@@ -26,8 +26,10 @@ export type QueueWhat =
  *  - check: a captured bill the reader flagged (possible duplicate, printed GST / total differs,
  *    low confidence, unread parts, a number the duplicate check can't compare) — Edit to check it;
  *  - line_done: a bank-line draft whose statement line was matched or left out meanwhile —
- *    nothing to record (Discard). */
-export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture' | 'changed' | 'check' | 'line_done'
+ *    nothing to record (Discard);
+ *  - tds: the existing TDS rules say this payment / purchase needs TDS — Edit (the editor's TDS box;
+ *    owner, 8 Nov). */
+export type QueueApprove = 'voucher' | 'simple' | 'memory' | 'edit' | 'manual_number' | 'capture' | 'changed' | 'check' | 'line_done' | 'tds'
 
 export interface QueueLine {
   ledgerId: number

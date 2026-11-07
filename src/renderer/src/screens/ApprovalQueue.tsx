@@ -19,6 +19,7 @@ const BLOCKED: Partial<Record<QueueProposal['approve'], string>> = {
   capture: 'Still being read — open Document capture',
   changed: 'The figures changed since this was drafted (a rate or ledger changed) — the lines above are what would post now; open it to check',
   check: 'The bill reader flagged this bill (see the assumptions) — open it and check it against the file',
+  tds: 'TDS applies to this payment (the TDS rules flag it) — open it to deduct TDS in the editor',
   line_done: 'The statement line was matched or ignored meanwhile — nothing to record; discard it'
 }
 

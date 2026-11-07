@@ -3185,6 +3185,8 @@ export const en = {
   'errors.queue.notOpen': 'This suggestion was already dealt with.',
   'errors.queue.manualNumber': 'This needs a number you type yourself — open it with Edit.',
   'errors.queue.editOnly': 'This one needs a few more answers — open it with Edit.',
+  'simple.queue.tds': 'This payment needs tax deducted at source (TDS) — open it with Edit to fill it in.',
+  'errors.queue.tds': 'This payment needs tax deducted at source (TDS) — open it with Edit to fill it in.',
   'simple.queue.changed': 'The amounts changed since this was prepared (a price or rate changed) — open it with Edit to check.',
   'simple.queue.check': 'Check this bill against the file first — open it with Edit.',
   'simple.queue.lineDone': 'This bank line was already sorted out elsewhere — nothing more to record.',

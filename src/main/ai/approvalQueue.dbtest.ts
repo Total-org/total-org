@@ -290,6 +290,20 @@ describe('approval queue', () => {
     await ok('ai:draft:discard', { id: second })
   })
 
+  it('a payment the TDS rules flag is opened, never approved without TDS (owner, 8 Nov)', async () => {
+    const sec = count("SELECT id AS n FROM tds_sections WHERE code = '194C'")
+    await mkLedger('Contractor Co', 'Sundry Creditors', { tdsSectionId: sec, pan: 'ABCCE1234F' })
+    await ask('Pay 35,000 contractor co in cash')
+    const p = await newest((x) => x.what === 'money_out' && x.amount === 3_500_000)
+    expect(p.approve).toBe('tds')
+    const vouchers = count('SELECT COUNT(*) AS n FROM vouchers')
+    expect(await call('ai:queue:approve', { key: p.key, today: T })).toMatchObject({ ok: false, code: 'queue_tds' })
+    expect(count('SELECT COUNT(*) AS n FROM vouchers')).toBe(vouchers)
+    // Below the ₹30,000 single-payment line of 194C: no TDS, one click.
+    await ask('Pay 10,000 contractor co in cash')
+    expect((await newest((x) => x.what === 'money_out' && x.amount === 1_000_000)).approve).toBe('voucher')
+  })
+
   it('a viewer and an accountant without the posting right cannot approve', async () => {
     await ask('Pay 300 shop rent in cash')
     const p = await newest((x) => x.what === 'money_out' && x.amount === 30_000)

@@ -89,6 +89,7 @@ function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; act
       {p.approve === 'manual_number' && <p className="text-hint text-muted">{t('simple.queue.manualNumber')}</p>}
       {p.approve === 'changed' && <Banner tone="warning">{t('simple.queue.changed')}</Banner>}
       {p.approve === 'check' && <Banner tone="warning">{t('simple.queue.check')}</Banner>}
+      {p.approve === 'tds' && <Banner tone="warning">{t('simple.queue.tds')}</Banner>}
       {p.approve === 'line_done' && <p className="text-hint text-muted">{t('simple.queue.lineDone')}</p>}
       {p.assumptions.length > 0 && (
         <details className="text-hint text-muted">

@@ -25,7 +25,10 @@ import { voucherInputSchema, type VoucherInputParsed } from '@shared/schemas'
 import { AppError } from '@shared/errors/appError'
 import { draftOffer } from '@shared/simple/aiPlain'
 import type { AssistPrefill } from '@shared/assist'
-import { nextVoucherNumber } from '../services/vouchers'
+import { nextVoucherNumber, saveVoucher } from '../services/vouchers'
+import { getFeatures } from '../services/config'
+import { tdsEligible } from '../services/tdsWorkbench'
+import { previewIntent } from '../services/simplePost'
 import { listVoucherTypes } from '../services/masters'
 import { statementLineOpen } from '../services/bankImport'
 import { getDraft, listDrafts } from './store'
@@ -158,6 +161,28 @@ export function postsAsDrafted(d: AiDraftDto, built: VoucherInputParsed): boolea
   return Math.abs(partyNow) === d.payload.total
 }
 
+/** Owner (8 Nov): a proposal the EXISTING TDS rules (tdsWorkbench.tdsEligible) say needs TDS is
+ *  opened in the editor (where the TDS box is), never saved in one click without it. Called inside
+ *  a rehearsal or the save's transaction — the payload is saved in a nested rehearsal to ask. */
+function needsTds(db: DB, built: VoucherInputParsed, kind: string): boolean {
+  if ((kind !== 'payment' && kind !== 'purchase') || !getFeatures(db).tds) return false
+  return rehearse(db, () => {
+    const v = saveVoucher(db, built)
+    return tdsEligible(db, built.date, built.date).some((r) => r.voucherId === v.id)
+  })
+}
+
+/** The same question for an Ask Total offer: simple:preview's TDS hint (the same rules). */
+function offerNeedsTds(db: DB, company: CompanyInfo, d: AiDraftDto, today: string): boolean {
+  const intent = d.payload.simple?.intent as { kind?: string } | null
+  if (!intent || (intent.kind !== 'money_out' && intent.kind !== 'purchase') || !getFeatures(db).tds) return false
+  try {
+    return !!previewIntent(db, company, { ...intent, clientId: `queue-tds-check-${d.id}` }, today).tds?.length
+  } catch {
+    return false // a refused offer is refused again, with its own reason, when it is approved
+  }
+}
+
 const linesWithNames = (db: DB, lines: readonly { ledgerId: number; drCr: 'dr' | 'cr'; amount: number }[]): QueueLine[] => {
   const name = db.prepare('SELECT name FROM ledgers WHERE id = ?')
   return lines.map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount, ledgerName: (name.get(l.ledgerId) as { name: string } | undefined)?.name ?? `#${l.ledgerId}` }))
@@ -183,14 +208,16 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
       try {
         const now = rehearse(db, () => {
           const built = draftVoucherPayload(m, d, types.get(p.voucherTypeId)!)
-          return { lines: linesWithNames(db, built.lines), same: postsAsDrafted(d, built) }
+          return { lines: linesWithNames(db, built.lines), same: postsAsDrafted(d, built), tds: needsTds(db, built, p.voucherKind) }
         })
         lines = now.lines
         if (!now.same) approve = 'changed'
+        else if (now.tds) approve = 'tds'
       } catch {
         approve = 'edit'
       }
     }
+    if (approve === 'simple' && offerNeedsTds(db, company, d, today)) approve = 'tds'
     const amount = p.total ?? (lines.length ? lines.filter((l) => l.drCr === 'dr').reduce((s, l) => s + l.amount, 0) : null)
     out.push({
       key: `draft:${d.id}`, type: 'draft', id: d.id, origin: originOf(d), what: whatOfKind(p.voucherKind),
@@ -228,6 +255,7 @@ export function listQueue(db: DB, company: CompanyInfo, today: string): QueueLis
 }
 
 const REFUSAL: Partial<Record<QueueApprove, () => AppError>> = {
+  tds: () => new AppError('queue_tds', 'This payment needs TDS deducted — open it to fill in the TDS'),
   changed: () => new AppError('queue_changed', 'The figures changed since this was prepared (a rate or account changed) — open it to check'),
   manual_number: () => new AppError('queue_manual_number', 'This voucher type is numbered by hand — open it to type the number'),
   line_done: () => new AppError('queue_line_done', 'This bank line was already matched or left out — nothing to record'),
@@ -246,6 +274,13 @@ export function openDraftFor(db: DB, company: CompanyInfo, draftId: number, path
   return d
 }
 
+/** An Ask Total offer Approve may post (path 'simple'): open, one-click, and not one that needs TDS. */
+export function openOfferFor(db: DB, company: CompanyInfo, draftId: number, today: string): AiDraftDto {
+  const d = openDraftFor(db, company, draftId, 'simple')
+  if (offerNeedsTds(db, company, d, today)) throw REFUSAL.tds!()
+  return d
+}
+
 /** Approve's payload for a draft (path 'voucher'), built inside voucher:save's transaction: the
  *  draft is open and one-click, today's figures are those the draft showed, and — for a captured
  *  bill — no voucher of the same supplier carries its invoice number in its FY by now. */
@@ -253,7 +288,8 @@ export function approvalPayload(db: DB, company: CompanyInfo, draftId: number, t
   const d = openDraftFor(db, company, draftId, 'voucher')
   const type = listVoucherTypes(db).find((t) => t.id === d.payload.voucherTypeId)!
   const built = draftVoucherPayload(loadMasters(db, company, today), d, type)
-  if (!postsAsDrafted(d, built)) throw new AppError('queue_changed', 'The figures changed since this was prepared (a rate or account changed) — open it to check')
+  if (!postsAsDrafted(d, built)) throw REFUSAL.changed!()
+  if (needsTds(db, built, d.payload.voucherKind)) throw REFUSAL.tds!()
   const c = d.source === 'capture' && d.payload.captureItemId ? captureFacts(db, d.payload.captureItemId) : null
   if (c?.supplierLedgerId) {
     const dup = findDuplicates(

@@ -129,7 +129,7 @@ import { settleAskDraft } from './assist/settle'
 import { aiMockAllowed } from './ai/env'
 import { settleDraftOnSave } from './ai/drafts'
 import * as aiStore from './ai/store'
-import { approvalPayload, openDraftFor } from './ai/queue'
+import { approvalPayload, openOfferFor } from './ai/queue'
 import { appSecretStore } from './services/secretStore'
 import type { AiEvent } from '@shared/ai'
 import { registerReceivablesIpc } from './ipcReceivables'
@@ -2035,7 +2035,7 @@ export function registerIpc(): void {
     const c = requireCompany()
     const draft = aiStore.getDraft(c.db, id)
     if (draft?.payload.simple) {
-      openDraftFor(c.db, c.info, id, 'simple')
+      openOfferFor(c.db, c.info, id, today ?? todayISO())
       const intent = simpleIntentSchema.parse({ ...(draft.payload.simple.intent as object), clientId: `queue-draft-${id}` })
       const r = postSimpleIntent(intent, today, id)
       return { key, voucherIds: r.voucherIds }

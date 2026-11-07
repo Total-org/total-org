@@ -182,6 +182,7 @@ export const ERROR_MAP = {
   queue_check: e('errors.queue.check'),
   queue_line_done: e('errors.queue.lineDone'),
   queue_duplicate: e('errors.queue.duplicate'),
+  queue_tds: e('errors.queue.tds'),
   simple_bank_not_bank: e('errors.bank.notBank', 'bank'),
   simple_bank_line_gone: e('errors.bank.lineGone', 'line'),
   simple_bank_line_done: e('errors.bank.lineDone', 'line'),

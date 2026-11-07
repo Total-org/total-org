@@ -29,8 +29,8 @@ from the palette or the AI panel). Home says when something is waiting. Nothing 
 you approve it, and approving saves it exactly as if you had saved it yourself — lock dates,
 roles, credit holds and the GST rules all apply. Approve records exactly the figures the list shows:
 if a price or rate changed since, or a bill the reader flagged (a possible duplicate, GST or total
-that differs from the printed one), or a bank line already sorted out elsewhere, it asks you to open
-it instead. A proposal nobody asked for, and every captured bill, is left out of "Approve all".
+that differs from the printed one), or a bank line already sorted out elsewhere, or a payment that needs TDS deducted, it asks you
+to open it instead. A proposal nobody asked for, and every captured bill, is left out of "Approve all".
 *For developers:* `ai:queue` (viewer, a read over open `ai_drafts`, `capture_items` still being
 read and `suggested` memories — `main/ai/queue.ts`, shapes in `shared/aiQueue.ts`) and
 `ai:queue:approve` (accountant; a draft's stored form state → the editor's shared voucherEdit

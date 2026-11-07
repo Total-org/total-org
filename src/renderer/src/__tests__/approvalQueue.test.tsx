@@ -125,13 +125,18 @@ describe('approval queue — simple mode', () => {
     const CLEAN_BILL = base({ key: 'draft:14', id: 14, origin: 'capture', what: 'purchase', group: 'message:5' })
     const OK1 = base({ key: 'draft:15', id: 15, group: 'message:5' })
     const OK2 = base({ key: 'draft:16', id: 16, group: 'message:5' })
-    list = { proposals: [CHANGED, FLAGGED, DONE, CLEAN_BILL, OK1, OK2], waiting: 3 }
+    const TDS = base({ key: 'draft:17', id: 17, approve: 'tds', group: 'message:5', prefill: { screen: 'simple-money-out', who: 'supplier', party: 9, amount: 3_500_000 } })
+    list = { proposals: [CHANGED, FLAGGED, DONE, CLEAN_BILL, OK1, OK2, TDS], waiting: 3 }
     renderUi(<ApprovalQueue />)
     await waitFor(() => expect(screen.getByTestId('queue-card-draft:11')).toBeTruthy())
     expect(screen.getByTestId('queue-card-draft:11').textContent).toContain('The amounts changed since this was prepared')
     expect(screen.getByTestId('queue-card-draft:12').textContent).toContain('Check this bill against the file first')
     expect(screen.getByTestId('queue-card-draft:13').textContent).toContain('already sorted out elsewhere')
-    for (const k of ['draft:11', 'draft:12', 'draft:13']) expect(screen.queryByTestId(`queue-approve-${k}`)).toBeNull()
+    expect(screen.getByTestId('queue-card-draft:17').textContent).toContain('tax deducted at source (TDS)')
+    // TDS is deducted in the full editor: a chat draft that needs it opens there, not the simple flow.
+    fireEvent.click(screen.getByTestId('queue-edit-draft:17'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'voucher-entry', aiDraftId: 17, kindHint: 'payment' }))
+    for (const k of ['draft:11', 'draft:12', 'draft:13', 'draft:17']) expect(screen.queryByTestId(`queue-approve-${k}`)).toBeNull()
     expect(screen.queryByTestId('queue-edit-draft:13')).toBeNull()
     expect(screen.getByTestId('queue-approve-draft:14')).toBeTruthy()
     fireEvent.click(screen.getByTestId('queue-approve-all-message:5'))

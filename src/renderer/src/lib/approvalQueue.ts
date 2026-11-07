@@ -22,7 +22,8 @@ export function useQueueList(enabled = true): ReturnType<typeof useQuery<Awaited
 export function queueEditTarget(p: QueueProposal, simple: boolean): Screen | null {
   if (p.type === 'capture') return { name: 'capture' }
   if (p.type === 'memory') return null
-  if (simple && p.prefill) return { name: p.prefill.screen, ask: { draftId: p.id, prefill: p.prefill } } as Screen
+  // TDS is deducted in the full editor (owner, 8 Nov) — a chat draft that needs it opens there.
+  if (simple && p.prefill && (p.approve !== 'tds' || p.origin === 'askTotal')) return { name: p.prefill.screen, ask: { draftId: p.id, prefill: p.prefill } } as Screen
   if (p.draftForm === 'tradeDoc' && p.voucherKind) return { name: 'trade-doc', kind: p.voucherKind, aiDraftId: p.id } as Screen
   return { name: 'voucher-entry', aiDraftId: p.id, ...(p.voucherKind ? { kindHint: p.voucherKind as VoucherKind } : {}) }
 }
