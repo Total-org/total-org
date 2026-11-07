@@ -29,7 +29,7 @@ request is labelled `release-blocker`. A figure change ships only with the owner
 `.github/workflows/scheduled-release.yml`, `scripts/release/`; `release.yml` is now also a
 `workflow_call` with `tag`, and its release notes are the version's CHANGELOG section.
 
-- **New look, part 1 — the foundation** (#PRNUM; UI overhaul, plan Phase 5). Plain words: Total
+- **New look, part 1 — the foundation** (#223; UI overhaul, plan Phase 5). Plain words: Total
   gets a calmer, sharper look in both modes and both themes. Amounts are in a clean typeface with
   even-width digits instead of the typewriter face, titles and labels are in normal sentence case,
   links are dark text with an amber underline instead of blue, the main button is solid ink (amber
