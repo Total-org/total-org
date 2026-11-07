@@ -32,6 +32,7 @@ import { acceptCategories, categoriseStatement } from './bankCategorise'
 import { residualAsker } from './bankCategoriseAi'
 import { syncCaptureWatcher } from './watcher'
 import type { ImageConverter } from './prepare'
+import { loadHsnIndex } from '../../hsnMaster'
 
 type Handle = (channel: string, fn: (payload: unknown) => unknown, minRole?: Role) => void
 interface Company {
@@ -185,13 +186,15 @@ export function registerCaptureIpc(handle: Handle, deps: CaptureIpcDeps): void {
     const after = patchItem(db(), it.id, { status: 'queued', approvedBy: null, error: null, draftId: null, duplicateKind: null, duplicateVoucherId: null }, true)
     return toCaptureDto(after)
   })
-  handle('capture:resolve', (p) => {
+  handle('capture:resolve', async (p) => {
     const { id, mapping } = captureResolveSchema.parse(p)
+    // Phase 2c: the HSN / SAC list for the redraft's line notes (loaded once; unreadable = no notes).
+    const hsnIndex = await loadHsnIndex().catch(() => null)
     const it = item(id)
     if (it.status !== 'needs_review' && it.status !== 'failed' && it.status !== 'duplicate') throw new Error(`A ${it.status} file has no open questions`)
     const merged = { ...(it.mapping ?? {}), ...mapping, lines: { ...(it.mapping?.lines ?? {}), ...(mapping.lines ?? {}) } }
     patchItem(db(), id, { mapping: merged }, true)
-    return toCaptureDto(redraft(env(), id, null))
+    return toCaptureDto(redraft(env(), id, null, hsnIndex))
   })
   handle('capture:remove', (p) => {
     const c = deps.company()
