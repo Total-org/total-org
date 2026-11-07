@@ -666,7 +666,6 @@ textarea:focus-visible {
   color: var(--t-ink);
 }
 [data-shell='simple'] button.t-btn-primary:disabled,
-[data-shell='simple'] button.bg-amberbar\/90:disabled,
 [data-shell='simple'] button.bg-danger-soft:disabled {
   background-color: var(--t-panel2);
   border-color: var(--t-line-strong);
@@ -710,6 +709,7 @@ textarea:focus-visible {
   *,
   *::before,
   *::after {
+    animation-delay: 0s !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -719,6 +719,7 @@ textarea:focus-visible {
 [data-motion='reduce'] *,
 [data-motion='reduce'] *::before,
 [data-motion='reduce'] *::after {
+  animation-delay: 0s !important;
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
@@ -836,7 +837,9 @@ textarea:focus-visible {
   bottom: -1px;
   height: 2px;
   border-radius: 2px;
-  background: var(--t-amber-bar);
+  /* --t-focus, not the bright bar: the indicator alone marks the open tab, so it must clear 3:1
+     on bg / panel / panel2 (tokens.test checks --t-focus there); #f2b632 was 1.6–1.8:1. */
+  background: var(--t-focus);
   transform: scaleX(0);
   transition: transform var(--t-duration-med) var(--t-ease-out);
 }

@@ -77,8 +77,8 @@ export function TabBar<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onSelect(t.id)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className={`t-tab ${vertical ? 't-tab-vertical rounded-md px-3 py-1.5 text-left' : 'px-2.5 py-1.5'} text-detail font-medium whitespace-nowrap transition-colors ${
-              selected ? 'text-ink' : 'text-muted hover:text-ink'
+            className={`t-tab ${vertical ? 't-tab-vertical rounded-md px-3 py-1.5 text-left' : 'px-2.5 py-1.5'} text-detail whitespace-nowrap transition-colors ${
+              selected ? 'font-semibold text-ink' : 'font-medium text-muted hover:text-ink'
             }`}
           >
             {t.label}
