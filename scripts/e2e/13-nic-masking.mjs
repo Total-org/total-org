@@ -157,6 +157,32 @@ await scenario('13-nic-masking', async (h) => {
     )
     assert(!leaked2, 'no secret in the DOM after the connection tests')
     assertEq(fake.irns.size, 0, 'still nothing filed')
+
+    // ---------- audit 2026-11 A5: the secrets stay with the address they were saved for ----------
+    let httpError = ''
+    try { await h.invoke('nic:save', { ...CREDS, ...LIVE, baseUrlEinvoice: 'http://einv-apisandbox.nic.in', publicKeyPem: fake.publicKeyPem }) } catch (e) { httpError = String(e.message ?? e) }
+    assert(/must start with https/.test(httpError), `plain http to another computer is refused (${httpError})`)
+    await h.invoke('nic:save', { ...CREDS, ...LIVE, baseUrlEinvoice: url, publicKeyPem: fake.publicKeyPem })
+    const masked = await h.invoke('nic:get')
+    const moved = await h.invoke('nic:save', { ...masked, baseUrlEinvoice: 'https://another-portal.example' })
+    assertEq(moved.secretsDropped, true, 'a new address without retyping drops the saved secrets')
+    assertEq(moved.configured, false, '…so live filing is no longer set up')
+    const afterMove = await h.invoke('nic:get')
+    assertEq(afterMove.password, '', 'no password is kept for the new address')
+    assertEq(afterMove.clientSecret, '', 'no client secret is kept for the new address')
+    // The same through the screen: change the address, save without retyping → the plain notice.
+    await h.invoke('nic:save', { ...CREDS, ...LIVE, baseUrlEinvoice: url, publicKeyPem: fake.publicKeyPem })
+    await h.goto('edocs')
+    await h.goto('settings')
+    await h.click('tab-settings-nic')
+    const urlBox = h.page.locator('input[placeholder="https://einv-apisandbox.nic.in"]')
+    await urlBox.waitFor({ timeout: 15000 })
+    await urlBox.fill('https://another-portal.example')
+    await h.page.getByRole('button', { name: 'Save credentials' }).click()
+    await h.page.waitForSelector('[data-testid="nic-secrets-notice"]', { timeout: 15000 })
+    const notice = await h.page.textContent('[data-testid="nic-secrets-notice"]')
+    assert(/cleared/.test(notice ?? '') && /portal they were typed for/.test(notice ?? ''), `plain notice shown (${notice})`)
+    await h.shot('04-nic-secrets-dropped')
   } finally {
     server.close()
   }

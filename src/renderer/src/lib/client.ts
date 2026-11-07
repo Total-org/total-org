@@ -1440,8 +1440,10 @@ export const api = {
   },
   nic: {
     get: () => call<NicCredentials>('nic:get'),
-    save: (creds: NicCredentials) => call<{ configured: boolean }>('nic:save', creds),
-    status: () => call<{ configured: boolean }>('nic:status'),
+    /** `secretsDropped`: the address / public key changed, so the saved secrets were cleared (audit A5). */
+    save: (creds: NicCredentials) => call<{ configured: boolean; secretsDropped: boolean }>('nic:save', creds),
+    /** `secretsHeldBack`: the stored address / key is not the one the secrets were saved for. */
+    status: () => call<{ configured: boolean; secretsHeldBack?: boolean }>('nic:status'),
     /** Auth handshake only (WP 3.5) — files nothing. */
     testConnection: () => call<{ ok: true; endpoint: string; sandbox: boolean; tokenExpiry: string }>('nic:testConnection'),
     generateIrn: (voucherId: number) => call<{ irn: string; ackNo: string; ackDate: string }>('nic:generateIrn', { voucherId }),

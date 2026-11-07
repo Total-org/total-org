@@ -72,7 +72,7 @@ await scenario('77-ai-plans', async (h) => {
   const item = q.proposals.find((p) => p.type === 'reminder')
   await h.click(`queue-copy-${item.key}`)
   await page.waitForSelector('[data-testid="simple-approvals-empty"]', { timeout: 10000 })
-  const copied = await page.evaluate(() => navigator.clipboard.readText())
+  const copied = await h.app.evaluate(({ clipboard }) => clipboard.readText())
   assert(copied.includes('Ramesh Traders') && copied.includes('12,000.00'), `the People page's reminder text was copied (${copied.slice(0, 80)})`)
   const log = await h.invoke('receivables:reminderLog', { from: '2000-01-01', to: '2099-12-31', ledgerId: ramesh.id })
   assertEq(log.length, 1, 'the reminder is logged once')
