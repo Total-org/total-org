@@ -122,7 +122,7 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **Pickers don't pop open over the form** (#PENDING; audit UX-7, owner 7 Nov). Plain words: when a
+- **Pickers don't pop open over the form** (#232; audit UX-7, owner 7 Nov). Plain words: when a
   screen opens with the cursor already in a picker (the customer on Make a bill, the party or
   ledger on a voucher), its list no longer covers the next fields. Type, press ↓ or Enter, or click
   it and the list opens as before; tabbing back into it opens it as before too. Also: the approval
