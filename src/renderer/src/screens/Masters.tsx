@@ -14,6 +14,7 @@ import { useGroups, useLedgers, useStockItems } from '../components/pickers'
 import { LedgerFormModal } from '../components/LedgerFormModal'
 import { ChartOfAccounts } from '../components/ChartOfAccounts'
 import { validateHsn } from '@shared/gst/validate'
+import { HsnInput } from '../components/HsnInput'
 import { confirmDialog, promptDialog } from '../lib/dialogs'
 import { ItemLink, LedgerLink } from '../components/links'
 import { useFeatures } from '../lib/useFeatures'
@@ -651,7 +652,7 @@ export function ItemFormModal({ item, onClose }: { item: StockItem | null; onClo
           </Field>
           {(itemShowsHsn(regType) || !!item?.hsn) && (
             <Field label="HSN" error={hsnError}>
-              <TextInput value={hsn} onChange={(e) => setHsn(e.target.value)} className="num" />
+              <HsnInput value={hsn} onChange={setHsn} testId="input-item-hsn" placeholder="Code or words to search" />
             </Field>
           )}
           {showGst && (

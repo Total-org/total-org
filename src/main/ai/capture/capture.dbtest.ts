@@ -30,6 +30,7 @@ import { lstatSync, mkdirSync, symlinkSync } from 'fs'
 import { parseExtraction } from '@shared/capture/parse'
 import { draftFromBill } from './billDraft'
 import { CANNED_BHARAT_BILL } from './mock'
+import { loadHsnIndex } from '../../hsnMaster'
 const sampleBill = (): typeof CANNED_BHARAT_BILL => structuredClone(CANNED_BHARAT_BILL)
 import * as aiStore from '../store'
 import { captureMockStep } from './mock'
@@ -433,6 +434,26 @@ describe('review fixes', () => {
     expect(out.review!.questions[0]!.question).toMatch(/prints GSTIN 24AABCH7890I1ZB but it is not clear which is the supplier/)
     const named = draftFromBill({ db, company: INFO, item: { id: 998, fileName: 'x.pdf' }, parsed: { ...parsed, gstinCandidates: ['24AABCH7890I1ZB', '27AABCG3456H1ZN'] }, mode: 'text', mapping: {}, today: TODAY })
     expect(named).toMatchObject({ status: 'drafted', supplierLedgerId: ids.bharat })
+  })
+
+  it('Phase 2c: an HSN the GST portal list lacks, or that is not a code, is a note on the draft — never a refusal; no list, no note', async () => {
+    const bill = sampleBill()
+    bill.invoiceNumber = 'BSS/2025-26/0999'
+    bill.lines[0] = { ...bill.lines[0]!, hsn: '9401' } // in the list (HSN_MSTR "9401")
+    bill.lines[1] = { ...bill.lines[1]!, hsn: '94039999' } // 9403 is listed; 94039999 is not
+    const parsed = parseExtraction(bill, TODAY)
+    const index = await loadHsnIndex()
+    const out = draftFromBill({ db, company: INFO, item: { id: 996, fileName: 'h.pdf' }, parsed, mode: 'text', mapping: {}, today: TODAY, hsnIndex: index })
+    expect(out.status).toBe('drafted')
+    const notes = aiStore.getDraft(db, (out as { draft: { id: number } }).draft.id)!.payload.assumptions ?? []
+    expect(notes.filter((a) => /HSN \/ SAC/.test(a))).toEqual(["Line 2: HSN / SAC 94039999 is not in the GST portal's HSN / SAC list (April 2026) — check the bill"])
+
+    const odd = sampleBill()
+    odd.invoiceNumber = 'BSS/2025-26/0998'
+    odd.lines[0] = { ...odd.lines[0]!, hsn: '94-01' }
+    const r = draftFromBill({ db, company: INFO, item: { id: 995, fileName: 'o.pdf' }, parsed: parseExtraction(odd, TODAY), mode: 'text', mapping: {}, today: TODAY, hsnIndex: index })
+    const oddNotes = r.status === 'drafted' ? aiStore.getDraft(db, r.draft.id)!.payload.assumptions ?? [] : r.review!.assumptions
+    expect(oddNotes.some((a) => a.startsWith('Line 1: the HSN / SAC “94-01” printed on the bill is not a 4, 6 or 8 digit code'))).toBe(true)
   })
 
   it('a ledger-line bill with a credited round-off has no false GST mismatch; a negative line is asked about up front', async () => {
