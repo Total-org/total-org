@@ -11,6 +11,7 @@ import { formatPaise } from '@shared/money'
 import { toDisplayDate } from '@shared/dates'
 import { api } from '../../lib/client'
 import { bankingApi } from '../../lib/bankingClient'
+import { tickBillAmount, BILL_TICK_FULL_MESSAGE } from '@shared/voucherEdit/billTick'
 import { useNav, useSession, useToasts, type VoucherDraft } from '../../state/stores'
 import { AmountInput, Button, DateInput, Field, FieldError, isAnyModalOpen, LineTableScroller, Money, Panel, Select, TextInput, useFormErrors } from '../../components/ui'
 import { SaveCard } from '../../simple/SaveCard'
@@ -353,14 +354,11 @@ export function AccountingEntry({
   const billAllocatedTotal = billRefs.reduce((s, r) => s + r.amount, 0)
 
   const toggleBill = (bill: OutstandingBill, checked: boolean): void => {
-    setBillRefs((refs) => {
-      if (checked) {
-        const remaining = Math.max(0, partyLineTotal - refs.reduce((s, r) => s + r.amount, 0))
-        const amount = Math.min(bill.pending, remaining || bill.pending)
-        return [...refs, { kind: 'against', name: bill.number, amount, dueDate: null }]
-      }
-      return refs.filter((r) => !(r.kind === 'against' && r.name === bill.number))
-    })
+    if (!checked) return setBillRefs((refs) => refs.filter((r) => !(r.kind === 'against' && r.name === bill.number)))
+    // Audit A1 / COR-2: never more than what is left of the amount (shared/voucherEdit/billTick.ts).
+    const amount = tickBillAmount(bill.pending, partyLineTotal, billRefs)
+    if (amount == null) return void toast.push('error', BILL_TICK_FULL_MESSAGE)
+    setBillRefs((refs) => [...refs, { kind: 'against', name: bill.number, amount, dueDate: null }])
   }
 
   const setBillRefAmount = (name: string, amount: number): void => {

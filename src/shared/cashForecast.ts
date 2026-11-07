@@ -109,6 +109,7 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
   const open: OpenBill[] = []
   const out: HistoryBill[] = []
   let credit = 0
+  const closedByName = new Map<string, OpenBill>()
   const due = (date: string, explicit: string | null): string => explicit ?? (creditDays != null ? addDaysISO(date, creditDays) : date)
   const add = (name: string, date: string, amount: number, explicitDue: string | null): void => {
     const rec: HistoryBill = { dueBasis: due(date, explicitDue), settledOn: null, amount }
@@ -117,7 +118,7 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
     credit -= take
     const b: OpenBill = { name, dueBasis: rec.dueBasis, amount, pending: amount - take, rec }
     if (b.pending > 0) open.push(b)
-    else rec.settledOn = date
+    else { rec.settledOn = date; closedByName.set(name, b) }
   }
   const settle = (idx: number, amount: number, date: string): number => {
     const b = open[idx]!
@@ -125,9 +126,27 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
     b.pending -= take
     if (b.pending === 0) {
       b.rec.settledOn = date
-      open.splice(idx, 1)
+      closedByName.set(b.name, open.splice(idx, 1)[0]!)
     }
     return amount - take
+  }
+  // Audit A1, as shared/outstanding.ts: a positive event's 'against' ref adds to the bill it names
+  // (the open one, else the last one of that name paid in full, which is unpaid again).
+  const raise = (name: string, date: string, amount: number, explicitDue: string | null): void => {
+    const b = open.find((x) => x.name === name) ?? closedByName.get(name)
+    if (!b) return add(name, date, amount, explicitDue)
+    const take = Math.min(credit, amount)
+    credit -= take
+    b.amount += amount
+    b.rec.amount += amount
+    const wasOpen = b.pending > 0
+    b.pending += amount - take
+    if (wasOpen || b.pending === 0) return
+    closedByName.delete(name)
+    b.rec.settledOn = null
+    const at = out.indexOf(b.rec)
+    const idx = open.findIndex((x) => out.indexOf(x.rec) > at)
+    open.splice(idx === -1 ? open.length : idx, 0, b)
   }
   const fifo = (amount: number, date: string): void => {
     let rest = amount
@@ -138,6 +157,7 @@ export function billHistory(events: readonly BillEvent[], creditDays: number | n
     if (ev.refs.length > 0) {
       for (const r of ev.refs) {
         if (r.kind === 'new') add(r.name, ev.date, r.amount, r.dueDate)
+        else if (ev.amount > 0) raise(r.name, ev.date, r.amount, r.dueDate)
         else {
           const idx = open.findIndex((b) => b.name === r.name)
           if (idx === -1) credit += r.amount

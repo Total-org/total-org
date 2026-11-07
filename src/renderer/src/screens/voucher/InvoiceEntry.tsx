@@ -12,6 +12,7 @@ import { GST_STATES, GST_STATE_LIST } from '@shared/gst/states'
 import { formatPaise, amountInWords } from '@shared/money'
 import { toDisplayDate } from '@shared/dates'
 import { api } from '../../lib/client'
+import { tickBillAmount, BILL_TICK_FULL_MESSAGE } from '@shared/voucherEdit/billTick'
 import { useNav, useSession, useToasts, type VoucherDraft } from '../../state/stores'
 import { AmountInput, Banner, Button, DateInput, Field, FieldError, isAnyModalOpen, Kbd, Money, Panel, Select, TextInput, inputCls, useFormErrors } from '../../components/ui'
 import { SaveCard } from '../../simple/SaveCard'
@@ -375,14 +376,11 @@ export function InvoiceEntry({
   const noteAllocatedTotal = noteBillRefs.reduce((s, r) => s + r.amount, 0)
 
   const toggleNoteBill = (bill: OutstandingBill, checked: boolean): void => {
-    setNoteBillRefs((refs) => {
-      if (checked) {
-        const remaining = Math.max(0, computed.rounded - refs.reduce((s, r) => s + r.amount, 0))
-        const amount = Math.min(bill.pending, remaining || bill.pending)
-        return [...refs, { kind: 'against', name: bill.number, amount, dueDate: null }]
-      }
-      return refs.filter((r) => !(r.kind === 'against' && r.name === bill.number))
-    })
+    if (!checked) return setNoteBillRefs((refs) => refs.filter((r) => !(r.kind === 'against' && r.name === bill.number)))
+    // Audit A1 / COR-2: never more than what is left of the note (shared/voucherEdit/billTick.ts).
+    const amount = tickBillAmount(bill.pending, computed.rounded, noteBillRefs)
+    if (amount == null) return void toast.push('error', BILL_TICK_FULL_MESSAGE)
+    setNoteBillRefs((refs) => [...refs, { kind: 'against', name: bill.number, amount, dueDate: null }])
   }
   const setNoteBillAmount = (name: string, amount: number): void =>
     setNoteBillRefs((refs) => refs.map((r) => (r.name === name ? { ...r, amount } : r)))
