@@ -206,7 +206,8 @@ export const ERROR_MAP = {
   gst_filed_too_early: e('errors.taxes.tooEarly', 'date'),
   gst_filed_arn: e('errors.taxes.arn', 'arn'),
   gst_filed_date: e('errors.taxes.filedDate', 'date'),
-  // Audit 2026-11 A5: NIC portal addresses (main/services/nic.ts saveNicCredentials).
+  // Audit 2026-11 A5: NIC portal addresses (main/services/nic.ts saveNicCredentials). The field here is
+  // the default; the service names the box it refused (baseUrlEinvoice / baseUrlEwb) on the error.
   nic_url_not_url: e('errors.nic.notUrl', 'baseUrlEinvoice'),
   nic_url_not_https: e('errors.nic.notHttps', 'baseUrlEinvoice'),
   nic_url_has_login: e('errors.nic.hasLogin', 'baseUrlEinvoice'),

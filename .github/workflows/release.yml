@@ -90,10 +90,15 @@ jobs:
           # secrets here and auto-update becomes fully silent.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      # Audit 2026-11 A2: the DMG / ZIP were built with the fuses package.json sets (the release is
-      # still a draft here — release-win needs this job, so a failure keeps it unpublished).
-      - name: Electron fuses of the packaged build
-        run: node scripts/fuses.mjs check "$(ls -d dist/mac*/Total.app | head -1)/Contents/MacOS/Total"
+      # Audit 2026-11 A2: the DMG / ZIP were built with the fuses package.json sets, and the ad-hoc
+      # re-sign after flipping them left a valid signature (an arm64 Mac refuses to start a binary
+      # whose signature is broken). The release is still a draft here — release-win needs this job,
+      # so a failure keeps it unpublished.
+      - name: Electron fuses + signature of the packaged build
+        run: |
+          app="$(ls -d dist/mac*/Total.app | head -1)"
+          node scripts/fuses.mjs check "$app/Contents/MacOS/Total"
+          codesign --verify --deep --strict "$app"
 
   release-win:
     # Runs after the mac job so both publish into the SAME release —

@@ -6,6 +6,7 @@ import { _electron as electron } from 'playwright-core'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
+import { pathToFileURL } from 'node:url'
 // WP 7.3: the same launch target (TOTAL_APP_EXECUTABLE = a packaged build) and env
 // (ELECTRON_RUN_AS_NODE dropped, update check off) as the e2e harness.
 import { launchEnv, launchTarget } from './lib/harness.mjs'
@@ -300,6 +301,11 @@ try {
     assert(probe.menuHasDevTools === true, 'an unpackaged run keeps the developer menu')
   }
   assert(probe.pageFetch === 'refused' && probe.pageFetchArrived === 0, `a page cannot reach the network itself (${probe.pageFetch}, ${probe.pageFetchArrived} arrived)`)
+  // …nor read another file on the disk (the renderer folder only — never another company's books).
+  const outsideFile = path.join(dataDir, 'smoke-outside.txt')
+  fs.writeFileSync(outsideFile, 'not for the page')
+  const fileRead = await page.evaluate((u) => fetch(u).then((r) => r.text()).then((t) => `read ${t.length}`, () => 'refused'), pathToFileURL(outsideFile).href)
+  assert(fileRead === 'refused', `the app's page cannot read a file outside its own folder (${fileRead})`)
   // A page may not use the camera / location (deny-by-default permission handler).
   const perms = await page.evaluate(async () => {
     const perm = async (name) => { try { return (await navigator.permissions.query({ name })).state } catch (e) { return `error: ${e?.message ?? e}` } }

@@ -190,6 +190,9 @@ export function saveNicCredentials(
     const c = checkNicBaseUrl(incoming[field])
     if (!c.ok) throw new AppError(`nic_url_${c.code}`, c.error, { field })
   }
+  // A masked secret can't be kept when the store can't be read right now (keychain locked): saving
+  // would delete it. Refuse before anything is written (review of #225).
+  if (SECRET_FIELDS.some((f) => incoming[f] === NIC_SECRET_MASK) && !store.available()) throw new SecretsUnavailableError()
   const { creds: existing } = readNicState(db, slug, store)
   const scope = companyScope(slug)
   const savedFor = boundNicBinding(store, scope) ?? bindingOf(existing)

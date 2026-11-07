@@ -13,6 +13,8 @@ export function NicSection(): React.JSX.Element {
   const { data: existing } = useQuery({ queryKey: ['nicCreds'], queryFn: api.nic.get })
   const { data: status } = useQuery({ queryKey: ['nicStatus'], queryFn: api.nic.status })
   const [dropped, setDropped] = useState(false)
+  // A refused address (https only — audit A5) shows under its own box until that box changes.
+  const [urlError, setUrlError] = useState<{ field: 'baseUrlEinvoice' | 'baseUrlEwb'; message: string } | null>(null)
   const [creds, setCreds] = useState<NicCredentials | null>(null)
   const [busy, setBusy] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -22,6 +24,7 @@ export function NicSection(): React.JSX.Element {
   const canEdit = user == null || user.role === 'owner'
 
   const set = (patch: Partial<NicCredentials>): void => {
+    if (urlError && urlError.field in patch) setUrlError(null)
     if (value) setCreds({ ...value, ...patch })
   }
 
@@ -38,7 +41,9 @@ export function NicSection(): React.JSX.Element {
       // Dropped secrets: the notice above the form says so (no second, timed copy of it).
       if (!r.secretsDropped) toast.push(r.configured ? 'success' : 'warning', r.configured ? 'Live filing is ready' : 'Saved — some fields are still missing')
     } catch (err) {
-      toast.push('error', (err as Error).message)
+      const field = (err as { field?: string }).field
+      if (field === 'baseUrlEinvoice' || field === 'baseUrlEwb') setUrlError({ field, message: (err as Error).message })
+      else toast.push('error', (err as Error).message)
     } finally {
       setBusy(false)
     }
@@ -97,7 +102,7 @@ export function NicSection(): React.JSX.Element {
             database; the password and client secret are kept encrypted in this computer's secure storage.
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="e-Invoice base URL">
+            <Field label="e-Invoice base URL" name="baseUrlEinvoice" error={urlError?.field === 'baseUrlEinvoice' ? urlError.message : null}>
               <TextInput
                 value={value.baseUrlEinvoice}
                 onChange={(e) => set({ baseUrlEinvoice: e.target.value.trim() })}
@@ -106,7 +111,12 @@ export function NicSection(): React.JSX.Element {
                 disabled={!canEdit}
               />
             </Field>
-            <Field label="e-Way bill base URL" hint="Optional — EWBs are generated via the e-invoice suite">
+            <Field
+              label="e-Way bill base URL"
+              name="baseUrlEwb"
+              hint="Optional — EWBs are generated via the e-invoice suite"
+              error={urlError?.field === 'baseUrlEwb' ? urlError.message : null}
+            >
               <TextInput
                 value={value.baseUrlEwb}
                 onChange={(e) => set({ baseUrlEwb: e.target.value.trim() })}

@@ -49,7 +49,7 @@ export function readGatewaySettings(db: DB): GatewaySettings {
 // Audit 2026-11 A5: the portal password belongs to the provider it was typed for (the meta row
 // naming the provider is plain text in the company file) — another provider never receives it,
 // and choosing another provider without typing a password clears it. A password saved before the
-// binding existed counts as the current provider's.
+// binding existed was typed for the Test GSP (the only provider any build could select).
 const BOUND_SECRET = 'gstGateway.boundTo'
 
 const boundProviderOf = (slug: string, store: SecretStore): string | null => {
@@ -63,8 +63,8 @@ const boundProviderOf = (slug: string, store: SecretStore): string | null => {
 const passwordOf = (slug: string, store: SecretStore, provider: GatewayProviderId): string => {
   if (!store.available()) return ''
   try {
-    const bound = boundProviderOf(slug, store)
-    if (bound && bound !== provider) return ''
+    const bound = boundProviderOf(slug, store) ?? 'test-gsp'
+    if (bound !== provider) return ''
     return store.get(companyScope(slug), PASSWORD_SECRET) ?? ''
   } catch {
     return ''

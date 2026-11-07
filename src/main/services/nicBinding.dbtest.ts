@@ -10,14 +10,14 @@ import crypto from 'crypto'
 import type { AddressInfo } from 'net'
 import { seededDb } from '../db/testdb'
 import type { DB } from '../db/connection'
-import { createSecretStore, insecureTestCipher, companyScope, type SecretStore } from './secrets'
+import { createSecretStore, insecureTestCipher, companyScope, SecretsUnavailableError, type SecretStore } from './secrets'
 import {
   authenticate, readNicCredentials, readNicState, resetNicSession, saveNicCredentials, testNicConnection, writeNicCredentials,
   NIC_SECRET_MASK, type NicFetch
 } from './nic'
 import { nicCredentialsSchema, type NicCredentials } from '@shared/schemas'
 import { NIC_SECRETS_HELD_BACK } from '@shared/nicEndpoint'
-import { gatewayStatus, setGatewaySettings } from '../gstGateway'
+import { gatewayStatus, openGateway, resetGatewaySessions, setGatewaySettings } from '../gstGateway'
 import { TEST_GSP_PASSWORD } from '../gstGateway/testGsp'
 import type { CompanyInfo } from '@shared/domain'
 
@@ -55,6 +55,7 @@ beforeEach(() => {
   store = createSecretStore({ filePath: () => file, cipher: insecureTestCipher() })
   db = seededDb()
   resetNicSession()
+  resetGatewaySessions()
 })
 
 const secrets = (): [string, string] => {
@@ -116,6 +117,21 @@ describe('NIC secrets follow the address they were saved for', () => {
     const r = saveNicCredentials(db, SLUG, { ...CREDS, baseUrlEinvoice: 'https://other.example', clientSecret: NIC_SECRET_MASK, password: 'typed' }, store)
     expect(r.secretsDropped).toBe(true)
     expect(secrets()).toEqual(['typed', ''])
+  })
+})
+
+describe('secure storage unavailable (review of #225)', () => {
+  it('a masked save is refused before anything is written; the secrets survive', () => {
+    let up = true
+    const base = insecureTestCipher()
+    const file = join(dir, `secrets-off-${Math.random().toString(36).slice(2)}.json`)
+    const flaky = createSecretStore({ filePath: () => file, cipher: { ...base, isAvailable: () => up && base.isAvailable() } })
+    saveNicCredentials(db, SLUG, CREDS, flaky)
+    up = false
+    expect(() => saveNicCredentials(db, SLUG, { ...MASKED, username: 'u2' }, flaky)).toThrow(SecretsUnavailableError)
+    up = true
+    const after = readNicCredentials(db, SLUG, flaky)
+    expect([after.username, after.password, after.clientSecret]).toEqual(['demo_user', 'secret123', 'CSEC'])
   })
 })
 
@@ -222,9 +238,12 @@ describe('the GST gateway password stays with its provider', () => {
     store.set(companyScope(SLUG), 'gstGateway.boundTo', 'nic-direct')
     expect(gatewayStatus(db, SLUG, store).passwordStored).toBe(false)
   })
-  it('a password saved before the binding existed still counts as the current provider\'s', () => {
+  it('a password saved before the binding existed was the Test GSP\'s — and only the Test GSP\'s', () => {
     store.set(companyScope(SLUG), 'gstGateway.password', TEST_GSP_PASSWORD)
     expect(gatewayStatus(db, SLUG, store).passwordStored).toBe(true)
+    // A future adapter named in the company file never receives it.
+    expect(openGateway(db, SLUG, COMPANY, { store, adapter: { id: 'nic-direct', test: false } as never }).who.password).toBe('')
+    expect(openGateway(db, SLUG, COMPANY, { store }).who.password).toBe(TEST_GSP_PASSWORD)
   })
   it('forgetting the password removes the binding', () => {
     setGatewaySettings(db, SLUG, { provider: 'test-gsp', live: false, username: 'testgsp', password: TEST_GSP_PASSWORD }, store)

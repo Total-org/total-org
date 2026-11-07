@@ -8,7 +8,8 @@
 //   - (audit 2026-11 A2) developer tools only in an unpackaged run: `devTools: false` in packaged
 //     builds and an application menu without Toggle Developer Tools / Reload; every permission
 //     request is denied except writing to the clipboard (Copy / Copy for SMS / WhatsApp);
-//     a renderer may load only the app's own files (file:, data:, blob:, the dev server in dev) —
+//     a renderer may load only the app's own files (file: under the renderer folder, data:, blob:,
+//     the dev server in dev) —
 //     the network belongs to main (src/main/ai, gstGateway / nic, the updater), never a page.
 // No runtime Electron import (types only), so the policy is unit-tested (windowPolicy.test.ts)
 // against a fake web contents. main/index.ts applies it to every web contents created.
@@ -100,10 +101,11 @@ export function pdfWindowWebPreferences(): WebPreferences {
   }
 }
 
-/** The application menu. Packaged builds have no Toggle Developer Tools, Reload or Force Reload
- *  (Electron's default menu has all three, even when packaged — audit 2026-11 SEC-1); Edit keeps
- *  copy / paste working (on macOS the shortcuts come from this menu). */
-export function appMenuTemplate(opts: { isMac: boolean; packaged: boolean; appName: string }): MenuItemConstructorOptions[] {
+/** The application menu: the OS's own menus (app / File / Edit / Window — Services, ⌘W, copy and
+ *  paste included) with a View menu of our own. Packaged builds' View has no Toggle Developer
+ *  Tools, Reload or Force Reload (Electron's default menu has all three, even when packaged —
+ *  audit 2026-11 SEC-1). */
+export function appMenuTemplate(opts: { isMac: boolean; packaged: boolean }): MenuItemConstructorOptions[] {
   const view: MenuItemConstructorOptions[] = [
     ...(opts.packaged ? [] : ([{ role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' }, { type: 'separator' }] as MenuItemConstructorOptions[])),
     { role: 'resetZoom' },
@@ -113,25 +115,11 @@ export function appMenuTemplate(opts: { isMac: boolean; packaged: boolean; appNa
     { role: 'togglefullscreen' }
   ]
   return [
-    ...(opts.isMac
-      ? ([{
-          label: opts.appName,
-          submenu: [
-            { role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }
-          ]
-        }] as MenuItemConstructorOptions[])
-      : []),
-    ...(opts.isMac ? [] : ([{ label: 'File', submenu: [{ role: 'quit' }] }] as MenuItemConstructorOptions[])),
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' },
-        ...(opts.isMac ? ([{ role: 'pasteAndMatchStyle' }] as MenuItemConstructorOptions[]) : []),
-        { role: 'delete' }, { role: 'selectAll' }
-      ]
-    },
+    ...(opts.isMac ? ([{ role: 'appMenu' }] as MenuItemConstructorOptions[]) : []),
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
     { label: 'View', submenu: view },
-    { label: 'Window', submenu: opts.isMac ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }] : [{ role: 'minimize' }, { role: 'close' }] }
+    { role: 'windowMenu' }
   ]
 }
 
@@ -157,18 +145,21 @@ export function permissionAllowed(permission: string): boolean {
   return ALLOWED_PERMISSIONS.includes(permission)
 }
 
-/** A request a page (a renderer) may make: the app's own files and inline data only; in dev also
- *  the dev server (its pages, assets and HMR socket). Everything else — any http(s) / ws host — is
- *  cancelled. Requests main makes itself (Node fetch, electron-updater's own session) carry no web
- *  contents and are not filtered here. */
-export function rendererRequestAllowed(url: string, devUrl?: string): boolean {
+/** A request a page (a renderer) may make: the app's own files (file: under `appRoot`, the renderer
+ *  folder — never another file on the disk, such as another company's books) and inline data; in dev
+ *  also the dev server (its pages, assets and HMR socket). Everything else — any http(s) / ws host,
+ *  any other file — is cancelled. Requests main makes itself (Node fetch, electron-updater's own
+ *  session) carry no web contents and are not filtered here. */
+export function rendererRequestAllowed(url: string, opts: { appRoot: string; devUrl?: string }): boolean {
   let u: URL
   try {
     u = new URL(url)
   } catch {
     return false
   }
-  if (u.protocol === 'file:' || u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'devtools:') return true
+  if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'devtools:') return true
+  if (u.protocol === 'file:') return fileUnder(u, opts.appRoot)
+  const devUrl = opts.devUrl
   if (!devUrl) return false
   try {
     const d = new URL(devUrl)
@@ -179,6 +170,31 @@ export function rendererRequestAllowed(url: string, devUrl?: string): boolean {
   }
 }
 
+/** True when a file: URL lies inside the folder `root` (a file: URL of a folder). The URL parser has
+ *  already resolved `..` and `%2e` segments; drive letters / Windows paths compare without case. */
+function fileUnder(u: URL, root: string): boolean {
+  let r: URL
+  try {
+    r = new URL(root)
+  } catch {
+    return false
+  }
+  if (r.protocol !== 'file:' || u.host !== r.host) return false
+  const norm = (p: string): string => {
+    let d = p
+    try {
+      d = decodeURIComponent(p)
+    } catch {
+      return '\u0000'
+    }
+    d = d.replace(/\\/g, '/')
+    return /^\/[A-Za-z]:\//.test(d) ? d.toLowerCase() : d
+  }
+  const base = norm(r.pathname).replace(/\/+$/, '') + '/'
+  const path = norm(u.pathname)
+  return path.startsWith(base) && !path.split('/').includes('..')
+}
+
 type HardenedSession = {
   setPermissionRequestHandler: Session['setPermissionRequestHandler']
   setPermissionCheckHandler: Session['setPermissionCheckHandler']
@@ -187,7 +203,7 @@ type HardenedSession = {
 
 /** Deny-by-default permissions and the renderer request allowlist, on one session (the default one —
  *  every window of the app uses it). */
-export function hardenSession(session: HardenedSession, deps: Pick<WindowPolicyDeps, 'log' | 'devUrl'>): void {
+export function hardenSession(session: HardenedSession, deps: Pick<WindowPolicyDeps, 'log' | 'devUrl'> & { appRoot: string }): void {
   session.setPermissionRequestHandler((_contents, permission, callback) => {
     const ok = permissionAllowed(permission)
     if (!ok) deps.log('warn', 'permission-refused', { permission: String(permission).slice(0, 40) })
@@ -196,7 +212,7 @@ export function hardenSession(session: HardenedSession, deps: Pick<WindowPolicyD
   session.setPermissionCheckHandler((_contents, permission) => permissionAllowed(permission))
   session.webRequest.onBeforeRequest((details, callback) => {
     // Main's own requests (no web contents) are not a page's; only pages are held to the allowlist.
-    if (details.webContentsId == null || rendererRequestAllowed(details.url, deps.devUrl)) return callback({})
+    if (details.webContentsId == null || rendererRequestAllowed(details.url, { appRoot: deps.appRoot, ...(deps.devUrl ? { devUrl: deps.devUrl } : {}) })) return callback({})
     deps.log('warn', 'renderer-request-refused', { scheme: schemeOf(details.url) })
     callback({ cancel: true })
   })

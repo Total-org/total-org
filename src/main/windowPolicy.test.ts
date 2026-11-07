@@ -88,13 +88,16 @@ describe('developer tools and the menu (audit A2)', () => {
     expect(pdfWindowWebPreferences()).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false, devTools: false, webSecurity: true })
   })
   for (const isMac of [true, false]) {
-    it(`packaged menu (${isMac ? 'macOS' : 'Windows'}) has no developer tools or reload, keeps copy / paste`, () => {
-      const roles = menuRoles(appMenuTemplate({ isMac, packaged: true, appName: 'Total' }))
+    it(`packaged menu (${isMac ? 'macOS' : 'Windows'}): the OS menus + a View without developer tools or reload`, () => {
+      const t = appMenuTemplate({ isMac, packaged: true })
+      const roles = menuRoles(t)
       for (const r of ['toggleDevTools', 'reload', 'forceReload']) expect(roles).not.toContain(r)
-      for (const r of ['copy', 'paste', 'cut', 'selectAll', 'undo', 'quit']) expect(roles).toContain(r)
+      // The OS's own File / Edit / Window menus (copy / paste, ⌘W close, Services on macOS).
+      expect(roles).toEqual(expect.arrayContaining(['fileMenu', 'editMenu', 'windowMenu', 'zoomIn', 'togglefullscreen']))
+      expect(roles.includes('appMenu')).toBe(isMac)
     })
     it(`unpackaged menu (${isMac ? 'macOS' : 'Windows'}) keeps them for development`, () => {
-      const roles = menuRoles(appMenuTemplate({ isMac, packaged: false, appName: 'Total' }))
+      const roles = menuRoles(appMenuTemplate({ isMac, packaged: false }))
       expect(roles).toEqual(expect.arrayContaining(['toggleDevTools', 'reload', 'forceReload']))
     })
   }
@@ -106,18 +109,31 @@ describe('permissions and renderer requests (audit A2)', () => {
     for (const p of ['media', 'geolocation', 'notifications', 'clipboard-read', 'midi', 'openExternal', 'fullscreen', 'display-capture', 'hid', 'serial', 'usb', 'unknown'])
       expect(permissionAllowed(p)).toBe(false)
   })
+  const ROOT = 'file:///Applications/Total.app/Contents/Resources/app.asar/out/renderer'
   it('a page loads only the app files and inline data', () => {
-    for (const u of ['file:///Applications/Total.app/Contents/Resources/app.asar/out/renderer/index.html', 'data:image/png;base64,AA', 'blob:file:///abc', 'devtools://devtools/bundled/x.html'])
-      expect(rendererRequestAllowed(u)).toBe(true)
+    for (const u of [`${ROOT}/index.html`, `${ROOT}/assets/hi-abc.js`, 'data:image/png;base64,AA', 'blob:file:///abc', 'devtools://devtools/bundled/x.html'])
+      expect(rendererRequestAllowed(u, { appRoot: ROOT })).toBe(true)
     for (const u of ['https://api.openai.com/v1/x', 'http://127.0.0.1:5173/', 'ws://localhost:5173/', 'https://fonts.googleapis.com/css', 'ftp://x/y', 'not a url', ''])
-      expect(rendererRequestAllowed(u)).toBe(false)
+      expect(rendererRequestAllowed(u, { appRoot: ROOT })).toBe(false)
+  })
+  it('no other file on the disk — another company\'s books, /etc, a sibling folder, a way out by ..', () => {
+    for (const u of [
+      'file:///etc/hosts', 'file:///Users/x/Documents/total/companies/other/company.db', `${ROOT}-evil/x.js`,
+      'file:///Applications/Total.app/Contents/Resources/app.asar/out/main/index.js',
+      `${ROOT}/../main/index.js`, `${ROOT}/%2e%2e/main/index.js`, `${ROOT}/assets/..%2F..%2Fmain/index.js`, 'file://otherhost/out/renderer/index.html'
+    ]) expect(rendererRequestAllowed(u, { appRoot: ROOT }), u).toBe(false)
+  })
+  it('Windows: the drive letter and folder names compare without case, encoded spaces too', () => {
+    const win = 'file:///C:/Users/Ana%20B/AppData/Local/Programs/Total/resources/app.asar/out/renderer'
+    expect(rendererRequestAllowed('file:///c:/users/ana%20b/appdata/local/programs/total/resources/app.asar/out/renderer/index.html', { appRoot: win })).toBe(true)
+    expect(rendererRequestAllowed('file:///C:/Users/Ana%20B/Documents/total/companies/x/company.db', { appRoot: win })).toBe(false)
   })
   it('in dev, the dev server and its HMR socket too — no other host or port', () => {
-    const dev = 'http://localhost:5173'
-    expect(rendererRequestAllowed('http://localhost:5173/src/main.tsx', dev)).toBe(true)
-    expect(rendererRequestAllowed('ws://localhost:5173/', dev)).toBe(true)
-    expect(rendererRequestAllowed('http://localhost:5174/', dev)).toBe(false)
-    expect(rendererRequestAllowed('https://evil.example/', dev)).toBe(false)
+    const o = { appRoot: ROOT, devUrl: 'http://localhost:5173' }
+    expect(rendererRequestAllowed('http://localhost:5173/src/main.tsx', o)).toBe(true)
+    expect(rendererRequestAllowed('ws://localhost:5173/', o)).toBe(true)
+    expect(rendererRequestAllowed('http://localhost:5174/', o)).toBe(false)
+    expect(rendererRequestAllowed('https://evil.example/', o)).toBe(false)
   })
   it('hardenSession wires the handlers: refuses, allows clipboard, lets main-process requests through', () => {
     let request: ((c: unknown, p: string, cb: (ok: boolean) => void) => void) | null = null
@@ -128,7 +144,7 @@ describe('permissions and renderer requests (audit A2)', () => {
       setPermissionRequestHandler: ((h: never) => void (request = h)) as never,
       setPermissionCheckHandler: ((h: never) => void (check = h)) as never,
       webRequest: { onBeforeRequest: ((h: never) => void (before = h)) as never }
-    }, { log: (_l, e) => void logs.push(e) })
+    }, { log: (_l, e) => void logs.push(e), appRoot: ROOT })
     const asked = (p: string): boolean => {
       let r = true
       request!(null, p, (ok) => void (r = ok))
@@ -144,9 +160,10 @@ describe('permissions and renderer requests (audit A2)', () => {
       return !cancelled
     }
     expect(sent('https://example.com/x', 3)).toBe(false)
-    expect(sent('file:///x/index.html', 3)).toBe(true)
+    expect(sent(`${ROOT}/index.html`, 3)).toBe(true)
+    expect(sent('file:///etc/hosts', 3)).toBe(false)
     // electron-updater / net requests from main carry no web contents.
     expect(sent('https://github.com/Total-org/total-org/releases/latest')).toBe(true)
-    expect(logs).toEqual(['permission-refused', 'renderer-request-refused'])
+    expect(logs).toEqual(['permission-refused', 'renderer-request-refused', 'renderer-request-refused'])
   })
 })

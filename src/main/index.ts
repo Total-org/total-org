@@ -166,8 +166,8 @@ if (gotSingleInstanceLock) {
     const devUrl = is.dev ? process.env.ELECTRON_RENDERER_URL : undefined
     // Audit 2026-11 A2: no Toggle Developer Tools / Reload in a packaged build's menu; every
     // permission refused but clipboard write; pages load only the app's own files.
-    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate({ isMac: process.platform === 'darwin', packaged: app.isPackaged, appName: app.name })))
-    hardenSession(session.defaultSession, { log, devUrl })
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate({ isMac: process.platform === 'darwin', packaged: app.isPackaged })))
+    hardenSession(session.defaultSession, { log, devUrl, appRoot: pathToFileURL(join(__dirname, '../renderer')).href })
     app.on('web-contents-created', (_, contents) =>
       applyWindowPolicy(contents, { openExternal: (url) => void shell.openExternal(url), log, devUrl })
     )
