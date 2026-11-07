@@ -116,25 +116,33 @@ describe('the People list', () => {
     expect(within(ramesh).getByTestId('person-chip-late').textContent).toBe('₹1,000.00 late · 25 days')
     expect(ramesh.textContent).toContain('15 days')
     const sita = rows.querySelector('tr[data-row-id="11"]') as HTMLElement
-    // Audit UX-13: the side is in the words — a customer paid ahead, never just "credit".
-    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('Paid ₹200.00 ahead')
+    // Audit UX-13: the words say who holds the credit (never just "₹X credit").
+    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('They have ₹200.00 credit')
     expect(within(sita).getByTestId('person-chip-hold')).toBeTruthy()
     expect(bannedWordsIn(visibleText())).toEqual([])
   })
 
-  it('paid-ahead chip names who paid ahead, in every language (audit UX-13)', () => {
-    const en = translator('en')
-    expect(en('simple.people.chip.ahead', { side: 'customer', amount: '₹200.00' })).toBe('Paid ₹200.00 ahead')
-    expect(en('simple.people.chip.ahead', { side: 'supplier', amount: '₹200.00' })).toBe('You paid ₹200.00 ahead')
-    for (const lang of ['hi', 'hinglish'] as const) {
-      const t = translator(lang)
-      const customer = t('simple.people.chip.ahead', { side: 'customer', amount: '₹200.00' })
-      const supplier = t('simple.people.chip.ahead', { side: 'supplier', amount: '₹200.00' })
-      expect(customer).toContain('₹200.00')
-      expect(supplier).toContain('₹200.00')
-      expect(customer).not.toBe(supplier)
-      expect(bannedWordsIn(customer + ' ' + supplier)).toEqual([])
-    }
+  it('the credit chip says who holds the credit, in every language (audit UX-13)', () => {
+    const chip = (lang: 'en' | 'hi' | 'hinglish', side: 'customer' | 'supplier'): string =>
+      translator(lang)('simple.people.chip.ahead', { side, amount: '₹200.00' })
+    expect(chip('en', 'customer')).toBe('They have ₹200.00 credit')
+    expect(chip('en', 'supplier')).toBe('You have ₹200.00 credit')
+    expect(chip('hi', 'customer')).toBe('इनका ₹200.00 क्रेडिट है')
+    expect(chip('hi', 'supplier')).toBe('आपका ₹200.00 क्रेडिट है')
+    expect(chip('hinglish', 'customer')).toBe('Inka ₹200.00 credit hai')
+    expect(chip('hinglish', 'supplier')).toBe('Aapka ₹200.00 credit hai')
+    for (const lang of ['en', 'hi', 'hinglish'] as const) expect(bannedWordsIn(chip(lang, 'customer') + ' ' + chip(lang, 'supplier'))).toEqual([])
+  })
+
+  it('a supplier holding your credit (a kept return, an advance) reads "You have … credit" on the list', async () => {
+    const withCredit: PeopleData = { ...LIST, people: LIST.people.map((p) => (p.ledgerId === 20 ? { ...p, ahead: 5_000 } : p)) }
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) => (channel === 'simple:people:list' ? { ok: true, data: withCredit } : base(channel, payload)))
+    renderUi(<PeopleList />)
+    const rows = await screen.findByTestId('rows-simple-people')
+    await waitFor(() => expect(rows.querySelectorAll('tr[data-row-id]').length).toBe(3))
+    const bharat = rows.querySelector('tr[data-row-id="20"]') as HTMLElement
+    expect(within(bharat).getByTestId('person-chip-ahead').textContent).toBe('You have ₹50.00 credit')
   })
 
   it('filters: suppliers, owe you, late to pay', async () => {

@@ -1046,8 +1046,9 @@ export const en = {
   'simple.people.col.pending': 'Still due',
   'simple.people.col.when': 'When',
   'simple.people.chip.late': '{amount} late',
-  // Audit UX-13: one word ("credit") meant opposite things for a customer and a supplier.
-  'simple.people.chip.ahead': '{side, select, customer {Paid {amount} ahead} other {You paid {amount} ahead}}',
+  // Audit UX-13: "₹X credit" alone meant opposite things for a customer and a supplier — say who
+  // holds it. Not "paid ahead": the same credit also comes from a kept return or a credit opening.
+  'simple.people.chip.ahead': '{side, select, customer {They have {amount} credit} other {You have {amount} credit}}',
   'simple.people.chip.hold': 'On hold',
   'simple.people.days': '{days, plural, one {# day} other {# days}}',
   'simple.people.paidAhead': 'Has a credit of {amount} for the next bill',

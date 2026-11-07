@@ -122,10 +122,11 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **People: "paid ahead" says who paid** (#234; audit UX-13, owner 7 Nov). Plain words: on the
-  People list the green chip used to say "₹X credit" for both a customer and a supplier, which meant
-  opposite things. It now says "Paid ₹X ahead" for a customer and "You paid ₹X ahead" for a supplier
-  (Hindi and Hinglish too).
+- **People: the credit chip says who holds the credit** (#234; audit UX-13, owner 7 Nov). Plain
+  words: on the People list the green chip used to say "₹X credit" for both a customer and a
+  supplier, which meant opposite things. It now says "They have ₹X credit" for a customer and "You
+  have ₹X credit" for a supplier (Hindi and Hinglish too) — the same credit an advance, a kept
+  return or a credit opening leaves.
 - **Pickers don't pop open over the form** (#232; audit UX-7, owner 7 Nov). Plain words: when a
   screen opens with the cursor already in a picker (the customer on Make a bill, the party or
   ledger on a voucher), its list no longer covers the next fields. Typing, ↓ or a click opens it;
