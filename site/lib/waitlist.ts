@@ -29,6 +29,9 @@ export function clientIp(forwardedFor: string | null, realIp: string | null): st
 export function ipBucket(ip: string): string {
   if (!ip.includes(':')) return ip
   const [head] = ip.split('%')
+  // An IPv4 address written as IPv6 (::ffff:203.0.113.7) counts as that IPv4 address.
+  const last = head.split(':').pop() ?? ''
+  if (last.includes('.')) return last
   const halves = head.split('::')
   const left = halves[0] ? halves[0].split(':') : []
   const right = halves.length > 1 && halves[1] ? halves[1].split(':') : []

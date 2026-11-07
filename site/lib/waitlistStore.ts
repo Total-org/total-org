@@ -38,19 +38,26 @@ async function pipeline(commands: Command[]): Promise<unknown[]> {
   return data.map((d) => d.result)
 }
 
-/** Counts this try against the connection's and everyone's window; true while both are within limits. */
+/**
+ * Counts this try against the connection's window first; only a try within that limit also counts
+ * toward everyone's window — so one connection can't use up the shared allowance for others.
+ * True while both are within their limits.
+ */
 export async function withinRateLimit(ipHash: string, nowMs = Date.now()): Promise<boolean> {
   const slot = rateWindow(nowMs)
   const key = `${WAITLIST_KEY}:rl:${slot}:${ipHash}`
-  const all = `${WAITLIST_KEY}:rl:${slot}:all`
-  const [count, , total] = await pipeline([
+  const [count] = await pipeline([
     ['INCR', key],
-    ['EXPIRE', key, RATE_WINDOW_S * 2],
+    ['EXPIRE', key, RATE_WINDOW_S * 2]
+  ])
+  if (Number(count) > RATE_LIMIT) return false
+  const all = `${WAITLIST_KEY}:rl:${slot}:all`
+  const [total] = await pipeline([
     ['INCR', all],
     ['EXPIRE', all, RATE_WINDOW_S * 2]
   ])
-  if (Number(total) > GLOBAL_LIMIT) console.error(`waitlist: more than ${GLOBAL_LIMIT} tries in one window; refusing until it ends`)
-  return Number(count) <= RATE_LIMIT && Number(total) <= GLOBAL_LIMIT
+  if (Number(total) === GLOBAL_LIMIT + 1) console.error(`waitlist: more than ${GLOBAL_LIMIT} tries in one window; refusing until it ends`)
+  return Number(total) <= GLOBAL_LIMIT
 }
 
 /** Adds the address once; a repeat leaves the first sign-up time as it was. */
