@@ -5,6 +5,8 @@ import { fyFromStartYear, fyOf, todayISO } from '@shared/dates'
 import { GST_SOURCES, GST_UNVERIFIED, type GstSource, type GstSourceId } from '@shared/gst/sources'
 import { useSession } from '../../state/stores'
 import { Banner, DrawerSection, Money, Select } from '../../components/ui'
+import type { CaPlace } from '@shared/caCheck'
+import { CaCheck } from '../../components/CaCheck'
 
 export function useFyChoices(): number[] {
   const { info } = useSession()
@@ -76,11 +78,22 @@ export function SourcesSection({ ids }: { ids: readonly GstSourceId[] }): React.
 }
 
 /** The UNVERIFIED items a screen depends on, as one compact banner. */
-export function UnverifiedBanner({ ids, testId }: { ids: string[]; testId: string }): React.JSX.Element | null {
+export function UnverifiedBanner({ ids, place, testId }: { ids: string[]; place: CaPlace; testId: string }): React.JSX.Element | null {
   const items = GST_UNVERIFIED.filter((u) => ids.includes(u.id))
   if (items.length === 0) return null
   return (
-    <Banner tone="info" title="UNVERIFIED — check before filing" className="mb-3" testId={testId}>
+    <Banner
+      tone="info"
+      title={
+        <>
+          UNVERIFIED — check before filing
+          {/* Phase 2b: the same points as the registry's badge (shared/caCheck.ts). */}
+          <CaCheck place={place} />
+        </>
+      }
+      className="mb-3"
+      testId={testId}
+    >
       <ul className="list-disc pl-4">
         {items.map((u) => (
           <li key={u.id}>{u.text}</li>

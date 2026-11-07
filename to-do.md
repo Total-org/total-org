@@ -176,6 +176,8 @@ done on main were dropped. One line each; the pointer says where to look.
 
 ## 5. UNVERIFIED tax points (confirm with a CA before relying on them)
 
+- ~~Show every UNVERIFIED point in the app where it touches a figure or a date~~ DONE — PR #PR ("Check with your CA" badges, registry `src/shared/caCheck.ts`; closed points listed there and in docs/owner/09). The points below stay open until a CA answers them.
+
 - GST slabs 2025 / 2026 and schedule numbering read from secondary copies (N. 9/2025, 19/2025-CT (Rate)) — `src/shared/gst/rateTable.ts` GST_RATE_UNVERIFIED
 - Services' GST rates after 22 Sep 2025; compensation cess nil / ended dates; biris at 18 %; the HSN → slab mapping — `rateTable.ts`
 - GSTR-1 B2CL / CDNUR (#187): the limit is applied by the invoice's date (₹2,50,000 before 1 Aug 2024, ₹1,00,000 from then — N. 12/2024-CT, `shared/gst/returns.ts` `b2clLimitOn`); GSTN's CDNUR help (tutorial.gst.gov.in/contextualhelp/Einv/CDNUR.htm) still quotes ₹2.5 lakh — confirm with a CA that the portal judges a note by its ORIGINAL's date — written up as Q33 in docs/owner/09-questions-for-your-ca.md (invoice date vs tax period, and notes)

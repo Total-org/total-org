@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import { slabsOn } from '@shared/gst/rateTable'
 import type { BuyForm, BuyGst } from '@shared/simple/buy'
 import { useT } from '../../lib/i18n'
@@ -59,7 +60,7 @@ export function BuyAmount({
       </div>
       {asksRate && (
         <div data-testid="buy-gst">
-          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.buy.gstRate')}</span>
+          <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.buy.gstRate')}<CaCheck place="simple.ratePicker" date={form.date} /></span>
           <p className="mb-2 text-small text-muted">{gst === 'fold' ? t('simple.buy.gstRateFold') : t('simple.buy.gstRateWhat')}</p>
           <div role="radiogroup" aria-label={t('simple.buy.gstRate')} className="flex flex-wrap gap-2">
             {slabs.filter((s) => s.common).map((s) => chip(s.rate, s.rate === 0 ? t('simple.buy.gstNil') : t('simple.buy.gstChip', { rate: s.rate })))}

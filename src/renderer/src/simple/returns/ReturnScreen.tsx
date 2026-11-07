@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CaCheck } from '../../components/CaCheck'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Ledger } from '@shared/domain'
 import { gstRegistrationOf } from '@shared/gst/registration'
@@ -304,7 +305,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
                     </div>
                     {asks.rate && (
                       <div data-testid="return-gst">
-                        <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.sell.gstRate')}</span>
+                        <span className="mb-1 block text-caption font-semibold tracking-[0.08em] text-muted uppercase">{t('simple.sell.gstRate')}<CaCheck place="simple.ratePicker" date={form.date} /></span>
                         <p className="mb-2 text-small text-muted">{t('simple.returns.gstRateWhat')}</p>
                         <div role="radiogroup" aria-label={t('simple.sell.gstRate')} className="flex flex-wrap gap-2">
                           {rateChoices.map((rate) => (
@@ -368,7 +369,10 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
                         <dd className="num text-right" data-testid="return-taxable" data-paise={totals.taxable}>
                           {money(totals.taxable)}
                         </dd>
-                        <dt>{t('simple.sell.gst')}</dt>
+                        <dt>
+                          {t('simple.sell.gst')}
+                          <CaCheck place="simple.returns.total" />
+                        </dt>
                         <dd className="num text-right" data-testid="return-tax" data-paise={totals.tax}>
                           {money(totals.tax)}
                         </dd>

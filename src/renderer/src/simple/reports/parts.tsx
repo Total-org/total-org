@@ -79,6 +79,7 @@ export function FigureTile({
   whyExtra,
   link,
   emphasis,
+  titleExtra,
   children
 }: {
   id: string
@@ -91,11 +92,16 @@ export function FigureTile({
   whyExtra?: string | null
   link?: { label: string; screen: Screen }
   emphasis?: boolean
+  /** Beside the title (Phase 2b: a "Check with your CA" badge). */
+  titleExtra?: ReactNode
   children?: ReactNode
 }): React.JSX.Element {
   return (
     <li className={`${cardCls} ${emphasis ? 'border-amber/60' : ''}`} data-testid={`tile-${id}`} data-paise={paise}>
-      <h2 className="text-small font-medium text-muted">{title}</h2>
+      <h2 className="text-small font-medium text-muted">
+        {title}
+        {titleExtra}
+      </h2>
       <p className={`num mt-2 font-semibold ${paise < 0 ? 'text-cr' : 'text-ink'} ${emphasis ? 'text-heading' : 'text-title'}`} data-testid={`tile-${id}-value`}>
         {value ?? money(paise)}
       </p>

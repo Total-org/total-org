@@ -21,6 +21,7 @@ import {
   attentionText, cashWhy, compositionDueWhy, deadlineText, deadlineWhy, gstLine, gstLinkLabel, gstWhy, homeProfitWhy, money, monthCompareWhy, moneyInWhy, moneyOutWhy, payablesWhy, pmt06Why, profitSentence,
   receivablesWhy
 } from '@shared/simple/explain'
+import { CaCheck } from '../components/CaCheck'
 
 /** Plain labels for the onboarding steps, keyed by step id (the step logic stays in onboarding.ts).
  *  WP 8.7's "Enter what you had on day one" is its own card (OpeningsHomeCard) above them. */
@@ -234,6 +235,7 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
             paise={gstRegular.row.payable}
             why={gstWhy(gstRegular, home.today, t)}
             link={links.gst}
+            titleExtra={<CaCheck place="simple.home.gst" quarterly={gstRegular.filing === 'quarterly'} />}
           >
             {gstRegular.filing === 'quarterly' && (
               <p className="mt-2 text-hint text-muted" data-testid="simple-home-gst-quarterly">
@@ -255,7 +257,10 @@ function HomeBody({ home }: { home: SimpleHomeData }): React.JSX.Element {
         )}
         {home.gst?.kind === 'composition' && (
           <li className={cardCls} data-testid="simple-tile-gst-composition">
-            <h2 className="text-small font-medium text-muted">{t('simple.home.gstTitle')}</h2>
+            <h2 className="text-small font-medium text-muted">
+              {t('simple.home.gstTitle')}
+              <CaCheck place="simple.home.gstComposition" />
+            </h2>
             <p className="mt-2 text-detail text-ink">{t('simple.home.gstComposition')}</p>
             {home.gst.composition && (
               <div className="mt-2">
@@ -376,6 +381,7 @@ function Tile({
   value,
   why,
   link,
+  titleExtra,
   children
 }: {
   id: string
@@ -383,6 +389,8 @@ function Tile({
   paise: number
   /** Shown instead of the amount (the GST tile's "₹Z by 20 Nov"). */
   value?: string
+  /** Beside the title (Phase 2b: a "Check with your CA" badge). */
+  titleExtra?: ReactNode
   why: string
   link: { label: string; onOpen: () => void }
   children?: ReactNode
@@ -390,7 +398,10 @@ function Tile({
   const t = useT()
   return (
     <li className={cardCls} data-testid={`simple-tile-${id}`} data-paise={paise}>
-      <h2 className="text-small font-medium text-muted">{title}</h2>
+      <h2 className="text-small font-medium text-muted">
+        {title}
+        {titleExtra}
+      </h2>
       <p className={`num mt-1 text-heading font-semibold ${paise < 0 ? 'text-cr' : 'text-ink'}`} data-testid={`simple-tile-${id}-value`}>
         {value ?? money(paise)}
       </p>

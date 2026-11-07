@@ -139,7 +139,7 @@ export function Itc04Screen(): React.JSX.Element {
         }}
       />
 
-      <UnverifiedBanner ids={['itc04-json', 'itc04-hsn']} testId="itc04-unverified" />
+      <UnverifiedBanner ids={['itc04-json', 'itc04-hsn']} place="itc04.screen" testId="itc04-unverified" />
       {data && r && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-small text-muted" data-testid="itc04-facts">
           <Badge tone="neutral">{data.periodicity === 'half_yearly' ? 'Half-yearly' : 'Annual'}</Badge>

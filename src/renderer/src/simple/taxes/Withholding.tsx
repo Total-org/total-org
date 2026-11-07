@@ -4,6 +4,7 @@ import { useT } from '../../lib/i18n'
 import { useNav } from '../../state/stores'
 import { Button } from '../../components/ui'
 import { WhyLink, cardCls } from '../reports/parts'
+import { CaCheck } from '../../components/CaCheck'
 
 const TDS = { name: 'tds' } as const // i18n-technical
 const TCS = { name: 'tcs' } as const // i18n-technical
@@ -22,7 +23,10 @@ export function WithholdingCards({ items, today }: { items: TaxesWithholding[]; 
     <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
       {items.map((w) => (
         <section key={w.kind} className={cardCls} data-testid={`taxes-${w.kind}`} data-paise={w.thisMonth}>
-          <h2 className="text-subtitle font-semibold text-ink">{w.kind === 'tds' ? t('simple.taxes.tds.what') : t('simple.taxes.tcs.what')}</h2>
+          <h2 className="text-subtitle font-semibold text-ink">
+            {w.kind === 'tds' ? t('simple.taxes.tds.what') : t('simple.taxes.tcs.what')}
+            {w.kind === 'tds' ? <CaCheck place="simple.taxes.tds" /> : <CaCheck place="simple.taxes.tcs" />}
+          </h2>
           <p className="mt-2 text-body text-ink" data-testid={`taxes-${w.kind}-this-month`}>
             {w.kind === 'tds'
               ? t('simple.taxes.withholding.thisMonthTds', { amount: money(w.thisMonth), date: shortDate(w.thisMonthDue, today, t.lang) })

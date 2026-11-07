@@ -15,6 +15,7 @@ import {
 import { auditTimestampText, rowStatuses, type AuditRowStatus } from '@shared/auditChain'
 import { ChainBanner, useAuditVerification } from './audit/ChainBanner'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
+import { CaCheck } from '../components/CaCheck'
 
 const PAGE_SIZES = [50, 100, 250, 500]
 
@@ -239,6 +240,7 @@ export function EditLogScreen({ voucherId: initialVoucherId }: { voucherId?: num
       <PageHeader
         title="Audit trail (edit log)"
         period={periodLabel}
+        subtitle={<CaCheck place="editLog.screen" />}
         secondary={
           <>
             <Button variant="ghost" data-testid="edit-log-csv" onClick={() => void doExport('csv')} disabled={exportRefused || exporting !== null || total === 0} disabledTitle={exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : undefined}>

@@ -10,6 +10,7 @@ import { FigureTile, LoadError, ReportHeader, WhyLink, cardCls, money } from '..
 import { GstSteps } from './GstSteps'
 import { EmptyTeach } from '../help/EmptyTeach'
 import { WithholdingCards } from './Withholding'
+import { CaCheck } from '../../components/CaCheck'
 
 type Regular = Extract<SimpleTaxes, { kind: 'regular' }>
 const gstr3bScreen = (month: string): { name: 'gstr3b'; month: string } => ({ name: 'gstr3b', month }) // i18n-technical
@@ -56,7 +57,10 @@ export function TaxesScreen({ period }: { period?: string }): React.JSX.Element 
       )}
       {x?.kind === 'composition' && (
         <section className={cardCls} data-testid="taxes-composition">
-          <h2 className="text-lead font-semibold text-ink">{t('simple.taxes.gst.compositionTitle')}</h2>
+          <h2 className="text-lead font-semibold text-ink">
+            {t('simple.taxes.gst.compositionTitle')}
+            <CaCheck place="simple.taxes.composition" />
+          </h2>
           <ul className="mt-2 flex flex-col gap-1 text-body text-ink">
             <li className="flex flex-wrap items-baseline justify-between gap-x-3">
               <span data-testid="taxes-cmp08">{t('simple.taxes.composition.cmp08', { from: toPlainDate(x.composition.cmp08.from, t.lang), to: toPlainDate(x.composition.cmp08.to, t.lang), date: toPlainDate(x.composition.cmp08.due, t.lang) })}</span>
@@ -94,7 +98,10 @@ export function EinvoiceTurnOnCard(): React.JSX.Element | null {
   if (!n) return null
   return (
     <section className={`${cardCls} mb-4`} data-testid="taxes-einvoice-turn-on">
-      <h2 className="text-lead font-semibold text-ink">{t('simple.taxes.einvoice.title', { date: toPlainDate(n.since, t.lang) })}</h2>
+      <h2 className="text-lead font-semibold text-ink">
+        {t('simple.taxes.einvoice.title', { date: toPlainDate(n.since, t.lang) })}
+        <CaCheck place="simple.taxes.einvoice" />
+      </h2>
       <p className="mt-1 text-body text-ink">{t('simple.taxes.einvoice.why', { fy: n.fy, amount: money(n.thresholdPaise) })}</p>
       {isOwner ? (
         <button type="button" className="mt-2 text-body font-medium text-blue hover:underline" data-testid="btn-taxes-einvoice-turn-on" onClick={() => nav.go(COMPANY_DETAILS)}>
@@ -145,6 +152,7 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
         <span className="text-detail text-muted" data-testid="taxes-filing">
           {t('simple.taxes.filing', { filing: x.filing })}
         </span>
+        <CaCheck place="simple.taxes.filing" quarterly={x.period.quarterly} />
       </div>
       {f.collected === 0 && f.onPurchases === 0 && f.toPay === 0 && f.reverseCharge === 0 && !x.running && (
         <div className="mb-4">
@@ -183,9 +191,10 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
           sub={f.reverseCharge > 0 ? t('simple.taxes.gst.rcmLine', { amount: money(f.reverseCharge) }) : null}
           why={collectedWhy(x, t)}
           link={link}
+          titleExtra={<CaCheck place="simple.taxes.collected" />}
         />
-        <FigureTile id="gst-purchases" title={t('simple.taxes.gst.onPurchasesLabel')} paise={f.onPurchases} sub={creditStatus(f, t)} why={onPurchasesWhy(x, t)} link={link} />
-        <FigureTile id="gst-to-pay" emphasis title={t('simple.taxes.gst.toPayLabel')} paise={f.toPay} sub={by} why={toPayPartsWhy(x, t)} whyExtra={creditLeftWhy(f, t)} link={link} />
+        <FigureTile id="gst-purchases" title={t('simple.taxes.gst.onPurchasesLabel')} paise={f.onPurchases} sub={creditStatus(f, t)} why={onPurchasesWhy(x, t)} link={link} titleExtra={<CaCheck place="simple.taxes.onPurchases" />} />
+        <FigureTile id="gst-to-pay" emphasis title={t('simple.taxes.gst.toPayLabel')} paise={f.toPay} sub={by} why={toPayPartsWhy(x, t)} whyExtra={creditLeftWhy(f, t)} link={link} titleExtra={<CaCheck place="simple.taxes.toPay" />} />
       </ul>
 
       <section className={`${cardCls} mt-4`} data-testid="taxes-dates">
@@ -195,6 +204,7 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
             const label = form === 'gstr1' ? t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) }) : t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) }) // i18n-technical
             return (
               <li key={form} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span>
                 <span data-testid={`taxes-due-${form}`}>
                   {label}
                   {/* Review fix: a date already gone by, for a return not noted as filed, says so. */}
@@ -203,6 +213,8 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
                       {t('simple.taxes.due.passed')}
                     </span>
                   )}
+                </span>
+                {form === 'gstr1' ? <CaCheck place="simple.taxes.dueGstr1" /> : <CaCheck place="simple.taxes.dueGstr3b" quarterly={x.period.quarterly} />}
                 </span>
                 <WhyLink what={label} sentence={dueWhy(form, x, t)} link={dueLink[form]} testId={`why-due-${form}`} />
               </li>
@@ -214,6 +226,7 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
           <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3">
             <p className="text-small text-muted" data-testid="taxes-pmt06">
               {t('simple.taxes.due.pmt06', { dates: x.due.pmt06.map((d) => shortDate(d, x.today, t.lang)).join(', ') })}
+              <CaCheck place="simple.taxes.pmt06" quarterly />
             </p>
             <WhyLink what={t('simple.taxes.due.title')} sentence={dueWhy(PMT06, x, t)} testId="why-due-pmt06" />
           </div>
