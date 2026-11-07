@@ -38,7 +38,7 @@ export function CaCheckBadge({
       align="left"
       width={340}
       testId={testId}
-      className="ml-1.5 inline-flex normal-case tracking-normal !rounded !border-warning/40 !bg-warning-soft !px-1.5 !py-px align-middle text-micro font-medium whitespace-nowrap !text-warning hover:!border-warning"
+      className="ml-1.5 inline-flex normal-case tracking-normal !rounded-sm !border-warning/40 !bg-warning-soft !px-1.5 !py-px align-middle text-label font-medium whitespace-nowrap !text-warning hover:!border-warning"
       render={() => (
         <div className="flex flex-col gap-2" data-testid={testId && `${testId}-body`} data-points={points.map((p) => p.id).join(' ')}>
           <p className="text-detail text-ink">{intro}</p>
