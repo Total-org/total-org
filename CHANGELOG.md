@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Ask for a task, approve the plan** (Phase 3b, part 2). Ask Total (no AI key needed) or the AI
+**Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
 helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
 who and how much, and "Prepare them" puts them together as one group in Things to approve: one
 reminder per late customer (in the People page's own words — "Send on WhatsApp" or "Copy the
@@ -29,7 +29,13 @@ to approve one by one. Nothing is sent or recorded until you click.
 *For developers:* migration "plans" (`ai_plans`, `ai_plan_items`, audited `ai_plan`), `assist:plan`,
 `ai:plan:reminded`, `ai:plan:discard`, the agent tool `plan_task`.
 
-**One place to approve what the assistants prepare** (Phase 3b, part 1). Everything the AI helper,
+**The website is now irminflow.com** (#224). The app's update check and "Download now" use
+`https://irminflow.com`. devjindal.tech pages move to the same page on irminflow.com, but its update
+feed (`/api/latest`, `/api/download`) keeps answering directly, so every copy installed before today
+still finds updates. For developers: `SITE_URL` in `src/shared/product.ts`, `site/lib/redirects.ts`,
+the release check verifies `/api/latest` on both hosts. The site's GitHub lookup now retries without `GITHUB_TOKEN` when GitHub refuses the token (the update feed had been answering "nothing released"). Nothing changes in your books.
+
+**One place to approve what the assistants prepare** (#221, Phase 3b part 1). Everything the AI helper,
 Ask Total, a bill you added, your bank statement or the supplier-bill check proposes — and the
 things the assistant suggests remembering — now waits in one list: Money → Things to approve in
 simple mode (each one in plain words, with Approve / Edit / Discard, and "Approve all" for the ones

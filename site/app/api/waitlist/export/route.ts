@@ -3,7 +3,7 @@ import { listWaitlist, waitlistEnabled } from '@/lib/waitlistStore'
 
 /**
  * The owner's export of the waitlist as CSV:
- *   curl -H "Authorization: Bearer $WAITLIST_ADMIN_TOKEN" https://devjindal.tech/api/waitlist/export -o waitlist.csv
+ *   curl -H "Authorization: Bearer $WAITLIST_ADMIN_TOKEN" https://irminflow.com/api/waitlist/export -o waitlist.csv
  * WAITLIST_ADMIN_TOKEN (24+ characters) lives only in Vercel's env vars. Without it, with a
  * wrong one, or with no store, the route answers 404 — it does not say it exists.
  */
