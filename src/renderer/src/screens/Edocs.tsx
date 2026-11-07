@@ -14,6 +14,7 @@ import { EinvoiceDetailsModal } from './edocs/EinvoiceDetails'
 import { GatewayEdocModal } from './edocs/GatewayEdoc'
 import { LedgerLink } from '../components/links'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
+import { CaCheck } from '../components/CaCheck'
 
 type DocTypeFilter = 'all' | 'INV' | 'CRN' | 'DBN' | 'CHL'
 
@@ -360,9 +361,12 @@ function EdocsDocuments(): React.JSX.Element {
         period={`${toDisplayDate(from)} → ${toDisplayDate(to)}`}
         tabs={<EdocsTabs active="documents" />}
         subtitle={
-          <Badge tone={live ? 'success' : 'neutral'} testId="edocs-live-status">
-            {live ? 'Live filing on' : 'Offline JSON'}
-          </Badge>
+          <>
+            <Badge tone={live ? 'success' : 'neutral'} testId="edocs-live-status">
+              {live ? 'Live filing on' : 'Offline JSON'}
+            </Badge>
+            <CaCheck place="edocs.list" />
+          </>
         }
         secondary={
           <Button data-testid="btn-edocs-export-ewb" onClick={() => void exportEwb()} disabled={exportRefused || !info?.gstin} disabledTitle={exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : undefined}>

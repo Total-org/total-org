@@ -9,6 +9,7 @@ import {
   istLabel, type EwbEvent, type EwbExtendReasonCode, type EwbExtendRequest, type NicCancelReason, type NicRecord
 } from '@shared/gst/nicRecord'
 import { GST_STATE_LIST } from '@shared/gst/states'
+import { CaCheck } from '../../components/CaCheck'
 
 /**
  * e-Documents → a row's "IRN details": what the IRP returned for this voucher, as stored —
@@ -27,7 +28,9 @@ export function EinvoiceDetailsModal({ voucherId, live, onClose }: { voucherId: 
 function EinvoiceDetailsBody({ rec, live }: { rec: NicRecord; live: boolean }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-4 text-detail" data-testid="edoc-details">
-      <Banner tone="warning">Experimental — the live NIC client has never run against the real portal. Check every result on the portal.</Banner>
+      <Banner tone="warning">Experimental — the live NIC client has never run against the real portal. Check every result on the portal.
+        <CaCheck place="edocs.details" />
+      </Banner>
       {rec.irn && <SignedCopies rec={rec} />}
       {rec.irn && <IrnCancel rec={rec} live={live} />}
       {(rec.ewbNo || rec.ewbHistory.length > 0) && <EwayBill rec={rec} live={live} />}

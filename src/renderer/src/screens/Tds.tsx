@@ -20,6 +20,7 @@ import { DeductedTab } from './tds/DeductedTab'
 import { ChallansTab } from './tds/ChallansTab'
 import { ReturnsTab } from './tds/ReturnsTab'
 import { SectionsTab } from './tds/SectionsTab'
+import { CaCheck } from '../components/CaCheck'
 
 type TabId = 'eligible' | 'deducted' | 'challans' | 'returns' | 'sections'
 
@@ -83,6 +84,7 @@ export function WithholdingScreen({ kind }: { kind: WithholdingKind }): React.JS
       <PageHeader
         title={w.name}
         period={period.label}
+        subtitle={k === 'tcs' ? <CaCheck place="tcs.screen" /> : <CaCheck place="tds.screen" />}
         tabs={
           <TabBar
             screen={k}

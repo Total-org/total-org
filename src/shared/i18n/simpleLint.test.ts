@@ -43,6 +43,8 @@ const TECHNICAL_PROPS = new Set([
   'tabIndex',
   'spellCheck',
   'testId',
+  // Phase 2b: <CaCheck place="simple.taxes.dueGstr1"> — a registry id (shared/caCheck.ts).
+  'place',
   'style',
   'variant',
   'size',
