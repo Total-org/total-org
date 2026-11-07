@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-- Site (#PR): the landing page at devjindal.tech is rebuilt — one big headline (with a Hindi line),
+- Site (#218): the landing page at devjindal.tech is rebuilt — one big headline (with a Hindi line),
   real screenshots of the app (simple Home, Make a bill, Taxes, GSTR-1, the accountant view, Home in
   Hindi; captured from the built app by `scripts/shots-site.mjs`), a Shop owner / Accountant switch,
   light and dark. The main action is a 1.0 waitlist (e-mail, server-side checks, rate limit,

@@ -209,7 +209,7 @@ done on main were dropped. One line each; the pointer says where to look.
 
 ## 6. Deferred engineering (per WP)
 
-- WP 6.x / 7.5 site: marketing site work deferred by the owner (WP 10.7); ~~landing page "looks hideous" (owner, 7 Nov)~~ DONE — PR #PR (rebuilt, waitlist off until the owner picks a store); ~~site FAQ says "nothing leaves the machine" (false once AI / capture / NIC are on)~~ DONE — PR #189 (AI, e-invoice / e-way filing and the update check named as the user-enabled exceptions) — `site/app/docs/faq/page.tsx`
+- WP 6.x / 7.5 site: marketing site work deferred by the owner (WP 10.7); ~~landing page "looks hideous" (owner, 7 Nov)~~ DONE — PR #218 (rebuilt, waitlist off until the owner picks a store); ~~site FAQ says "nothing leaves the machine" (false once AI / capture / NIC are on)~~ DONE — PR #189 (AI, e-invoice / e-way filing and the update check named as the user-enabled exceptions) — `site/app/docs/faq/page.tsx`
 - WP 7.1: server-side DataTable paging not needed yet (Sales / People under budget at 100k) — PR #104
 - WP 7.2: encrypt ~~attachments~~ (DONE — PR #152) / exports / logs — PR #112 (CLI passphrase DONE in PR #132; remember-on-this-computer DONE in PR #142)
 - WP 7.3: ~~no data-folder move setting for OneDrive users~~ DONE — PR #133 (~~the CLI still ignores the pointer~~ DONE — PR #138); full e2e on Windows — PR #109
