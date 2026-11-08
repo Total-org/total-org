@@ -41,6 +41,7 @@ await scenario('30-audit-trail', async (h) => {
   }
   const signIn = async (name, pin) => {
     await h.page.waitForSelector('[data-screen="lock"]', { state: 'attached', timeout: 15000 })
+    await h.waitLockUser(name)
     await h.clickText(name)
     await h.fill('input-pin', pin)
     await h.click('btn-unlock')

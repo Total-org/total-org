@@ -34,6 +34,7 @@ await scenario('10-roles-lock', async (h) => {
   await h.shot('01-locked')
 
   // Wrong PIN: an error shows and we stay locked.
+  await h.waitLockUser('Priya Owner')
   await h.clickText('Priya Owner')
   await h.fill('input-pin', '9999')
   await h.click('btn-unlock')
@@ -50,6 +51,7 @@ await scenario('10-roles-lock', async (h) => {
   // Shell's lock button (visible now that the renderer has a session) locks straight back.
   await h.click('btn-lock')
   await h.page.waitForSelector('[data-screen="lock"]', { state: 'attached', timeout: 10000 })
+  await h.waitLockUser('Priya Owner')
   await h.shot('04-relocked')
   await h.clickText('Priya Owner')
   await h.fill('input-pin', '1234')

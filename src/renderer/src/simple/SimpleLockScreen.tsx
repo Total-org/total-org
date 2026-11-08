@@ -70,7 +70,7 @@ export function SimpleLockScreen(): React.JSX.Element {
           </p>
         )}
         <div className="mt-6 overflow-hidden rounded-xl border border-line bg-panel">
-          {list.length === 0 && <p className="px-6 py-10 text-center text-body text-muted">{t('simple.lock.none')}</p>}
+          {userList !== undefined && list.length === 0 && <p className="px-6 py-10 text-center text-body text-muted">{t('simple.lock.none')}</p>}
           {list.map((u) => (
             <button
               key={u.id}

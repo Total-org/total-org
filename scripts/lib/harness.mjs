@@ -253,6 +253,16 @@ export class Harness {
     if (!result) throw new Error(`clickText: nothing on screen matches ${JSON.stringify(text)}`)
   }
 
+  /** Wait until the lock screen lists `name` (the lock empties the renderer's cache — audit A3 —
+   *  so the list of people loads afresh each time the screen locks). */
+  async waitLockUser(name, timeout = 15000) {
+    await this.page.waitForFunction(
+      (n) => [...document.querySelectorAll('[data-screen="lock"] button')].some((b) => b.textContent?.includes(n)),
+      name,
+      { timeout }
+    )
+  }
+
   /** Type into a data-testid'd input (clears it first). */
   async fill(testId, value) {
     await this.page.fill(`[data-testid="${testId}"]`, String(value), { timeout: 10000 })
