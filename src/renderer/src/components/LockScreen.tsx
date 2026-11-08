@@ -169,7 +169,8 @@ function AccountantLockScreen(): React.JSX.Element {
         <p className="mt-1 mb-8 text-center text-detail text-muted">Choose a user and enter your PIN</p>
 
         <div className="overflow-hidden rounded-xl border border-line bg-panel">
-          {list.length === 0 && (
+          {/* Audit A3: the lock empties the cache, so the list loads afresh — "none" only once it has. */}
+          {userList !== undefined && list.length === 0 && (
             <p className="px-6 py-10 text-center text-body text-muted">No users found for this company.</p>
           )}
           {list.map((u, i) => (
