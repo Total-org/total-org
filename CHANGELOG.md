@@ -20,6 +20,8 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-09
+
 **Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (#243, A13b).
 Credit control has no Interest tab any more, the ledger form no longer asks for an interest rate or
 grace days, and Settings → Receivables drops the interest options. The Fixed assets screen (asset
