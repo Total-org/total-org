@@ -1,5 +1,5 @@
 // UI overhaul (part b, review of #226): the simple header hides the period chip on entry flows —
-// every intent's screen (INTENT_SCREEN) and Quick bill — and shows it everywhere else.
+// every intent's screen (INTENT_SCREEN) — and shows it everywhere else.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -28,7 +28,7 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 describe('simple header: the period chip', () => {
-  it.each([...Object.values(INTENT_SCREEN), 'simple-quick-bill'])('is hidden while writing on %s', (name) => {
+  it.each(Object.values(INTENT_SCREEN))('is hidden while writing on %s', (name) => {
     renderOn(name)
     expect(screen.queryByTestId('btn-period')).toBeNull()
     // the rest of the header is still there

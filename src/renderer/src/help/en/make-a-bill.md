@@ -18,9 +18,9 @@ A card shows what Total recorded, in plain words, with **Print**, **PDF** and **
 
 If your business is registered for GST, Total works out the GST from each product's rate and prints a tax invoice. A composition business prints a bill of supply. If you are not registered, the bill has no GST and prints as an invoice.
 
-## Quick bill
+## At a busy counter
 
-At a busy counter use [Quick bill](total://screen/simple-quick-bill): scan or type the products and take the money on one screen.
+In [Make a bill](total://screen/simple-sell), scan or type each product in the "Scan or type a product" box and press Enter: the same product again adds one more. Leave the customer empty for a walk-in, press F5, F6 or F7 for cash, UPI or card, and ⌘↵ to save. Paid in cash? Type what the customer gave in "Cash given" and Total shows the change to give back.
 
 ## See your bills
 
