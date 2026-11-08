@@ -90,7 +90,7 @@ Simple mode uses plain words. Accounting words are banned from its screens, and 
   - Prices come from the price list. You can type prices with or without GST.
   - The total updates as you type and uses the same sums the full app uses.
   - GST shows only when the business's registration charges GST on that date. The bill heading follows the law: "Tax invoice", "Bill of supply" for composition, or "Invoice" for unregistered businesses.
-- **Quick bill.** A fast counter screen for walk-in sales, for businesses with stock.
+- **At a busy counter** (businesses with stock): Make a bill's "Scan or type a product" box adds each product as it is scanned (the same one again adds one more); leave the customer empty for a walk-in and press F5 / F6 / F7 for cash / UPI / card. Quick bill, the separate counter screen, was folded into Make a bill.
 - **Sales list.** Every bill with its total, what has been paid, what is still due and what was returned. Each bill has its own page with Print, Record a payment and Return items.
 - **Return a sale.** Pick the bill and what came back, give a reason, and choose to give the money back or keep it as credit for the next bill.
 

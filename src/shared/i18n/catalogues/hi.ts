@@ -1815,6 +1815,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.sell.productPlaceholder': 'सामान का नाम लिखें',
   'simple.sell.scanPlaceholder': 'सामान स्कैन करें या नाम लिखें, फिर Enter',
   'simple.sell.scanLabel': 'सामान स्कैन करें या नाम लिखें',
+  'simple.sell.scanMiss': '“{code}” से कोई सामान नहीं मिला। फिर से स्कैन करें या नाम लिखें।',
+  'simple.sell.heldBills': '{count, plural, one {# बिल} other {# बिल}} काउंटर पर रोके गए हैं। उन्हें पूरे ऐप में खोलें: Counter billing, फिर F4।',
   'simple.sell.qty': 'मात्रा',
   'simple.sell.price': 'दाम',
   'simple.sell.priceIncl': 'दाम (GST के साथ)',

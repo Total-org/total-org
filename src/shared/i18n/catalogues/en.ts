@@ -1910,6 +1910,8 @@ export const en = {
   'simple.sell.productPlaceholder': 'Type a product name',
   'simple.sell.scanPlaceholder': 'Scan or type a product, then Enter',
   'simple.sell.scanLabel': 'Scan or type a product',
+  'simple.sell.scanMiss': 'Nothing matches “{code}”. Scan again or type the name.',
+  'simple.sell.heldBills': '{count, plural, one {# bill was} other {# bills were}} put on hold at the counter. Open them in the full app: Counter billing, then F4.',
   'simple.sell.qty': 'Quantity',
   'simple.sell.price': 'Price',
   'simple.sell.priceIncl': 'Price (with GST)',

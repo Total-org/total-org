@@ -13,6 +13,7 @@ You can do everything with the mouse, but these keys save time.
 
 - **⌘↵** — Save.
 - **⌘N** — start a new one.
+- On a bill: **F5**, **F6**, **F7** — paid by cash, UPI or card. In the "Scan or type a product" box, **Enter** adds the product (scan it again for one more).
 - **Tab** — the next box; **Shift-Tab** — the box before.
 - In a list of choices, **↓** and **↑** move and **Enter** picks the highlighted one. Enter never adds something new: to add a new name, press **↓** past the last match to **Create …**, then Enter.
 

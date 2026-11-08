@@ -24,7 +24,9 @@ Things to know about the version numbers:
 stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
 Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the
 customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card and ⌘↵ to save. The
-separate Quick bill entry is gone. *For accountants:* no figure changes; the full app's Counter
+separate Quick bill entry is gone; the Counter's hold / recall, day end, change due, the `3*` quantity
+multiplier and the ↑ / ↓ quantity keys stay in the full app's Counter billing, and Make a bill says
+when bills are still on hold there. *For accountants:* no figure changes; the full app's Counter
 billing is unchanged. *For developers:* registry screen `simple-quick-bill` and `simple/sell/QuickBill.tsx`
 removed (with the Counter's `title` prop); `shared/simple/sell.ts` `addScannedProduct`; the unused
 preset field `homeTask` removed.

@@ -198,6 +198,48 @@ describe('Make a bill (WP 9.2)', () => {
     expect(bannedWordsIn(visibleText())).toEqual([])
   })
 
+  it('A13 review: an unknown barcode is said and selected, so the next scan replaces it', async () => {
+    renderUi()
+    await ready()
+    const box = screen.getByTestId('picker-sell-scan') as HTMLInputElement
+    fireEvent.change(box, { target: { value: '0000000000' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(text('sell-scan-miss')).toContain('Nothing matches “0000000000”')
+    expect([box.selectionStart, box.selectionEnd]).toEqual([0, 10])
+    // A scanner typing over the selection replaces it.
+    fireEvent.change(box, { target: { value: '8901000000017' } })
+    await option('Tea')
+    fireEvent.keyDown(box, { key: 'Enter' })
+    await waitFor(() => expect((screen.getByTestId('picker-sell-item-0') as HTMLInputElement).value).toBe('Tea 250g'))
+    expect(screen.queryByTestId('sell-scan-miss')).toBeNull()
+  })
+
+  it('A13 review: F5–F7 typed in a panel beside the bill leave the bill alone', async () => {
+    renderUi()
+    await ready()
+    const panel = document.createElement('aside')
+    panel.setAttribute('data-drawer', 'Ask Total')
+    const box = document.createElement('input')
+    panel.appendChild(box)
+    document.body.appendChild(panel)
+    fireEvent.keyDown(box, { key: 'F6' })
+    expect(screen.getByTestId('sell-paid-cash').getAttribute('aria-checked')).toBe('true')
+    // The same key on the bill does change it.
+    fireEvent.keyDown(screen.getByTestId('picker-sell-customer'), { key: 'F6' })
+    expect(screen.getByTestId('sell-paid-upi').getAttribute('aria-checked')).toBe('true')
+    panel.remove()
+  })
+
+  it('A13 review: bills put on hold at the counter are said, with where to find them', async () => {
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload: unknown) =>
+      channel === 'counter:held' ? { ok: true, data: [{ id: 1 }, { id: 2 }] } : base(channel, payload)
+    )
+    renderUi()
+    await ready()
+    expect((await screen.findByTestId('sell-held-bills')).textContent).toContain('2 bills were put on hold at the counter')
+  })
+
   it('A13: stock off — no scan box', async () => {
     features = { ...DEFAULT_FEATURES, inventory: false }
     renderUi()

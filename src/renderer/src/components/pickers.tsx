@@ -43,6 +43,7 @@ export function TypeAhead({
   onCreate,
   className,
   onScan,
+  onEnterMiss,
   testId,
   ariaLabel
 }: {
@@ -58,6 +59,9 @@ export function TypeAhead({
   className?: string
   /** Fed every keydown for barcode-scan detection; return true to swallow the keystroke. */
   onScan?: (e: React.KeyboardEvent<HTMLInputElement>) => boolean
+  /** Enter with nothing matching (A13: the scan box): called with the typed text, which is then
+   *  selected so the next scan replaces it. Absent = unchanged (the text stays as typed). */
+  onEnterMiss?: (text: string) => void
   /** data-testid for the input (lib/testids.ts — `picker-<what>`). */
   testId?: string
   /** Accessible name (default: the placeholder) — ignored inside a Field, whose label names it. */
@@ -233,7 +237,13 @@ export function TypeAhead({
               setText(selected?.label ?? '')
             } else {
               // Selects the highlighted match; with no match Enter does nothing (never creates).
-              if (filtered.length === 0) setEnterMissed(true)
+              if (filtered.length === 0) {
+                setEnterMissed(true)
+                if (onEnterMiss) {
+                  e.currentTarget.select()
+                  onEnterMiss(text.trim())
+                }
+              }
               pick(filtered[active])
             }
           } else if (e.key === 'Escape') {

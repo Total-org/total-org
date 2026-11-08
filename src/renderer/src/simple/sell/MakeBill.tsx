@@ -11,7 +11,7 @@ import {
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
-import { pricingApi } from '../../lib/pricingClient'
+import { counterApi, pricingApi } from '../../lib/pricingClient'
 import { useT } from '../../lib/i18n'
 import { useFeatures } from '../../lib/useFeatures'
 import { useSimplePost } from '../../lib/simplePost'
@@ -105,6 +105,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const [showDiscount, setShowDiscount] = useState(false)
   // The scan box is remounted (empty, focused) after each product it adds.
   const [scanSeq, setScanSeq] = useState(0)
+  // A scan that matched nothing: said under the box (its text is selected for the next scan).
+  const [scanMiss, setScanMiss] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
   const saving = poster.status === 'posting'
 
@@ -165,6 +167,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   /** A13: a product from the scan box — one more of it, or a new line (addScannedProduct). */
   const addProduct = (id: number): void => {
     setGeneral(null)
+    setScanMiss(null)
     setForm((f) => ({ ...f, lines: addScannedProduct(f.lines, id, (itemId) => ({ ...newLine(), itemId })) }))
     setScanSeq((n) => n + 1)
   }
@@ -294,7 +297,9 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       return
     }
     const pay = PAY_KEYS[e.key]
-    if (pay && !mod && !e.shiftKey && !e.altKey && !savedIds) {
+    // Only while the bill itself has focus — never from the Help / Ask panel beside it.
+    const inPanel = !!(e.target as HTMLElement | null)?.closest?.('[data-drawer]') // i18n-technical: kit/Drawer's panels
+    if (pay && !inPanel && !mod && !e.shiftKey && !e.altKey && !savedIds) {
       e.preventDefault()
       e.stopPropagation()
       update({ paid: pay, accountId: null }, { paidChosen: true }) // as a click on its chip
@@ -334,6 +339,9 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     update({ ratesIncludeGst: on, amount: next.amount, lines: next.lines.map((l) => (l.auto ? { ...l, rate: null } : l)) })
   }
 
+  // Bills parked on the full app's Counter (Quick bill used to show them): said, never lost.
+  const { data: held } = useQuery({ queryKey: ['counterHeld'], queryFn: counterApi.held, enabled: stockOn }) // i18n-technical
+  const heldBills = held?.length ?? 0
   const scanOptions = useMemo(() => items.map((i) => ({ id: i.id, label: i.name, barcode: i.barcode })), [items])
   const customerOptions = useMemo(() => (setup?.customers ?? []).map((c) => ({ id: c.id, label: c.name, ...(c.phone ? { sub: c.phone } : {}) })), [setup?.customers])
   const title = t(billTitleKey(info ?? { gstRegistrationType: 'unregistered' }, form.date)) // i18n-technical: the WP 8.0 print title key
@@ -460,7 +468,18 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                   onCreate={canSave ? (name) => setCreating({ what: 'product', name }) : undefined} // i18n-technical
                   testId="picker-sell-scan"
                   autoFocus={scanSeq > 0}
+                  onEnterMiss={(code) => setScanMiss(code)}
                 />
+                {scanMiss && (
+                  <p role="status" className="mt-1 text-detail text-warning" data-testid="sell-scan-miss">
+                    {t('simple.sell.scanMiss', { code: scanMiss })}
+                  </p>
+                )}
+                {heldBills > 0 && (
+                  <p className="mt-1 text-detail text-muted" data-testid="sell-held-bills">
+                    {t('simple.sell.heldBills', { count: heldBills })}
+                  </p>
+                )}
               </div>
             )}
             {form.mode === 'items' && ctx ? (

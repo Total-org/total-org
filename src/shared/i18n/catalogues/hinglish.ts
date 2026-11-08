@@ -1810,6 +1810,8 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.sell.productPlaceholder': 'Item ka naam likhein',
   'simple.sell.scanPlaceholder': 'Item scan karein ya naam likhein, phir Enter',
   'simple.sell.scanLabel': 'Item scan karein ya naam likhein',
+  'simple.sell.scanMiss': '“{code}” se koi item nahi mila. Phir se scan karein ya naam likhein.',
+  'simple.sell.heldBills': '{count, plural, one {# bill} other {# bill}} counter par roke gaye hain. Unhein poore app mein kholein: Counter billing, phir F4.',
   'simple.sell.qty': 'Qty',
   'simple.sell.price': 'Rate',
   'simple.sell.priceIncl': 'Rate (GST ke saath)',
