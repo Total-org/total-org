@@ -43,7 +43,7 @@ describe('bindQueryCacheToCompany', () => {
     expect(client.getQueryData(['ledgers'])).toBeUndefined()
   })
 
-  it('keeps the cache for same-company updates (Company Info save, lock/unlock)', () => {
+  it('keeps the cache for same-company updates (Company Info save, lock/unlock — the session binder clears on a lock)', () => {
     useSession.getState().setCompany('company-a', INFO)
     client.setQueryData(['ledgers'], ['A ledger'])
     useSession.getState().setCompany('company-a', { ...INFO, name: 'A renamed' })

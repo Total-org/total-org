@@ -24,6 +24,7 @@ import { askScreen } from './askTargets'
 import { HELP } from '../help/articles'
 import { useHelpLanguage } from '../help/useHelp'
 import { useHelpPanel } from '../help/store'
+import { onSessionEnd } from '../lib/sessionEnd'
 
 // ---------- the pending question (Home's Ask box, a suggestion) ----------
 
@@ -56,6 +57,9 @@ export const useAskTotal = create<AskTotalStore>((set, get) => ({
     return p
   }
 }))
+// Audit A3: the conversation (figures, party names) ends with the session — even the same user
+// signing back in starts with an empty Ask Total.
+onSessionEnd(() => useAskTotal.setState({ pending: null, turns: [], owner: null }))
 
 interface Turn {
   id: number

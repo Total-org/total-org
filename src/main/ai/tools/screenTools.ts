@@ -26,6 +26,7 @@ import { capRows, drCr, rupees, READ_TOOLS } from './readTools'
 import { closeChecklistTool, findAnomaliesTool, gst2bMismatchesTool } from './assistantTools'
 import { defineTool, type ToolContext, type ToolDef, type ToolOutput } from './registry'
 import { PROFIT_SCREENS, assertProfitVisible, isProfitFigureName, profitHidden } from './profitGuard'
+import { PROFIT_HIDDEN_TOOL_MESSAGE } from '@shared/profitRedaction'
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
 const date = (what: string): z.ZodString => iso.describe(`${what} (YYYY-MM-DD); omit for the working period`)
@@ -176,8 +177,8 @@ export const manufactureRegisterTool = defineTool({
           productionCost: rupees(r.productionCost),
           costAtSave: r.repriced ? rupees(r.costAtSave) : undefined,
           repriced: r.repriced || undefined,
-          saleValue: rupees(r.saleAmount),
-          profit: rupees(r.profitPaise),
+          // A3 / SEC-11: the sale value and profit per row are the profit — left out when hidden.
+          ...(profitHidden(ctx) ? {} : { saleValue: rupees(r.saleAmount), profit: rupees(r.profitPaise) }),
           jobWork: r.jobWork || undefined
         }))
       },
@@ -547,6 +548,8 @@ function explainLedger(ctx: ToolContext, ledgerId: number, from: string, to: str
   const { nature, groupId } = ledgerNature(ctx, ledgerId)
   const creditNatured = nature === 'liability' || nature === 'income'
   const pnl = nature === 'income' || nature === 'expense'
+  // A3 / SEC-11: an income / expense ledger's figure is a part of the profit.
+  if (pnl) assertProfitVisible(ctx)
   const prev = previousPeriod(from, to)
   // Year-end closing journals are not activity (CLAUDE.md): never in the entries, and an income /
   // expense ledger's figure is its P&L amount for the period (pnlLedgerAmounts), not a balance
@@ -659,6 +662,12 @@ function explainLedger(ctx: ToolContext, ledgerId: number, from: string, to: str
   }
 }
 
+/** A group of the chart whose nature is income / expense (a P&L group), by name. */
+function isPnlGroupName(ctx: ToolContext, name: string): boolean {
+  const r = ctx.db.prepare("SELECT 1 FROM groups WHERE name = ? COLLATE NOCASE AND nature IN ('income', 'expense')").get(name.trim())
+  return !!r
+}
+
 function findNode(nodes: readonly StatementNode[], name: string): StatementNode | null {
   for (const n of nodes) {
     if (n.name.toLowerCase() === name.toLowerCase()) return n
@@ -701,6 +710,9 @@ function explainGroup(ctx: ToolContext, groupName: string, from: string, to: str
   // P&L groups are period figures; balance sheet groups are as-on balances — the same reports the
   // screens draw (pnlLedgerAmounts inside profitAndLoss), never re-derived here.
   const booksFrom = `${ctx.company.booksFrom}-04-01`
+  // A3 / SEC-11: a P&L group or line (Sales Accounts, Direct Expenses …) is a part of the profit —
+  // refused whether or not the period has it, and whatever as-on date was asked.
+  if (profitHidden(ctx) && (findNode(memo.pnl(from, to), groupName) || isPnlGroupName(ctx, groupName))) assertProfitVisible(ctx)
   let node = asOn ? null : findNode(memo.pnl(from, to), groupName)
   const screenName = node ? 'profit-loss' : 'balance-sheet'
   let prevNode: StatementNode | null = null
@@ -724,7 +736,11 @@ function explainGroup(ctx: ToolContext, groupName: string, from: string, to: str
   if (!node) throw new Error(`No group or line called “${groupName}” in the profit and loss or balance sheet for this period.`)
   // WP 7.2: a computed line (the profit carried to the balance sheet …) is the profit itself.
   if (node.kind === 'computed' || isProfitFigureName(node.name)) assertProfitVisible(ctx)
-  const kids = [...node.children].filter((c) => c.amount !== 0).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+  // A3 / SEC-11: a balance sheet group's computed lines (Closing Stock under Current Assets, the
+  // profit carried over) are left out of its breakdown for a user who may not see profit.
+  const hiddenChild = (c: StatementNode): boolean => profitHidden(ctx) && (c.kind === 'computed' || isProfitFigureName(c.name))
+  const leftOut = node.children.filter((c) => c.amount !== 0 && hiddenChild(c)).length
+  const kids = [...node.children].filter((c) => c.amount !== 0 && !hiddenChild(c)).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
   const cap = capRows(kids, 15, 'ask about one ledger')
   const prevKids = new Map((prevNode?.children ?? []).map((c) => [`${c.kind}:${c.id}`, c.amount]))
   return {
@@ -734,6 +750,7 @@ function explainGroup(ctx: ToolContext, groupName: string, from: string, to: str
       basis,
       amount: rupees(node.amount),
       truncated: cap.truncated,
+      computedLinesLeftOut: leftOut || undefined,
       madeUpOf: cap.rows.map((c) => ({
         ...(c.kind === 'ledger' ? { ledgerId: c.id } : {}),
         name: c.name,
@@ -799,7 +816,9 @@ export const explainFigureTool = defineTool({
           const out = explainGroup(ctx, g, range.from, range.to, asOn, memo)
           parts.push(out.data)
           sources.push(...out.sources)
-        } catch {
+        } catch (e) {
+          // A refusal (profit hidden) is relayed, never passed off as "not in the books".
+          if (e instanceof Error && e.message === PROFIT_HIDDEN_TOOL_MESSAGE) throw e
           missing.push(g)
         }
       }

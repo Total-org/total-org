@@ -3,6 +3,7 @@ import { hashPin, verifyPin } from './authcrypt'
 import { writeAudit } from './audit'
 import type { Role } from './roles'
 import { normaliseFlags, parseFlags, type CapabilityFlags } from '@shared/capabilities'
+import { AppError } from '@shared/errors'
 
 export type { Role }
 
@@ -140,7 +141,20 @@ export function deactivateUser(db: DB, id: number): void {
  * the old in-memory Map did. Reset (row deleted) on a successful login.
  */
 const MAX_FAILS = 5
-const LOCKOUT_MS = 30_000
+/**
+ * Audit A3 (SEC-13): the wait grows with every further wrong PIN — 30 s at the 5th, then 1 min,
+ * 5 min, and 15 min from the 8th on — so a 4-digit PIN can no longer be walked through at a steady
+ * 2 tries a minute (10 000 PINs ≈ 3.5 days before; now about 3 months). Capped at 15 minutes (owner,
+ * 8 Nov: someone at the lock screen typing wrong PINs on purpose keeps the owner out at most that
+ * long). The counter is cleared by the right PIN, as before.
+ */
+export const LOCKOUT_STEPS_MS = [30_000, 60_000, 5 * 60_000, 15 * 60_000] as const
+
+/** The wait after the `fails`-th consecutive wrong PIN (0 = none yet). */
+export function lockoutMsFor(fails: number): number {
+  if (fails < MAX_FAILS) return 0
+  return LOCKOUT_STEPS_MS[Math.min(fails - MAX_FAILS, LOCKOUT_STEPS_MS.length - 1)]!
+}
 
 interface ThrottleState {
   fails: number
@@ -179,6 +193,25 @@ function clearThrottle(db: DB, userId: number): void {
 
 export const AUTH_THROTTLE_MESSAGE = 'Too many attempts — wait 30 seconds'
 
+/** The refusal while locked out, naming the time LEFT (review of #238: not the full step). */
+export function authThrottleMessage(leftMs: number): string {
+  if (leftMs <= 30_000) return AUTH_THROTTLE_MESSAGE
+  const minutes = authThrottleMinutes(leftMs)
+  return `Too many attempts — wait ${minutes} minute${minutes === 1 ? '' : 's'}`
+}
+
+/** The wait left in whole minutes, rounded up (at least 1) — the simple lock screen's words. */
+export function authThrottleMinutes(leftMs: number): number {
+  return Math.max(1, Math.ceil(leftMs / 60_000))
+}
+
+/** The refusal for `userId` (call while `isAuthThrottled`): code `auth_throttled`, the minutes left
+ *  in `params` so the simple lock screen can say it in the reader's language. */
+export function authThrottleError(db: DB, userId: number, now = Date.now()): AppError {
+  const left = Math.max(0, (readThrottle(db, userId)?.until ?? now) - now)
+  return new AppError('auth_throttled', authThrottleMessage(left), { params: { minutes: authThrottleMinutes(left) } })
+}
+
 /** True while `userId` is inside the lockout window. Exported so EVERY PIN-verification surface
  *  (auth:login here, company:delete in companyDelete.ts) consumes the same persisted throttle —
  *  a brute-force loop must not be able to sidestep the lockout by picking a different channel
@@ -192,7 +225,7 @@ export function isAuthThrottled(db: DB, userId: number, now = Date.now()): boole
  *  counter (locking out at MAX_FAILS) and writes the 'login_failed' audit row. */
 export function recordAuthFailure(db: DB, userId: number, now = Date.now()): void {
   const fails = (readThrottle(db, userId)?.fails ?? 0) + 1
-  writeThrottle(db, userId, { fails, until: fails >= MAX_FAILS ? now + LOCKOUT_MS : 0 })
+  writeThrottle(db, userId, { fails, until: fails >= MAX_FAILS ? now + lockoutMsFor(fails) : 0 })
   writeAudit(db, 'user', userId, 'login_failed', null, null)
 }
 
@@ -208,7 +241,7 @@ export function clearAuthFailures(db: DB, userId: number): void {
 export function login(db: DB, userId: number, pin: string): LoginResult {
   const now = Date.now()
   if (isAuthThrottled(db, userId, now)) {
-    throw new Error(AUTH_THROTTLE_MESSAGE)
+    throw authThrottleError(db, userId, now)
   }
 
   const row = db

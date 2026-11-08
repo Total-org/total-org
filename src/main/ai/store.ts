@@ -42,15 +42,17 @@ export function touchThread(db: DB, id: number): void {
   db.prepare("UPDATE ai_threads SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?").run(id)
 }
 
-export function listThreads(db: DB, running: ReadonlySet<number> = new Set()): AiThreadDto[] {
+/** `onlyUser` (A3 / SEC-11): list only the threads that user started (a profit-hidden user must not
+ *  read other people's threads — they may quote profit). Absent = every thread, as before. */
+export function listThreads(db: DB, running: ReadonlySet<number> = new Set(), onlyUser?: { name: string }): AiThreadDto[] {
   const rows = db
     .prepare(
       `SELECT t.id, t.title, t.created_at, t.updated_at, t.pinned,
               (SELECT COUNT(*) FROM ai_messages m WHERE m.thread_id = t.id AND m.role != 'tool') AS n,
               (SELECT SUM(u.cost_micro_usd) FROM ai_usage u WHERE u.thread_id = t.id) AS cost
-         FROM ai_threads t ORDER BY t.pinned DESC, t.updated_at DESC, t.id DESC`
+         FROM ai_threads t ${onlyUser ? 'WHERE t.user_name = ?' : ''} ORDER BY t.pinned DESC, t.updated_at DESC, t.id DESC`
     )
-    .all() as ThreadRow[]
+    .all(...(onlyUser ? [onlyUser.name] : [])) as ThreadRow[]
   return rows.map((r) => ({
     id: r.id,
     title: r.title,

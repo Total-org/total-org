@@ -20,6 +20,19 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Locking leaves nothing on screen** (#238, audit A3). Locking Total (⌘L, the auto-lock or Lock) — or
+someone else signing in — now clears everything the last person had open: the figures Total had
+kept in memory, the screens (the next person starts on their own Home), half-typed answers kept for
+the way back, the Ask / AI panel conversation, messages and open questions. Before, the next person
+could see the previous person's screens and figures for a moment, even ones their sign-in may not
+see. Someone who may not see profit no longer gets it from the chart of accounts' balances, the
+manufacture margin / register, the cost-centre report, the edit log, the owner's old AI
+conversations or the AI's "explain this" on P&L figures. A business locked with a passphrase can
+no longer be deleted from its lock screen, and deleting it always asks for the passphrase. A wrong
+PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 minutes), and the lock screen says how long is left. For
+developers: `company:open` / `company:forgetRemembered` take only a business on the list
+(`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
+
 **One way to make a sale in simple mode** (#240, A13a). Quick bill is folded into Make a bill: with
 stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
 Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the

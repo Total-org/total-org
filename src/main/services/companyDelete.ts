@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3-multiple-ciphers'
 import { openDb } from '../db/encryption'
 import { existsSync } from 'fs'
 import { log } from '../log'
-import { AUTH_THROTTLE_MESSAGE, clearAuthFailures, isAuthThrottled, recordAuthFailure, usersExist } from './users'
+import { authThrottleError, clearAuthFailures, isAuthThrottled, recordAuthFailure, usersExist } from './users'
 import { verifyPin } from './authcrypt'
 import { osAuditUser, writeAudit } from './audit'
 
@@ -61,7 +61,7 @@ export function assertDeleteAuthorized(dbPath: string, pin: string | undefined):
     // caller can't distinguish PIN-space progress during the lockout window.
     const unlocked = owners.filter((o) => !isAuthThrottled(db!, o.id, now))
     if (owners.length > 0 && unlocked.length === 0) {
-      throw new Error(AUTH_THROTTLE_MESSAGE)
+      throw authThrottleError(db, owners[0]!.id, now)
     }
     const matched = pin === undefined ? undefined : unlocked.find((o) => verifyPin(pin, o.pinHash))
     if (!matched) {

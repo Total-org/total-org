@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { onSessionEnd } from './sessionEnd'
 
 /**
  * In-app replacements for window.confirm / window.prompt. Call `confirmDialog(...)` /
@@ -48,6 +49,13 @@ export const useDialogs = create<DialogState>((set, get) => ({
     else req.resolve(typeof answer === 'string' ? answer : null)
   }
 }))
+
+// Audit A3: an open question (it may quote a party or an amount) is answered "no" / cancelled
+// when the session ends — it never shows over the lock screen.
+onSessionEnd(() => {
+  const { queue, settle } = useDialogs.getState()
+  for (const r of [...queue]) settle(r.id, r.kind === 'confirm' ? false : null)
+})
 
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {

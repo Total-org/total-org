@@ -151,6 +151,16 @@ C was rejected because of its asynchronous API.
 - **A backup file alone cannot be opened.** Its key is in `company.key.json` beside the books (and in
   this Mac's keychain-protected `secrets.json`); there is no in-app way to open an encrypted backup
   `.db` copied away on its own — copy the whole business folder, or use the `.totalbak`.
+- **The agent mirror** (`<company>/agent/`, Settings → Agent access): plain CSV / JSON of the books
+  for a local agent. Audit A3: it is never written for a business locked with a passphrase (an
+  export is refused, the auto-refresh skips, Settings → Agent access says so); a mirror written
+  BEFORE the lock was turned on is removed on the locked business's first open (the lock's own
+  reopen included).
+- **PINs separate people; they are not access control against the computer's account.** A wrong
+  PIN locks that user out for 30 s at the 5th try, then 1 min, 5 min, and 15 min from the 8th on
+  (audit A3; capped at 15 minutes so a prank can't keep the owner out for long); the hash is scrypt N = 2^14 in the company file, so anyone who can copy a
+  plaintext `company.db` can guess a short PIN offline or simply edit the `users` table. The
+  passphrase lock is what protects the books themselves.
 - **Not encrypted at all:** the capture inbox (`capture-inbox/` and its `processed/` / `failed/`,
   the user's own drop folder), an attachment's opened copy while the viewer has it (the session's
   temp folder), exports (CSV / XLSX / PDF / JSON), logs, and the temporary plaintext snapshot an encrypted export
@@ -169,7 +179,18 @@ C was rejected because of its asynchronous API.
   false` also redacts the trial balance (income / expense ledgers, the computed P&L row and the
   totals left out), refuses AI tools that show the profit and answers Ask Total's profit
   questions with a note; the year-end
-  close preview, the CA pack and the agent mirror's trial balance follow the flag too. Deliberately not covered: the raw books (day book, ledger
+  close preview, the CA pack and the agent mirror's trial balance follow the flag too. Audit A3
+  closed the rest the sweep found: the manufacture margin and register and the cost-centre P&L are
+  refused; the chart of accounts and ledger balances withhold the income / expense balances; the
+  production register and cost sheet leave out the sale value and margin; the dashboard drops the
+  stock turnover with the margins; the edit log (screen and CSV / PDF) leaves the year-end close's
+  net profit, a manufacture's sale value / profit and the closing journal's lines out; AI threads
+  are the user's own only (an owner's old answers and tool results stay out), `explain_figure`
+  refuses P&L groups / income-expense ledgers and leaves computed lines out of balance-sheet groups,
+  and the AI manufacture register drops sale value and profit; the agent mirror's auto-refresh
+  follows the saving user's flag. Known, by design: the balance-sheet rows of the redacted trial
+  balance still add up to the unclosed profit (the books balance), Retained Earnings shows a closed
+  year's, and a manufacture's typed price shows on the entry itself. Deliberately not covered: the raw books (day book, ledger
   statements, registers, the books export, the voucher mirrors) — one side of the P&L at a time is
   allowed by design, so the profit stays derivable by anyone who may read every voucher. The renderer hides
   or disables export / Save / AI-settings buttons only for a flag set to false, so owners and
