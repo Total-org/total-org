@@ -204,7 +204,7 @@ describe('Gateway dashboard', () => {
   it('launch to Home: the four reads are ONE dashboard:all call, and the chips come with it', async () => {
     setup()
     await waitFor(() => expect(screen.getAllByTestId('recent-voucher')).toHaveLength(1))
-    await waitFor(() => expect(screen.getByTestId('dash-msme-due').textContent).toContain('12.5K'))
+    await waitFor(() => expect(screen.getByTestId('dash-msme-due').textContent).toContain('12,500'))
     expect(screen.getByTestId('chip-promised-week').textContent).toContain('1 this week')
     const channels = invoke.mock.calls.map(([ch]) => ch as string)
     expect(channels.filter((ch) => ch === 'dashboard:all')).toHaveLength(1)

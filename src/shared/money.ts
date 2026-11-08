@@ -69,9 +69,10 @@ export function plainMilli(qtyMilli: number): string {
 export function formatPaiseCompact(paise: number): string {
   const sign = paise < 0 ? '-' : ''
   const abs = Math.abs(paise)
-  const units: [number, string][] = [[100_00000_00, 'Cr'], [100_000_00, 'L'], [1_000_00, 'K']]
-  // Under ₹1,000 the exact rupee figure is already short.
-  for (const [unit, suffix] of abs >= 1_000_00 ? units : []) {
+  // Indian short forms only — lakh and crore, never "K" (audit UX-20: ₹67.3K beside ₹3L read as two
+  // systems). Under ₹1 lakh the whole rupees are shown with Indian grouping (₹67,282).
+  const units: [number, string][] = [[100_00000_00, 'Cr'], [100_000_00, 'L']]
+  for (const [unit, suffix] of abs >= 99_950_00 ? units : []) {
     // Decide the unit on the ROUNDED value, so ₹99,960 reads "₹1L", not "₹100K".
     const tenths = Math.floor((abs * 10 + unit / 2) / unit)
     if (tenths >= 10) {
@@ -80,7 +81,7 @@ export function formatPaiseCompact(paise: number): string {
       return `${sign}₹${whole}${frac ? `.${frac}` : ''}${suffix}`
     }
   }
-  return `${sign}₹${Math.floor((abs + 50) / 100)}`
+  return `${sign}${formatPaise(Math.floor((abs + 50) / 100) * 100, { symbol: true }).slice(0, -3)}`
 }
 
 /** Round a fractional paise value to an integer, half away from zero (GST convention). */
