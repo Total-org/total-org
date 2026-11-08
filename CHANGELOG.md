@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (A13b).
+**Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (#243, A13b).
 Credit control has no Interest tab any more, the ledger form no longer asks for an interest rate or
 grace days, and Settings → Receivables drops the interest options. The Fixed assets screen (asset
 register, depreciation runs, the disposal wizard, the asset schedule and the income-tax block
