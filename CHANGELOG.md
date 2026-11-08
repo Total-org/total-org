@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**The website is safer and says what it keeps** (#PRNUM, audit A6). The changelog page now shows
+**The website is safer and says what it keeps** (#242, audit A6). The changelog page now shows
 release notes as plain text and links (only ordinary web links), so a note can no longer slip a
 script into the page. Every page sends a strict Content-Security-Policy and the usual security
 headers. The waitlist form says exactly what it keeps (your e-mail and when you joined), why (one
