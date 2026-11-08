@@ -11,6 +11,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CompanyInfo, Group, Ledger } from '@shared/domain'
 import type { BillsToPay as BillsData, PeopleList as PeopleData, PersonView as PersonData } from '@shared/simple/people'
+import { translator } from '@shared/i18n'
 import { bannedWordsIn } from '@shared/simple/bannedWords'
 import { useNav, useSession } from '../state/stores'
 import { PeopleList } from '../simple/people/PeopleList'
@@ -115,9 +116,33 @@ describe('the People list', () => {
     expect(within(ramesh).getByTestId('person-chip-late').textContent).toBe('₹1,000.00 late · 25 days')
     expect(ramesh.textContent).toContain('15 days')
     const sita = rows.querySelector('tr[data-row-id="11"]') as HTMLElement
-    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('₹200.00 credit')
+    // Audit UX-13: the words say who holds the credit (never just "₹X credit").
+    expect(within(sita).getByTestId('person-chip-ahead').textContent).toBe('They have ₹200.00 credit')
     expect(within(sita).getByTestId('person-chip-hold')).toBeTruthy()
     expect(bannedWordsIn(visibleText())).toEqual([])
+  })
+
+  it('the credit chip says who holds the credit, in every language (audit UX-13)', () => {
+    const chip = (lang: 'en' | 'hi' | 'hinglish', side: 'customer' | 'supplier'): string =>
+      translator(lang)('simple.people.chip.ahead', { side, amount: '₹200.00' })
+    expect(chip('en', 'customer')).toBe('They have ₹200.00 credit')
+    expect(chip('en', 'supplier')).toBe('You have ₹200.00 credit')
+    expect(chip('hi', 'customer')).toBe('इनका ₹200.00 क्रेडिट है')
+    expect(chip('hi', 'supplier')).toBe('आपका ₹200.00 क्रेडिट है')
+    expect(chip('hinglish', 'customer')).toBe('Inka ₹200.00 credit hai')
+    expect(chip('hinglish', 'supplier')).toBe('Aapka ₹200.00 credit hai')
+    for (const lang of ['en', 'hi', 'hinglish'] as const) expect(bannedWordsIn(chip(lang, 'customer') + ' ' + chip(lang, 'supplier'))).toEqual([])
+  })
+
+  it('a supplier holding your credit (a kept return, an advance) reads "You have … credit" on the list', async () => {
+    const withCredit: PeopleData = { ...LIST, people: LIST.people.map((p) => (p.ledgerId === 20 ? { ...p, ahead: 5_000 } : p)) }
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) => (channel === 'simple:people:list' ? { ok: true, data: withCredit } : base(channel, payload)))
+    renderUi(<PeopleList />)
+    const rows = await screen.findByTestId('rows-simple-people')
+    await waitFor(() => expect(rows.querySelectorAll('tr[data-row-id]').length).toBe(3))
+    const bharat = rows.querySelector('tr[data-row-id="20"]') as HTMLElement
+    expect(within(bharat).getByTestId('person-chip-ahead').textContent).toBe('You have ₹50.00 credit')
   })
 
   it('filters: suppliers, owe you, late to pay', async () => {
