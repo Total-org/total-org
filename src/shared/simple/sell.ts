@@ -11,7 +11,8 @@
 import type { MessageKey, Translate } from '../i18n'
 import { formatPaise, formatQtyMilli, roundToRupee } from '../money'
 import { toPlainDate } from '../dates'
-import { addBreakups, computeGst, supplyTypeFor, type SupplyType } from '../gst/calc'
+import { addBreakups, computeGst, type SupplyType } from '../gst/calc'
+import { billTaxClass, type BillTaxClass } from '../gst/zeroRated'
 import { chargesGstOn, registrationOn, type GstRegistrationFacts, type GstRegistrationType } from '../gst/registration'
 import { inclusiveLine, lineGross, solveTaxable } from '../pricing'
 import { rateForCost } from '../capture/nonClaimable'
@@ -132,10 +133,20 @@ export function changeDue(givenPaise: number | null, totalPaise: number): { back
   return givenPaise >= totalPaise ? { back: givenPaise - totalPaise } : { short: totalPaise - givenPaise }
 }
 
-function supplyFor(form: SellForm, ctx: SellContext): SupplyType {
-  const state = form.customerId != null ? ctx.invoice.ledgers.get(form.customerId)?.stateCode : null
-  return supplyTypeFor(ctx.invoice.companyStateCode, state ?? ctx.invoice.companyStateCode)
+/** Phase 2: how the bill to this customer is taxed — computeInvoice's rule (shared/gst/zeroRated.ts):
+ *  an SEZ / export customer is inter-state, and without payment (LUT / bond) charged no GST. */
+function taxClassFor(form: SellForm, ctx: SellContext): BillTaxClass {
+  const party = form.customerId != null ? ctx.invoice.ledgers.get(form.customerId) : undefined
+  return billTaxClass(ctx.invoice.companyStateCode, 'sales', party, null)
 }
+
+function supplyFor(form: SellForm, ctx: SellContext): SupplyType {
+  return taxClassFor(form, ctx).supply
+}
+
+/** Does the bill add GST? The date charges it (WP 8.0) and the customer is not a zero-rated
+ *  supply without payment. */
+const addsGst = (form: SellForm, ctx: SellContext): boolean => chargesGstOn(ctx.invoice, form.date) && !taxClassFor(form, ctx).zeroTax
 
 /** The GST % an item line is charged at on the bill's date (computeInvoice's rule). */
 function itemRate(ctx: SellContext, itemId: number, charges: boolean): { rate: number; cess: number } {
@@ -156,7 +167,7 @@ export interface ExclusiveLine {
 /** The lines as the editor holds them (exclusive rate + discount); lines that are not complete yet
  *  (no item, quantity or price) are left out and listed in `incomplete`. */
 export function exclusiveLines(form: SellForm, ctx: SellContext): { lines: ExclusiveLine[]; incomplete: number[] } {
-  const charges = chargesGstOn(ctx.invoice, form.date)
+  const charges = addsGst(form, ctx)
   const supply = supplyFor(form, ctx)
   const lines: ExclusiveLine[] = []
   const incomplete: number[] = []
@@ -184,10 +195,13 @@ const amountRate = (form: SellForm, ctx: SellContext): number => {
   return form.gstRate ?? account?.gstRate ?? 0
 }
 
+/** The GST % "just an amount" is TAXED at: amountRate, 0 for a zero-rated supply without payment. */
+const amountTaxRate = (form: SellForm, ctx: SellContext): number => (taxClassFor(form, ctx).zeroTax ? 0 : amountRate(form, ctx))
+
 /** "Just an amount" before GST (paise), from what was typed. */
 function amountTaxable(form: SellForm, ctx: SellContext): number | null {
   if (form.amount == null || form.amount <= 0) return null
-  const rate = amountRate(form, ctx)
+  const rate = amountTaxRate(form, ctx)
   if (form.ratesIncludeGst && rate > 0) return solveTaxable(form.amount, rate, 0, supplyFor(form, ctx)).taxablePaise
   return form.amount
 }
@@ -208,11 +222,11 @@ export interface SellTotals {
 
 /** Live totals — the editor's own calculation, the same numbers simple:post will save. */
 export function sellTotals(form: SellForm, ctx: SellContext): SellTotals {
-  const charges = chargesGstOn(ctx.invoice, form.date)
+  const charges = addsGst(form, ctx)
   if (form.mode === 'amount') {
     const taxable = amountTaxable(form, ctx)
     if (taxable == null) return { taxable: 0, tax: 0, total: 0, rounding: 0, lineAmounts: [], charges }
-    const gst = addBreakups([computeGst(taxable, amountRate(form, ctx), supplyFor(form, ctx))])
+    const gst = addBreakups([computeGst(taxable, amountTaxRate(form, ctx), supplyFor(form, ctx))])
     const total = roundToRupee(gst.total)
     return { taxable: gst.taxable, tax: gst.total - gst.taxable, total, rounding: total - gst.total, lineAmounts: [], charges }
   }
@@ -410,7 +424,7 @@ export interface SaleView {
 /** A price-list rate (tax-exclusive, resolvePrice) as the form shows it: GST-inclusive per unit
  *  when prices are typed with GST (computeGst on one unit — the editor's calculation). */
 export function shownRate(exclusiveRate: number, itemId: number, form: SellForm, ctx: SellContext): number {
-  const charges = chargesGstOn(ctx.invoice, form.date)
+  const charges = addsGst(form, ctx)
   if (!form.ratesIncludeGst || !charges) return exclusiveRate
   const { rate, cess } = itemRate(ctx, itemId, charges)
   return rate + cess > 0 ? computeGst(exclusiveRate, rate, supplyFor(form, ctx), cess).total : exclusiveRate
@@ -418,7 +432,7 @@ export function shownRate(exclusiveRate: number, itemId: number, form: SellForm,
 
 /** The GST % an item line is shown with (null = the bill charges no GST). */
 export function lineGstRate(itemId: number, form: SellForm, ctx: SellContext): number | null {
-  const charges = chargesGstOn(ctx.invoice, form.date)
+  const charges = addsGst(form, ctx)
   return charges ? itemRate(ctx, itemId, charges).rate : null
 }
 
@@ -471,12 +485,12 @@ export const amountToBasis = (amount: number, gstRate: number, supply: SupplyTyp
  *  a bill whose date charges no GST, keep their numbers (the basis means nothing there). */
 export function switchSellBasis<F extends SellForm>(form: F, ctx: SellContext, incl: boolean): F {
   if (form.ratesIncludeGst === incl) return form
-  const charges = chargesGstOn(ctx.invoice, form.date)
+  const charges = addsGst(form, ctx)
   const next = { ...form, ratesIncludeGst: incl }
   if (!charges) return next
   const supply = supplyFor(form, ctx)
   if (form.mode === 'amount') {
-    const rate = amountRate(form, ctx)
+    const rate = amountTaxRate(form, ctx)
     return form.amount != null && form.amount > 0 && rate > 0 ? { ...next, amount: amountToBasis(form.amount, rate, supply, incl) } : next
   }
   return {

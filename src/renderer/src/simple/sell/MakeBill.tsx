@@ -126,7 +126,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
               companyStateCode: info.stateCode,
               ...facts,
               items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-              ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate }]))
+              ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType ?? null }]))
             },
             salesAccountId: setup?.salesAccountId ?? null
           }

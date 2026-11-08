@@ -18,6 +18,7 @@ import { PartyRatesModal } from '../screens/masters/PartyRatesTab'
 import { TabBar } from './TabBar'
 import { ForeignOpeningNote } from './ForeignOpeningNote'
 import { PartyNotesPanel } from './partyNotes/PartyNotes'
+import { CaCheck } from './CaCheck'
 import { AttachmentList } from './attachments/Attachments'
 import { bpToPercent, percentToBp } from '@shared/receivables/interest'
 import { useMode } from '../lib/mode'
@@ -487,7 +488,15 @@ function LedgerForm({
                 </Select>
               </Field>
             )}
-            <Field label="Export / SEZ type" hint="For e-invoice/e-way classification">
+            <Field
+              label="Export / SEZ type"
+              hint={
+                <>
+                  Sets the GST on new bills: SEZ or export with payment → IGST; without payment (LUT / bond) → no GST. Also the return and e-invoice class.
+                  <CaCheck place="masters.exportType" />
+                </>
+              }
+            >
               <Select value={exportType} onChange={(e) => setExportType(e.target.value as typeof exportType)}>
                 {EXPORT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>

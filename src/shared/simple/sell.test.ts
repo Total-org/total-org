@@ -62,6 +62,51 @@ function posted(f: SellForm, c: SellContext) {
   return mapIntent(normaliseIntent({ clientId: 'test-client-1', ...saleIntentFrom(f, c, DEFAULTS) }, DATE), intentCtx(c))
 }
 
+describe('Phase 2: SEZ / export customers (shared/gst/zeroRated.ts)', () => {
+  // 13 = SEZ unit in Maharashtra (our state), with payment; 14 = foreign buyer under LUT.
+  const zc = (): SellContext => {
+    const c = ctxFor()
+    return {
+      ...c,
+      invoice: {
+        ...c.invoice,
+        ledgers: new Map([...c.invoice.ledgers, [13, { stateCode: '27', gstRate: null, exportType: 'sez_wp' as const }], [14, { stateCode: '96', gstRate: null, exportType: 'exp_wop' as const }]])
+      }
+    }
+  }
+  const zPosted = (f: SellForm, c: SellContext) => {
+    const ic = intentCtx(c)
+    const L = (id: number, name: string, stateCode: string): [number, IntentLedger] => [id, { id, name, cls: 'debtor', stateCode, gstRate: null, creditDays: 15 }]
+    return mapIntent(normaliseIntent({ clientId: 'test-client-z', ...saleIntentFrom(f, c, DEFAULTS) }, DATE), { ...ic, ledgers: new Map([...ic.ledgers, L(13, 'SEZ Unit', '27'), L(14, 'Overseas Buyer', '96')]) })
+  }
+  const taxLines = (m: ReturnType<typeof zPosted>) => m.entries[0]!.payload.lines.filter((l) => [40, 41, 42, 43].includes(l.ledgerId)).map((l) => [l.ledgerId, l.amount])
+
+  it('items: an SEZ unit in our state pays IGST, a buyer under LUT none — live total = posted', () => {
+    // 4 × ₹250 = ₹1,000 @ 18 %: IGST ₹180 → ₹1,180.
+    const sez = form({ customerId: 13, paid: 'credit', lines: [line(1, 1, '4', 25_000)] })
+    expect(sellTotals(sez, zc())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000, rounding: 0 })
+    expect(taxLines(zPosted(sez, zc()))).toEqual([[42, 18_000]])
+    const lut = form({ customerId: 14, paid: 'credit', lines: [line(1, 1, '4', 25_000)] })
+    expect(sellTotals(lut, zc())).toMatchObject({ taxable: 100_000, tax: 0, total: 100_000, rounding: 0 })
+    expect(zPosted(lut, zc()).facts.total).toBe(100_000)
+    expect(taxLines(zPosted(lut, zc()))).toEqual([])
+  })
+  it('prices typed WITH GST to a buyer under LUT are the price (no GST to take out)', () => {
+    const lut = form({ customerId: 14, paid: 'credit', ratesIncludeGst: true, lines: [line(1, 1, '4', 25_000)] })
+    expect(sellTotals(lut, zc())).toMatchObject({ taxable: 100_000, tax: 0, total: 100_000 })
+    expect(zPosted(lut, zc()).facts.total).toBe(100_000)
+  })
+  it('just an amount: ₹1,000 @ 18 % — IGST ₹180 to the SEZ unit, nothing under LUT', () => {
+    const sez = form({ customerId: 13, paid: 'credit', mode: 'amount', amount: 100_000, gstRate: 18 })
+    expect(sellTotals(sez, zc())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    expect(taxLines(zPosted(sez, zc()))).toEqual([[42, 18_000]])
+    const lut = form({ customerId: 14, paid: 'credit', mode: 'amount', amount: 100_000, gstRate: 18 })
+    expect(sellTotals(lut, zc())).toMatchObject({ taxable: 100_000, tax: 0, total: 100_000 })
+    expect(zPosted(lut, zc()).facts.total).toBe(100_000)
+    expect(taxLines(zPosted(lut, zc()))).toEqual([])
+  })
+})
+
 describe('live totals = the editor calculation = what is posted', () => {
   it('review: the rupee round-off is its own figure (down and up), and taxable + tax + rounding = total', () => {
     const c = ctxFor('unregistered')

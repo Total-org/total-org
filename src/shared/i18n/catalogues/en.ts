@@ -100,6 +100,7 @@ export const en = {
   'common.caCheck.point.registrationHistory': 'Only one change of GST registration is kept: the type before and the day the current one started.',
   'common.caCheck.point.gstStateCodes': 'The list of GST state codes was not re-read against the latest official list.',
   'common.caCheck.point.postedTaxRupee': 'When a bill of just an amount had its GST typed rounded to the rupee, the return shows the GST worked out on the value, not the rounded GST on the bill. Which one the return should carry is not confirmed.',
+  'common.caCheck.point.zeroRatedWithPayment': 'A bill to a customer marked “SEZ or export with payment” is charged IGST; one marked “without payment” (LUT or bond) is charged no GST. Since 1 October 2023 GST may be paid on such supplies only by notified classes, and Total does not check which. A return of such a bill follows its bill.',
   'common.caCheck.point.gstr3bAdvances': 'GST on advances you received is left out of the GST to pay here. The portal may add it (advances less the ones adjusted). Ask your CA.',
   'common.caCheck.point.gstr3bNegative': 'In a month with only returns (credit notes), the GST figures can come out below zero. Whether the portal accepts that or carries it forward is not confirmed.',
   'common.caCheck.point.gstr3bSchemaDraft': 'The GSTR-3B file is checked against the portal’s file layout, which GSTN still marks as a draft.',

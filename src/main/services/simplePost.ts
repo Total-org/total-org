@@ -386,7 +386,7 @@ export function loadIntentContext(db: DB, company: CompanyInfo, n: NormalIntent)
       companyStateCode: company.stateCode,
       ...gstRegistrationOf(company),
       items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null }]))
+      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null, exportType: l.exportType ?? null }]))
     },
     ledgers: ledgerMap,
     items: new Map(items.map((i) => [i.id, { id: i.id, name: i.name }])),
