@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Locking leaves nothing on screen** (audit A3). Locking Total (⌘L, the auto-lock or Lock) — or
+**Locking leaves nothing on screen** (#238, audit A3). Locking Total (⌘L, the auto-lock or Lock) — or
 someone else signing in — now clears everything the last person had open: the figures Total had
 kept in memory, the screens (the next person starts on their own Home), half-typed answers kept for
 the way back, the Ask / AI panel conversation, messages and open questions. Before, the next person
