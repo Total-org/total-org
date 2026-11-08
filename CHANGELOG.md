@@ -45,7 +45,7 @@ PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 mi
 developers: `company:open` / `company:forgetRemembered` take only a business on the list
 (`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
 
-**One Checks screen** (A13c). Analysis → Checks brings together what you look at before closing a
+**One Checks screen** (#245, A13c). Analysis → Checks brings together what you look at before closing a
 month: the month-end close checklist, anomalies (possible duplicates, unusual entries), the
 exception reports, stale quotations, orders, challans and GRNs (only while orders and challans are
 in use) and the GSTR-2B mismatches (only for a GST-registered business) — one tab each, each with its
