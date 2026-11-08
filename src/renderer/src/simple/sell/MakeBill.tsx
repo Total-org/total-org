@@ -7,7 +7,7 @@ import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
 import type { SimplePreview } from '@shared/simple/intents'
 import {
-  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
@@ -126,7 +126,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
               companyStateCode: info.stateCode,
               ...facts,
               items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-              ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate }]))
+              ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType ?? null }]))
             },
             salesAccountId: setup?.salesAccountId ?? null
           }
@@ -502,6 +502,12 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
               />
             ) : (
               <AmountLine form={form} regular={regular} charges={charges} amountError={errors.get(F.amount)} rateError={errors.get(F.gstRate)} onChange={update} />
+            )}
+            {ctx && zeroTaxCustomer(form, ctx) && (
+              <p className="mt-2 text-small text-muted" data-testid="sell-zero-rated-note">
+                {t('simple.sell.zeroRated')}
+                {form.mode === 'amount' && stockOn ? ` ${t('simple.sell.zeroRatedAmount')}` : ''}
+              </p>
             )}
             <div className="mt-3 flex flex-wrap gap-4">
               {form.mode === 'items' && !showDiscount && (

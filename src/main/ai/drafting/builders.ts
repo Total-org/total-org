@@ -13,6 +13,7 @@ import type { AiDraftForm, AiMemoryPurpose, AiVoucherDraftPayload } from '@share
 import { formatPaise, formatQtyMilli } from '@shared/money'
 import { addDaysISO, toDisplayDate } from '@shared/dates'
 import { supplyTypeFor } from '@shared/gst/calc'
+import { billTaxClass, type ZeroRatedClass } from '@shared/gst/zeroRated'
 import { stateName } from '@shared/gst/states'
 import { chargesGstOn, gstRegistrationOf, NON_CLAIMABLE_RATE_HINT, registrationOn } from '@shared/gst/registration'
 import { voucherInputSchema, type VoucherInputParsed } from '@shared/schemas'
@@ -192,7 +193,7 @@ function priceLine(
 
 function gstAssumptions(
   w: DraftWork, items: StockItem[], supply: 'intra' | 'inter', partyState: string | null, pos: string | null,
-  invoice: { date: string; kind: VoucherKind; taxedOriginal: boolean } | null
+  invoice: { date: string; kind: VoucherKind; taxedOriginal: boolean; zeroRated?: ZeroRatedClass | null } | null
 ): void {
   // WP 8.0: the editor's rule — a bill dated while the company is composition / unregistered
   // charges no GST (a note against a GST-charging bill follows that bill).
@@ -205,6 +206,13 @@ function gstAssumptions(
   for (const it of items) {
     if (it.gstRate != null) w.assume(`${it.gstRate}% GST on ${it.name} from the item master${it.cessRate ? ` (+ ${it.cessRate}% cess)` : ''}`)
     else w.assume(`${it.name} has no GST rate in the item master — the ledger's rate (or 0%) applies`)
+  }
+  const zr = invoice?.zeroRated
+  if (zr) {
+    // IGST Act s.7(5) (inter-state) and s.16(3) (without payment under bond / LUT).
+    const who = zr.sez ? 'a supply to an SEZ unit / developer' : 'an export'
+    w.assume(zr.withPayment ? `Zero-rated: ${who} with payment — IGST (inter-state whatever the state)` : `Zero-rated: ${who} without payment (LUT / bond) — no GST charged`)
+    return
   }
   const st = pos ?? partyState
   w.assume(
@@ -219,7 +227,7 @@ export function invoiceCtx(m: DraftMasters, kind: VoucherKind): InvoiceContext {
     ...gstRegistrationOf(m.company),
     items: new Map(m.items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
     ledgers: new Map(
-      m.ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null }])
+      m.ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null, exportType: l.exportType ?? null }])
     )
   }
 }
@@ -588,8 +596,9 @@ export function buildInvoiceDraft(w: DraftWork, input: InvoiceDraftInput): Built
   const original = (kind === 'credit_note' || kind === 'debit_note') && input.againstInvoice ? findOriginalInvoice(w, kind, party!.id, input.againstInvoice) : null
   w.settle()
   const originalVoucher = original ? getVoucher(m.db, original.id) : null
-  const partyState = pos ?? party!.stateCode ?? m.company.stateCode
-  const supply = supplyTypeFor(m.company.stateCode, partyState)
+  // Phase 2: computeInvoice's rule — an SEZ / export customer is a zero-rated supply (shared/gst/zeroRated.ts).
+  const taxClass = billTaxClass(m.company.stateCode, kind, { stateCode: party!.stateCode, exportType: party!.exportType ?? null }, pos)
+  const supply = taxClass.supply
   // Quantity already returned against each original line (live notes), plus what this draft takes.
   const returnedStmt = m.db.prepare(
     `SELECT COALESCE(SUM(ll.qty_milli), 0) AS q FROM line_links ll JOIN vouchers v ON v.id = ll.to_voucher_id
@@ -628,7 +637,7 @@ export function buildInvoiceDraft(w: DraftWork, input: InvoiceDraftInput): Built
   // A note against an invoice of a GST-charging period (or one that carries tax) keeps its GST.
   const taxedOriginal = !!originalVoucher && !chargesGstOn(m.company, date) &&
     (chargesGstOn(m.company, originalVoucher.date) || voucherCarriesGst(originalVoucher, voucherTaxLedgers(originalVoucher, m.ledgers, taxSideOf(kind))))
-  gstAssumptions(w, [...new Map(resolved.map((r) => [r.item!.id, r.item!])).values()], supply, party!.stateCode, pos, { date, kind, taxedOriginal })
+  gstAssumptions(w, [...new Map(resolved.map((r) => [r.item!.id, r.item!])).values()], supply, party!.stateCode, pos, { date, kind, taxedOriginal, zeroRated: taxClass.zeroRated })
 
   const isNote = kind === 'credit_note' || kind === 'debit_note'
   const dueGiven = w.optionalDate('dueDate', input.dueDate)

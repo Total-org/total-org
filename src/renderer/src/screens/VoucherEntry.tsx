@@ -158,7 +158,7 @@ export function VoucherEntry({
           companyStateCode: info.stateCode,
           ...gstRegistrationOf(info),
           items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-          ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId }]))
+          ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, exportType: l.exportType ?? null }]))
         },
         taxLedgers: taxLedgerIdsFrom(ledgers),
         taxLedgerList: ledgers,
