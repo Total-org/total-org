@@ -20,7 +20,8 @@ import type { SaveSummary } from './saveCard'
 import type { Translate } from '../i18n'
 import { formatPaise, parseAmountText, roundToRupee } from '../money'
 import { addDaysISO, fyOf, isValidISODate, resolveDateText, toDisplayDate, toPlainDate } from '../dates'
-import { addBreakups, computeGst, supplyTypeFor, type GstBreakup } from '../gst/calc'
+import { addBreakups, computeGst, type GstBreakup } from '../gst/calc'
+import { billTaxClass, type BillTaxClass } from '../gst/zeroRated'
 import { chargesGstOn, registrationOn } from '../gst/registration'
 import { AppError } from '../errors/appError'
 import type { ErrorCode } from '../errors/codes'
@@ -752,6 +753,11 @@ function invoiceEntry(ctx: IntentContext, role: IntentRole, kind: VoucherKind, t
   return { entry: { role, kind, voucherTypeId: type.id, form: 'invoice', state, payload: built.payload }, total: c.rounded, tax: c.gst.total - c.gst.taxable }
 }
 
+/** How a bill of `kind` to `party` is taxed (billTaxClass over the invoice context's party facts). */
+function partyTaxClass(ctx: IntentContext, kind: VoucherKind, party: IntentLedger): BillTaxClass {
+  return billTaxClass(ctx.invoice.companyStateCode, kind, { stateCode: party.stateCode, exportType: ctx.invoice.ledgers.get(party.id)?.exportType ?? null }, null)
+}
+
 /** Ledger-line trading entry (the accounting form — the editor's own mode for a sales / purchase
  *  without item lines): party, the account at the taxable value, each GST head (computeGst — the
  *  editor's calculation), round off. Same line order as buildInvoicePayload. */
@@ -766,10 +772,12 @@ function ledgerLines(
   /** A return's tax and total from the running total (runningAmountRest). */
   fixed: BillRest | null = null
 ): { rows: AccountingRowState[]; total: number; gst: GstBreakup } {
-  const supply = supplyTypeFor(ctx.invoice.companyStateCode, party.stateCode ?? ctx.invoice.companyStateCode)
+  // Phase 2: a party flagged SEZ / export is a zero-rated supply (shared/gst/zeroRated.ts) — as
+  // the item editor's computeInvoice: IGST (s.7(5)(b) IGST Act), none without payment (s.16(3)).
+  const { supply, zeroTax } = partyTaxClass(ctx, kind, party)
   const gst = fixed
     ? { taxable, cgst: fixed.cgst, sgst: fixed.sgst, igst: fixed.igst, cess: 0, total: taxable + fixed.cgst + fixed.sgst + fixed.igst }
-    : addBreakups([computeGst(taxable, rate, supply)])
+    : addBreakups([computeGst(taxable, zeroTax ? 0 : rate, supply)])
   // A printed total (WP 9.4) is the bill as the supplier wrote it; the rest is round off (< ₹1).
   if (printedTotal != null && Math.abs(printedTotal - gst.total) >= 100) {
     fail('simple_bill_total', `The bill total ${formatPaise(printedTotal, { symbol: true })} does not fit its value and GST (${formatPaise(gst.total, { symbol: true })})`, 'amount', { amount: formatPaise(gst.total, { symbol: true }) })
@@ -1190,8 +1198,8 @@ function mapReturn(n: Extract<NormalIntent, { kind: 'return_sale' | 'return_purc
       rate = o.rates[0]!
     }
     // The running total's tax and round off (the return of all that is left: what the bill still holds).
-    const supply = supplyTypeFor(ctx.invoice.companyStateCode, party.stateCode ?? ctx.invoice.companyStateCode)
-    const fixed = runningAmountRest(a.amount, charges ? (rate ?? 0) : 0, supply, o, charges)
+    const { supply, zeroTax } = partyTaxClass(ctx, kind, party)
+    const fixed = runningAmountRest(a.amount, charges && !zeroTax ? (rate ?? 0) : 0, supply, o, charges)
     const lines = ledgerLines(ctx, kind as 'credit_note' | 'debit_note', party, account.id, a.amount, charges ? (rate ?? 0) : 0, null, fixed)
     total = lines.total
     facts.tax = lines.gst.total - lines.gst.taxable

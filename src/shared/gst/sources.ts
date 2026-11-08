@@ -150,6 +150,15 @@ export const GST_SOURCES = {
   n90_2020: {
     id: 'n90_2020', title: 'Notification 90/2020-Central Tax (01-12-2020) — 8 digits of HSN on a tax invoice for the 49 chemicals in its Table',
     url: 'https://cbic-gst.gov.in/pdf/central-tax/notfctn-90-central-tax-english-2020.pdf', accessed: '2026-11-07', verified: true
+  },
+  // Phase 2 (accessed 2026-11-08): the tax on a bill to an SEZ unit / an export buyer (shared/gst/zeroRated.ts).
+  igstS7: {
+    id: 'igstS7', title: 'IGST Act s.7(5) — a supply (a) when the supplier is in India and the place of supply outside India, (b) to or by an SEZ developer or unit, is inter-State',
+    url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_IGST_Act/active/chapteriv/section7_v1.00.html', accessed: '2026-11-08', verified: true
+  },
+  igstS16: {
+    id: 'igstS16', title: 'IGST Act s.16 — zero-rated supply (export; supply for authorised operations to an SEZ developer / unit); (3) without payment of IGST under bond / LUT; (4) on payment only for notified classes (as amended by the Finance Act 2021, in force 1 October 2023, Notification 27/2023-CT)',
+    url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_IGST_Act/active/chaptervii/section16_v1.00.html', accessed: '2026-11-08', verified: true
   }
 } satisfies Record<string, GstSource>
 
@@ -174,6 +183,7 @@ export const GST_UNVERIFIED: { id: string; text: string; sources: GstSourceId[] 
   { id: 'hsn-sac-uqc', text: 'GSTR-1 Table 12: a line without an HSN / SAC is left out, and a service (SAC) line goes in with UQC OTH and quantity 0 — GSTN\'s Table 12 advisories may require an HSN on every line and UQC "NA" for services (not read in an official text).', sources: ['gstr1Schema'] },
   { id: 'hsn-master-list', text: 'HSN / SAC codes are checked against the GST portal\'s downloadable list (April 2026). A code not in it is flagged, never refused — how complete that list is, and whether the portal or the e-invoice system accepts codes outside it, is unconfirmed. The list carries no GST rates, so Total never suggests a rate for a code.', sources: ['hsnMaster'] },
   { id: 'hsn-digits', text: 'The HSN digits check does not know the business\'s turnover: 4 digits are accepted with a note that above ₹5 crore (preceding FY) 6 are needed (Notification 78/2020-CT); a code that starts like one of the 49 chemicals of Notification 90/2020-CT is told it needs all 8 digits.', sources: ['n78_2020', 'n90_2020'] },
+  { id: 'zero-rated-with-payment', text: 'Since 1 October 2023 (IGST Act s.16(3) / (4)) an export or SEZ supply goes without payment of IGST under bond / LUT, and on payment of IGST only for the classes of persons / goods / services the Government notifies — which classes are notified was not read; Total charges IGST whenever the party is flagged "with payment". Also unconfirmed: a credit note to such a party follows its bill\'s class (no GST under LUT).', sources: ['igstS16', 'igstS7'] },
   { id: 'gstr3b-advances', text: 'Whether GSTR-3B 3.1(a) must include tax on advances (GSTR-1 11A less 11B) — the app leaves it out; the golden fixtures expect it in (GSTN auto-population). Ask the CA.', sources: ['gstr3bAutoPopulation'] }
 ]
 

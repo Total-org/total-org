@@ -19,7 +19,9 @@
 import type { InvoiceContext, AccountingFormState, AccountingRowState, InvoiceFormState, InvoiceRowState, TaxLedgerIds, TaxSide } from '../voucherEdit'
 import type { HandoffEntry, HandoffPending } from './handoff'
 import { allocateToBills, foldGstIntoLine, returnRow, returnTaxedOriginal, type IntentDefaults, type IntentLedger, type IntentOriginal, type MoneyHow } from './intents'
-import { addBreakups, computeGst, supplyTypeFor, type SupplyType } from '../gst/calc'
+import { addBreakups, computeGst, type SupplyType } from '../gst/calc'
+import { billTaxClass } from '../gst/zeroRated'
+import type { VoucherKind } from '../domain'
 import { chargesGstOn } from '../gst/registration'
 import { GST_RATE_TABLE } from '../gst/rateTable'
 import { roundToRupee } from '../money'
@@ -173,8 +175,14 @@ function carry(input: CarryInput, ctx: CarryContext, dropped: Dropped): CarryFor
 type Inv = HandoffEntry & { form: 'invoice' }
 type Acc = HandoffEntry & { form: 'accounting' }
 
-const supplyOf = (ctx: CarryContext, partyId: number | null): SupplyType =>
-  supplyTypeFor(ctx.invoice.companyStateCode, (partyId != null ? ctx.ledgers.get(partyId)?.stateCode : null) ?? ctx.invoice.companyStateCode)
+/** The supply of a `kind` entry to the party — the editors' rule (shared/gst/zeroRated.ts: an SEZ /
+ *  export customer's bill or credit note is inter-state). */
+const supplyOf = (ctx: CarryContext, partyId: number | null, kind: VoucherKind): SupplyType =>
+  billTaxClass(
+    ctx.invoice.companyStateCode, kind,
+    partyId != null ? { stateCode: ctx.ledgers.get(partyId)?.stateCode ?? null, exportType: ctx.invoice.ledgers.get(partyId)?.exportType ?? null } : undefined,
+    null
+  ).supply
 
 /** What the invoice editor holds that a simple form has no place for — named when changed. */
 function invoiceExtras(o: InvoiceFormState, c: InvoiceFormState, dropped: Dropped, opts: { returnLinks?: boolean } = {}): void {
@@ -365,7 +373,7 @@ function sellAmount(input: CarryInput<'simple-sell'>, ctx: CarryContext, dropped
   dropped.add('extraLines', now.extra)
   dropped.add('account', now.accountId !== refRows(dropped, ctx, true, 'income', ok).accountId)
   dropped.add('billRefs', !sameRefShape(refAcc(dropped), c))
-  const supply = supplyOf(ctx, now.partyId)
+  const supply = supplyOf(ctx, now.partyId, 'sales')
   const charges = chargesGstOn(ctx.invoice, c.date)
   const rate = rateFor(now.taxable, now.tax, supply, [base.gstRate, ctx.ledgers.get(now.accountId)?.gstRate])
   if (rate == null || (!charges && rate !== 0)) return refuse('gst')
@@ -453,7 +461,7 @@ function buyAmount(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: 
   const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode, categoryId, note: c.narration }
   const bctx = buyCtx(ctx)
   const g = buyGst(head, bctx)
-  const supply = supplyOf(ctx, supplierId)
+  const supply = supplyOf(ctx, supplierId, 'purchase')
   const untouched = now.taxable === was.taxable && same(now.tax, was.tax) && now.accountId === was.accountId && base.amount != null
   if (g === 'claim') {
     const rate = rateFor(now.taxable, now.tax, supply, [base.gstRate, ctx.ledgers.get(now.accountId)?.gstRate])
@@ -670,7 +678,7 @@ function expenseBill(input: CarryInput<'simple-money-out'>, ctx: CarryContext, d
   dropped.add('billRefs', !sameRefKinds(refAcc(dropped), c))
   dropped.add('dueDate', !same(refAcc(dropped).billRefs.map((r) => r.dueDate), c.billRefs.map((r) => r.dueDate)))
   const supplierId = buyParty(now.partyId, ctx)
-  const supply = supplyOf(ctx, supplierId)
+  const supply = supplyOf(ctx, supplierId, 'purchase')
   const rate = rateFor(now.taxable, now.tax, supply, [base.gstRate, ctx.ledgers.get(now.accountId)?.gstRate])
   if (rate == null) return refuse('gst')
   // The amount typed is the bill's total; its value before GST is solveTaxable's (moneyOutIntentFrom).
@@ -747,7 +755,7 @@ function returned(input: CarryInput<'simple-return-sale'>, ctx: CarryContext, dr
   dropped.add('extraLines', now.extra)
   dropped.add('account', now.accountId !== refRows(dropped, ctx, !sale, sale ? 'income' : 'expense', ok).accountId)
   dropped.add('billRefs', !sameRefKinds(refAcc(dropped), c))
-  const supply = supplyOf(ctx, bill.partyId)
+  const supply = supplyOf(ctx, bill.partyId, sale ? 'credit_note' : 'debit_note')
   const charges = chargesGstOn(ctx.invoice, c.date) || returnTaxedOriginal(ctx.invoice, c.date, bill)
   const billRate = bill.rates?.length === 1 ? bill.rates[0]! : null
   const rate = rateFor(now.taxable, now.tax, supply, [base.gstRate, billRate])

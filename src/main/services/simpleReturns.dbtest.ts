@@ -650,3 +650,28 @@ describe('a bill returned in parts: the screen and the post agree on the last re
     expect(due('Ramesh')).toMatchObject({ bills: [], unappliedCredit: 0 })
   })
 })
+
+// ---------------------------------------------------------------- Phase 2: SEZ customers (review of #244)
+
+describe('a return of a bill to an SEZ unit in our own state (IGST Act s.7(5)(b))', () => {
+  it('reads the IGST the bill posted (never CGST + SGST) and returns it as IGST — ₹1,000.70, where the two roundings differ', () => {
+    const sez = ledger(db, 'Zed SEZ Unit', 'Sundry Debtors', { stateCode: '27', gstin: '27AABCS7777K1ZO', exportType: 'sez_wp' })
+    // 1 Widget @ ₹1,000.70 (18 %): IGST 180.126 → ₹180.13 (CGST + SGST would be 90.06 + 90.06 = 180.12).
+    // 1,000.70 + 180.13 = 1,180.83 → ₹1,181.00 (round off +0.17).
+    const sale = post({ kind: 'sale', customerId: sez, items: [{ itemId: I('Widget'), qty: '1', rate: '1000.70' }] })
+    const saleV = getVoucher(db, sale.voucherIds[0]!)!
+    expect(saleV.lines.filter((l) => l.ledgerId === L('IGST')).map((l) => l.amount)).toEqual([18_013])
+    expect(saleV.lines.some((l) => l.ledgerId === L('CGST') || l.ledgerId === L('SGST'))).toBe(false)
+    const bill = returnBill(db, INFO, 'sale', saleV.id, TODAY)!
+    expect(bill).toMatchObject({ mode: 'items', rates: [18], total: 118_100 })
+    const base = invoiceCtx(db)
+    const ctx: ReturnContext = { invoice: { ...base, ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])) } }
+    const form = formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' })
+    // The whole bill comes back: the note takes what the bill holds (₹1,181.00, IGST ₹180.13).
+    expect(returnTotals(form, bill, ctx)).toMatchObject({ taxable: 100_070, tax: 18_013, total: 118_100 })
+    const out = post(returnIntentFrom(form, bill, ctx, sellSetup(db).defaults))
+    const note = getVoucher(db, out.voucherIds[0]!)!
+    expect(note.lines.filter((l) => l.ledgerId === L('IGST')).map((l) => [l.drCr, l.amount])).toEqual([['dr', 18_013]])
+    expect(note.lines.some((l) => l.ledgerId === L('CGST') || l.ledgerId === L('SGST'))).toBe(false)
+  })
+})

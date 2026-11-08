@@ -251,7 +251,7 @@ export function InvoiceEntry({
       companyStateCode: info!.stateCode,
       ...gstRegistrationOf(info!),
       items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null }]))
+      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null, exportType: l.exportType ?? null }]))
     }),
     [kind, info, items, ledgers]
   )
@@ -285,7 +285,12 @@ export function InvoiceEntry({
       ...(taxedOriginal ? { taxedOriginal: true } : {}),
       // PR #190: a return note that took the running total's tax / round off keeps it while its
       // rows, date, party and account are unchanged (fixedTaxKey) — any edit recomputes the tax.
-      ...(initial?.fixedTax ? { fixedTax: initial.fixedTax } : {})
+      ...(initial?.fixedTax ? { fixedTax: initial.fixedTax } : {}),
+      // A bill saved before per-line rounding (legacyGroupTax) or before the SEZ / export rule
+      // (legacyZeroRated, shared/gst/zeroRated.ts) keeps its own computation while its tax inputs
+      // are unchanged (taxInputsKey) — so opening and saving it changes nothing.
+      ...(initial?.legacyGroupTax != null ? { legacyGroupTax: initial.legacyGroupTax } : {}),
+      ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {})
     }),
     [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal]
   )
@@ -775,7 +780,10 @@ export function InvoiceEntry({
             {party.gstin ? <>GSTIN <span className="font-mono">{party.gstin}</span> · </> : 'Unregistered · '}
             {!computed.chargesGst
               ? registrationOn(info!, date) === 'composition' ? 'No GST — composition scheme (bill of supply)' : 'No GST — the company is not GST-registered'
-              : supply === 'intra' ? 'Intra-state — CGST + SGST' : 'Inter-state — IGST'}
+              : computed.zeroRated
+                // Phase 2 (shared/gst/zeroRated.ts): IGST Act s.7(5)(b) / s.16(3).
+                ? `Zero-rated — ${computed.zeroRated.sez ? 'SEZ' : 'export'} ${computed.zeroRated.withPayment ? 'with payment: IGST' : 'without payment (LUT / bond): no GST'}`
+                : supply === 'intra' ? 'Intra-state — CGST + SGST' : 'Inter-state — IGST'}
           </p>
         ) : (
           <span />

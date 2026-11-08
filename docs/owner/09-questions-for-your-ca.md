@@ -276,6 +276,10 @@ not merged, when this was written. Their files and ids exist only after they mer
     - Today: the GPT review left these for a CA: when e-invoicing applies, GST on advances, and the MSME acceptance date.
     - Confirm: your view on each (the first is also Q17).
     - In the code: to-do.md section 5, last line ("GST calendar items from the GPT review").
+55. **Exports and SEZ "with payment of IGST"**
+    - Today: a bill to a party flagged "SEZ / export with payment" is charged IGST (an SEZ unit in your own state too, IGST Act s.7(5)(b)); one flagged "without payment" (LUT / bond) is charged no GST (s.16(3)). A credit note to such a party follows the same class.
+    - Confirm: since 1 October 2023 s.16(4) allows payment of IGST on zero-rated supplies only for notified classes — which classes are notified, and whether the credit-note rule is right.
+    - In the code: `src/shared/gst/zeroRated.ts`, `src/shared/gst/sources.ts` id `zero-rated-with-payment`.
 
 ---
 
@@ -308,6 +312,7 @@ note); this list is rewritten from that file, so it never drifts from what the a
 | `registration-history` | Only one change of GST registration is kept: the type before and the day the current one started. *(Registration (s.25 CGST Act) and its changes)* | Q8 | Company details → GST registration |
 | `gst-state-codes` | The list of GST state codes was not re-read against the latest official list. *(GST state-code list (GSTN))* | Q53 | Company details → state |
 | `posted-tax-rupee` | When a bill of just an amount had its GST typed rounded to the rupee, the return shows the GST worked out on the value, not the rounded GST on the bill. Which one the return should carry is not confirmed. *(GSTR-1 / GSTR-3B: tax charged vs rate on value)* | Q32 | Taxes → GST you collected; GSTR-1 screen header; GSTR-3B → 3.1(a) row |
+| `zero-rated-with-payment` | A bill to a customer marked “SEZ or export with payment” is charged IGST; one marked “without payment” (LUT or bond) is charged no GST. Since 1 October 2023 GST may be paid on such supplies only by notified classes, and Total does not check which. A return of such a bill follows its bill. *(IGST Act s.16(3) and (4) (zero-rated supply on payment of IGST, from 1 October 2023))* | Q55 | Masters → ledger → Export / SEZ type |
 | `gstr3b-advances` | GST on advances you received is left out of the GST to pay here. The portal may add it (advances less the ones adjusted). Ask your CA. *(GSTR-3B 3.1(a) and GSTR-1 Tables 11A / 11B (advances))* | Q54 | Taxes → cash to pay; GSTR-3B → 3.1(a) row |
 | `gstr3b-negative` | In a month with only returns (credit notes), the GST figures can come out below zero. Whether the portal accepts that or carries it forward is not confirmed. *(GSTR-3B save schema; portal handling of negative figures)* | — | Taxes → cash to pay; GSTR-3B → 3.1(a) row |
 | `gstr3b-schema-draft` | The GSTR-3B file is checked against the portal’s file layout, which GSTN still marks as a draft. *(GSTR-3B save schema v7.1 (GSTN API portal, marked Draft))* | — | Taxes → step 3, prepare the files; GSTR-3B screen header |
