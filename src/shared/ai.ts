@@ -52,6 +52,9 @@ export interface AiSettings {
    *  app-wide but models are per company: a company whose models belong to another service must
    *  pick again. Absent = 'openai' (every company saved before presets). */
   modelsFor?: string
+  /** A10 / plan 3c: "US dollar rate for AI costs" — rupees per US dollar × 10⁶, typed in the AI
+   *  settings and used ONLY to show AI spend in rupees (never the books). Absent / null = none. */
+  usdRateMicro?: number | null
 }
 
 export const AI_DATA_NOTICE_VERSION = 1
@@ -77,7 +80,9 @@ export const aiSettingsPatchSchema = z
     privacy: z.object({ maskIds: z.boolean(), pseudonymiseParties: z.boolean() }).partial().optional(),
     prices: z.record(aiModelIdSchema, aiPriceSchema).optional(),
     maxSteps: z.number().int().min(1).max(20).optional(),
-    useMemory: z.boolean().optional()
+    useMemory: z.boolean().optional(),
+    /** ₹1 – ₹10,000 per US dollar, in millionths; null clears it. */
+    usdRateMicro: z.number().int().min(1_000_000).max(10_000_000_000).nullable().optional()
   })
   .strict()
 export type AiSettingsPatch = z.infer<typeof aiSettingsPatchSchema>

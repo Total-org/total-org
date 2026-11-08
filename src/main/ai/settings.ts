@@ -60,6 +60,7 @@ export function patchAiSettings(db: DB, raw: AiSettingsPatch, opts: { modelsFor?
     ...(patch.fastModel ? { fastModel: patch.fastModel } : {}),
     ...(patch.maxSteps ? { maxSteps: patch.maxSteps } : {}),
     ...(patch.useMemory !== undefined ? { useMemory: patch.useMemory } : {}),
+    ...(patch.usdRateMicro !== undefined ? { usdRateMicro: patch.usdRateMicro } : {}),
     // Models saved now belong to the service in use (Phase 3a).
     // Only a real change of model ids (a save that re-sends the same ids, e.g. with prices, keeps
     // the service they were picked for — review of #210).

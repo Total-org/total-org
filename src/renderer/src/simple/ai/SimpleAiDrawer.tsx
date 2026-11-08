@@ -98,7 +98,7 @@ export function SimpleAiDrawer({
   const queryClient = useQueryClient()
   const { data: view } = useQuery({ queryKey: SETTINGS_KEY, queryFn: aiApi.settings })
   const { data: rates } = useQuery({ queryKey: RATES_KEY, queryFn: cfApi.fx.rates })
-  const rate = usdRateOn(rates, todayISO())
+  const rate = usdRateOn(rates, todayISO(), view?.settings.usdRateMicro)
   const ready = !!view?.ready
   const [state, dispatch] = useReducer(reducer, emptyPanel())
   useEffect(() => {

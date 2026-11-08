@@ -9,6 +9,7 @@ import {
   COMPACT_DEFAULT,
   legacyConfigToTemplate,
   MODERN_DEFAULT,
+  RECEIPT_80MM_DEFAULT,
   printTemplateSchema,
   type PrintTemplate
 } from '../printTemplates'
@@ -267,5 +268,30 @@ describe('renderDocument — template options', () => {
     expect(unsigned).not.toContain('signed by the IRP')
     // No live IRN (cancelled = not passed): never the signed QR.
     expect(renderDocument(t, { ...doc(INV), einvoice: { irn: null, ackNo: null, ackDate: null, ewbNo: null, signedQr } })).toContain('Verification QR')
+  })
+})
+
+// ---------------------------------------------------------------- A10: UPI pay QR
+describe('UPI pay QR (A10)', () => {
+  const upi = { link: 'upi://pay?pa=shop@ybl&pn=Total%20Traders&am=1180.00&tn=Bill%201&cu=INR', upiId: 'shop@ybl', amountPaise: 118000 }
+  it('absent / null upi = byte-identical to a document without it, every built-in template', () => {
+    for (const t of Object.values(BUILT_IN_DEFAULTS)) {
+      const plain = renderDocument(t, doc(INV))
+      expect(renderDocument(t, { ...doc(INV), upi: null })).toBe(plain)
+      expect(plain).not.toContain('data-upi-qr')
+    }
+  })
+  it('prints "Pay by UPI", the QR and who / how much when given', () => {
+    for (const t of [CLASSIC_DEFAULT, MODERN_DEFAULT, COMPACT_DEFAULT, RECEIPT_80MM_DEFAULT]) {
+      const html = renderDocument(t, { ...doc(INV), upi })
+      expect(html).toContain('data-upi-qr')
+      expect(html).toContain('Pay by UPI')
+      expect(html).toContain(`Scan with any UPI app to pay ${formatPaise(118000, { symbol: true })} to shop@ybl`)
+      expect((html.match(/<svg/g) ?? []).length).toBeGreaterThan((renderDocument(t, doc(INV)).match(/<svg/g) ?? []).length)
+    }
+  })
+  it('never on a delivery challan / order (not an invoice)', () => {
+    const html = renderDocument(CLASSIC_DEFAULT, { ...doc(INV), kind: 'delivery_challan', upi })
+    expect(html).not.toContain('data-upi-qr')
   })
 })

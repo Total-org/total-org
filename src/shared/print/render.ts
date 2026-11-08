@@ -79,6 +79,27 @@ export interface InvoiceDocument {
   trade?: PrintTradeInfo | null
   /** Counter-billing sale (WP 2.6): how it was paid — printed by the receipt style. */
   counter?: PrintCounterInfo | null
+  /** A10: the UPI pay QR — only on a sales invoice with an amount due and a UPI ID set
+   *  (shared/upi.ts). Absent / null = nothing printed (the print is byte-identical to before). */
+  upi?: PrintUpiInfo | null
+}
+
+export interface PrintUpiInfo {
+  /** The `upi://pay?…` link the QR encodes (upiPayLink). */
+  link: string
+  upiId: string
+  /** What the link asks for: the bill's amount due when printed. */
+  amountPaise: number
+}
+
+/** A10: "Pay by UPI" + the QR of the bill's upi://pay link + who / how much, or ''. */
+function upiBlock(c: Ctx, upi: PrintUpiInfo | null | undefined): string {
+  if (!upi) return ''
+  return `<div style="margin-top:10px" data-upi-qr>
+         <div class="lbl">${esc(c.L.payByUpi)}</div>
+         <div style="display:flex;gap:8px;align-items:center"><div style="flex:none">${qrSvg(upi.link, 24)}</div>
+         <div style="font-size:${c.px(10)}">${esc(c.L.upiScan(formatPaise(upi.amountPaise, { symbol: true }), upi.upiId))}</div></div>
+       </div>`
 }
 
 export interface PrintCounterInfo {
@@ -824,7 +845,7 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
       <table class="rc-items"><tbody>${items}</tbody></table>
       <div class="rc-rule"></div>
       <div class="rc-row rc-sm"><span>${inv.items.length} item${inv.items.length === 1 ? '' : 's'}</span><span class="num">Qty ${formatQtyMilli(qtyTotal)}</span></div>
-      <table class="rc-tot">${tot}</table>${pays}${summary}
+      <table class="rc-tot">${tot}</table>${pays}${summary}${upiBlock(c, doc.upi)}
       ${foot ? `<div class="rc-foot">${foot}</div>` : ''}
     </div>`
   const copies = t.header.copyLabels.map(() => `<div class="copy">${sheet}</div>`).join('')
@@ -981,7 +1002,7 @@ function renderInvoice(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
         <div class="words">
           ${wordsBlock}
           ${declarationBlock}
-          ${bankBlock}
+          ${bankBlock}${notInvoice ? '' : upiBlock(c, doc.upi)}
           ${termsBlock}${ruleNote}
         </div>
         <table class="tot">

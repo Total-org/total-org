@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, ShareMenu, shell } from 'electron'
 import { checkSender, firstRefusalOf } from './ipcSender'
 import { allowedHelpUrl } from '@shared/helpLinks'
 import { nextRegistrationFacts } from '@shared/gst/registration'
@@ -78,6 +78,9 @@ import * as analysis from './services/analysis'
 import * as banking from './services/banking'
 import * as edocs from './services/edocs'
 import * as invoice from './services/invoice'
+import * as billShare from './services/billShare'
+import * as upiSettings from './services/upiSettings'
+import { SHARE_VIAS } from '@shared/billShare'
 import * as printTemplates from './services/printTemplates'
 import * as cheque from './services/cheque'
 import * as extras from './services/extras'
@@ -2827,6 +2830,38 @@ export function registerIpc(): void {
     shell.showItemInFolder(r.paths[0] ?? r.dir)
     return r
   })
+
+  // ---------- A10: share a bill, the UPI ID on prints ----------
+  handle('invoice:shareFacts', (p) => {
+    const { voucherId } = z.object({ voucherId: z.number().int().positive() }).strict().parse(p)
+    const c = requireCompany()
+    return billShare.billShareFacts(c.db, c.info, voucherId, todayISO())
+  }, 'viewer')
+  // The PDF is written to the exports folder (as invoice:pdf) and shown in Finder — or handed to
+  // the macOS share sheet with the message. WhatsApp / e-mail are links the RENDERER opens
+  // (wa.me / mailto:, allowed by shared/externalLinks.ts); the app itself sends nothing.
+  handle('invoice:share', async (p) => {
+    const { voucherId, via, text } = z
+      .object({ voucherId: z.number().int().positive(), via: z.enum(SHARE_VIAS), text: z.string().max(2000).optional() })
+      .strict()
+      .parse(p)
+    const c = requireCompany()
+    const facts = billShare.billShareFacts(c.db, c.info, voucherId, todayISO())
+    if (!facts.shareable) throw new AppError('share_not_bill', 'Only a sales bill or a credit note can be shared')
+    const path = await invoice.invoicePdf(c.db, c.info, c.slug, voucherId)
+    auditExport(c.db, 'invoice_share', { voucherId, path, via })
+    let sheet = false
+    if (via === 'sheet' && process.platform === 'darwin') {
+      const win = BrowserWindow.getFocusedWindow?.() ?? BrowserWindow.getAllWindows?.()[0]
+      new ShareMenu({ filePaths: [path], ...(text ? { texts: [text] } : {}) }).popup(win ? { window: win } : {})
+      sheet = true
+    } else {
+      shell.showItemInFolder(path)
+    }
+    return { path, sheet }
+  })
+  handle('upi:get', () => upiSettings.getUpiSettings(requireCompany().db), 'viewer')
+  handle('upi:set', (p) => upiSettings.setUpiSettings(requireCompany().db, z.object({ upiId: z.string().max(320).nullable() }).strict().parse(p)), 'owner')
 
   handle('invoice:previewHtml', (p) => {
     const { voucherId, config } = z
