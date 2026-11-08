@@ -9,7 +9,7 @@
 // by intents.ts `readQty`, totals come from computeInvoice / computeGst / roundToRupee.
 
 import type { MessageKey, Translate } from '../i18n'
-import { formatPaise, roundToRupee } from '../money'
+import { formatPaise, formatQtyMilli, roundToRupee } from '../money'
 import { toPlainDate } from '../dates'
 import { addBreakups, computeGst, supplyTypeFor, type SupplyType } from '../gst/calc'
 import { chargesGstOn, registrationOn, type GstRegistrationFacts, type GstRegistrationType } from '../gst/registration'
@@ -105,6 +105,31 @@ export function qtyMilliOf(text: string): number | null {
   } catch {
     return null
   }
+}
+
+/**
+ * A13 (Quick bill folded into Make a bill): a product scanned or picked in the "Scan or type a
+ * product" box. The same product again on a line whose price still comes from the price list is
+ * one more of it (as the Counter did); otherwise it fills the first empty line, or a new line is
+ * added (`make`). A line whose quantity can't be read is left alone (a new line is added instead).
+ */
+export function addScannedProduct<L extends SellLine>(lines: L[], itemId: number, make: (itemId: number) => L): L[] {
+  const same = lines.findIndex((l) => l.itemId === itemId && l.auto !== false && qtyMilliOf(l.qtyText) != null)
+  if (same >= 0) {
+    return lines.map((l, i) => (i === same ? { ...l, qtyText: formatQtyMilli(qtyMilliOf(l.qtyText)! + 1000) } : l))
+  }
+  const empty = lines.findIndex((l) => l.itemId == null)
+  if (empty >= 0) return lines.map((l, i) => (i === empty ? { ...l, itemId, rate: null, auto: true } : l))
+  return [...lines, make(itemId)]
+}
+
+/**
+ * A13 (owner, 8 Nov): "Cash given" at the counter — what to give back, or what is still short.
+ * Display only: nothing of it is saved (the bill is paid its total in cash). Integer paise.
+ */
+export function changeDue(givenPaise: number | null, totalPaise: number): { back: number } | { short: number } | null {
+  if (givenPaise == null || givenPaise <= 0 || totalPaise <= 0) return null
+  return givenPaise >= totalPaise ? { back: givenPaise - totalPaise } : { short: totalPaise - givenPaise }
 }
 
 function supplyFor(form: SellForm, ctx: SellContext): SupplyType {

@@ -99,12 +99,10 @@ export type Screen =
   | { name: 'simple-money-out'; party?: number; amount?: number; bill?: string; billId?: number; date?: string; bankId?: number; reference?: string; note?: string; ask?: AskOpen<'simple-money-out'> }
   | { name: 'simple-move-money' }
   | { name: 'simple-money'; entryId?: number }
-  // WP 9.2: Sell — Make a bill, the sales list (`billId` = that bill's simple view), Quick bill
-  // (the Counter screen inside the simple shell).
+  // WP 9.2: Sell — Make a bill, the sales list (`billId` = that bill's simple view).
   // WP 9.8: `party` = start the bill for that customer (People → Make a bill).
   | { name: 'simple-sell'; party?: number; ask?: AskOpen<'simple-sell'> }
   | { name: 'simple-sales'; billId?: number }
-  | { name: 'simple-quick-bill' }
   // WP 9.5: Returns — Return a sale (Sell) / a purchase (Buy); `billId` = start from that bill.
   | { name: 'simple-return-sale'; billId?: number }
   | { name: 'simple-return-purchase'; billId?: number }

@@ -18,9 +18,9 @@ Ek card aasaan shabdon mein dikhata hai ki Total ne kya likha, saath mein **Prin
 
 Agar aapka business GST mein registered hai, to Total har item ke rate se GST ka hisaab lagata hai aur tax invoice print karta hai. Composition wala business bill of supply print karta hai. Agar aap registered nahi hain, to bill par GST nahi hota aur woh invoice ki tarah print hota hai.
 
-## Quick bill
+## Bheed wale counter par
 
-Bheed wale counter par [Quick bill](total://screen/simple-quick-bill) use karein: ek hi screen par items scan karein ya likhein aur paise lein.
+[Bill banayein](total://screen/simple-sell) mein "Item scan karein ya naam likhein" box mein har item scan karein ya likhein aur Enter dabayein: wahi item dobara aaye to ek aur jud jata hai. Walk-in ke liye customer khaali chhodein, cash, UPI ya card ke liye F5, F6 ya F7 dabayein, aur save ke liye ⌘↵. Cash mein mila? "Customer ne diye" mein rakam likhein, Total batayega kitne wapas dene hain.
 
 ## Apne bill dekhein
 
