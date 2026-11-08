@@ -62,7 +62,7 @@ export function CloseTab({ initialPeriod }: { initialPeriod?: string }): React.J
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPeriod])
   const period = month?.key ?? monthKey
-  useAiScreenContext('assistants', { tab: 'close', period })
+  useAiScreenContext('checks', { tab: 'close', period })
   const qc = useQueryClient()
   const toast = useToasts()
   const nav = useNav()

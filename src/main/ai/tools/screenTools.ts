@@ -871,12 +871,16 @@ const SCREEN_DATA: Record<string, Runner> = {
   gstr3b: (ctx) => run('gst_summary', { period: periodOf(ctx).to.slice(0, 7) }, ctx),
   'voucher-entry': (ctx, p) => (n(p.voucherId) ? voucherDetail(ctx, n(p.voucherId)!) : null),
   'company-info': (ctx) => run('get_company_info', {}, ctx),
-  // WP 5.5: the Assistants screen — the tab's own assistant.
-  assistants: (ctx, p) => {
-    const t = p.tab === 'gst2b' ? gst2bMismatchesTool : p.tab === 'anomalies' ? findAnomaliesTool : closeChecklistTool
-    const input = typeof p.period === 'string' && t !== findAnomaliesTool ? { period: p.period } : {}
-    return t.handler(t.input.parse(input), ctx)
-  }
+  // WP 5.5: the assistant tabs of Checks (A13c; 'assistants' = a screen context from before) —
+  // the tab's own assistant. The Exceptions / Stale documents tabs have no data tool.
+  assistants: (ctx, p) => assistantTabData(ctx, p),
+  checks: (ctx, p) => (p.tab === 'exceptions' || p.tab === 'stale' ? null : assistantTabData(ctx, p))
+}
+
+function assistantTabData(ctx: ToolContext, p: Record<string, string | number>): ToolOutput | Promise<ToolOutput> {
+  const t = p.tab === 'gst2b' ? gst2bMismatchesTool : p.tab === 'anomalies' ? findAnomaliesTool : closeChecklistTool
+  const input = typeof p.period === 'string' && t !== findAnomaliesTool ? { period: p.period } : {}
+  return t.handler(t.input.parse(input), ctx)
 }
 
 export const SCREEN_DATA_SCREENS = Object.keys(SCREEN_DATA)

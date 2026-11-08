@@ -357,15 +357,16 @@ export const SCREENS: ScreenDef[] = [
     feature: 'orders',
     invalidates: ['tradeUnbilled']
   },
+  // A13c: Stale documents is a tab of Analysis → Checks now (only while `orders` is on); the old
+  // name opens that tab (lib/checksScreen.ts) — no sidebar row, no palette row of its own.
   {
     name: 'stale-documents',
     modes: ['accountant'],
     title: 'Stale documents',
-    keywords: ['expired quotations', 'overdue orders', 'old challans', 'close quotations', 'short-close'],
-    screen: { name: 'stale-documents' },
-    navSection: 'trade',
+    screen: null,
+    navSection: null,
     feature: 'orders',
-    invalidates: ['tradeStale']
+    invalidates: []
   },
 
   {
@@ -562,28 +563,43 @@ export const SCREENS: ScreenDef[] = [
     navSection: 'analysis',
     invalidates: ['ratios']
   },
-  // WP 5.5: the assistants — month-end close checklist, GSTR-2B mismatches, anomalies and
-  // duplicates, report from a question. Deterministic (they work with AI off); "Run with AI"
-  // hands a result to the assistant panel.
+  // A13c (audit 2026-11 PROD-4): ONE Checks screen — the WP 5.5 assistants (month-end close
+  // checklist, anomalies and duplicates, GSTR-2B mismatches; deterministic, they work with AI off,
+  // "Run with AI" hands a result to the assistant panel), the exception reports and the trade
+  // cycle's stale documents. Same engines and IPC as the three screens it replaced.
+  {
+    name: 'checks',
+    modes: ['accountant'],
+    simpleSection: 'home',
+    title: 'Checks',
+    keywords: [
+      'assistants', 'month end', 'close checklist', 'closing', 'gstr-2b mismatch', '2b', 'itc', 'anomalies', 'duplicates', 'unusual entries', 'fraud',
+      'exceptions', 'exception reports', 'negative stock', 'unreconciled',
+      'stale documents', 'expired quotations', 'overdue orders', 'old challans', 'close quotations', 'short-close'
+    ],
+    screen: { name: 'checks' },
+    navSection: 'analysis',
+    invalidates: ['assistClose', 'assistAnomalies', 'assistGst2b', 'assistSettings', 'aiSettings', 'exceptions', 'tradeStale']
+  },
+  // The screens Checks replaced: their names still open the matching tab (lib/checksScreen.ts) —
+  // saved links, chat answers and close-checklist fixes keep working. Not in the sidebar / palette.
   {
     name: 'assistants',
     modes: ['accountant'],
     simpleSection: 'home',
     title: 'Assistants',
-    keywords: ['month end', 'close checklist', 'closing', 'gstr-2b mismatch', '2b', 'itc', 'anomalies', 'duplicates', 'unusual entries', 'fraud'],
-    screen: { name: 'assistants' },
-    navSection: 'analysis',
-    invalidates: ['assistClose', 'assistAnomalies', 'assistGst2b', 'assistSettings', 'aiSettings']
+    screen: null,
+    navSection: null,
+    invalidates: []
   },
   {
     name: 'exceptions',
     modes: ['accountant'],
     simpleSection: 'home',
-    keywords: ['exception reports', 'negative stock', 'unreconciled'],
     title: 'Exceptions',
-    screen: { name: 'exceptions' },
-    navSection: 'analysis',
-    invalidates: ['exceptions']
+    screen: null,
+    navSection: null,
+    invalidates: []
   },
 
   {
@@ -1532,7 +1548,8 @@ export const SCREEN_LINK_PARAMS: { [N in Screen['name']]?: LinkParamValues<N> } 
   banking: { tab: ['recon', 'import', 'rules', 'cheques', 'pdc', 'bulk', 'brs'] },
   registers: { tab: ['sales', 'purchase', 'items', 'entries'] },
   receivables: { tab: ['control', 'reminders', 'interest', 'collections'] },
-  payables: { tab: ['plan', 'batch', 'runs', 'msme', 'suppliers'] }
+  payables: { tab: ['plan', 'batch', 'runs', 'msme', 'suppliers'] },
+  checks: { tab: ['close', 'anomalies', 'exceptions', 'stale', 'gst2b'] }
 }
 
 /** Split a link's parameters into the ones the screen knows (`kept`) and the rest (`dropped`,

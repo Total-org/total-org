@@ -340,7 +340,7 @@ export const en = {
   'simple.home.attentionSeeAll': 'See all {count}',
   'simple.home.attentionOpen': 'Look at it',
   'simple.home.attentionLoading': 'Checking your entries…',
-  'simple.home.attentionCapped': 'Unusual entries are not checked on Home for a business this size — open Assistants to check them.',
+  'simple.home.attentionCapped': 'Unusual entries are not checked on Home for a business this size — open “Checks” in the full app to look at them.',
   'simple.home.deadlinesTitle': 'Coming up',
   'simple.home.deadline.tds': 'Pay the TDS (tax deducted at source) you deducted — by {date}',
   'simple.home.deadline.pf': 'PF (provident fund) for your staff — by {date}',

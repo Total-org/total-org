@@ -234,6 +234,18 @@ export class Harness {
     await this.waitIdle(timeout)
   }
 
+  /** Analysis → Checks (A13c: the month-end close, anomalies, exceptions, stale documents and GST
+   *  2B mismatches in one screen — Assistants / Exceptions / Stale documents before): the sidebar's
+   *  Checks, then the `tab` (close | anomalies | exceptions | stale | gst2b). */
+  async gotoChecks(tab = 'close', timeout = 15000) {
+    await this.goto('checks', timeout)
+    if (tab !== 'close') {
+      await this.page.click(`[data-testid="tab-checks-${tab}"]`, { timeout })
+      await this.page.waitForSelector(`[data-testid="tab-checks-${tab}"][aria-selected="true"]`, { state: 'attached', timeout })
+      await this.waitScreen('checks', timeout)
+    }
+  }
+
   /** Click any control by data-testid. */
   async click(testId, opts = {}) {
     await this.page.click(`[data-testid="${testId}"]`, { timeout: 10000, ...opts })

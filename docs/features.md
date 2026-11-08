@@ -109,8 +109,8 @@ moment you open it.
 
 ### Analysis
 Outstandings with ageing, Credit control, Payables (with MSME tracking), Cost
-centres, Cash-flow forecast, Ratio analysis, Assistants
-(month-end checklist, GSTR-2B mismatches, anomalies) and Exceptions.
+centres, Cash-flow forecast, Ratio analysis and Checks (month-end checklist, anomalies,
+exception reports, stale trade documents and GSTR-2B mismatches, one tab each).
 
 ### Banking
 Reconciliation, statement import (CSV, Excel, MT940, CAMT.053, pasted PDF text), cheque books and

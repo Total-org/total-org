@@ -64,7 +64,7 @@ row: `node scripts/run-e2e.mjs --repeat 3`, a CI shard: `--shard 2/3`).
 | 4.2 | Statements, reminders, interest notes, credit hold, follow-ups | 32 | |
 | 4.3 | Payment plan, MSME s.15 / s.16, payment runs, Form 1 | 33 | |
 | 4.4 | Cash-flow forecast (budgets, loan schedules and the forex screen removed in the 1.0 cleanup — 34 checks a USD entry still reads; revaluations / settlements / foreign openings of older books and Reverse…: dbtests + renderer tests) | 34 | |
-| — | Cost centres, cash flow statement, exceptions, CA pack | 69 (gap filled) | |
+| — | Cost centres, cash flow statement, exceptions (Checks → Exceptions since A13c), CA pack | 69 (gap filled) | |
 
 ## Phase 5 — AI agent
 
@@ -74,7 +74,7 @@ row: `node scripts/run-e2e.mjs --repeat 3`, a CI shard: `--shard 2/3`).
 | 5.2 | Chat panel, Explain this | 39 | |
 | 5.3 | Voucher drafting + review | 41 | |
 | 5.4 | Document capture, statement categorising | 45 | |
-| 5.5 | Assistants: close checklist, 2B mismatches, anomalies ("report from a question" removed with the report builder) | 44 | |
+| 5.5 | Assistants: close checklist, 2B mismatches, anomalies ("report from a question" removed with the report builder; tabs of Analysis → Checks since A13c) | 44 | |
 | 5.6 | Memory | 43 | |
 | 5.7 | ~~MCP server~~ — removed (feature cleanup) | — | |
 | 5.8 | ~~Evaluation suite~~ — removed (feature cleanup) | — | |
@@ -150,6 +150,7 @@ is covered by `__tests__/hiddenFeatures.test.tsx` and `featureUsage.dbtest.ts`.
 | 3b | One approval queue: two chat drafts → the AI panel's link → the accountant queue (accounts with Dr / Cr) → Approve (saved, draft consumed) / Discard (nothing saved); simple mode Money → Things to approve: an Ask Total offer in plain words → Approve (simple:post) | 76 | the save path per kind, refusals (lock: no voucher, no GST ledger, no audit row), Ask Total / memory approvals in `ai/approvalQueue.dbtest.ts`; both views, Approve all (unrequested left out), Edit targets, hi / hinglish sentences in `__tests__/approvalQueue.test.tsx` |
 | 3b | Tasks → plans, no AI key: "remind everyone 30 days late" in Ask Total → the answer in words → Prepare them → Things to approve shows one group headed by the task → Copy the message → logged as on the person's page, nothing posted | 77 | the agent's `plan_task` (mock), refusals, "book … bills", discard and sending twice in `ai/plans.dbtest.ts`; classifier phrasings in `assist/corpus.test.ts`; reminder cards / WhatsApp link in `__tests__/approvalQueue.test.tsx` |
 | A10 | Share a bill + UPI pay QR: Settings → Bills & printing → UPI ID (a wrong one refused under the field) → the print carries “Pay by UPI” for what is still due (₹680 of ₹1,180), none on a paid bill → the bill view's Share → WhatsApp (PDF shown in Finder, wa.me with the message) / E-mail (mailto:) → the full sales editor has Share too | 78 | the QR payload / amount in `shared/upi.test.ts`, prints byte-identical without a UPI ID in `print/render.test.ts` + `services/upiShare.dbtest.ts` (due from the Outstandings allocation, credit notes never, audit), the share channels (share sheet, refusals) in `ipcShare.dbtest.ts`, messages en / hi / hinglish in `shared/billShare.test.ts`, the buttons + the AI costs' dollar rate in `__tests__/shareBill.test.tsx` |
+| A13c | One Checks screen (Analysis → Checks: Month-end close / Anomalies / Exceptions / Stale documents (orders on) / GST 2B mismatches (registered)) — the close checklist, 2B and anomalies (44), the exception reports (68's Stock reports → Exceptions button, 69's missing narration), stale quotations closed (28), Home's "Needs attention" row (52), the tour (02); `h.gotoChecks(tab)` | 02, 28, 44, 52, 68, 69 | tabs per feature / registration, the old names (`assistants`, `exceptions`, `stale-documents`) opening their tab, saved options / views on their old keys in `__tests__/checks.test.tsx`; the sidebar rows in `accountantSidebar.test.tsx` |
 | 3b | ONE Ask panel in both modes: ⌘J → Ask Total first (AI off: no way to a model, 35), "Ask the AI helper instead" → the AI conversation (`h.openAiChat()`, 35 / 41 / 43 / 76), the "To approve" tab with its count → Open the full list (76) | 35, 76 | tab switching, accountant routing and Back to Ask in `__tests__/askTotal.test.tsx`; the accountant AI conversation unchanged once open in `simpleAi.test.tsx` |
 
 ## Remaining gaps (deferred)

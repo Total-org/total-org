@@ -283,12 +283,15 @@ This is the full app. It is built to match what an accountant expects from Tally
 - A bin for deleted entries.
 - A **CA pack** to hand to the auditor.
 
-#### Assistants (no AI needed)
+#### Checks (no AI needed)
+
+One screen, Analysis → Checks, with a tab for each:
 
 - **Month-end close checklist.** Bank reconciled, GST prepared, TDS paid, stock below zero, and more.
-- **GSTR-2B mismatches**, with suggested fixes as drafts.
 - **Anomalies.** Duplicate bills, back-dated entries, wrong GST rates and unusual amounts.
 - **Exceptions** report.
+- **Stale documents.** Old quotations, orders, challans and GRNs (when orders and challans are in use).
+- **GSTR-2B mismatches**, with suggested fixes as drafts.
 
 #### Control and audit
 

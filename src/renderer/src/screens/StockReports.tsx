@@ -123,7 +123,7 @@ export function StockReportsScreen({ tab = 'reorder' }: { tab?: StockReportTab }
         tabs={
           <div className="flex items-center gap-3">
             <TabBar screen="stock-reports" tabs={TABS} active={tab} onSelect={(t) => nav.replace({ name: 'stock-reports', tab: t })} />
-            <Button size="sm" variant="ghost" onClick={() => nav.go({ name: 'exceptions' })} data-testid="btn-stock-reports-negative">
+            <Button size="sm" variant="ghost" onClick={() => nav.go({ name: 'checks', tab: 'exceptions' })} data-testid="btn-stock-reports-negative">
               Negative stock → Exceptions
             </Button>
           </div>

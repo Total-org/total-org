@@ -325,7 +325,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.home.attentionSeeAll': 'सभी {count} देखें',
   'simple.home.attentionOpen': 'देखें',
   'simple.home.attentionLoading': 'आपकी एंट्री जाँच रहे हैं…',
-  'simple.home.attentionCapped': 'इतने बड़े बिज़नेस में होम पर अजीब एंट्री नहीं जाँची जातीं — उन्हें जाँचने के लिए पूरे ऐप में “Assistants” खोलें।',
+  'simple.home.attentionCapped': 'इतने बड़े बिज़नेस में होम पर अजीब एंट्री नहीं जाँची जातीं — उन्हें जाँचने के लिए पूरे ऐप में “Checks” खोलें।',
   'simple.home.deadlinesTitle': 'आने वाली तारीखें',
   'simple.home.deadline.tds': 'आपका काटा हुआ TDS (स्रोत पर काटा गया टैक्स) जमा करें — {date} तक',
   'simple.home.deadline.pf': 'आपके स्टाफ़ का PF (भविष्य निधि) — {date} तक',

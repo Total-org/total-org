@@ -89,7 +89,7 @@ function SettingsModal({ settings, onClose, onSave }: { settings: AssistantSetti
 
 export function AnomaliesTab(): React.JSX.Element {
   const { from, to } = useSession()
-  useAiScreenContext('assistants', { tab: 'anomalies' })
+  useAiScreenContext('checks', { tab: 'anomalies' })
   const qc = useQueryClient()
   const toast = useToasts()
   const nav = useNav()

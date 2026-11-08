@@ -166,7 +166,7 @@ await scenario('69-cost-centres-cashflow', async (h) => {
       inventory: []
     }
   })
-  await h.goto('exceptions')
+  await h.gotoChecks('exceptions')
   const toggle = '[data-testid="exceptions-toggle-missingNarration"]'
   await page.waitForSelector(toggle, { timeout: 10000 })
   if ((await page.getAttribute(toggle, 'aria-expanded')) !== 'true') await page.click(toggle)
@@ -182,7 +182,7 @@ await scenario('69-cost-centres-cashflow', async (h) => {
   await page.waitForSelector('[data-testid="voucher-entry-mode"][data-mode="accounting"]', { timeout: 10000 })
   await page.fill('input[placeholder="Being amount paid…"]', 'E2E rent adjustment')
   await h.click('btn-save-voucher')
-  await h.waitScreen('exceptions')
+  await h.waitScreen('checks')
   await page.waitForSelector(excRow, { state: 'detached', timeout: 10000 })
   assertEq((await h.invoke('voucher:get', { id: journal.id })).narration, 'E2E rent adjustment', 'narration saved')
   const after = (await h.invoke('report:exceptions', { from: fyStart, to: fyEnd })).sections.find((s) => s.key === 'missingNarration')

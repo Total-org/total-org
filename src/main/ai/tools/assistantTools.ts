@@ -28,7 +28,9 @@ export function defaultMonth(ctx: Pick<ToolContext, 'screen' | 'period' | 'today
   return (end < ctx.today ? end : ctx.today).slice(0, 7)
 }
 
-const assistantsScreen = (tab: string, label: string, params: Record<string, string | number> = {}): AiSource => ({ kind: 'screen', screen: 'assistants', label, params: { tab, ...params } })
+// A13c: the assistants are tabs of Analysis → Checks (chat answers saved before still name
+// 'assistants' — the renderer's screenFor opens Checks for both).
+const assistantsScreen = (tab: string, label: string, params: Record<string, string | number> = {}): AiSource => ({ kind: 'screen', screen: 'checks', label, params: { tab, ...params } })
 
 // ---------- close_checklist ----------
 
@@ -103,7 +105,7 @@ export const gst2bMismatchesTool = defineTool({
     const r = gst2bMismatches(ctx.db, p, { today: ctx.today })
     const screen = assistantsScreen('gst2b', `GSTR-2B mismatches ${p}`, { period: p })
     if (!r.statement) {
-      return { data: { period: p, note: `No GSTR-2B JSON has been imported for ${p}. Import it on the GSTR-2B screen or Assistants → GST 2B.` }, sources: [screen] }
+      return { data: { period: p, note: `No GSTR-2B JSON has been imported for ${p}. Import it on the GSTR-2B screen or Checks → GST 2B mismatches.` }, sources: [screen] }
     }
     const list = category ? r.rows.filter((m) => m.category === category) : r.rows
     const cap = capRows(list, ASSISTANT_CAPS.mismatches, 'ask for one category')

@@ -135,7 +135,7 @@ in both catalogues.
 - **A label quoted inside a sentence uses the label's own words**, inside “…” (e.g. “सुविधाएँ”, “पैसे आए”,
   “आसान स्क्रीन पर लौटें”, “पार्टी”). Hinglish quotes the screen name too — “Party”.
 - **Screens of the full app that are still English** (Settings → Backups: Export encrypted…, Restore…,
-  Import encrypted backup…; Assistants; Manufacture) are quoted in English in Hindi text and help, with a
+  Import encrypted backup…; Checks (Assistants before A13c); Manufacture) are quoted in English in Hindi text and help, with a
   Hindi gloss in brackets where useful.
 - **What the user says is gender-neutral**: no "मैं … करता/करती हूँ", "समझ गया" or "kar raha hoon" in
   answers and buttons. Use the plural/noun form instead — "हाँ, स्टॉक रखते हैं", "माल बनाना
