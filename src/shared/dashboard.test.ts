@@ -9,8 +9,14 @@ describe('formatPaiseCompact / toMonthLabel', () => {
     expect(formatPaiseCompact(95_000)).toBe('₹950')
     expect(formatPaiseCompact(4_520_000)).toBe('₹45,200') // under ₹1 lakh: whole rupees, never "K" (UX-20)
     expect(formatPaiseCompact(12_000_000)).toBe('₹1.2L')
-    expect(formatPaiseCompact(9_996_000)).toBe('₹1L') // ₹99,960 rounds to one lakh
-    expect(formatPaiseCompact(9_994_900)).toBe('₹99,949') // just under: whole rupees
+    // Rounded to whole rupees first; under one lakh those rupees show (review of #237: no "₹1L" for
+    // ₹99,960 beside "₹99,950" for ₹99,949.50).
+    expect(formatPaiseCompact(9_996_000)).toBe('₹99,960')
+    expect(formatPaiseCompact(9_994_950)).toBe('₹99,950') // ₹99,949.50 rounds up to the rupee
+    expect(formatPaiseCompact(9_999_950)).toBe('₹1L') // ₹99,999.50 rounds to one lakh
+    expect(formatPaiseCompact(10_000_000)).toBe('₹1L')
+    expect(formatPaiseCompact(10_499_900)).toBe('₹1L') // ₹1,04,999 → 1.0499 L → one decimal 1.0
+    expect(formatPaiseCompact(10_500_000)).toBe('₹1.1L') // ₹1,05,000 → 1.05 L → half up 1.1
     expect(formatPaiseCompact(-6_728_220)).toBe('-₹67,282')
     expect(formatPaiseCompact(3_400_000_000)).toBe('₹3.4Cr')
     expect(formatPaiseCompact(-25_000_000)).toBe('-₹2.5L')

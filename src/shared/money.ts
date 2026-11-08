@@ -62,18 +62,19 @@ export function plainMilli(qtyMilli: number): string {
 }
 
 /**
- * Compact Indian-unit label for chart axes and dense tiles: "₹950", "₹45.2K", "₹1.2L", "₹3.4Cr".
- * One decimal, trailing ".0" dropped, half away from zero — integer math on paise throughout.
+ * Compact Indian-unit label for chart axes and dense tiles: "₹950", "₹45,200", "₹1.2L", "₹3.4Cr".
+ * Lakh and crore only, never "K" (audit UX-20: ₹67.3K beside ₹3L read as two systems): the amount
+ * is rounded to whole rupees first; under one lakh those whole rupees show with Indian grouping,
+ * from one lakh it is L / Cr with one decimal, trailing ".0" dropped — half away from zero, integer
+ * math on paise throughout.
  * Never for amounts a user reads as exact (tooltips and tables use formatPaise).
  */
 export function formatPaiseCompact(paise: number): string {
   const sign = paise < 0 ? '-' : ''
-  const abs = Math.abs(paise)
-  // Indian short forms only — lakh and crore, never "K" (audit UX-20: ₹67.3K beside ₹3L read as two
-  // systems). Under ₹1 lakh the whole rupees are shown with Indian grouping (₹67,282).
-  const units: [number, string][] = [[100_00000_00, 'Cr'], [100_000_00, 'L']]
-  for (const [unit, suffix] of abs >= 99_950_00 ? units : []) {
-    // Decide the unit on the ROUNDED value, so ₹99,960 reads "₹1L", not "₹100K".
+  const rupees = Math.floor((Math.abs(paise) + 50) / 100)
+  if (rupees < 1_00_000) return `${sign}${formatPaise(rupees * 100, { symbol: true }).slice(0, -3)}`
+  const abs = rupees * 100
+  for (const [unit, suffix] of [[100_00000_00, 'Cr'], [100_000_00, 'L']] as const) {
     const tenths = Math.floor((abs * 10 + unit / 2) / unit)
     if (tenths >= 10) {
       const whole = Math.floor(tenths / 10)
@@ -81,7 +82,7 @@ export function formatPaiseCompact(paise: number): string {
       return `${sign}₹${whole}${frac ? `.${frac}` : ''}${suffix}`
     }
   }
-  return `${sign}${formatPaise(Math.floor((abs + 50) / 100) * 100, { symbol: true }).slice(0, -3)}`
+  return `${sign}₹${rupees}` // unreachable: one lakh and up always has a unit
 }
 
 /** Round a fractional paise value to an integer, half away from zero (GST convention). */
