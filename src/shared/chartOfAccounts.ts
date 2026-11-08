@@ -12,6 +12,9 @@ export interface ChartLedgerNode {
   pan: string | null
   /** Signed paise, dr-positive, opening included. */
   balance: number
+  /** Audit A3: an income / expense ledger's balance withheld from a user who may not see profit
+   *  (`balance` is then 0 and the screen shows a dash, never ₹0). */
+  balanceHidden?: true
 }
 
 export interface ChartGroupNode {
@@ -23,6 +26,8 @@ export interface ChartGroupNode {
   isSystem: boolean
   /** Sum of every ledger in this group and its descendants (signed paise, dr-positive). */
   balance: number
+  /** Audit A3: an income / expense group's total withheld (see ChartLedgerNode.balanceHidden). */
+  balanceHidden?: true
   /** Ledgers in this group and its descendants. */
   ledgerCount: number
   /** Sub-groups, name-ordered. */

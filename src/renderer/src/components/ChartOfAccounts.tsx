@@ -116,7 +116,7 @@ function GroupRow({
           {node.ledgerCount} {node.ledgerCount === 1 ? 'ledger' : 'ledgers'}
         </span>
         <span className="w-40 shrink-0 text-right text-detail font-medium" data-testid="coa-balance">
-          <Money paise={node.balance} signed />
+          {node.balanceHidden ? <span className="text-muted" title="Not shown to your account">—</span> : <Money paise={node.balance} signed />}
         </span>
       </div>
       {isOpen && (
@@ -152,7 +152,7 @@ function LedgerLeaf({ ledger, depth, onOpen }: { ledger: ChartLedgerNode; depth:
         <LedgerLink ledgerId={ledger.id} name={ledger.name} />
       </span>
       <span className="w-40 shrink-0 text-right text-body-sm">
-        <Money paise={ledger.balance} signed />
+        {ledger.balanceHidden ? <span className="text-muted" title="Not shown to your account">—</span> : <Money paise={ledger.balance} signed />}
       </span>
     </div>
   )

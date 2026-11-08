@@ -3008,7 +3008,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.lock.pin': 'PIN',
   'simple.lock.open': '{name} ke roop mein kholein',
   'simple.lock.checking': 'Check ho raha hai…',
-  'simple.lock.wrongPin': 'Yeh PIN sahi nahi hai. Phir se koshish karein — 5 galat koshishon ke baad 30 second rukein.',
+  'simple.lock.wrongPin': 'Yeh PIN sahi nahi hai. Phir se koshish karein — 5 galat koshishon ke baad Total rukne ko kahega, har baar thoda zyada.',
   'simple.lock.otherBusiness': 'Koi doosra business kholein',
   'simple.passphrase.title': '{name} kholein',
   'simple.passphrase.text': 'Yeh business passphrase se lock hai. Hisaab kholne ke liye ise likhein.',

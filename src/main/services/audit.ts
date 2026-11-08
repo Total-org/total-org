@@ -427,6 +427,44 @@ export function listAudit(db: DB, query: AuditListQuery): { rows: AuditRow[]; to
   return { rows, total: totalRow.n, users }
 }
 
+/**
+ * Audit A3: the edit log as a user who may not see profit reads it. Three kinds of rows state the
+ * profit outright: the year-end close summary (`year_end`, its net profit), a manufacture's details
+ * (sale value, rate and profit at save) and the closing journal's own voucher rows (its lines ARE
+ * the year's P&L, ledger by ledger). Their figures are left out (`profitHidden: true` in their
+ * place); the row itself — who, when, what, its hash — stays, so the log still shows the event.
+ * The hash chain is verified by main over the stored rows (audit:verify), never over these.
+ */
+export function redactAuditRowsForProfit<T extends Pick<AuditRow, 'entity' | 'entityId' | 'beforeJson' | 'afterJson'>>(db: DB, rows: T[]): T[] {
+  const closing = new Set(
+    (db.prepare('SELECT id FROM vouchers WHERE is_year_end_close = 1').all() as { id: number }[]).map((r) => r.id)
+  )
+  const hidden = JSON.stringify({ profitHidden: true })
+  const dropKeys = (json: string | null, keys: readonly string[]): string | null => {
+    if (json === null) return null
+    try {
+      const v = JSON.parse(json) as unknown
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return hidden
+      const o = { ...(v as Record<string, unknown>) }
+      for (const k of keys) delete o[k]
+      return JSON.stringify({ ...o, profitHidden: true })
+    } catch {
+      return hidden
+    }
+  }
+  return rows.map((r) => {
+    if (r.entity === 'year_end') return { ...r, beforeJson: dropKeys(r.beforeJson, ['netProfit']), afterJson: dropKeys(r.afterJson, ['netProfit']) }
+    if (r.entity === 'manufacture') {
+      const keys = ['saleRatePaise', 'saleAmount', 'profitPaise']
+      return { ...r, beforeJson: dropKeys(r.beforeJson, keys), afterJson: dropKeys(r.afterJson, keys) }
+    }
+    if (r.entity === 'voucher' && closing.has(r.entityId)) {
+      return { ...r, beforeJson: r.beforeJson === null ? null : hidden, afterJson: r.afterJson === null ? null : hidden }
+    }
+    return r
+  })
+}
+
 /** Upper bound on rows in one export — far above any realistic year of edits. */
 export const AUDIT_EXPORT_MAX = 200_000
 
@@ -459,11 +497,13 @@ export function editLogExport(
   db: DB,
   company: { name: string; gstin: string | null },
   query: AuditListQuery,
-  opts: { diffMaxLen?: number; now?: Date } = {}
+  opts: { diffMaxLen?: number; now?: Date; canSeeProfit?: boolean } = {}
 ): EditLogExport {
   const verification = verifyAudit(db)
   const statuses = rowStatuses(verification)
-  const rows = auditRowsForExport(db, query)
+  const all = auditRowsForExport(db, query)
+  // Audit A3: the export of a user who may not see profit leaves the same figures out as the screen.
+  const rows = opts.canSeeProfit === false ? redactAuditRowsForProfit(db, all) : all
   const filters = [
     query.entity ? `entity ${auditEntityLabel(query.entity)}` : null,
     query.action ? `action ${auditActionLabel(query.action)}` : null,

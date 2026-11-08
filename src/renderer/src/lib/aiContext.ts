@@ -7,6 +7,7 @@ import { create } from 'zustand'
 import type { AiContext } from '@shared/aiExplain'
 import type { Screen } from '../state/stores'
 import { SCREENS } from './screens'
+import { onSessionEnd } from './sessionEnd'
 
 type Params = Record<string, string | number>
 
@@ -26,6 +27,7 @@ export const useAiScreenParams = create<ScreenParamsState>((set) => ({
       return { byScreen: next }
     })
 }))
+onSessionEnd(() => useAiScreenParams.setState({ byScreen: {} }))
 
 /** A screen tells the assistant about a selection the nav state does not hold (e.g. Banking's
  *  ledger). Cleared when the screen unmounts. Values that are null / undefined are left out. */

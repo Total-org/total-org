@@ -3013,7 +3013,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.lock.pin': 'PIN',
   'simple.lock.open': '{name} के रूप में खोलें',
   'simple.lock.checking': 'जाँच हो रही है…',
-  'simple.lock.wrongPin': 'यह PIN सही नहीं है। फिर से कोशिश करें — 5 गलत कोशिशों के बाद 30 सेकंड रुकें।',
+  'simple.lock.wrongPin': 'यह PIN सही नहीं है। फिर से कोशिश करें — 5 गलत कोशिशों के बाद Total रुकने को कहेगा, हर बार थोड़ा ज़्यादा।',
   'simple.lock.otherBusiness': 'कोई दूसरा बिज़नेस खोलें',
   'simple.passphrase.title': '{name} खोलें',
   'simple.passphrase.text': 'यह बिज़नेस पासफ़्रेज़ से लॉक है। हिसाब खोलने के लिए इसे लिखें।',

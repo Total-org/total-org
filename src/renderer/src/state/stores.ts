@@ -12,6 +12,7 @@ import { translator } from '@shared/i18n'
 import { storedLanguage } from '../lib/i18n'
 import { hasUnsavedChanges } from '../lib/useUnsavedGuard'
 import { onLayerClose, topLayerId } from '../components/kit/layers'
+import { onSessionEnd } from '../lib/sessionEnd'
 
 // ---------- navigation ----------
 
@@ -353,6 +354,8 @@ export async function switchCompany(close: () => Promise<unknown>): Promise<bool
 useSession.subscribe((s, prev) => {
   if (s.slug !== prev.slug && prev.slug !== null) useNav.setState({ stack: [{ name: 'gateway' }] })
 })
+// Audit A3: a lock / another user's sign-in — the next person starts on their own Home.
+onSessionEnd(() => useNav.setState({ stack: [{ name: 'gateway' }] }))
 
 // ---------- working-period picker ----------
 
@@ -576,6 +579,12 @@ export const useToasts = create<ToastState>((set, get) => {
       for (const [id, ms] of remaining) arm(id, ms)
     }
   }
+})
+
+// Audit A3: a toast may name a party or a figure — none outlives the session that raised it.
+onSessionEnd(() => {
+  const { toasts, dismiss } = useToasts.getState()
+  for (const t of toasts) dismiss(t.id)
 })
 
 /** Stable token per nav entry (the stack holds a new object for every go / replace). */

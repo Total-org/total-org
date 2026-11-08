@@ -38,6 +38,11 @@ const optionalIdSchema = (regex: RegExp, message: string) =>
 export const panSchema = optionalIdSchema(/^[A-Z]{5}\d{4}[A-Z]$/, 'Invalid PAN')
 export const tanSchema = optionalIdSchema(/^[A-Z]{4}\d{5}[A-Z]$/, 'Invalid TAN')
 
+/** Audit A3 (SEC-3): a business folder name as the app makes them (`slugify` in main/paths.ts:
+ *  lower-case letters, digits and hyphens) — never a path. Every channel that takes a slug parses it
+ *  with this AND looks it up in the registry (ipc.ts `knownSlug`). */
+export const companySlugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,119}$/, 'Not a business on this computer')
+
 export const companyCreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
   stateCode: stateCodeSchema,

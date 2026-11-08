@@ -140,7 +140,19 @@ export function deactivateUser(db: DB, id: number): void {
  * the old in-memory Map did. Reset (row deleted) on a successful login.
  */
 const MAX_FAILS = 5
-const LOCKOUT_MS = 30_000
+/**
+ * Audit A3 (SEC-13): the wait grows with every further wrong PIN — 30 s at the 5th, then 1 min,
+ * 5 min, 15 min, and 1 hour from the 9th on — so a 4-digit PIN can no longer be walked through at
+ * a steady 2 tries a minute (10 000 PINs ≈ 3.5 days before; now months). The counter is cleared by
+ * the right PIN, as before.
+ */
+export const LOCKOUT_STEPS_MS = [30_000, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000] as const
+
+/** The wait after the `fails`-th consecutive wrong PIN (0 = none yet). */
+export function lockoutMsFor(fails: number): number {
+  if (fails < MAX_FAILS) return 0
+  return LOCKOUT_STEPS_MS[Math.min(fails - MAX_FAILS, LOCKOUT_STEPS_MS.length - 1)]!
+}
 
 interface ThrottleState {
   fails: number
@@ -179,6 +191,20 @@ function clearThrottle(db: DB, userId: number): void {
 
 export const AUTH_THROTTLE_MESSAGE = 'Too many attempts — wait 30 seconds'
 
+/** The refusal while locked out, naming the wait the last wrong PIN set. */
+export function authThrottleMessage(fails: number): string {
+  const ms = lockoutMsFor(Math.max(fails, MAX_FAILS))
+  if (ms <= 30_000) return AUTH_THROTTLE_MESSAGE
+  const minutes = Math.round(ms / 60_000)
+  if (minutes >= 60) return 'Too many attempts — wait 1 hour'
+  return `Too many attempts — wait ${minutes} minute${minutes === 1 ? '' : 's'}`
+}
+
+/** The refusal for `userId` (call while `isAuthThrottled`). */
+export function authThrottleMessageFor(db: DB, userId: number): string {
+  return authThrottleMessage(readThrottle(db, userId)?.fails ?? MAX_FAILS)
+}
+
 /** True while `userId` is inside the lockout window. Exported so EVERY PIN-verification surface
  *  (auth:login here, company:delete in companyDelete.ts) consumes the same persisted throttle —
  *  a brute-force loop must not be able to sidestep the lockout by picking a different channel
@@ -192,7 +218,7 @@ export function isAuthThrottled(db: DB, userId: number, now = Date.now()): boole
  *  counter (locking out at MAX_FAILS) and writes the 'login_failed' audit row. */
 export function recordAuthFailure(db: DB, userId: number, now = Date.now()): void {
   const fails = (readThrottle(db, userId)?.fails ?? 0) + 1
-  writeThrottle(db, userId, { fails, until: fails >= MAX_FAILS ? now + LOCKOUT_MS : 0 })
+  writeThrottle(db, userId, { fails, until: fails >= MAX_FAILS ? now + lockoutMsFor(fails) : 0 })
   writeAudit(db, 'user', userId, 'login_failed', null, null)
 }
 
@@ -208,7 +234,7 @@ export function clearAuthFailures(db: DB, userId: number): void {
 export function login(db: DB, userId: number, pin: string): LoginResult {
   const now = Date.now()
   if (isAuthThrottled(db, userId, now)) {
-    throw new Error(AUTH_THROTTLE_MESSAGE)
+    throw new Error(authThrottleMessageFor(db, userId))
   }
 
   const row = db

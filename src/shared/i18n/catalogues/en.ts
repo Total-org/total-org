@@ -3123,7 +3123,7 @@ export const en = {
   'simple.lock.pin': 'PIN',
   'simple.lock.open': 'Open as {name}',
   'simple.lock.checking': 'Checking…',
-  'simple.lock.wrongPin': 'That PIN is not right. Try again — after 5 wrong tries, wait 30 seconds.',
+  'simple.lock.wrongPin': 'That PIN is not right. Try again — after 5 wrong tries Total makes you wait, longer each time.',
   'simple.lock.otherBusiness': 'Open a different business',
   'simple.passphrase.title': 'Open {name}',
   'simple.passphrase.text': 'This business is locked with a passphrase. Type it to open the books.',
