@@ -1,13 +1,17 @@
 // WP 7.2 — a user whose `canSeeProfit` flag is off still gets the dashboards and simple Home; the
 // profit figures in them are left out (never shown as ₹0). Pure.
-import type { DashboardData, TrialBalance } from './reports'
+import type { DashboardData, LedgerBalanceRow, TrialBalance } from './reports'
 import type { DashboardSeries } from './dashboard'
 import type { SimpleHomeData } from './simple/home'
+import type { ChartGroupNode } from './chartOfAccounts'
+import type { CostSheet, ProductionRegisterRow } from './manufactureReports'
 
 export const PROFIT_HIDDEN_MESSAGE = 'Profit figures are not shown to your account'
 
 export function redactDashboard(d: DashboardData): DashboardData {
-  return { ...d, ratios: { ...d.ratios, grossMarginPct: null, netMarginPct: null } }
+  // Audit A3: the stock turnover is the cost of goods sold over the average stock — with the
+  // stock values (Stock summary) and the sales it gives the gross profit back.
+  return { ...d, ratios: { ...d.ratios, grossMarginPct: null, netMarginPct: null, inventoryTurnover: null } }
 }
 
 export function redactDashboardSeries(d: DashboardSeries): DashboardSeries {
@@ -53,6 +57,37 @@ export function redactTrialBalance(tb: TrialBalance, pnlLedgerIds: ReadonlySet<n
     movementCreditTotal: 0,
     profitHidden: true
   }
+}
+
+/** Audit A3: Masters → Groups without what adds up to the profit — the income / expense groups'
+ *  totals and their ledgers' balances are withheld (`balanceHidden`, 0); every name, count and
+ *  asset / liability balance stays (it is a list of masters). */
+export function redactChartOfAccounts(nodes: ChartGroupNode[], pnlLedgerIds: ReadonlySet<number>): ChartGroupNode[] {
+  return nodes.map((g) => {
+    const hide = g.nature === 'income' || g.nature === 'expense'
+    return {
+      ...g,
+      ...(hide ? { balance: 0, balanceHidden: true as const } : {}),
+      children: redactChartOfAccounts(g.children, pnlLedgerIds),
+      ledgers: g.ledgers.map((l) => (hide || pnlLedgerIds.has(l.id) ? { ...l, balance: 0, balanceHidden: true as const } : l))
+    }
+  })
+}
+
+/** Audit A3: ledger balances without the income / expense ledgers (`pnlLedgerIds`). */
+export function redactLedgerBalances(rows: LedgerBalanceRow[], pnlLedgerIds: ReadonlySet<number>): LedgerBalanceRow[] {
+  return rows.filter((r) => !pnlLedgerIds.has(r.ledgerId))
+}
+
+/** Audit A3: the production register without its sale value and margin (cost and quantities stay;
+ *  the cost sheet's item list reads it). The screen hides the two columns. */
+export function redactProductionRows(rows: ProductionRegisterRow[]): ProductionRegisterRow[] {
+  return rows.map((r) => ({ ...r, saleAmount: 0, marginPaise: 0, marginPct: null }))
+}
+
+/** Audit A3: a cost sheet without the sale value typed on the manufacture (cost − sale = margin). */
+export function redactCostSheet<T extends CostSheet>(sheet: T): T {
+  return { ...sheet, saleAmount: 0 }
 }
 
 /** What the AI tools and Ask Total say when a profit figure is withheld. */

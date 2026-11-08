@@ -9,6 +9,7 @@ import { DataTable, defineColumns, type RowKey } from '../components/table'
 import { toDisplayDate } from '@shared/dates'
 import { confirmDialog } from '../lib/dialogs'
 import { LedgerLink, VoucherLink } from '../components/links'
+import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 
 /** A centre plus its resolved parent name (the master list shows the name, sorts/groups by it). */
 interface CentreRow extends CostCentre {
@@ -42,7 +43,9 @@ export function CostCentresScreen(): React.JSX.Element {
   const toast = useToasts()
   const queryClient = useQueryClient()
   const { data: centres, isLoading: centresLoading } = useQuery({ queryKey: ['costCentres'], queryFn: api.cc.list })
-  const { data: report, isLoading: reportLoading } = useQuery({ queryKey: ['ccReport', from, to], queryFn: () => api.cc.report(from, to) })
+  // Audit A3: the P&L by centre is profit — refused in main for a user who may not see it.
+  const profitHidden = useCapabilityRefused('canSeeProfit')
+  const { data: report, isLoading: reportLoading } = useQuery({ queryKey: ['ccReport', from, to], queryFn: () => api.cc.report(from, to), enabled: !profitHidden })
   const [editing, setEditing] = useState<CostCentre | 'new' | null>(null)
   // One centre at a time drills into its postings (row click, the chevron, or → / ←).
   const [drill, setDrill] = useState<ReadonlySet<RowKey>>(() => new Set())
@@ -138,6 +141,9 @@ export function CostCentresScreen(): React.JSX.Element {
 
       <SectionTitle as="h3">P&amp;L by centre</SectionTitle>
       <Panel>
+        {profitHidden ? (
+          <p className="px-3 py-6 text-center text-body-sm text-muted" data-testid="cost-centre-pl-hidden">{CAPABILITY_REFUSED_TEXT.canSeeProfit}</p>
+        ) : (
         <DataTable
           viewId="cost-centre-pl"
           testId="cost-centre-pl"
@@ -156,6 +162,7 @@ export function CostCentresScreen(): React.JSX.Element {
           toolbarFeatures={{ groupBy: false }}
           exportOptions={{ title: 'P&L by cost centre', periodLabel, filename: 'cost-centre-pl' }}
         />
+        )}
       </Panel>
       <p className="mt-2 text-hint text-muted" data-testid="cost-centre-pl-net-hint">Net: Cr = profit, Dr = loss — as the Profit &amp; Loss account carries it.</p>
 

@@ -22,7 +22,7 @@ import { capabilityAllows, channelCapabilities } from './capabilities'
 import { effectiveCapabilities, type Capability, type CapabilityFlags } from '@shared/capabilities'
 import type { BackupCheck } from '@shared/backupCheck'
 import type { SecurityView } from '@shared/security'
-import { redactDashboard, redactDashboardSeries, redactHome } from '@shared/profitRedaction'
+import { redactChartOfAccounts, redactCostSheet, redactDashboard, redactDashboardSeries, redactHome, redactLedgerBalances, redactProductionRows } from '@shared/profitRedaction'
 import { quietWaitMs } from './quietWait'
 import type { DB } from './db/connection'
 import { backupCompany, closeCompanyDb, openCompanyDb, stashBackupAttachments } from './db/connection'
@@ -109,7 +109,7 @@ import * as tradeAnalysis from './services/tradeAnalysis'
 import * as tradeClosure from './services/tradeClosure'
 import * as priceLevels from './services/priceLevels'
 import { quickCreateItem } from './services/quickCreate'
-import { quickItemSchema } from '@shared/schemas'
+import { companySlugSchema, quickItemSchema } from '@shared/schemas'
 import * as yearEnd from './services/yearEnd'
 import { registerFixedAssetIpc } from './ipcFixedAssets'
 import { registerPayrollStatutoryIpc } from './ipcPayrollStatutory'
@@ -183,7 +183,7 @@ import { simpleOpeningsSchema } from '@shared/simple/openings'
 import * as openingsSvc from './services/openings'
 import { gstProfilePatchSchema } from '@shared/gst/filing'
 import {
-  setAuditContext, writeAudit, listAudit, pruneAudit, verifyAudit, editLogExport, runAsAuditUser, osAuditUser, SYSTEM_AUDIT_USER
+  setAuditContext, writeAudit, listAudit, redactAuditRowsForProfit, pruneAudit, verifyAudit, editLogExport, runAsAuditUser, osAuditUser, SYSTEM_AUDIT_USER
 } from './services/audit'
 import { rowsToCsv } from '@shared/csv'
 import * as users from './services/users'
@@ -699,7 +699,7 @@ export function registerIpc(): void {
   // ---------- cash and finance (WP 4.4) — channels live in ipcCashFinance.ts ----------
   registerCashFinanceIpc(handle, () => requireCompany())
   // ---------- bulk edit, attachments, party notes (WP 6.4) — channels live in ipcWorkspace.ts ----------
-  registerWorkspaceIpc(handle, () => requireCompany())
+  registerWorkspaceIpc(handle, () => requireCompany(), canSeeProfitNow)
   // Settings → "Where Total keeps your books" (app-level, owner where the company has users).
   registerDataRootIpc(handle, {
     closeCompany: async () => {
@@ -827,7 +827,7 @@ export function registerIpc(): void {
       if (aiDraftId && !r.replayed) settleAskDraft(c.db, aiDraftId, intent.kind, r.voucherIds)
       return r
     })()
-    if (!out.replayed && configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
+    if (!out.replayed && configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfitNow() })
     return out
   }
   handle('simple:post', (payload) => {
@@ -1000,7 +1000,7 @@ export function registerIpc(): void {
     const { bankLedgerId, items, today } = bankAcceptSchema.extend({ today: isoDate.optional() }).strict().parse(payload)
     const c = requireCompany()
     const out = simpleBank.acceptLines(c.db, c.info, bankLedgerId, items, today ?? todayISO())
-    if (out.done.length && configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
+    if (out.done.length && configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfitNow() })
     return out
   })
 
@@ -1012,7 +1012,7 @@ export function registerIpc(): void {
   handle('company:delete', async (payload) => {
     const { slug, confirmName, pin, passphrase } = z
       .object({
-        slug: z.string().min(1),
+        slug: companySlugSchema,
         confirmName: z.string(),
         pin: z.string().regex(/^\d{4,12}$/, 'PIN must be 4-12 digits').optional(),
         passphrase: z.string().max(1024).optional()
@@ -1022,13 +1022,19 @@ export function registerIpc(): void {
     const company = reg.companies.find((c) => c.slug === slug)
     if (!company) throw new Error('Company not found')
     if (confirmName !== company.name) throw new Error('Company name does not match')
+    // Audit A3 (SEC-8): company:delete is ungated (the picker deletes before anything is open), so
+    // the privacy screen of a business without people must refuse it itself — unlock first, or
+    // switch business (which closes the books and forgets their key).
+    if (privacyLock) throw new AppError('session_locked', 'This business is locked — unlock it, or switch business, before deleting one')
     // WP 7.2 review: a business locked with a passphrase cannot be read for its owners' PINs until
     // it is unlocked — without this, locking the books took away the PIN that protects the delete
     // (the unreadable file was treated as "no users"). The passphrase is asked first (throttled
     // like opening); once it opens the file the PIN check below runs as for any business.
+    // Audit A3 (SEC-8): ALWAYS — a key already in memory (the business is open) or remembered on
+    // this computer never stands in for the passphrase when the books and every backup go.
     const keyWasKnown = keyForPath(companyDbPath(slug)) !== null
     // (No key file anywhere = nobody can ever read these books again: nothing left to protect.)
-    if (readEnvelopes(companyDir(slug), slug, appSecretStore()).length) await unlockFolderIfNeeded(slug, passphrase, { useRemembered: false })
+    if (readEnvelopes(companyDir(slug), slug, appSecretStore()).length) await unlockFolderIfNeeded(slug, passphrase, { useRemembered: false, evenIfKnown: true })
     // The name check above protects nothing by itself — it's readable off the same screen it's
     // typed into. If this company has users, an active owner's PIN is required too.
     try {
@@ -1065,8 +1071,10 @@ export function registerIpc(): void {
 
   handle('company:open', async (payload) => {
     const { slug, passphrase, remember } = z
-      .object({ slug: z.string().min(1), passphrase: z.string().max(1024).optional(), remember: z.boolean().optional() })
+      .object({ slug: companySlugSchema, passphrase: z.string().max(1024).optional(), remember: z.boolean().optional() })
       .parse(payload)
+    // Audit A3 (SEC-3): only a business on this computer's list — never a folder elsewhere on disk.
+    knownSlug(slug)
     if (!existsSync(companyDbPath(slug))) throw new Error('Company database not found')
     // WP 7.2: a business locked with a passphrase needs it (its key is unwrapped and remembered
     // for this open); a plaintext one opens exactly as before — no prompt, nothing asked. The
@@ -1087,6 +1095,11 @@ export function registerIpc(): void {
     }
     return { ...opened, openedWith: via ?? undefined, ...(rememberResult ? { remember: rememberResult } : {}) }
   })
+
+  /** Audit A3 (SEC-3): refuse a slug that is not in the registry (company:delete checks it itself). */
+  function knownSlug(slug: string): void {
+    if (!readRegistry().companies.some((c) => c.slug === slug)) throw new Error('Company not found')
+  }
 
   /** Store the open company's key as remembered on this computer, audited ('security', no key in
    *  the row). 'unavailable' without secure storage. */
@@ -1110,9 +1123,11 @@ export function registerIpc(): void {
    * opens the file); a remembered key that no longer does is dropped and `remembered_key_stale`
    * asks for the passphrase. Returns how the folder was unlocked (null = nothing to unlock).
    */
-  async function unlockFolderIfNeeded(slug: string, passphrase: string | undefined, opts: { useRemembered?: boolean } = {}): Promise<'passphrase' | 'remembered' | null> {
+  async function unlockFolderIfNeeded(slug: string, passphrase: string | undefined, opts: { useRemembered?: boolean; evenIfKnown?: boolean } = {}): Promise<'passphrase' | 'remembered' | null> {
     const dbPath = companyDbPath(slug)
-    if (!isEncryptedFile(dbPath) || keyForPath(dbPath)) return null
+    // `evenIfKnown` (company:delete, audit A3): the passphrase is checked although the key is
+    // already in memory — the key it gives is the same one, remembered again.
+    if (!isEncryptedFile(dbPath) || (keyForPath(dbPath) && !opts.evenIfKnown)) return null
     if (!passphrase && opts.useRemembered !== false) {
       const r = unlockWithRememberedKey(slug, dbPath, appSecretStore())
       if (r.key) {
@@ -1138,7 +1153,8 @@ export function registerIpc(): void {
   // audited inside the books when the remembered key still opens them.
   handle('company:remembered', () => readRegistry().companies.map((c) => c.slug).filter((slug) => hasRememberedKey(slug, appSecretStore())))
   handle('company:forgetRemembered', (payload) => {
-    const { slug } = z.object({ slug: z.string().min(1) }).strict().parse(payload)
+    const { slug } = z.object({ slug: companySlugSchema }).strict().parse(payload)
+    knownSlug(slug)
     if (current?.slug === slug) {
       // The open business: Settings → Security's Forget (owner) is the way.
       if (current.usersExist && sessionUser?.role !== 'owner') throw new AppError('not_permitted', 'You do not have permission to do that')
@@ -1249,6 +1265,8 @@ export function registerIpc(): void {
     } catch (err) {
       log('warn', 'security-files-resume-failed', { slug, error: err instanceof Error ? err.message : String(err) })
     }
+    // Audit A3: a business locked with a passphrase keeps no plaintext agent mirror on disk.
+    if (agentBridge.removeMirrorIfLocked(db, slug)) log('info', 'agent-mirror-removed-locked', { slug })
     // Online backup needs an open handle, so this runs after open (not before, as it used to).
     // A backup failure here must never fail — or desync — the open itself.
     // To-do §4 (PR #118 review): only the SNAPSHOT is waited for here — it is what protects the
@@ -1658,7 +1676,10 @@ export function registerIpc(): void {
   handle('master:groups:tree', () => masters.groupTree(requireCompany().db), 'viewer')
   handle('master:chartOfAccounts', (p) => {
     const { asOn } = z.object({ asOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(p)
-    return reports.chartOfAccounts(requireCompany().db, asOn)
+    const db = requireCompany().db
+    const chart = reports.chartOfAccounts(db, asOn)
+    // Audit A3: the income / expense totals add up to the profit, as in the trial balance.
+    return canSeeProfitNow() ? chart : redactChartOfAccounts(chart, reports.pnlLedgerIds(db))
   }, 'viewer')
   handle('master:groups:create', (p) => masters.createGroup(requireCompany().db, groupInputSchema.parse(p)))
   handle('master:groups:update', (p) => {
@@ -1676,7 +1697,9 @@ export function registerIpc(): void {
   handle('master:ledgers:delete', (p) => masters.deleteLedger(requireCompany().db, idSchema.parse(p).id))
   handle('master:ledgerBalances', (p) => {
     const { asOn } = z.object({ asOn: z.string() }).parse(p)
-    return masters.ledgerBalances(requireCompany().db, asOn)
+    const db = requireCompany().db
+    const rows = masters.ledgerBalances(db, asOn)
+    return canSeeProfitNow() ? rows : redactLedgerBalances(rows, reports.pnlLedgerIds(db))
   }, 'viewer')
 
   handle('master:voucherTypes:list', () => masters.listVoucherTypes(requireCompany().db), 'viewer')
@@ -1888,11 +1911,14 @@ export function registerIpc(): void {
   // WP 2.4 manufacturing reports
   handle('manufacture:production', (p) => {
     const { from, to } = manufactureRegisterSchema.parse(p)
-    return manufactureReports.productionRegisterReport(requireCompany().db, from, to)
+    const rows = manufactureReports.productionRegisterReport(requireCompany().db, from, to)
+    // Audit A3: sale value − production cost is a margin.
+    return canSeeProfitNow() ? rows : redactProductionRows(rows)
   }, 'viewer')
   handle('manufacture:costSheet', (p) => {
     const { from, to, itemId } = manufactureReportSchema.extend({ itemId: z.number().int().positive() }).parse(p)
-    return manufactureReports.costSheetReport(requireCompany().db, itemId, from, to)
+    const r = manufactureReports.costSheetReport(requireCompany().db, itemId, from, to)
+    return canSeeProfitNow() ? r : { ...r, average: redactCostSheet(r.average), manufactures: r.manufactures.map(redactCostSheet) }
   }, 'viewer')
   handle('manufacture:margin', (p) => {
     const { from, to } = manufactureRegisterSchema.parse(p)
@@ -1908,7 +1934,7 @@ export function registerIpc(): void {
     const { id, ...rest } = jobWorkChallanSaveSchema.parse(p)
     const c = requireCompany()
     const saved = jobWork.saveJobWorkChallan(c.db, rest, id)
-    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
+    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfitNow() })
     return saved
   })
   handle('jobWork:sendChallans', (p) => jobWork.sendChallans(requireCompany().db, idSchema.parse(p).id), 'viewer')
@@ -1932,7 +1958,7 @@ export function registerIpc(): void {
             return v
           })()
         : manufacture.saveManufacture(c.db, data, id)
-    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
+    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfitNow() })
     return saved
   })
   handle('master:priceLevels:list', () => priceLevels.listPriceLevels(requireCompany().db), 'viewer')
@@ -2013,7 +2039,7 @@ export function registerIpc(): void {
       log('warn', 'pricing.rememberSalePrices.failed', { error: (err as Error).message })
     }
     // Agent mirror stays fresh while the flag is on — debounced so entry bursts export once.
-    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug)
+    if (configSvc.getAgentBridgeEnabled(c.db)) agentBridge.scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfitNow() })
     return saved
   }
   handle('voucher:save', (p) => {
@@ -3286,13 +3312,18 @@ export function registerIpc(): void {
   // ---------- audit ----------
   // WP 3.8: the edit log is read-only from the UI — there is no channel that edits or deletes an
   // audit entry, and none that turns the trail off (only the owner-only retention settings below).
-  handle('audit:list', (p) => listAudit(requireCompany().db, auditListSchema.parse(p)), 'viewer')
+  handle('audit:list', (p) => {
+    const db = requireCompany().db
+    const r = listAudit(db, auditListSchema.parse(p))
+    // Audit A3: the year-end close, manufacture and closing-journal rows state the profit.
+    return canSeeProfitNow() ? r : { ...r, rows: redactAuditRowsForProfit(db, r.rows) }
+  }, 'viewer')
   handle('audit:verify', () => verifyAudit(requireCompany().db), 'viewer')
   const editLogFilename = (q: { from?: string; to?: string }): string => `edit-log-${q.from ?? 'start'}_${q.to ?? todayISO()}`
   handle('audit:exportCsv', (p) => {
     const q = auditExportSchema.parse(p)
     const c = requireCompany()
-    const r = editLogExport(c.db, c.info, q)
+    const r = editLogExport(c.db, c.info, q, { canSeeProfit: canSeeProfitNow() })
     const csv = rowsToCsv(['Edit log (audit trail)'], [...r.header.map((h) => [h]), [], r.columns, ...r.rows])
     const path = join(companyExportsDir(c.slug), `${editLogFilename(q)}.csv`)
     writeFileSync(path, csv, 'utf8')
@@ -3303,7 +3334,7 @@ export function registerIpc(): void {
   handle('audit:exportPdf', async (p) => {
     const q = auditExportSchema.parse(p)
     const c = requireCompany()
-    const r = editLogExport(c.db, c.info, q, { diffMaxLen: 600 })
+    const r = editLogExport(c.db, c.info, q, { diffMaxLen: 600, canSeeProfit: canSeeProfitNow() })
     const html = reportHtml({
       title: 'Edit log (audit trail)',
       company: c.info,
@@ -3707,7 +3738,11 @@ export function registerIpc(): void {
     auditExport(c.db, 'agent_mirror', { dir: r.dir, files: r.files.length })
     return r
   })
-  handle('agent:getConfig', () => ({ enabled: configSvc.getAgentBridgeEnabled(requireCompany().db) }), 'viewer')
+  handle('agent:getConfig', () => {
+    const db = requireCompany().db
+    // `locked`: a passphrase-locked business gets no mirror (Settings says so; audit A3).
+    return { enabled: configSvc.getAgentBridgeEnabled(db), locked: !agentBridge.mirrorAllowed(db) }
+  }, 'viewer')
   handle('agent:setConfig', (p) => {
     const { enabled } = agentBridgeConfigSchema.parse(p)
     const c = requireCompany()

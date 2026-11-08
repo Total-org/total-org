@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from '../state/stores'
 
 /**
- * Recent searches and recently opened records for the ⌘K palette — a per-company display
- * preference, persisted to localStorage under `total-search-recents-<company-slug>` (same
- * convention as navSections.ts / reportConfig.ts), never to the company database.
+ * Recent searches and recently opened records for the ⌘K palette — a per-company (and, once
+ * someone is signed in, per-user) display preference, persisted to localStorage under
+ * `total-search-recents-<company-slug>` (`…-<slug>:u<user id>` for a signed-in user — audit A3:
+ * the next person to sign in never sees the last one's searched parties / entries; same convention
+ * as navSections.ts / reportConfig.ts), never to the company database.
  *
  * Last RECENT_LIMIT of each list, most recent first, de-duplicated (queries case-insensitively,
  * records by id).
@@ -31,8 +33,9 @@ const LIST: Record<RecentKind, 'ledgers' | 'items' | 'vouchers'> = { ledger: 'le
 
 export const EMPTY_RECENTS: SearchRecents = { queries: [], ledgers: [], items: [], vouchers: [] }
 
-export function recentsKey(slug: string | null): string {
-  return `total-search-recents-${slug ?? 'nocompany'}`
+/** `userId` defaults to the signed-in user (null in a company without users = the old key). */
+export function recentsKey(slug: string | null, userId: number | null = useSession.getState().user?.id ?? null): string {
+  return `total-search-recents-${slug ?? 'nocompany'}${userId !== null ? `:u${userId}` : ''}`
 }
 
 export function loadRecents(slug: string | null): SearchRecents {
@@ -92,15 +95,17 @@ export function useSearchRecents(): {
   clear: () => void
 } {
   const slug = useSession((s) => s.slug)
+  const userId = useSession((s) => s.user?.id ?? null)
   const [recents, setRecents] = useState<SearchRecents>(() => loadRecents(slug))
-  useEffect(() => setRecents(loadRecents(slug)), [slug])
+  useEffect(() => setRecents(loadRecents(slug)), [slug, userId])
   const addQuery = useCallback(
     (q: string) => {
       const next = withQuery(loadRecents(slug), q)
       save(slug, next)
       setRecents(next)
     },
-    [slug]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key reads the signed-in user
+    [slug, userId]
   )
   const addRecord = useCallback(
     (kind: RecentKind, rec: RecentRecord) => {
@@ -108,11 +113,13 @@ export function useSearchRecents(): {
       save(slug, next)
       setRecents(next)
     },
-    [slug]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key reads the signed-in user
+    [slug, userId]
   )
   const clear = useCallback(() => {
     save(slug, EMPTY_RECENTS)
     setRecents(EMPTY_RECENTS)
-  }, [slug])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key reads the signed-in user
+  }, [slug, userId])
   return { recents, addQuery, addRecord, clear }
 }

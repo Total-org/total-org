@@ -43,6 +43,7 @@ import { AskTotalDrawer } from '../../simple/AskTotal'
 import { SimpleAiDrawer } from '../../simple/ai/SimpleAiDrawer'
 import { AskTabs, type AskTab } from '../../simple/queue/AskTabs'
 import { QueueDrawer } from '../../simple/queue/QueueDrawer'
+import { onSessionEnd } from '../../lib/sessionEnd'
 
 export { screenFor }
 
@@ -167,6 +168,11 @@ export const useAssistantPanel = create<AssistantStore>((set, get) => ({
     return p
   }
 }))
+
+// Audit A3: a lock / another user's sign-in closes the panel and drops the conversation, a waiting
+// question and the AI view — the next person (or the same one after the lock) starts clean. The
+// stored open / width preference is left as it was.
+onSessionEnd(() => useAssistantPanel.setState({ open: false, owner: null, aiThreadId: null, pending: null, simpleView: 'ask', tab: 'ask', escalated: false, focusTab: false }))
 
 /** `<company slug>:<user id | ->` — whose panel state it is. */
 export function usePanelOwner(): string {

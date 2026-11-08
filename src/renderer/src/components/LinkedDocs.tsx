@@ -20,6 +20,7 @@ import type { BadgeTone } from './kit/Badge'
 import { isAnyModalOpen } from './kit/layers'
 import { DocLink, LedgerLink } from './links'
 import { DataTable, defineColumns } from './table'
+import { onSessionEnd } from '../lib/sessionEnd'
 
 export type LinkedDocsTarget = { voucherId: number } | { tradeDocId: number }
 
@@ -34,6 +35,7 @@ export const useLinkedDocs = create<LinkedDocsState>((set) => ({
   open: (target) => set({ target }),
   close: () => set({ target: null })
 }))
+onSessionEnd(() => useLinkedDocs.setState({ target: null }))
 
 export const openLinkedDocs = (t: LinkedDocsTarget): void => useLinkedDocs.getState().open(t)
 

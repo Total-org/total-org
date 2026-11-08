@@ -26,6 +26,7 @@ import { screenApplies, screenDef, SIMPLE_ENTRIES, simpleSectionOf } from './scr
 import { nextDraftId, useNav, useScreen, useSession, useToasts, type Screen } from '../state/stores'
 import type { IntentDraft } from './simplePost'
 import { useTaxLedgers } from '../components/pickers'
+import { onSessionEnd } from './sessionEnd'
 
 type Name = Screen['name']
 
@@ -319,7 +320,8 @@ interface KeptForm {
 }
 let keptForms: KeptForm[] = []
 
-function keepForm(slots: Record<string, unknown>): void {
+/** Exported for the session-end test (audit A3); flows keep their answers through useAccountantView. */
+export function keepForm(slots: Record<string, unknown>): void {
   const stack = useNav.getState().stack
   const top = stack.at(-1)
   if (!top) return
@@ -339,6 +341,11 @@ useNav.subscribe((s) => {
 // here, and the stack is kept when the user chose to stay on an unsaved editor (to-do, shots-96).
 useSession.subscribe((s, prev) => {
   if (s.slug !== prev.slug) dropKeptForms()
+})
+// Audit A3: the answers half-typed before a lock are never handed to whoever signs in next.
+onSessionEnd(() => {
+  dropKeptForms()
+  useLastSaved.setState({ screen: null, id: null })
 })
 
 /** The kept answers of one slot at a nav entry (not taken). */

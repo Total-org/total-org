@@ -115,6 +115,9 @@ describe('upgrade: an existing plaintext company opens unchanged', () => {
     migrate.migrate(d, migrations.MIGRATIONS.slice(0, -1))
     seed.seedCompany(d, company('Old Books') as never)
     d.close()
+    // Audit A3 (SEC-3): company:open takes only a business on the list — an old install has it there.
+    const { upsertCompany } = await import('./registry')
+    upsertCompany({ slug, name: 'Old Books', stateCode: '27', gstin: null, lastOpenedAt: null })
     const opened = await ok<{ encrypted: boolean; locked: boolean }>('company:open', { slug })
     expect(opened.encrypted).toBe(false)
     expect(opened.locked).toBe(false)

@@ -4,6 +4,7 @@
 // follows the user to the next screen; picking an article stops that.
 import { create } from 'zustand'
 import type { HelpArticleId } from './articles'
+import { onSessionEnd } from '../lib/sessionEnd'
 
 interface HelpStore {
   open: boolean
@@ -35,3 +36,4 @@ export const useHelpPanel = create<HelpStore>((set, get) => ({
   setFollowed: (id) => set((s) => (s.follow && s.article !== id ? { article: id } : s)),
   close: () => set({ open: false, query: '' })
 }))
+onSessionEnd(() => useHelpPanel.getState().close())

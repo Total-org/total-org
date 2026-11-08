@@ -4,6 +4,7 @@
 // 10,000 rows never mounts 10,000 modals.
 import { create } from 'zustand'
 import { useNav, useSession } from '../state/stores'
+import { onSessionEnd } from './sessionEnd'
 
 interface DrillState {
   /** Ledger whose edit window is open, or null. */
@@ -20,6 +21,7 @@ export const useDrill = create<DrillState>((set) => ({
   setLedgerEdit: (ledgerEditId) => set({ ledgerEditId }),
   setItemEdit: (itemEditId) => set({ itemEditId })
 }))
+onSessionEnd(() => useDrill.setState({ ledgerEditId: null, itemEditId: null }))
 
 /** Masters can only be changed by owners and accountants. With no users set up (`user` null)
  *  nothing is role-gated, same as main's `handle()` gate. */

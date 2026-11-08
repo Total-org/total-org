@@ -46,7 +46,8 @@ export function SimpleLockScreen(): React.JSX.Element {
       setLocked(false)
     } catch (err) {
       const entry = err instanceof IpcError && err.code ? errorEntry(err.code, err.field) : null
-      setError(entry ? t(entry.key) : t('simple.lock.wrongPin')) // i18n-technical: the plain errors.* key of the code
+      // Audit A3: the PIN wait (auth_throttled) says the minutes left, never "not right".
+      setError(entry ? t(entry.key, err instanceof IpcError ? err.params : undefined) : t('simple.lock.wrongPin')) // i18n-technical: the plain errors.* key of the code
       setPin('')
     } finally {
       setBusy(false)
