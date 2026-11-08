@@ -41,7 +41,7 @@ see. Someone who may not see profit no longer gets it from the chart of accounts
 manufacture margin / register, the cost-centre report, the edit log, the owner's old AI
 conversations or the AI's "explain this" on P&L figures. A business locked with a passphrase can
 no longer be deleted from its lock screen, and deleting it always asks for the passphrase. A wrong
-PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 minutes), and the lock screen says how long is left. For
+PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 minutes), and the lock screen says how long is left. The lock screen no longer flashes "No users found" while it reloads the list of people (#241). For
 developers: `company:open` / `company:forgetRemembered` take only a business on the list
 (`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
 
