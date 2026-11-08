@@ -122,7 +122,8 @@ export function MoneyFooter({
         </div>
       )}
       <SaveBar
-        total={formatPaise(amount ?? 0, { symbol: true })}
+        // Only an amount that can be saved: a typed -500 is refused under the field, never shown here.
+        total={formatPaise(amount != null && amount > 0 ? amount : 0, { symbol: true })}
         totalTestId="money-total-bar"
         preview={preview ? preview.sentences.map((s, i) => <p key={i}>{s}</p>) : ready && previewing ? <p className="text-muted">{t('simple.money.checking')}</p> : null}
         previewTestId="money-preview"
