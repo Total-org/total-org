@@ -1,7 +1,7 @@
 // A13b — old books still read exactly as before. `__fixtures__/cutFeatures/book.db.gz` is the demo
 // company plus an interest debit note, two fixed assets (depreciation runs, one sold with GST under
 // s.18(6)) and two PF / ESI / PT pay runs with a PF payment — all made through the services that
-// existed before the cut (cutFeaturesGen.dbtest.ts.txt, run on origin/main at b2b77886). The
+// existed before the cut (cutFeaturesGen.dbtest.ts.txt, run on origin/main at b2b77886 — re-run there with the extended suite after the review of #243). The
 // hashes in `hashes.json` were written by THAT code; this test opens the same file with the
 // current code (migrating it as the app does on launch) and must reproduce every one. Never
 // regenerate them to pass.
@@ -17,7 +17,7 @@ import { testFileDb } from '../db/testdb'
 import { migrate } from '../db/migrate'
 import { readCompanyInfo } from '../db/seed'
 import { canonical, hashOf } from '../perf/reportSuite'
-import { cutFeatureOutputs, CUT_TODAY } from './cutFeaturesSuite'
+import { cutFeatureOutputs, CUT_TODAY, NO_PF_ESI, withoutPfEsiDeadlines } from './cutFeaturesSuite'
 
 const DIR = join(__dirname, '__fixtures__', 'cutFeatures')
 const expected = JSON.parse(readFileSync(join(DIR, 'hashes.json'), 'utf8')) as Record<string, string>
@@ -41,8 +41,17 @@ describe('A13b: a book that used interest, fixed assets and PF / ESI / PT reads 
       expect(n('SELECT COUNT(*) AS n FROM statutory_payments')).toBeGreaterThanOrEqual(1)
 
       const got = await cutFeatureOutputs(db, readCompanyInfo(db))
-      const hashes = Object.fromEntries(Object.entries(got).map(([k, v]) => [k, hashOf(v)]))
-      const differ = Object.keys({ ...expected, ...hashes }).filter((k) => expected[k] !== hashes[k])
+      // Owner, 8 Nov (review of #243): PF / ESI due dates show only for a month a pay run deducted
+      // them, so an output that carried them is compared without them — against the OLD code's
+      // hash of that form (`<id>#withoutPfEsiDeadlines`, written by the generator on b2b77886).
+      // Every other output must equal the old code's output exactly.
+      const hashes: Record<string, string> = {}
+      for (const [k, v] of Object.entries(got)) {
+        if (expected[k + NO_PF_ESI]) hashes[k + NO_PF_ESI] = hashOf(withoutPfEsiDeadlines(v))
+        else hashes[k] = hashOf(v)
+      }
+      const want = Object.fromEntries(Object.entries(expected).filter(([k]) => !expected[k + NO_PF_ESI]))
+      const differ = Object.keys({ ...want, ...hashes }).filter((k) => want[k] !== hashes[k])
       if (differ.length) {
         const out = mkdtempSync(join(tmpdir(), 'total-cut-diff-'))
         for (const k of differ) writeFileSync(join(out, `${k.replace(/[^\w.-]/g, '_')}.json`), canonical(got[k] ?? null))
