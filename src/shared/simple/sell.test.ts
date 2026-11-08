@@ -9,7 +9,7 @@ import { computeInvoice, emptyInvoiceState } from '../voucherEdit'
 import { mapIntent, normaliseIntent, type IntentContext, type IntentFacts, type IntentLedger } from './intents'
 import { bannedWordsIn } from './bannedWords'
 import {
-  addScannedProduct, billTitleKey, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
   type BasisMemo, type SellContext, type SellForm
 } from './sell'
 
@@ -341,5 +341,15 @@ describe('the scan box (A13: Quick bill folded into Make a bill)', () => {
   })
   it('another product is added as a new line', () => {
     expect(addScannedProduct([line(1, 7)], 8, make)).toEqual([line(1, 7), make(8)])
+  })
+})
+
+describe('change due (A13, owner 8 Nov)', () => {
+  it('₹500 given for a ₹380 bill → ₹120 back; ₹300 → ₹80 short; nothing typed → nothing', () => {
+    expect(changeDue(50_000, 38_000)).toEqual({ back: 12_000 })
+    expect(changeDue(38_000, 38_000)).toEqual({ back: 0 })
+    expect(changeDue(30_000, 38_000)).toEqual({ short: 8_000 })
+    expect(changeDue(null, 38_000)).toBeNull()
+    expect(changeDue(50_000, 0)).toBeNull()
   })
 })

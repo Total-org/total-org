@@ -20,7 +20,7 @@ Agar aapka business GST mein registered hai, to Total har item ke rate se GST ka
 
 ## Bheed wale counter par
 
-[Bill banayein](total://screen/simple-sell) mein "Item scan karein ya naam likhein" box mein har item scan karein ya likhein aur Enter dabayein: wahi item dobara aaye to ek aur jud jata hai. Walk-in ke liye customer khaali chhodein, cash, UPI ya card ke liye F5, F6 ya F7 dabayein, aur save ke liye ⌘↵.
+[Bill banayein](total://screen/simple-sell) mein "Item scan karein ya naam likhein" box mein har item scan karein ya likhein aur Enter dabayein: wahi item dobara aaye to ek aur jud jata hai. Walk-in ke liye customer khaali chhodein, cash, UPI ya card ke liye F5, F6 ya F7 dabayein, aur save ke liye ⌘↵. Cash mein mila? "Customer ne diye" mein rakam likhein, Total batayega kitne wapas dene hain.
 
 ## Apne bill dekhein
 

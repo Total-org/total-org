@@ -7,7 +7,7 @@ import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
 import type { SimplePreview } from '@shared/simple/intents'
 import {
-  addScannedProduct, billTitleKey, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
@@ -19,7 +19,7 @@ import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
 import { confirmDialog } from '../../lib/dialogs'
 import { useNav, useSession, type AskOpen } from '../../state/stores'
 import { sellFromAsk } from '@shared/simple/askPrefill'
-import { Button, DateInput, Field, isAnyModalOpen, Page, TextInput, useFormErrors } from '../../components/ui'
+import { AmountInput, Button, DateInput, Field, isAnyModalOpen, Page, TextInput, useFormErrors } from '../../components/ui'
 import { TypeAhead, useGroups, useLedgers, useStockItems } from '../../components/pickers'
 import { CATEGORIES } from '@shared/simple/categories'
 import { NewAccountDialog } from '../NewAccountDialog'
@@ -107,6 +107,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const [scanSeq, setScanSeq] = useState(0)
   // A scan that matched nothing: said under the box (its text is selected for the next scan).
   const [scanMiss, setScanMiss] = useState<string | null>(null)
+  // A13 (owner, 8 Nov): "Cash given" for a bill paid in cash — the change to give back. Display only.
+  const [cashGiven, setCashGiven] = useState<number | null>(null)
   const [leaving, setLeaving] = useState(false)
   const saving = poster.status === 'posting'
 
@@ -272,6 +274,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     setGeneral(null)
     errors.clear()
     setShowDiscount(false)
+    setScanMiss(null)
+    setCashGiven(null)
     setForm(blank())
   }
 
@@ -566,6 +570,27 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 {formatPaise(totals?.total ?? 0, { symbol: true })}
               </span>
             </div>
+            {form.paid === CASH && (totals?.total ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-3 text-detail" data-testid="sell-cash-given">
+                <label className="flex items-center gap-2 text-muted">
+                  {t('simple.sell.cashGiven')}
+                  <AmountInput paise={cashGiven} onPaise={setCashGiven} testId="input-sell-cash-given" className="w-32" ariaLabel={t('simple.sell.cashGiven')} />
+                </label>
+                {(() => {
+                  const due = changeDue(cashGiven, totals?.total ?? 0)
+                  if (!due) return null
+                  return 'back' in due ? ( // i18n-technical: union tag
+                    <span className="num font-semibold text-ink" data-testid="sell-change-back" data-paise={due.back}>
+                      {t('simple.sell.changeBack', { amount: formatPaise(due.back, { symbol: true }) })}
+                    </span>
+                  ) : (
+                    <span className="num font-semibold text-warning" data-testid="sell-change-short" data-paise={due.short}>
+                      {t('simple.sell.changeShort', { amount: formatPaise(due.short, { symbol: true }) })}
+                    </span>
+                  )
+                })()}
+              </div>
+            )}
             {previewProblem && (
               <p role="status" className="mt-1 text-detail text-warning" data-testid="sell-preview-problem">
                 {t('simple.sell.previewProblem', { reason: previewProblem })}

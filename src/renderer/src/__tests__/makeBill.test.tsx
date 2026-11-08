@@ -240,6 +240,26 @@ describe('Make a bill (WP 9.2)', () => {
     expect((await screen.findByTestId('sell-held-bills')).textContent).toContain('2 bills were put on hold at the counter')
   })
 
+  it('A13 (owner, 8 Nov): cash given → the change to give back, or what is short; never sent', async () => {
+    renderUi()
+    await ready()
+    await pickItem(0, 'Sugar')
+    typeIn('input-sell-rate-0', '380')
+    await waitFor(() => expect(screen.getByTestId('sell-total').getAttribute('data-paise')).toBe('39900'))
+    typeIn('input-sell-cash-given', '500')
+    expect(text('sell-change-back')).toBe('Give back ₹101.00')
+    typeIn('input-sell-cash-given', '300')
+    expect(text('sell-change-short')).toBe('₹99.00 short')
+    // Not paid in cash: no box.
+    click('sell-paid-upi')
+    expect(screen.queryByTestId('input-sell-cash-given')).toBeNull()
+    click('sell-paid-cash')
+    await ready()
+    click('btn-sell-save')
+    await screen.findByTestId('save-card')
+    expect(JSON.stringify(calls('simple:post')[0])).not.toContain('30000')
+  })
+
   it('A13: stock off — no scan box', async () => {
     features = { ...DEFAULT_FEATURES, inventory: false }
     renderUi()

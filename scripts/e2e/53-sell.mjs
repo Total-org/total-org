@@ -214,6 +214,10 @@ await scenario('53-sell', async (h) => {
   await attached(h, '[data-testid="sell-paid-upi"][aria-checked="true"]')
   await page.keyboard.press('F5')
   await attached(h, '[data-testid="sell-paid-cash"][aria-checked="true"]')
+  // Owner, 8 Nov: cash given → the change to give back.
+  await fill('input-sell-cash-given', '50')
+  assertEq(await text('sell-change-back'), 'Give back ₹10.00', '₹50 given for a ₹40 bill')
+  await page.focus('[data-testid="input-sell-note"]')
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
   await attached(h, '[data-testid="save-card"]')
 

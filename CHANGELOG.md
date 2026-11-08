@@ -23,8 +23,9 @@ Things to know about the version numbers:
 **One way to make a sale in simple mode** (#240, A13a). Quick bill is folded into Make a bill: with
 stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
 Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the
-customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card and ⌘↵ to save. The
-separate Quick bill entry is gone; the Counter's hold / recall, day end, change due, the `3*` quantity
+customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card, type the cash the
+customer gave to see the change to give back, and ⌘↵ to save. The
+separate Quick bill entry is gone; the Counter's hold / recall, day end, the `3*` quantity
 multiplier and the ↑ / ↓ quantity keys stay in the full app's Counter billing, and Make a bill says
 when bills are still on hold there. *For accountants:* no figure changes; the full app's Counter
 billing is unchanged. *For developers:* registry screen `simple-quick-bill` and `simple/sell/QuickBill.tsx`

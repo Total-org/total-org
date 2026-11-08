@@ -20,7 +20,7 @@ If your business is registered for GST, Total works out the GST from each produc
 
 ## At a busy counter
 
-In [Make a bill](total://screen/simple-sell), scan or type each product in the "Scan or type a product" box and press Enter: the same product again adds one more. Leave the customer empty for a walk-in, press F5, F6 or F7 for cash, UPI or card, and ⌘↵ to save.
+In [Make a bill](total://screen/simple-sell), scan or type each product in the "Scan or type a product" box and press Enter: the same product again adds one more. Leave the customer empty for a walk-in, press F5, F6 or F7 for cash, UPI or card, and ⌘↵ to save. Paid in cash? Type what the customer gave in "Cash given" and Total shows the change to give back.
 
 ## See your bills
 

@@ -123,6 +123,15 @@ export function addScannedProduct<L extends SellLine>(lines: L[], itemId: number
   return [...lines, make(itemId)]
 }
 
+/**
+ * A13 (owner, 8 Nov): "Cash given" at the counter — what to give back, or what is still short.
+ * Display only: nothing of it is saved (the bill is paid its total in cash). Integer paise.
+ */
+export function changeDue(givenPaise: number | null, totalPaise: number): { back: number } | { short: number } | null {
+  if (givenPaise == null || givenPaise <= 0 || totalPaise <= 0) return null
+  return givenPaise >= totalPaise ? { back: givenPaise - totalPaise } : { short: totalPaise - givenPaise }
+}
+
 function supplyFor(form: SellForm, ctx: SellContext): SupplyType {
   const state = form.customerId != null ? ctx.invoice.ledgers.get(form.customerId)?.stateCode : null
   return supplyTypeFor(ctx.invoice.companyStateCode, state ?? ctx.invoice.companyStateCode)
