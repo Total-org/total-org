@@ -6,6 +6,7 @@
 // ai:notice:accept), the hiding toggles, "Use what Total remembers", and this month's spend from
 // ai_usage (rupees only with the company's own dollar rate). Provider errors in plain words,
 // a key error under the key box.
+import { UsdRateField } from '../../components/ai/UsdRateField'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AI_DATA_NOTICE_VERSION, aiModelIdSchema, type AiConnectionResult } from '@shared/ai'
@@ -109,7 +110,7 @@ export function AiHelper(): React.JSX.Element {
   const keyReady = view.keyPresent || view.mock || !provider.needsKey
   const canTest = keyReady || key.trim().length > 0
   const today = todayISO()
-  const rate = usdRateOn(rates, today)
+  const rate = usdRateOn(rates, today, s.usdRateMicro)
   const spend = monthSpend(usage ?? [], today.slice(0, 7))
 
   /** The key is shared by every business here: without sign-ins, ask first (main refuses
@@ -436,6 +437,17 @@ export function AiHelper(): React.JSX.Element {
               {spend.priced < spend.calls && <p>{t('simple.ai.spend.priceWhere')}</p>}
             </details>
           )}
+          <div className="mt-3">
+            <UsdRateField
+              t={t}
+              rateMicro={s.usdRateMicro}
+              canEdit={canEdit}
+              onSave={async (usdRateMicro) => {
+                await aiApi.setSettings({ usdRateMicro })
+                await refresh()
+              }}
+            />
+          </div>
         </Card>
 
         <div className="flex items-center justify-between gap-3 text-small text-muted">

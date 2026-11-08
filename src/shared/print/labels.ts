@@ -78,6 +78,9 @@ export interface PrintLabels {
   verificationQr: string
   /** Under the IRP-signed e-invoice QR (the stored SignedQRCode). */
   signedQr: string
+  /** A10: heading of the UPI pay QR, and the line under it (amount formatted, the UPI ID). */
+  payByUpi: string
+  upiScan: (amount: string, upiId: string) => string
   balance: string
   openingBalance: string
   totalsClosing: string
@@ -180,6 +183,8 @@ export const ENGLISH_PRINT_LABELS: PrintLabels = {
   lineCredit: 'Credit',
   verificationQr: 'Verification QR',
   signedQr: 'e-Invoice QR (signed by the IRP)',
+  payByUpi: 'Pay by UPI',
+  upiScan: (amount, upiId) => `Scan with any UPI app to pay ${amount} to ${upiId}`,
   balance: 'Balance',
   openingBalance: 'Opening balance',
   totalsClosing: 'Totals / closing balance',
@@ -283,6 +288,8 @@ export function printLabelsFor(t: Translate): PrintLabels {
     lineCredit: t('simple.print.lineCredit'),
     verificationQr: t('simple.print.verificationQr'),
     signedQr: t('simple.print.signedQr'),
+    payByUpi: t('simple.print.payByUpi'),
+    upiScan: (amount, upiId) => t('simple.print.upiScan', { amount, upiId }),
     balance: t('simple.print.balance'),
     openingBalance: t('simple.print.openingBalance'),
     totalsClosing: t('simple.print.totalsClosing'),

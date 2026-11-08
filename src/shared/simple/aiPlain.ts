@@ -83,8 +83,18 @@ export function classifyAiError(message: string): AiPlainError {
 
 // ---------- money: micro-USD → rupees with the company's own dollar rate ----------
 
-/** The newest USD rate on or before `today` the company entered (fx_rates), else null. */
-export function usdRateOn(rates: readonly FxRate[] | null | undefined, today: string): FxRate | null {
+/** The dollar rate AI costs are shown at: rupees per US dollar × 10⁶. `date` = the books' rate
+ *  date (fx_rates); null = the rate typed in the AI settings (A10 / plan 3c). Display only. */
+export interface AiCostRate {
+  rateMicro: number
+  date: string | null
+}
+
+/** The rate for showing AI costs in rupees: the AI settings' own "US dollar rate for AI costs"
+ *  when set (A10 / 3c — forex is cut, so new books can't hold an fx rate), else the newest USD
+ *  rate on or before `today` the company entered (fx_rates, older books), else null (dollars). */
+export function usdRateOn(rates: readonly FxRate[] | null | undefined, today: string, settingsRateMicro?: number | null): AiCostRate | null {
+  if (settingsRateMicro != null && settingsRateMicro > 0) return { rateMicro: settingsRateMicro, date: null }
   let best: FxRate | null = null
   for (const r of rates ?? []) {
     if (r.currencyCode !== 'USD' || r.date > today || !(r.rateMicro > 0)) continue
@@ -107,12 +117,12 @@ function dollars(microUsd: number): string {
 }
 
 /** "₹1.25" with the company's dollar rate, else "$0.0150" (say it with `rateNote`). */
-export function moneyText(microUsd: number, rate: FxRate | null): string {
+export function moneyText(microUsd: number, rate: AiCostRate | null): string {
   return rate ? formatPaise(microUsdToPaise(microUsd, rate.rateMicro), { symbol: true }) : dollars(microUsd)
 }
 
 /** "about ₹1.25" with the company's dollar rate, else "about $0.0150 (in US dollars)". */
-export function costText(microUsd: number, rate: FxRate | null, t: Translate): string {
+export function costText(microUsd: number, rate: AiCostRate | null, t: Translate): string {
   if (rate) return t('simple.ai.cost.rupees', { amount: formatPaise(microUsdToPaise(microUsd, rate.rateMicro), { symbol: true }) })
   return t('simple.ai.cost.dollars', { amount: dollars(microUsd) })
 }
@@ -144,7 +154,7 @@ export function monthSpend(rows: readonly AiUsageRow[], month: string): MonthSpe
 
 /** The settings screen's spend sentence: nothing yet / the cost (+ a note for unpriced calls) /
  *  "not priced" (tokens are behind Details). */
-export function monthSpendSentence(s: MonthSpend, rate: FxRate | null, t: Translate): string {
+export function monthSpendSentence(s: MonthSpend, rate: AiCostRate | null, t: Translate): string {
   if (s.calls === 0) return t('simple.ai.spend.none')
   if (s.priced === 0) return t('simple.ai.spend.unpriced', { count: s.calls })
   const cost = t('simple.ai.spend.cost', { count: s.calls, cost: costText(s.microUsd, rate, t) })
@@ -152,8 +162,9 @@ export function monthSpendSentence(s: MonthSpend, rate: FxRate | null, t: Transl
 }
 
 /** The rate sentence under a rupee cost ("At your dollar rate of ₹84.10 from 1 Oct 2026"). */
-export function rateNote(rate: FxRate | null, t: Translate): string {
+export function rateNote(rate: AiCostRate | null, t: Translate): string {
   if (!rate) return t('simple.ai.cost.noRate')
+  if (rate.date == null) return t('simple.ai.cost.rateSetting', { rate: formatPaise(Math.round(rate.rateMicro / 10_000), { symbol: true }) })
   return t('simple.ai.cost.rate', { rate: formatPaise(Math.round(rate.rateMicro / 10_000), { symbol: true }), date: toPlainDate(rate.date, t.lang) })
 }
 
@@ -218,7 +229,7 @@ export function figuresFromSentence(messages: readonly AiMessageDto[], finalId: 
 }
 
 /** The cost of the turn when priced (null = not priced: the panel says nothing; tokens are in Details). */
-export function turnCostText(costMicroUsd: number | null, rate: FxRate | null, t: Translate): string | null {
+export function turnCostText(costMicroUsd: number | null, rate: AiCostRate | null, t: Translate): string | null {
   if (costMicroUsd == null) return null
   return t('simple.ai.panel.cost', { cost: costText(costMicroUsd, rate, t) })
 }

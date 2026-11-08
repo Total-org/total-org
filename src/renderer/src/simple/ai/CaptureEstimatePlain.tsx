@@ -7,11 +7,13 @@ import type { CaptureEstimate } from '@shared/capture/types'
 import { moneyText, rateNote, usdRateOn } from '@shared/simple/aiPlain'
 import { todayISO } from '@shared/dates'
 import { cfApi } from '../../lib/cashFinanceClient'
+import { aiApi } from '../../lib/aiClient'
 import { useT } from '../../lib/i18n'
 import type { MessageKey } from '@shared/i18n'
 import { Banner, Button, Modal } from '../../components/ui'
 
 const RATES_KEY = ['fxRates'] // i18n-technical
+const SETTINGS_KEY = ['aiSettings'] // i18n-technical
 const CANNOT_READ: Record<'images' | 'files' | 'structured', MessageKey> = {
   images: 'simple.ai.error.cantPhotos',
   files: 'simple.ai.error.cantScans',
@@ -21,7 +23,8 @@ const CANNOT_READ: Record<'images' | 'files' | 'structured', MessageKey> = {
 export function PlainCaptureEstimate({ estimate, onClose, onConfirm }: { estimate: CaptureEstimate; onClose: () => void; onConfirm: () => void }): React.JSX.Element {
   const t = useT()
   const { data: rates } = useQuery({ queryKey: RATES_KEY, queryFn: cfApi.fx.rates })
-  const rate = usdRateOn(rates, todayISO())
+  const { data: view } = useQuery({ queryKey: SETTINGS_KEY, queryFn: aiApi.settings })
+  const rate = usdRateOn(rates, todayISO(), view?.settings.usdRateMicro)
   const count = estimate.items
   return (
     <Modal title={t('simple.ai.capture.title')} onClose={onClose}>
