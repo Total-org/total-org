@@ -129,7 +129,7 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
-- **Short amounts in lakh and crore only** (#PENDING; audit UX-20, owner 7 Nov). Plain words: the
+- **Short amounts in lakh and crore only** (#237; audit UX-20, owner 7 Nov). Plain words: the
   Gateway's tiles, ageing bars, compliance card and chart axes no longer mix "₹67.3K" with "₹3L".
   Under one lakh the whole rupees show (₹67,282); from a lakh it is lakh / crore (₹3L, ₹1.2Cr).
   Only how short amounts are written changed — no figure.
