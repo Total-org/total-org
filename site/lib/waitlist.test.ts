@@ -1,7 +1,7 @@
 // Waitlist rules: `npm test` (node --test, Node's own TypeScript stripping — no extra packages).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clientIp, entriesFromHash, ipBucket, ipKey, normaliseEmail, rateWindow, RATE_WINDOW_S, toCsv, tokenMatches } from './waitlist.ts'
+import { CLEAR_ALL_PHRASE, clientIp, entriesFromHash, ipBucket, ipKey, normaliseEmail, rateWindow, RATE_WINDOW_S, removalRequest, toCsv, tokenMatches } from './waitlist.ts'
 
 test('normaliseEmail accepts real addresses, trimmed and lower-cased', () => {
   assert.equal(normaliseEmail('  Ramesh.Kumar@Example.IN '), 'ramesh.kumar@example.in')
@@ -83,4 +83,23 @@ test('ipBucket keeps IPv4 as is and puts IPv6 in its /64', () => {
   assert.equal(ipKey('::ffff:203.0.113.7', 's'), ipKey('203.0.113.7', 's'))
   assert.equal(ipKey('2401:4900:1c2a:5d10::1', 's'), ipKey('2401:4900:1c2a:5d10:ffff:ffff:ffff:ffff', 's'))
   assert.notEqual(ipKey('2401:4900:1c2a:5d10::1', 's'), ipKey('2401:4900:1c2a:5d11::1', 's'))
+})
+
+test('removalRequest: one address (normalised as stored) or the whole list with its phrase', () => {
+  assert.deepEqual(removalRequest({ email: ' Ramesh@Example.IN ' }), { email: 'ramesh@example.in' })
+  assert.deepEqual(removalRequest({ all: true, confirm: CLEAR_ALL_PHRASE }), { all: true })
+  for (const bad of [
+    null,
+    'ramesh@example.in',
+    [],
+    {},
+    { email: 'not an address' },
+    { email: 'a@example.com', all: true },
+    { all: true },
+    { all: 'true', confirm: CLEAR_ALL_PHRASE },
+    { all: true, confirm: 'yes' },
+    { all: true, confirm: CLEAR_ALL_PHRASE, email: 'a@example.com' }
+  ]) {
+    assert.equal(removalRequest(bad), null, JSON.stringify(bad))
+  }
 })

@@ -65,6 +65,18 @@ export async function addToWaitlist(email: string, nowMs = Date.now()): Promise<
   await pipeline([['HSETNX', WAITLIST_KEY, email, JSON.stringify({ at: new Date(nowMs).toISOString() })]])
 }
 
+/** Removes one address (a removal request — /privacy). True when it was on the list. */
+export async function removeFromWaitlist(email: string): Promise<boolean> {
+  const [removed] = await pipeline([['HDEL', WAITLIST_KEY, email]])
+  return Number(removed) > 0
+}
+
+/** Deletes the whole list (after the 1.0 e-mail — /privacy). The number of addresses it held. */
+export async function clearWaitlist(): Promise<number> {
+  const [count] = await pipeline([['HLEN', WAITLIST_KEY], ['DEL', WAITLIST_KEY]])
+  return Number(count) || 0
+}
+
 export async function listWaitlist(): Promise<WaitlistEntry[]> {
   const [flat] = await pipeline([['HGETALL', WAITLIST_KEY]])
   return entriesFromHash(flat)

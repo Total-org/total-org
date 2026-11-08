@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { connection } from 'next/server'
 import { IBM_Plex_Sans, IBM_Plex_Serif, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 
@@ -22,7 +23,11 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image' }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
+export default async function RootLayout({ children }: { children: React.ReactNode }): Promise<React.JSX.Element> {
+  // Every page renders per request so Next.js can put the request's CSP nonce (proxy.ts) on its
+  // scripts — a page built ahead of time would carry no nonce and its scripts would be blocked.
+  // The GitHub lookups stay cached for 5 minutes (fetch revalidate), so this costs a render, not a call.
+  await connection()
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body>{children}</body>

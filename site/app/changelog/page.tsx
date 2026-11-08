@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import { listReleases } from '@/lib/release'
-import { mdToHtml } from '@/lib/md'
+import { renderNotes } from '@/lib/notes'
 import SiteNav from '@/components/SiteNav'
-
-export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Changelog — Total'
@@ -35,7 +33,8 @@ export default async function ChangelogPage(): Promise<React.JSX.Element> {
                     <span className="release-version serif num">v{r.version}</span>
                     <span className="release-date num">{formatDate(r.date)}</span>
                   </div>
-                  <div dangerouslySetInnerHTML={{ __html: mdToHtml(r.body || '_No notes for this release._') }} />
+                  {/* React elements from plain data — never raw HTML (lib/notes.ts, audit SEC-7). */}
+                  <div>{renderNotes(r.body || '_No notes for this release._')}</div>
                 </article>
               ))}
             </div>

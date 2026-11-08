@@ -103,3 +103,25 @@ export function entriesFromHash(flat: unknown): WaitlistEntry[] {
   }
   return out
 }
+
+/** The phrase the owner sends to delete the whole list (after the 1.0 e-mail — /privacy promises it). */
+export const CLEAR_ALL_PHRASE = 'delete the whole waitlist'
+
+export type RemovalRequest = { email: string } | { all: true }
+
+/**
+ * The owner's removal request (POST /api/waitlist/remove): `{"email": "…"}` removes that address
+ * (normalised as it was stored); `{"all": true, "confirm": "delete the whole waitlist"}` removes the
+ * list. Anything else is null (400).
+ */
+export function removalRequest(body: unknown): RemovalRequest | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null
+  const b = body as Record<string, unknown>
+  const keys = Object.keys(b).sort().join(',')
+  if (keys === 'email') {
+    const email = normaliseEmail(b.email)
+    return email ? { email } : null
+  }
+  if (keys === 'all,confirm' && b.all === true && b.confirm === CLEAR_ALL_PHRASE) return { all: true }
+  return null
+}

@@ -1,7 +1,9 @@
 'use client'
 
 import { useActionState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { joinWaitlist, type WaitlistState } from '@/app/waitlistAction'
+import { PRIVACY_CONTACT } from '@/lib/privacy'
 import styles from './WaitlistForm.module.css'
 
 const MESSAGES: Record<Exclude<WaitlistState['status'], 'idle' | 'joined'>, string> = {
@@ -52,7 +54,7 @@ export default function WaitlistForm({ id, enabled, releasesUrl, tone = 'light' 
   if (state.status === 'joined') {
     return (
       <p ref={done} tabIndex={-1} className={`${styles.done} ${toneClass}`} role="status">
-        You’re on the list. We’ll write once, when 1.0 is out.
+        You’re on the list. We’ll write once, when 1.0 is out. To be removed, write to {PRIVACY_CONTACT}.
       </p>
     )
   }
@@ -97,8 +99,11 @@ export default function WaitlistForm({ id, enabled, releasesUrl, tone = 'light' 
       <p id={`${msgId}-error`} className={styles.error} role="alert">
         {error}
       </p>
+      {/* The privacy notice (lib/privacy.ts holds the facts the /privacy page states in full). */}
       <p id={msgId} className={styles.note}>
-        We only use this to tell you when 1.0 is out.
+        We keep only your e-mail and when you joined, to write once when 1.0 is out; then the list is deleted. To be
+        removed, write to <a href={`mailto:${PRIVACY_CONTACT}`}>{PRIVACY_CONTACT}</a>.{' '}
+        <Link href="/privacy">Privacy</Link>
       </p>
     </form>
   )

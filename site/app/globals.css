@@ -74,6 +74,8 @@ article.release {
 .release-date { color: var(--muted); font-size: 13px; margin-left: auto; }
 article.release h3 { font-size: 17px; margin: 18px 0 8px; }
 article.release h4 { font-size: 14.5px; margin: 14px 0 6px; color: var(--muted); }
+article.release h5 { font-size: 14px; margin: 12px 0 4px; color: var(--muted); }
+article.release li > ul { margin: 4px 0 2px 18px; }
 article.release p { color: var(--ink); font-size: 15px; margin: 8px 0; }
 article.release ul { margin: 8px 0 8px 20px; color: var(--ink); font-size: 15px; display: grid; gap: 4px; }
 article.release code {
@@ -185,6 +187,7 @@ h1 .quiet { color: var(--muted); }
 section { padding: 88px 0 0; }
 h2 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -0.01em; line-height: 1.12; text-wrap: balance; margin-bottom: 10px; }
 .sub { color: var(--muted); font-size: 17px; max-width: 36em; }
+.compare-note { margin-top: 34px; margin-bottom: 88px; }
 
 /* ---------- the ledger of features ---------- */
 .ledger { margin-top: 34px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow-x: auto; }

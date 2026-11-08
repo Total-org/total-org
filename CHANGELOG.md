@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The website is safer and says what it keeps** (#242, audit A6). The changelog page now shows
+release notes as plain text and links (only ordinary web links), so a note can no longer slip a
+script into the page. Every page sends a strict Content-Security-Policy and the usual security
+headers. The waitlist form says exactly what it keeps (your e-mail and when you joined), why (one
+e-mail when 1.0 is out), how long (the list is deleted within 30 days after that) and how to be
+removed (write to total@irminflow.com); a new Privacy page says it in full. The app's update
+check (`/api/latest`, `/api/download`, on both the new and the old address) answers exactly as
+before.
+
 **Bills to SEZ units and export buyers get the right GST** (#244, audit 2026-11 Phase 2). A bill to a
 customer marked "SEZ" in your own state used to add CGST + SGST; it now adds IGST, as the law says
 (IGST Act s.7(5)(b)). A bill to an SEZ unit or an export buyer marked "without payment" (under LUT or
