@@ -104,6 +104,7 @@ export function MoveMoney(): React.JSX.Element {
             </div>
           </Card>
           <MoneyFooter
+            amount={form.amount}
             preview={flow.preview}
             previewing={flow.previewing}
             ready={Object.keys(clientErrors).length === 0}

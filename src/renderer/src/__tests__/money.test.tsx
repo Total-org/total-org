@@ -137,6 +137,17 @@ describe('Money in (WP 9.4)', () => {
     expect(bannedWordsIn(visible())).toEqual([])
   })
 
+  it('the Save bar shows the amount, like Make a bill shows its total (audit UX-16)', async () => {
+    renderUi(<MoneyIn />)
+    await ready()
+    expect(screen.getByTestId('money-total-bar').textContent).toBe('₹0.00')
+    typeAmount('1500')
+    await waitFor(() => expect(screen.getByTestId('money-total-bar').textContent).toBe('₹1,500.00'))
+    // A negative amount is refused under the field; the bar never shows a figure that can't be saved.
+    typeAmount('-500')
+    await waitFor(() => expect(screen.getByTestId('money-total-bar').textContent).toBe('₹0.00'))
+  })
+
   it('a customer: bills oldest first, ticked up to the amount; the preview sentences; Save posts without naming bills, into the UPI account', async () => {
     renderUi(<MoneyIn />)
     await ready()
@@ -279,6 +290,8 @@ describe('Money out (WP 9.4)', () => {
     click('money-gst-rate-18')
     click('money-how-bank')
     expect(bannedWordsIn(visible())).toEqual([])
+    // The Save bar shows the bill total — what is paid (UX-16), the posted billTotal below.
+    expect(screen.getByTestId('money-total-bar').textContent).toBe('₹1,180.00')
     click('btn-money-save')
     await waitFor(() => expect(calls('simple:post')).toHaveLength(1))
     expect((calls('simple:post')[0] as { intent: Record<string, unknown> }).intent).toEqual(expect.objectContaining({
