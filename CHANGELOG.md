@@ -20,6 +20,17 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
+the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready
+message, E-mail opens a draft, and on a Mac "More ways…" opens the share sheet with the PDF. The PDF
+is saved and shown so you can attach it; Total itself sends nothing. Add your UPI ID in Settings →
+Bills & printing and every bill with money still due prints a "Pay by UPI" QR for exactly that amount
+(made on this computer). In the AI settings you can type a US dollar rate so AI costs show in rupees
+(display only). *For accountants:* no figure changes; a print without a UPI ID is byte-identical, and
+credit notes never get a QR. *For developers:* `invoice:share` / `invoice:shareFacts`, `upi:get` /
+`upi:set` (company meta `upi`, no migration), `AiSettings.usdRateMicro`; the UPI link follows NPCI's
+linking spec 1.6 (UNVERIFIED points in `shared/upi.ts`).
+
 **Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
 helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
 who and how much, and "Prepare them" puts them together as one group in Things to approve: one
