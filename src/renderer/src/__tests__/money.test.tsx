@@ -137,6 +137,14 @@ describe('Money in (WP 9.4)', () => {
     expect(bannedWordsIn(visible())).toEqual([])
   })
 
+  it('the Save bar shows the amount, like Make a bill shows its total (audit UX-16)', async () => {
+    renderUi(<MoneyIn />)
+    await ready()
+    expect(screen.getByTestId('money-total-bar').textContent).toBe('₹0.00')
+    typeAmount('1500')
+    await waitFor(() => expect(screen.getByTestId('money-total-bar').textContent).toBe('₹1,500.00'))
+  })
+
   it('a customer: bills oldest first, ticked up to the amount; the preview sentences; Save posts without naming bills, into the UPI account', async () => {
     renderUi(<MoneyIn />)
     await ready()

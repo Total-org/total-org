@@ -337,6 +337,7 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
           <HowPaid side={OUT_SIDE} how={form.how} accountId={form.accountId} reference={form.reference} setup={setup ?? null} error={errors.get(F.from)} onChange={update} />
 
           <MoneyFooter
+            amount={form.amount}
             preview={flow.preview}
             previewing={flow.previewing}
             ready={Object.keys(clientErrors).length === 0}
