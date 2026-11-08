@@ -22,12 +22,21 @@ const TABS: { id: ChecksTab; label: string }[] = [
   { id: 'gst2b', label: 'GST 2B mismatches' }
 ]
 
-/** The tabs this company sees: Stale documents only with `orders` on, GST 2B only when the
- *  business is GST-registered (the GSTR-2B screen's own rule). */
+/** The tabs this company sees: Stale documents only with `orders` on; GST 2B unless the business
+ *  has never been GST-registered (review of #245: one whose registration was cancelled still
+ *  reconciles its registered months — WP 8.0 dates the registration). */
 export function useChecksTabs(): { id: ChecksTab; label: string }[] {
   const features = useFeatures()
   const regType = useSession((s) => s.info?.gstRegistrationType)
-  return TABS.filter((t) => (t.id !== 'stale' || features.orders) && (t.id !== 'gst2b' || screenApplies({ requiresGstRegistration: true }, regType)))
+  const previous = useSession((s) => s.info?.gstPreviousRegistrationType)
+  const everRegistered = screenApplies({ requiresGstRegistration: true }, regType) || (previous != null && previous !== 'unregistered')
+  return TABS.filter((t) => (t.id !== 'stale' || features.orders) && (t.id !== 'gst2b' || everRegistered))
+}
+
+/** Why a tab a link asked for isn't shown here (said above the tab that opens instead). */
+const HIDDEN_TAB_NOTE: Partial<Record<ChecksTab, string>> = {
+  stale: 'Stale documents is part of quotations, orders and challans — turn it on in Settings → Features.',
+  gst2b: 'GST 2B mismatches are only for a GST-registered business.'
 }
 
 export function ChecksScreen({ tab, period }: { tab?: ChecksTab; period?: string }): React.JSX.Element {
@@ -35,6 +44,7 @@ export function ChecksScreen({ tab, period }: { tab?: ChecksTab; period?: string
   const tabs = useChecksTabs()
   // A tab this company doesn't see (Stale documents with orders off, an old link) opens the first.
   const active: ChecksTab = tabs.some((t) => t.id === tab) ? tab! : tabs[0]!.id
+  const hiddenNote = tab && tab !== active ? HIDDEN_TAB_NOTE[tab] : undefined
   const bar = (
     <TabBar
       screen="checks"
@@ -46,6 +56,11 @@ export function ChecksScreen({ tab, period }: { tab?: ChecksTab; period?: string
   )
   return (
     <Page width="wide">
+      {hiddenNote && (
+        <p role="status" className="mb-3 rounded-md border border-line bg-panel2 px-3 py-2 text-detail text-muted" data-testid="checks-hidden-tab">
+          {hiddenNote}
+        </p>
+      )}
       {(active === 'close' || active === 'anomalies' || active === 'gst2b') && <AssistantsTab key={active} tab={active} period={period} tabs={bar} />}
       {active === 'exceptions' && <ExceptionsTab tabs={bar} />}
       {active === 'stale' && <StaleDocumentsTab tabs={bar} />}

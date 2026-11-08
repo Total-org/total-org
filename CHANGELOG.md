@@ -48,14 +48,14 @@ developers: `company:open` / `company:forgetRemembered` take only a business on 
 **One Checks screen** (#245, A13c). Analysis → Checks brings together what you look at before closing a
 month: the month-end close checklist, anomalies (possible duplicates, unusual entries), the
 exception reports, stale quotations, orders, challans and GRNs (only while orders and challans are
-in use) and the GSTR-2B mismatches (only for a GST-registered business) — one tab each, each with its
+in use) and the GSTR-2B mismatches (for a business that is or was GST-registered) — one tab each, each with its
 own month or date. The sidebar's Assistants and Exceptions rows are one Checks row now, and Stale
 documents left the Orders & challans list. Links you had to the old screens (a close-checklist fix,
 Stock reports' negative stock button, Home's "Needs attention", an AI answer) open the right tab;
 saved table views and options carry over. *For accountants:* same checks, same figures, nothing
 recomputed. *For developers:* registry screen `checks` (`tab` close / anomalies / exceptions / stale /
 gst2b, `period`), `screens/checks/Checks.tsx`; `assistants` / `exceptions` / `stale-documents` stay in
-the Screen union and the registry (no sidebar / palette row) and `lib/checksScreen.ts`
+the Screen union and the registry (no sidebar row; their palette row, "open …" in the Ask panel and help links open the tab — `screen` = the Checks tab) and `lib/checksScreen.ts`
 `canonicalScreen` (run by nav.go / tryGo / replace) turns them into their tab; the AI's assistant
 sources and the close checklist's fixes name `checks`, `screenFor` still opens saved `assistants` /
 `exceptions` sources; DataTable view ids and ScreenOptions keys unchanged; e2e `h.gotoChecks(tab)`.

@@ -9,6 +9,8 @@ import { buildCloseChecklist, type CloseFacts } from '@shared/closeChecklist'
 import type { ExceptionsReport } from '@shared/reports'
 import type { StaleDocRow } from '@shared/tradeCycle/types'
 import { ChecksScreen } from '../screens/checks/Checks'
+import { routeNavigation } from '@shared/aiExplain'
+import { resolveHelpLink } from '../help/links'
 import { DialogHost } from '../components/dialogs'
 import { useNav, useSession } from '../state/stores'
 import { canonicalScreen } from '../lib/checksScreen'
@@ -107,12 +109,22 @@ describe('Checks screen', () => {
     expect(screen.queryByTestId('rows-stale-documents')).toBeNull()
   })
 
-  it('an unregistered business sees no GST 2B tab', async () => {
-    useSession.setState({ info: { ...useSession.getState().info!, gstRegistrationType: 'unregistered' } })
+  it('a business never GST-registered sees no GST 2B tab, and a link to it says why', async () => {
+    useSession.setState({ info: { ...useSession.getState().info!, gstRegistrationType: 'unregistered', gstPreviousRegistrationType: null } })
     wrap(<ChecksScreen tab="gst2b" />)
     await featuresLoaded()
     await waitFor(() => expect(tabIds()).not.toContain('tab-checks-gst2b'))
     expect(screen.getByTestId('tab-checks-close').getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByTestId('checks-hidden-tab').textContent).toContain('only for a GST-registered business')
+  })
+
+  it('review of #245: a business whose registration was cancelled keeps the GST 2B tab', async () => {
+    useSession.setState({ info: { ...useSession.getState().info!, gstRegistrationType: 'unregistered', gstPreviousRegistrationType: 'regular' } })
+    wrap(<ChecksScreen tab="gst2b" />)
+    await featuresLoaded()
+    await waitFor(() => expect(tabIds()).toContain('tab-checks-gst2b'))
+    expect(screen.getByTestId('tab-checks-gst2b').getAttribute('aria-selected')).toBe('true')
+    expect(screen.queryByTestId('checks-hidden-tab')).toBeNull()
   })
 
   it('saved options and table views keep their old keys', async () => {
@@ -146,11 +158,26 @@ describe('old screen names', () => {
     expect(useNav.getState().stack.at(-1)).toEqual({ name: 'checks', tab: 'stale' })
   })
 
-  it('the registry: Checks sits in Analysis where Assistants was; the old names have no sidebar or palette row', () => {
+  it('the registry: Checks sits in Analysis where Assistants was; the old names have no sidebar row and open their tab', () => {
     const analysis = ACCOUNTANT_NAV.find((s) => s.id === 'analysis')!.items.map((i) => i.screen.name)
     expect(analysis.slice(-2)).toEqual(['ratios', 'checks'])
     expect(ACCOUNTANT_NAV.find((s) => s.id === 'trade')!.items.map((i) => i.screen.name)).not.toContain('stale-documents')
-    for (const n of ['assistants', 'exceptions', 'stale-documents'] as const) expect(screenDef(n)).toMatchObject({ screen: null, navSection: null })
-    expect(SCREENS.filter((s) => s.screen?.name === 'checks')).toHaveLength(1)
+    expect(screenDef('assistants')).toMatchObject({ screen: { name: 'checks', tab: 'close' }, navSection: null })
+    expect(screenDef('exceptions')).toMatchObject({ screen: { name: 'checks', tab: 'exceptions' }, navSection: null })
+    // Stale documents' row (and its keywords) still needs the trade cycle, as before.
+    expect(screenDef('stale-documents')).toMatchObject({ screen: { name: 'checks', tab: 'stale' }, navSection: null, feature: 'orders' })
+    expect(screenDef('checks')?.keywords).not.toContain('expired quotations')
+  })
+
+  it('review of #245: "open exceptions" / "go to assistants" / "open stale documents" in the Ask panel open the tab, never the model', async () => {
+    const nothing = (): { results: never[] } => ({ results: [] })
+    expect(await routeNavigation('open exceptions', SCREENS, nothing as never)).toMatchObject({ to: 'screen', screen: { name: 'checks', tab: 'exceptions' } })
+    expect(await routeNavigation('go to assistants', SCREENS, nothing as never)).toMatchObject({ to: 'screen', screen: { name: 'checks', tab: 'close' } })
+    expect(await routeNavigation('open stale documents', SCREENS, nothing as never)).toMatchObject({ to: 'screen', screen: { name: 'checks', tab: 'stale' } })
+  })
+
+  it('review of #245: help links to the old names resolve to the tab', () => {
+    expect(resolveHelpLink('total://screen/exceptions')).toMatchObject({ kind: 'screen', screen: { name: 'checks', tab: 'exceptions' } })
+    expect(resolveHelpLink('total://screen/assistants')).toMatchObject({ kind: 'screen', screen: { name: 'checks', tab: 'close' } })
   })
 })

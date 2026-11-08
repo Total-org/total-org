@@ -358,12 +358,14 @@ export const SCREENS: ScreenDef[] = [
     invalidates: ['tradeUnbilled']
   },
   // A13c: Stale documents is a tab of Analysis → Checks now (only while `orders` is on); the old
-  // name opens that tab (lib/checksScreen.ts) — no sidebar row, no palette row of its own.
+  // name opens that tab (lib/checksScreen.ts) — no sidebar row; its palette row / "open stale
+  // documents" / help links open the tab (review of #245: they used to go to the model / nowhere).
   {
     name: 'stale-documents',
     modes: ['accountant'],
     title: 'Stale documents',
-    screen: null,
+    keywords: ['expired quotations', 'overdue orders', 'old challans', 'close quotations', 'short-close'],
+    screen: { name: 'checks', tab: 'stale' },
     navSection: null,
     feature: 'orders',
     invalidates: []
@@ -574,21 +576,21 @@ export const SCREENS: ScreenDef[] = [
     title: 'Checks',
     keywords: [
       'assistants', 'month end', 'close checklist', 'closing', 'gstr-2b mismatch', '2b', 'itc', 'anomalies', 'duplicates', 'unusual entries', 'fraud',
-      'exceptions', 'exception reports', 'negative stock', 'unreconciled',
-      'stale documents', 'expired quotations', 'overdue orders', 'old challans', 'close quotations', 'short-close'
+      'exceptions', 'exception reports', 'negative stock', 'unreconciled'
     ],
     screen: { name: 'checks' },
     navSection: 'analysis',
     invalidates: ['assistClose', 'assistAnomalies', 'assistGst2b', 'assistSettings', 'aiSettings', 'exceptions', 'tradeStale']
   },
   // The screens Checks replaced: their names still open the matching tab (lib/checksScreen.ts) —
-  // saved links, chat answers and close-checklist fixes keep working. Not in the sidebar / palette.
+  // saved links, chat answers and close-checklist fixes keep working. Not in the sidebar; their
+  // palette rows, "open …" in the Ask panel and help links open the tab.
   {
     name: 'assistants',
     modes: ['accountant'],
     simpleSection: 'home',
     title: 'Assistants',
-    screen: null,
+    screen: { name: 'checks', tab: 'close' },
     navSection: null,
     invalidates: []
   },
@@ -597,7 +599,7 @@ export const SCREENS: ScreenDef[] = [
     modes: ['accountant'],
     simpleSection: 'home',
     title: 'Exceptions',
-    screen: null,
+    screen: { name: 'checks', tab: 'exceptions' },
     navSection: null,
     invalidates: []
   },
