@@ -93,6 +93,45 @@ describe('collection history', () => {
     expect(h[0]!.settledOn).toBeNull()
     expect(h[1]).toEqual({ dueBasis: '2026-01-02', settledOn: '2026-01-20', amount: 100_00 })
   })
+  it('A1: a debit against a bill adds to it — the bill is paid only when the larger amount is', () => {
+    // A 100.00 (due 15 Jan) + note 20.00 against A = 120.00; R 100.00 against A leaves 20.00, R2
+    // 20.00 on 10 Feb pays it. (Before: the note LOWERED A to 80.00 and R paid it on 20 Jan.)
+    const h = billHistory([
+      { voucherId: 1, date: '2026-01-01', number: 'S1', amount: 100_00, refs: [{ kind: 'new', name: 'A', amount: 100_00, dueDate: '2026-01-15' }] },
+      { voucherId: 2, date: '2026-01-05', number: 'DN1', amount: 20_00, refs: [{ kind: 'against', name: 'A', amount: 20_00, dueDate: null }] },
+      { voucherId: 3, date: '2026-01-20', number: 'R', amount: -100_00, refs: [{ kind: 'against', name: 'A', amount: 100_00, dueDate: null }] },
+      { voucherId: 4, date: '2026-02-10', number: 'R2', amount: -20_00, refs: [] }
+    ], null)
+    expect(h).toEqual([{ dueBasis: '2026-01-15', settledOn: '2026-02-10', amount: 120_00 }])
+  })
+  it('A1: a debit against a bill already paid makes it unpaid again', () => {
+    const h = billHistory([
+      { voucherId: 1, date: '2026-01-01', number: 'S1', amount: 100_00, refs: [{ kind: 'new', name: 'A', amount: 100_00, dueDate: null }] },
+      { voucherId: 2, date: '2026-01-10', number: 'R', amount: -100_00, refs: [] },
+      { voucherId: 3, date: '2026-01-20', number: 'J', amount: 5_00, refs: [{ kind: 'against', name: 'A', amount: 5_00, dueDate: null }] }
+    ], null)
+    expect(h).toEqual([{ dueBasis: '2026-01-01', settledOn: null, amount: 105_00 }])
+  })
+  it('review of #233: a refund against a note\'s own credit still settles it (not an A1 increase)', () => {
+    // S1 1,000 paid 5 Jan; CN1's credit 500 (8 Jan) refunded 10 Jan → both settled, amounts unchanged.
+    const h = billHistory([
+      { voucherId: 1, date: '2026-01-01', number: 'S1', amount: 1000_00, refs: [{ kind: 'new', name: 'S1', amount: 1000_00, dueDate: null }] },
+      { voucherId: 2, date: '2026-01-05', number: 'R1', amount: -1000_00, refs: [{ kind: 'against', name: 'S1', amount: 1000_00, dueDate: null }] },
+      { voucherId: 3, date: '2026-01-08', number: 'CN1', amount: -500_00, refs: [{ kind: 'new', name: 'CN1', amount: 500_00, dueDate: null }] },
+      { voucherId: 4, date: '2026-01-10', number: 'PY1', amount: 500_00, refs: [{ kind: 'against', name: 'CN1', amount: 500_00, dueDate: null }] }
+    ], null)
+    expect(h).toEqual([
+      { dueBasis: '2026-01-01', settledOn: '2026-01-05', amount: 1000_00 },
+      { dueBasis: '2026-01-08', settledOn: '2026-01-10', amount: 500_00 }
+    ])
+  })
+  it('review of #233: an invoice drawing on a named advance still uses it up (not an A1 increase)', () => {
+    const h = billHistory([
+      { voucherId: 1, date: '2026-04-01', number: 'R1', amount: -100_00, refs: [{ kind: 'new', name: 'ADV', amount: 100_00, dueDate: null }] },
+      { voucherId: 2, date: '2026-04-10', number: 'S1', amount: 100_00, refs: [{ kind: 'against', name: 'ADV', amount: 100_00, dueDate: null }] }
+    ], null)
+    expect(h).toEqual([{ dueBasis: '2026-04-01', settledOn: '2026-04-10', amount: 100_00 }])
+  })
   it('learns paid-within shares and bucket probabilities from observed bills', () => {
     const bills: HistoryBill[] = [
       // five bills paid on time, two 45 days late, one 120 days late, two never (all due ≥ 200 days ago)

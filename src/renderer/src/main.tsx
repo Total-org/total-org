@@ -5,7 +5,7 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import { applyStoredAppearance } from './state/stores'
-import { bindQueryCacheToCompany } from './lib/companyCache'
+import { bindQueryCacheToCompany, bindQueryCacheToSession } from './lib/companyCache'
 import { bindMasterEvents } from './lib/masterEvents'
 import { configureI18n } from '@shared/i18n'
 import './app.css'
@@ -22,6 +22,8 @@ const queryClient = new QueryClient({
   }
 })
 bindQueryCacheToCompany(queryClient)
+// Audit A3: a lock or another user's sign-in leaves nothing of the previous session on screen.
+bindQueryCacheToSession(queryClient)
 // to-do §4: a master created or changed elsewhere refreshes the cached lists (Labels tab, pickers).
 bindMasterEvents(queryClient)
 // WP 7.3: ⌘K / ⌥A labels read Ctrl+K / Alt+A on Windows (the handlers accept Ctrl already).

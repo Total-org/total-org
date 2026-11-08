@@ -7,11 +7,11 @@ import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
 import type { SimplePreview } from '@shared/simple/intents'
 import {
-  billTitleKey, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
-import { pricingApi } from '../../lib/pricingClient'
+import { counterApi, pricingApi } from '../../lib/pricingClient'
 import { useT } from '../../lib/i18n'
 import { useFeatures } from '../../lib/useFeatures'
 import { useSimplePost } from '../../lib/simplePost'
@@ -19,7 +19,7 @@ import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
 import { confirmDialog } from '../../lib/dialogs'
 import { useNav, useSession, type AskOpen } from '../../state/stores'
 import { sellFromAsk } from '@shared/simple/askPrefill'
-import { Button, DateInput, Field, isAnyModalOpen, Page, TextInput, useFormErrors } from '../../components/ui'
+import { AmountInput, Button, DateInput, Field, isAnyModalOpen, Page, TextInput, useFormErrors } from '../../components/ui'
 import { TypeAhead, useGroups, useLedgers, useStockItems } from '../../components/pickers'
 import { CATEGORIES } from '@shared/simple/categories'
 import { NewAccountDialog } from '../NewAccountDialog'
@@ -38,6 +38,7 @@ const INCL_KEY = 'total-sell-incl' // i18n-technical: localStorage key (per comp
 const SALES_KIND = 'sales' as const // i18n-technical
 const CASH = 'cash' as const // i18n-technical
 const CREDIT = 'credit' as const // i18n-technical
+const PAY_KEYS: Record<string, 'cash' | 'upi' | 'card'> = { F5: 'cash', F6: 'upi', F7: 'card' } // i18n-technical: the Counter's pay keys
 const F = { date: 'date', party: 'party', items: 'items', amount: 'amount', gstRate: 'gstRate', payment: 'payment' } as const satisfies Record<SellField, SellField> // i18n-technical: form field paths
 
 let lineSeq = 0
@@ -63,7 +64,9 @@ const isDirty = (f: SellForm & { lines: FormLine[] }, party?: number): boolean =
  * simple:preview, the save card offers Print / PDF / Share / New / Undo. ⌘↵ saves, ⌘N starts a
  * new bill, Esc asks before discarding. "Accountant view" opens the full sales editor (the saved
  * bill once there is one). WP 9.8: `party` starts the bill for that customer (People → Make a
- * bill), on credit until the user says how it was paid.
+ * bill), on credit until the user says how it was paid. A13: the Counter's speed (Quick bill is
+ * gone) — with stock on, "Scan or type a product" adds a line per scan (the same product again =
+ * one more; the box stays ready for the next), F5 / F6 / F7 = paid by cash / UPI / card.
  */
 export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple-sell'> } = {}): React.JSX.Element {
   const t = useT()
@@ -100,6 +103,12 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const [paidChosen, setPaidChosen] = useState(!!ask?.prefill.how)
   const [previewProblem, setPreviewProblem] = useState<string | null>(null)
   const [showDiscount, setShowDiscount] = useState(false)
+  // The scan box is remounted (empty, focused) after each product it adds.
+  const [scanSeq, setScanSeq] = useState(0)
+  // A scan that matched nothing: said under the box (its text is selected for the next scan).
+  const [scanMiss, setScanMiss] = useState<string | null>(null)
+  // A13 (owner, 8 Nov): "Cash given" for a bill paid in cash — the change to give back. Display only.
+  const [cashGiven, setCashGiven] = useState<number | null>(null)
   const [leaving, setLeaving] = useState(false)
   const saving = poster.status === 'posting'
 
@@ -155,6 +164,14 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const pickCustomer = (id: number | null): void => {
     if (id == null) update({ customerId: null, ...(form.paid === 'credit' || form.paid === 'part' || !paidChosen ? { paid: CASH } : {}) })
     else update({ customerId: id, ...(!paidChosen ? { paid: CREDIT } : {}) })
+  }
+
+  /** A13: a product from the scan box — one more of it, or a new line (addScannedProduct). */
+  const addProduct = (id: number): void => {
+    setGeneral(null)
+    setScanMiss(null)
+    setForm((f) => ({ ...f, lines: addScannedProduct(f.lines, id, (itemId) => ({ ...newLine(), itemId })) }))
+    setScanSeq((n) => n + 1)
   }
 
   // ---------- prices from the price list (resolvePrice) for lines the user hasn't typed over ----------
@@ -257,6 +274,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     setGeneral(null)
     errors.clear()
     setShowDiscount(false)
+    setScanMiss(null)
+    setCashGiven(null)
     setForm(blank())
   }
 
@@ -279,6 +298,15 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       e.stopPropagation()
       if (savedIds || !dirty) startNew()
       else void askDiscard().then((ok) => ok && startNew())
+      return
+    }
+    const pay = PAY_KEYS[e.key]
+    // Only while the bill itself has focus — never from the Help / Ask panel beside it.
+    const inPanel = !!(e.target as HTMLElement | null)?.closest?.('[data-drawer]') // i18n-technical: kit/Drawer's panels
+    if (pay && !inPanel && !mod && !e.shiftKey && !e.altKey && !savedIds) {
+      e.preventDefault()
+      e.stopPropagation()
+      update({ paid: pay, accountId: null }, { paidChosen: true }) // as a click on its chip
       return
     }
     if (e.key === 'Escape' && dirty) {
@@ -315,6 +343,10 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     update({ ratesIncludeGst: on, amount: next.amount, lines: next.lines.map((l) => (l.auto ? { ...l, rate: null } : l)) })
   }
 
+  // Bills parked on the full app's Counter (Quick bill used to show them): said, never lost.
+  const { data: held } = useQuery({ queryKey: ['counterHeld'], queryFn: counterApi.held, enabled: stockOn }) // i18n-technical
+  const heldBills = held?.length ?? 0
+  const scanOptions = useMemo(() => items.map((i) => ({ id: i.id, label: i.name, barcode: i.barcode })), [items])
   const customerOptions = useMemo(() => (setup?.customers ?? []).map((c) => ({ id: c.id, label: c.name, ...(c.phone ? { sub: c.phone } : {}) })), [setup?.customers])
   const title = t(billTitleKey(info ?? { gstRegistrationType: 'unregistered' }, form.date)) // i18n-technical: the WP 8.0 print title key
 
@@ -428,6 +460,32 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 </div>
               )}
             </div>
+            {form.mode === 'items' && ctx && (
+              <div className="mb-3">
+                <TypeAhead
+                  key={scanSeq}
+                  options={scanOptions}
+                  value={null}
+                  onPick={(id) => id != null && addProduct(id)}
+                  placeholder={t('simple.sell.scanPlaceholder')}
+                  ariaLabel={t('simple.sell.scanLabel')}
+                  onCreate={canSave ? (name) => setCreating({ what: 'product', name }) : undefined} // i18n-technical
+                  testId="picker-sell-scan"
+                  autoFocus={scanSeq > 0}
+                  onEnterMiss={(code) => setScanMiss(code)}
+                />
+                {scanMiss && (
+                  <p role="status" className="mt-1 text-detail text-warning" data-testid="sell-scan-miss">
+                    {t('simple.sell.scanMiss', { code: scanMiss })}
+                  </p>
+                )}
+                {heldBills > 0 && (
+                  <p className="mt-1 text-detail text-muted" data-testid="sell-held-bills">
+                    {t('simple.sell.heldBills', { count: heldBills })}
+                  </p>
+                )}
+              </div>
+            )}
             {form.mode === 'items' && ctx ? (
               <BillLines
                 lines={form.lines}
@@ -512,6 +570,27 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 {formatPaise(totals?.total ?? 0, { symbol: true })}
               </span>
             </div>
+            {form.paid === CASH && (totals?.total ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-3 text-detail" data-testid="sell-cash-given">
+                <label className="flex items-center gap-2 text-muted">
+                  {t('simple.sell.cashGiven')}
+                  <AmountInput paise={cashGiven} onPaise={setCashGiven} testId="input-sell-cash-given" className="w-32" ariaLabel={t('simple.sell.cashGiven')} />
+                </label>
+                {(() => {
+                  const due = changeDue(cashGiven, totals?.total ?? 0)
+                  if (!due) return null
+                  return 'back' in due ? ( // i18n-technical: union tag
+                    <span className="num font-semibold text-ink" data-testid="sell-change-back" data-paise={due.back}>
+                      {t('simple.sell.changeBack', { amount: formatPaise(due.back, { symbol: true }) })}
+                    </span>
+                  ) : (
+                    <span className="num font-semibold text-warning" data-testid="sell-change-short" data-paise={due.short}>
+                      {t('simple.sell.changeShort', { amount: formatPaise(due.short, { symbol: true }) })}
+                    </span>
+                  )
+                })()}
+              </div>
+            )}
             {previewProblem && (
               <p role="status" className="mt-1 text-detail text-warning" data-testid="sell-preview-problem">
                 {t('simple.sell.previewProblem', { reason: previewProblem })}
@@ -582,6 +661,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
           onCreated={(id) => {
             const key = creating.lineKey
             setCreating(null)
+            if (key == null) return addProduct(id)
             update({ lines: form.lines.map((l) => (l.key === key ? { ...l, itemId: id, rate: null, auto: true } : l)) })
           }}
         />

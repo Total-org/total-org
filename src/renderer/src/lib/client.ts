@@ -1534,7 +1534,7 @@ export const api = {
   },
   agent: {
     exportMirror: (input?: AgentExportInput) => call<{ dir: string; files: string[] }>('agent:exportMirror', input ?? {}),
-    getConfig: () => call<{ enabled: boolean }>('agent:getConfig'),
+    getConfig: () => call<{ enabled: boolean; locked?: boolean }>('agent:getConfig'),
     setConfig: (enabled: boolean) => call<{ enabled: boolean }>('agent:setConfig', { enabled }),
     // Drafts the removed MCP server / agent inbox made (WP 5.7), while any are open.
     drafts: (status?: AiDraftStatus) => call<AiDraftDto[]>('agent:drafts', status ? { status } : {})

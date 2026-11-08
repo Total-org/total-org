@@ -29,7 +29,7 @@ interface Company { db: DB; info: CompanyInfo; slug: string }
 
 const idSchema = z.object({ id: z.number().int().positive() })
 
-export function registerWorkspaceIpc(handle: Handle, company: () => Company): void {
+export function registerWorkspaceIpc(handle: Handle, company: () => Company, canSeeProfit: () => boolean): void {
   const db = (): DB => company().db
   const dir = (): string => companyAttachmentsDir(company().slug)
 
@@ -47,7 +47,7 @@ export function registerWorkspaceIpc(handle: Handle, company: () => Company): vo
         log('warn', 'pricing.rememberSalePrices.failed', { error: (err as Error).message })
       }
     }
-    if (voucherIds.length > 0 && getAgentBridgeEnabled(c.db)) scheduleMirrorRefresh(c.db, c.slug)
+    if (voucherIds.length > 0 && getAgentBridgeEnabled(c.db)) scheduleMirrorRefresh(c.db, c.slug, { canSeeProfit: canSeeProfit() })
   }
   handle('bulk:apply', (p) => {
     const r = bulk.applyBulk(db(), bulkRequestSchema.parse(p))

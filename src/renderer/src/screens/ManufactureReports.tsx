@@ -13,6 +13,7 @@ import { useNav, useSession } from '../state/stores'
 import { Badge, Button, Money, Page, PageHeader, Panel, Segmented, Select, StatGrid, StatTile, TabBar } from '../components/ui'
 import { OptionsPeriod, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
+import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 import { formatMilli } from '../lib/table'
 import { ItemLink, VoucherLink } from '../components/links'
 import { ItemPicker } from '../components/pickers'
@@ -51,6 +52,9 @@ const PRODUCTION_COLUMNS = defineColumns<ProductionRegisterRow>([
 ])
 
 const KIND_LABEL: Record<CostSheetLine['kind'], string> = { material: 'Material', labour: 'Labour', by_product: 'By-product', scrap: 'Scrap' }
+/** Audit A3: what a user who may not see profit gets (main leaves the two figures out). */
+const PRODUCTION_COLUMNS_NO_MARGIN = PRODUCTION_COLUMNS.filter((c) => c.id !== 'sale' && c.id !== 'margin' && c.id !== 'marginPct')
+
 const COST_SHEET_COLUMNS = defineColumns<CostSheetLine & { key: string }>([
   { id: 'kind', header: 'Line', kind: 'text', value: (r) => KIND_LABEL[r.kind], width: 110 },
   { id: 'name', header: 'Component', kind: 'text', value: (r) => r.name, minWidth: 180, cell: (r) => (r.itemId ? <ItemLink itemId={r.itemId} name={r.name} /> : <span>{r.name}</span>) },
@@ -175,6 +179,7 @@ const periodOf = (from: string, to: string): string => `${toDisplayDate(from)} â
 
 function ProductionTab(): React.JSX.Element {
   const { from, to } = useSession()
+  const profitHidden = useCapabilityRefused('canSeeProfit')
   const { data, isLoading } = useQuery({ queryKey: ['manufactureProduction', from, to], queryFn: () => api.manufacture.production(from, to) })
   return (
     <Panel>
@@ -185,7 +190,7 @@ function ProductionTab(): React.JSX.Element {
         viewId="manufacture-production"
         testId="manufacture-production"
         ariaLabel="Production register"
-        columns={PRODUCTION_COLUMNS}
+        columns={profitHidden ? PRODUCTION_COLUMNS_NO_MARGIN : PRODUCTION_COLUMNS}
         rows={data ?? []}
         rowKey={(r) => r.finishedItemId}
         rowAttrs={(r) => ({ 'data-row-id': r.finishedItemId })}
@@ -200,6 +205,7 @@ function ProductionTab(): React.JSX.Element {
 
 function CostSheetTab(): React.JSX.Element {
   const { from, to } = useSession()
+  const profitHidden = useCapabilityRefused('canSeeProfit')
   const { data: made } = useQuery({ queryKey: ['manufactureProduction', from, to], queryFn: () => api.manufacture.production(from, to) })
   const [picked, setPicked] = useState<number | null>(null)
   const itemId = picked ?? made?.[0]?.finishedItemId ?? null
@@ -231,7 +237,7 @@ function CostSheetTab(): React.JSX.Element {
             <StatTile label="Quantity" value={`${formatMilli(sheet.qtyMilli, data?.decimals ?? 0)} ${unit}`} />
             <StatTile label="Production cost" value={formatPaise(sheet.productionCost, { symbol: true })} testId="cost-sheet-total" />
             <StatTile label={`Cost per ${unit || 'unit'}`} value={formatPaise(sheet.unitCostPaise, { symbol: true })} testId="cost-sheet-unit" />
-            <StatTile label="Sale value" value={formatPaise(sheet.saleAmount, { symbol: true })} />
+            {!profitHidden && <StatTile label="Sale value" value={formatPaise(sheet.saleAmount, { symbol: true })} />}
           </StatGrid>
         </div>
       )}
@@ -253,7 +259,10 @@ function CostSheetTab(): React.JSX.Element {
 
 function MarginTab(): React.JSX.Element {
   const { from, to } = useSession()
-  const { data, isLoading } = useQuery({ queryKey: ['manufactureMargin', from, to], queryFn: () => api.manufacture.margin(from, to) })
+  const profitHidden = useCapabilityRefused('canSeeProfit')
+  const { data, isLoading } = useQuery({ queryKey: ['manufactureMargin', from, to], queryFn: () => api.manufacture.margin(from, to), enabled: !profitHidden })
+  // Audit A3: the margin report is refused in main for a user who may not see profit.
+  if (profitHidden) return <Panel><p className="px-3 py-6 text-center text-body-sm text-muted" data-testid="manufacture-margin-hidden">{CAPABILITY_REFUSED_TEXT.canSeeProfit}</p></Panel>
   return (
     <Panel>
       <p className="px-3 pt-3 text-hint text-muted">

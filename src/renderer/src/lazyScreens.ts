@@ -29,8 +29,6 @@ const load_simple_sell_MakeBill = () => import('./simple/sell/MakeBill')
 export const MakeBill = lazyScreen(load_simple_sell_MakeBill, 'MakeBill')
 const load_simple_sell_SalesList = () => import('./simple/sell/SalesList')
 export const SalesList = lazyScreen(load_simple_sell_SalesList, 'SalesList')
-const load_simple_sell_QuickBill = () => import('./simple/sell/QuickBill')
-export const QuickBill = lazyScreen(load_simple_sell_QuickBill, 'QuickBill')
 const load_simple_returns_ReturnSale = () => import('./simple/returns/ReturnSale')
 export const ReturnSale = lazyScreen(load_simple_returns_ReturnSale, 'ReturnSale')
 const load_simple_returns_ReturnPurchase = () => import('./simple/returns/ReturnPurchase')
@@ -193,7 +191,6 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'simple-money': [MoneyList],
   'simple-sell': [MakeBill],
   'simple-sales': [SalesList],
-  'simple-quick-bill': [QuickBill],
   'simple-return-sale': [ReturnSale],
   'simple-return-purchase': [ReturnPurchase],
   'simple-bank': [BankScreen],
@@ -286,7 +283,6 @@ export const SIMPLE_VIEW_CHUNKS: Readonly<Record<string, LazyComponent<never>>> 
   'money/MoneyList': MoneyList,
   'sell/MakeBill': MakeBill,
   'sell/SalesList': SalesList,
-  'sell/QuickBill': QuickBill,
   'returns/ReturnSale': ReturnSale,
   'returns/ReturnPurchase': ReturnPurchase,
   'bank/BankScreen': BankScreen,

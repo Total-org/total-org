@@ -58,7 +58,9 @@ beforeEach(() => {
         ] }
       case 'users:save': return { ok: true, data: { id: 2, locked: false } }
       case 'auth:users': return { ok: true, data: [{ id: 2, name: 'Asha', role: 'accountant' }] }
-      case 'auth:login': return payload.pin === '2222' ? { ok: true, data: { id: 2, name: 'Asha', role: 'accountant' } } : { ok: false, error: 'Wrong PIN' }
+      case 'auth:login':
+        if (payload.pin === '9999') return { ok: false, error: 'Too many attempts — wait 5 minutes', code: 'auth_throttled', params: { minutes: 5 } }
+        return payload.pin === '2222' ? { ok: true, data: { id: 2, name: 'Asha', role: 'accountant' } } : { ok: false, error: 'Wrong PIN' }
       case 'session:lock': return { ok: true, data: { locked: true } }
       case 'session:unlock':
         if (view.encrypted && !payload?.passphrase) return { ok: false, error: 'Type it', code: 'passphrase_required', field: 'passphrase' }
@@ -159,6 +161,17 @@ describe('opening a locked business and the lock screen', () => {
     fireEvent.click(screen.getByTestId('btn-unlock'))
     await waitFor(() => expect(useSession.getState().locked).toBe(false))
     expect(bannedWordsIn(visible())).toEqual([])
+  })
+
+  it('the simple lock screen says how long a locked-out PIN must wait, never "not right" (audit A3)', async () => {
+    act(() => useSession.setState({ locked: true }))
+    renderUi(<SimpleLockScreen />)
+    await waitFor(() => expect(screen.getByTestId('lock-user-2')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('lock-user-2'))
+    fireEvent.change(screen.getByTestId('input-pin'), { target: { value: '9999' } })
+    fireEvent.click(screen.getByTestId('btn-unlock'))
+    await waitFor(() => expect(visible()).toContain('Too many wrong PINs. Wait 5 min and try again.'))
+    expect(visible()).not.toContain('not right')
   })
 
   it('⌘L asks main to lock and shows the PIN screen; main\'s lock event does too', async () => {

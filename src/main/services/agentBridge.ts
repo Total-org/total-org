@@ -7,7 +7,7 @@
  * Concurrency: the app and the CLI may have the same company.db open at once — WAL journal mode
  * + busy_timeout (set in db/connection.ts) make that safe; nothing here takes exclusive locks.
  */
-import { mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { DB } from '../db/connection'
 import { companyDir } from '../paths'
@@ -18,6 +18,7 @@ import * as masters from './masters'
 import { trialBalanceFor } from './reports'
 import { outstandings } from './analysis'
 import { getVoucher, NOT_DELETED } from './vouchers'
+import { keyOfHandle } from '../db/encryption'
 import { log } from '../log'
 
 /** Bumped whenever the mirror file shapes change incompatibly; stamped into meta.json. */
@@ -152,8 +153,33 @@ export function buildMirrorFiles(db: DB, slug: string, opts: MirrorOptions = {})
   return files
 }
 
+export const MIRROR_LOCKED_MESSAGE =
+  'This business is locked with a passphrase, so Total does not write a plain copy of the books to its agent folder'
+
+/** Audit A3 (SEC-12): the mirror is plain CSV / JSON of the books on disk — never written for a
+ *  business locked with a passphrase (whose books, backups and files are encrypted). */
+export function mirrorAllowed(db: DB): boolean {
+  return keyOfHandle(db) === null
+}
+
+/** Audit A3 (review of #238): a mirror written BEFORE the passphrase lock went on is a plaintext
+ *  copy of the books beside encrypted ones — removed on the first open of the locked business (the
+ *  lock's own reopen included). Returns whether one was removed. Never throws. */
+export function removeMirrorIfLocked(db: DB, slug: string): boolean {
+  const dir = agentDir(slug)
+  if (mirrorAllowed(db) || !existsSync(dir)) return false
+  try {
+    rmSync(dir, { recursive: true, force: true })
+    return true
+  } catch (err) {
+    log('warn', 'agent-mirror-remove-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+    return false
+  }
+}
+
 /** Regenerate the read mirror under `<company>/agent/` (see buildMirrorFiles). */
 export function exportMirror(db: DB, slug: string, opts: MirrorOptions = {}): MirrorResult {
+  if (!mirrorAllowed(db)) throw new Error(MIRROR_LOCKED_MESSAGE)
   const dir = agentDir(slug)
   mkdirSync(dir, { recursive: true })
   const files = buildMirrorFiles(db, slug, opts)
@@ -164,18 +190,28 @@ export function exportMirror(db: DB, slug: string, opts: MirrorOptions = {}): Mi
 // ---------- debounced auto-refresh after saveVoucher (feature-flag gated in ipc.ts) ----------
 
 let refreshTimer: NodeJS.Timeout | null = null
+/** Audit A3 (SEC-12): whether every save in the pending window was by someone who may see profit —
+ *  one save by a user whose `canSeeProfit` is off redacts the refreshed trial balance. */
+let refreshSeesProfit = true
 
-/** Regenerate the mirror 30s after the last voucher save — bursts of entry collapse to one export. */
-export function scheduleMirrorRefresh(db: DB, slug: string, delayMs = 30_000): void {
+/** Regenerate the mirror 30s after the last voucher save — bursts of entry collapse to one export.
+ *  `canSeeProfit` = the saving user's flag (the trial balance mirror is redacted like the screen's,
+ *  as `agent:exportMirror` does). A business locked with a passphrase gets no mirror. */
+export function scheduleMirrorRefresh(db: DB, slug: string, opts: { canSeeProfit: boolean; delayMs?: number }): void {
+  if (!mirrorAllowed(db)) return
   if (refreshTimer) clearTimeout(refreshTimer)
+  else refreshSeesProfit = true
+  refreshSeesProfit = refreshSeesProfit && opts.canSeeProfit
   refreshTimer = setTimeout(() => {
     refreshTimer = null
+    const canSeeProfit = refreshSeesProfit
+    refreshSeesProfit = true
     try {
-      exportMirror(db, slug)
+      exportMirror(db, slug, { canSeeProfit })
     } catch (err) {
       log('warn', 'agent-mirror-refresh-failed', { slug, error: err instanceof Error ? err.message : String(err) })
     }
-  }, delayMs)
+  }, opts.delayMs ?? 30_000)
   // Never keep the process alive just for a pending mirror refresh.
   refreshTimer.unref?.()
 }
@@ -185,4 +221,5 @@ export function cancelMirrorRefresh(): void {
     clearTimeout(refreshTimer)
     refreshTimer = null
   }
+  refreshSeesProfit = true
 }

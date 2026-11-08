@@ -5,7 +5,9 @@
 //   posting channel is covered the day it is mapped there (capabilities.dbtest.ts checks it).
 // - canSeeProfit: the screens that show profit / loss (the P&L, the balance sheet's profit line,
 //   comparatives, ratios, item profitability, cash flow, the simple "How am I
-//   doing"). Dashboards and simple Home keep working with their profit figures left out (ipc.ts).
+//   doing", the manufacture margin / register, the cost-centre P&L). Dashboards, simple Home, the
+//   chart of accounts, ledger balances, the production register / cost sheet, the audit log and AI
+//   threads keep working with their profit figures left out (ipc.ts, shared/profitRedaction.ts).
 // - canExport: the channels that write the books (or a report of them) to a file. The CA pack
 //   (export:caPack) writes the P&L and balance sheet too, so its handler also checks canSeeProfit.
 // - canManageAi: the AI assistant's and agent access's settings.
@@ -27,6 +29,13 @@ export const PROFIT_CHANNELS: readonly string[] = [
   'simple:reports:doing',
   // PR #127 review: the year-end close preview IS the net profit to transfer.
   'yearend:preview',
+  // Audit A3 (SEC-11): the realised / expected margin per manufactured item, the manufacture
+  // register (sale value, profit now and at save per run) and the P&L by cost centre (income,
+  // expense and net per centre). The production register and the cost sheet stay open with their
+  // sale value / margin left out (ipc.ts), the cost sheet's item list needs the first.
+  'manufacture:margin',
+  'manufacture:register',
+  'cc:report',
 ]
 
 export const EXPORT_CHANNELS: readonly string[] = [

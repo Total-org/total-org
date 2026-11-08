@@ -20,9 +20,9 @@ const CHIP = `${CHIP_BASE} border-transparent hover:bg-panel2`
  *  Tailwind orders utilities by name, not by their place in the class string. */
 const BOXED = `${CHIP_BASE} border-line bg-panel2 hover:border-line-strong hover:bg-panel`
 
-/** Entry flows — every intent's screen and Quick bill: the period means nothing while a bill /
+/** Entry flows — every intent's screen: the period means nothing while a bill /
  *  payment is being written (audit UX-8). */
-const ENTRY_SCREENS = new Set<string>([...Object.values(INTENT_SCREEN), 'simple-quick-bill']) // i18n-technical: registry screen name
+const ENTRY_SCREENS = new Set<string>(Object.values(INTENT_SCREEN))
 
 /**
  * WP 8.1: the simple shell's header — the business name (→ business details), the dates shown,

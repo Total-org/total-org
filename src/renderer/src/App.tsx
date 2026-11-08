@@ -23,7 +23,6 @@ import {
   MoneyList,
   MakeBill,
   SalesList,
-  QuickBill,
   ReturnSale,
   ReturnPurchase,
   BankScreen,
@@ -234,7 +233,6 @@ export default function App(): React.JSX.Element {
           {screen.name === 'simple-money' && <MoneyList key={screen.entryId ?? 'list'} entryId={screen.entryId} />}
           {screen.name === 'simple-sell' && <MakeBill key={screen.ask ? JSON.stringify(screen.ask) : (screen.party ?? 'new')} party={screen.party} ask={screen.ask} />}
           {screen.name === 'simple-sales' && <SalesList key={screen.billId ?? 'list'} billId={screen.billId} />}
-          {screen.name === 'simple-quick-bill' && <QuickBill />}
           {screen.name === 'simple-return-sale' && <ReturnSale key={screen.billId ?? 'pick'} billId={screen.billId} />}
           {screen.name === 'simple-return-purchase' && <ReturnPurchase key={screen.billId ?? 'pick'} billId={screen.billId} />}
           {screen.name === 'simple-approvals' && <SimpleApprovalQueue />}

@@ -28,10 +28,11 @@ Screens: Home (the Gateway), "What you had on day one" (Openings).
 
 ### Sell
 Make a bill for products or just an amount, to a named or cash customer, paid in full, partly, by
-cash, UPI, card, bank transfer, or on credit. A quick bill for walk-in counter sales (shown when you keep stock), a sales list,
+cash, UPI, card, bank transfer, or on credit. With stock on, a "Scan or type a product" box adds each
+product as it is scanned (the same one again = one more) and F5 / F6 / F7 mark cash / UPI / card, for walk-in counter sales. A sales list,
 and Return a sale (give money back or keep it as credit). After saving, a card offers Print, PDF,
-Share and Undo (for 24 hours, while nothing depends on it). Screens: Make a bill, Quick bill, Sales
-list, Return a sale.
+Share and Undo (for 24 hours, while nothing depends on it). Screens: Make a bill, Sales list, Return a
+sale.
 
 ### Buy
 Record a supplier's bill with its number and date, products or just an amount, paid now or later. The

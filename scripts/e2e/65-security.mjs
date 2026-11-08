@@ -5,7 +5,9 @@
 // "Remember on this computer" ticked → a restart opens without the passphrase → Forget in Lock and
 // safety → the next restart asks again → the
 // backup restore check shows on the screen and on Home → People & roles switches (stored on the
-// user) → ⌘L locks, the PIN brings the user back, a refused call while locked → auto-lock setting.
+// user) → ⌘L locks with nothing of the session left on screen (audit A3: no figure, the Ask panel
+// closed), another user signs in on his own Home with an empty Ask Total and profit withheld, the
+// owner signs back in → auto-lock setting.
 import fs from 'fs'
 import path from 'path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
@@ -163,17 +165,45 @@ await scenario('65-security', async (h) => {
   assertEq(JSON.stringify(users.find((u) => u.id === acct.id).capabilities), '{"canSeeProfit":false}', 'the flag is stored on the user')
   await h.shot('05-people-roles')
 
-  // ---------- ⌘L locks; main refuses while locked; the PIN brings the user back ----------
+  // ---------- ⌘L locks; main refuses while locked; nothing of the session stays (audit A3) ----------
+  // Before the lock: an Ask Total answer with the cash figure (₹2,500) open in the panel.
+  await h.click('btn-assistant')
+  await attached(h, '[data-testid="ask-panel"]')
+  await h.page.fill('[data-testid="ask-input"]', 'how much cash do I have')
+  await h.click('ask-send')
+  await attached(h, '[data-testid="ask-answer"]')
+  assert((await h.page.textContent('[data-testid="ask-messages"]')).includes('2,500'), 'the answer names the cash (₹2,500)')
   await h.page.keyboard.press('Meta+l')
   await attached(h, '[data-screen="lock"][data-lock="simple"]')
   const refused = await h.page.evaluate(() => window.total.invoke('report:trialBalance', { asOn: '2027-03-31' }))
   assertEq(refused.code, 'session_locked', 'main refuses a call while the screen is locked')
+  assert(!(await h.page.textContent('body')).includes('2,500'), 'no figure of the session shows on the lock screen')
+  assertEq(await h.page.locator('[data-testid="ask-panel"]').count(), 0, 'the Ask panel is closed behind the lock')
   await h.shot('06-lock-screen')
+  // Another person signs in — Ravi, who may not see profit — and starts from his own Home.
+  await h.click(`lock-user-${acct.id}`)
+  await h.fill('input-pin', '2468')
+  await h.click('btn-unlock')
+  await attached(h, '[data-testid="simple-home"]', 30000)
+  assertEq(await h.page.locator('[data-testid="simple-people-roles"]').count(), 0, 'the owner\'s screen does not come back for the next user')
+  await h.click('btn-assistant')
+  await attached(h, '[data-testid="ask-panel"]')
+  assertEq(await h.page.locator('[data-testid="ask-turn"]').count(), 0, 'the owner\'s Ask Total conversation is gone')
+  assert(!(await h.page.textContent('[data-testid="ask-panel"]')).includes('2,500'), 'the panel shows nothing of the owner\'s session')
+  // Profit stays withheld from Ravi in main (the chart of accounts too).
+  const chart = await h.page.evaluate(() => window.total.invoke('master:chartOfAccounts', { asOn: '2027-03-31' }))
+  const sales = JSON.stringify(chart.data).includes('"balanceHidden":true')
+  assert(chart.ok && sales, 'the chart of accounts withholds the income / expense balances')
+  const tbRavi = await h.page.evaluate(() => window.total.invoke('report:trialBalance', { asOn: '2027-03-31' }))
+  assertEq(tbRavi.data.profitHidden, true, 'the trial balance is redacted for Ravi')
+  await h.shot('06b-next-user-home')
+  // Ravi locks; the owner signs back in — on Home too.
+  await h.page.keyboard.press('Meta+l')
+  await attached(h, '[data-screen="lock"][data-lock="simple"]')
   await h.click(`lock-user-${owner.id}`)
   await h.fill('input-pin', '1234')
   await h.click('btn-unlock')
-  // Back where the user was (the screen's state is kept under the lock).
-  await attached(h, '[data-testid="simple-people-roles"]')
+  await attached(h, '[data-testid="simple-home"]', 30000)
 
   // ---------- auto-lock after idle minutes (owner) ----------
   await openSecurity(h)

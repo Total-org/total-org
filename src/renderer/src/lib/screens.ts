@@ -1112,20 +1112,6 @@ export const SCREENS: ScreenDef[] = [
     navSection: null,
     invalidates: ['simpleSales', 'simpleSale']
   },
-  // WP 9.2: Sell → Quick bill — the existing Counter screen inside the simple shell (its header
-  // relabelled; the Counter itself unchanged). Needs products, so only with stock on.
-  {
-    name: 'simple-quick-bill',
-    modes: ['simple'],
-    simpleView: 'sell/QuickBill',
-    helpKey: 'make-a-bill',
-    simpleSection: 'sell',
-    simpleEntries: [{ id: 'quick-bill', label: 'simple.entries.quickBill', screen: { name: 'simple-quick-bill' }, feature: 'inventory' }],
-    title: 'Quick bill',
-    screen: null, // simple shell only
-    navSection: null,
-    invalidates: ['counterConfig', 'counterHeld', 'counterDayEnd', 'nextNumber', 'stockItems', 'ledgers', 'groups', 'units', 'pricingConfig', 'printTemplates']
-  },
   // WP 9.5: Sell → Return a sale / Buy → Return a purchase (simple/returns: which bill, what came
   // back, money back or kept as credit → a `return_sale` / `return_purchase` intent →
   // simple:post). Their accountant counterparts are the credit / debit note editors ("Accountant
@@ -1357,7 +1343,7 @@ export const ACCOUNTANT_NAV = NAV_SECTIONS.map((section) => ({
  */
 export const SIMPLE_ENTRY_ORDER: readonly string[] = [
   // Sell
-  'make-bill', 'quick-bill', 'sales-list', 'sale-returns', 'quotations', 'customer-orders',
+  'make-bill', 'sales-list', 'sale-returns', 'quotations', 'customer-orders',
   // Buy
   'record-purchase', 'purchase-list', 'purchase-returns', 'snap-bill', 'supplier-orders',
   // Money

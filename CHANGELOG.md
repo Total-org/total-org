@@ -52,6 +52,43 @@ fixed-asset tables, migration 026, `statutory_rates` / `statutory_payments`, mig
 audit entities stay; `cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
 `fixedAssetsLegacy.dbtest.ts` keeps the old journals' guards tested.
 
+**"Who owes me" was wrong when a debit note or journal was ticked against a bill** (#233, audit A1).
+If you raised a debit note to a customer (or a journal adding freight, say) and ticked their invoice,
+Total took the note OFF the invoice instead of adding it, so what the customer owed was short by twice
+the note. Home, People, reminders, statements, interest and the cash forecast showed the same wrong
+figure. The same went for a credit note or journal to a supplier ticked against their bill. Now the
+note adds to the bill, as in Tally; a bill already paid opens again for the extra. Ticking one more
+bill in a receipt or payment once the whole amount is set against bills no longer adds the whole bill
+(Save then failed); Total says the amount is used up instead. *For accountants*: bill-wise figures
+(pending, days overdue, advances) move only for parties with such an entry; the trial balance and
+GST returns do not change. *For developers*: `shared/outstanding.ts` positive-event `against` rule,
+`billHistory` too, `shared/voucherEdit/billTick.ts`.
+
+**Locking leaves nothing on screen** (#238, audit A3). Locking Total (⌘L, the auto-lock or Lock) — or
+someone else signing in — now clears everything the last person had open: the figures Total had
+kept in memory, the screens (the next person starts on their own Home), half-typed answers kept for
+the way back, the Ask / AI panel conversation, messages and open questions. Before, the next person
+could see the previous person's screens and figures for a moment, even ones their sign-in may not
+see. Someone who may not see profit no longer gets it from the chart of accounts' balances, the
+manufacture margin / register, the cost-centre report, the edit log, the owner's old AI
+conversations or the AI's "explain this" on P&L figures. A business locked with a passphrase can
+no longer be deleted from its lock screen, and deleting it always asks for the passphrase. A wrong
+PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 minutes), and the lock screen says how long is left. For
+developers: `company:open` / `company:forgetRemembered` take only a business on the list
+(`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
+
+**One way to make a sale in simple mode** (#240, A13a). Quick bill is folded into Make a bill: with
+stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
+Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the
+customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card, type the cash the
+customer gave to see the change to give back, and ⌘↵ to save. The
+separate Quick bill entry is gone; the Counter's hold / recall, day end, the `3*` quantity
+multiplier and the ↑ / ↓ quantity keys stay in the full app's Counter billing, and Make a bill says
+when bills are still on hold there. *For accountants:* no figure changes; the full app's Counter
+billing is unchanged. *For developers:* registry screen `simple-quick-bill` and `simple/sell/QuickBill.tsx`
+removed (with the Counter's `title` prop); `shared/simple/sell.ts` `addScannedProduct`; the unused
+preset field `homeTask` removed.
+
 **Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
 the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready
 message, E-mail opens a draft, and on a Mac "More ways…" opens the share sheet with the PDF. The PDF

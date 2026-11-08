@@ -300,15 +300,35 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
   handle('ai:tools', () => registry.info(), 'viewer')
 
   // ---------- conversations ----------
-  handle('ai:threads', () => store.listThreads(db(), aiRuns.running(scope())), 'viewer')
+  // A3 / SEC-11: threads are shared in a company, but a user whose canSeeProfit is off sees and uses
+  // only the threads they started — another user's thread may hold profit_and_loss / balance_sheet
+  // results and answers quoting them (and continuing it would send that history to the model).
+  // Someone else's thread is "not found" to them. canSeeProfit on (or no users) = as before.
+  const ownThreadsOnly = (): { name: string | null } | null => (deps.canSeeProfit && deps.canSeeProfit() === false ? { name: deps.session().name } : null)
+  const threadVisible = (id: number): boolean => {
+    if (!store.threadExists(db(), id)) return false
+    const only = ownThreadsOnly()
+    return !only || (only.name !== null && store.threadOwner(db(), id) === only.name)
+  }
+  const assertThreadVisible = (id: number): void => {
+    if (!threadVisible(id)) throw new Error('Conversation not found')
+  }
+  const visibleThreads = (): ReturnType<typeof store.listThreads> => {
+    const only = ownThreadsOnly()
+    if (only && only.name === null) return []
+    return store.listThreads(db(), aiRuns.running(scope()), only ? { name: only.name! } : undefined)
+  }
+  handle('ai:threads', () => visibleThreads(), 'viewer')
   handle('ai:thread', (p) => {
     const { id } = idSchema.parse(p)
+    assertThreadVisible(id)
     const thread = store.getThread(db(), id)
     if (!thread) throw new Error('Conversation not found')
     return { thread, messages: store.listMessages(db(), id).map(store.toDto), running: aiRuns.running(scope()).has(id) }
   }, 'viewer')
   handle('ai:thread:delete', (p) => {
     const { id } = idSchema.parse(p)
+    assertThreadVisible(id)
     const thread = store.getThread(db(), id)
     if (!thread) throw new Error('Conversation not found')
     aiRuns.cancel(id, scope())
@@ -320,6 +340,7 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
     return null
   }, 'accountant')
   const ask = (input: Parameters<typeof startTurn>[1]): { threadId: number; runId: string; userMessage: ReturnType<typeof startTurn>['userMessage'] } => {
+    if (input.threadId !== undefined) assertThreadVisible(input.threadId)
     const c = deps.company()
     const v = view()
     if (!v.ready) throw new Error(v.blocker ?? AI_OFF_MESSAGE)
@@ -336,7 +357,7 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
   // Threads are shared in a company: changing one (regenerate / rename / pin) takes the user who
   // started it, or an accountant or owner.
   const assertThreadAccess = (id: number): void => {
-    if (!store.threadExists(db(), id)) throw new Error('Conversation not found')
+    assertThreadVisible(id)
     const s = deps.session()
     if (threadAccessAllowed(s, store.threadOwner(db(), id))) return
     throw new Error('Only the user who started this conversation, or an accountant or owner, can change it')
@@ -358,16 +379,17 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
       store.renameThread(db(), id, title)
       writeAudit(db(), 'ai_thread', id, 'update', { title: thread.title }, { title: store.getThread(db(), id)!.title })
     })()
-    return store.listThreads(db(), aiRuns.running(scope())).find((t) => t.id === id) ?? null
+    return visibleThreads().find((t) => t.id === id) ?? null
   }, 'viewer')
   handle('ai:thread:pin', (p) => {
     const { id, pinned } = aiThreadPinSchema.parse(p)
     assertThreadAccess(id)
     store.setThreadPinned(db(), id, pinned)
-    return store.listThreads(db(), aiRuns.running(scope())).find((t) => t.id === id) ?? null
+    return visibleThreads().find((t) => t.id === id) ?? null
   }, 'viewer')
   handle('ai:cancel', (p) => {
     const { threadId } = z.object({ threadId: z.number().int().positive() }).parse(p)
+    if (!threadVisible(threadId)) return { cancelled: false }
     return { cancelled: aiRuns.cancel(threadId, scope()) }
   }, 'viewer')
 
@@ -430,7 +452,13 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
 
   // ---------- meters and logs ----------
   handle('ai:usage', () => store.listUsage(db()), 'viewer')
-  handle('ai:outbound', () => store.listOutbound(db()), 'viewer')
+  // Audit A3 (review of #238): each row's screen context holds the figure "Explain this" was
+  // asked about (e.g. Net profit) — a profit-hidden user gets the context of their own threads only.
+  handle('ai:outbound', () => {
+    const rows = store.listOutbound(db())
+    if (!ownThreadsOnly()) return rows
+    return rows.map((r) => (r.threadId !== null && threadVisible(r.threadId) ? r : { ...r, context: null }))
+  }, 'viewer')
   // Deletes conversations, drafts, memory and aliases. It cannot (and must not) remove the audit
   // trail's rows about AI settings and drafts: audit_log is append-only (MCA rule 3(1)).
   handle('ai:data:deleteAll', (p) => {

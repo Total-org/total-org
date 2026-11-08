@@ -13,7 +13,8 @@ import type { OutstandingBill } from './reports'
 
 export interface BillRef {
   /** 'new' opens a named bill — or, on a settling (negative) event, a named credit (an advance, a
-   *  note's own bill); 'against' settles a bill — or, on a positive event, uses a named credit. */
+   *  note's own bill); 'against' settles a bill — or, on a positive event, uses a named credit, else
+   *  ADDS to that bill (audit A1: a debit note / journal set against an invoice, as in Tally). */
   kind: 'new' | 'against'
   name: string
   /** Always positive. */
@@ -94,6 +95,13 @@ export function billAllocator(creditDays: number | null): BillAllocator {
   // (that path is unchanged), so the legacy inference stays byte-identical.
   const namedCredits: { name: string; amount: number }[] = []
   const creditNames = new Set<string>()
+  // Audit A1: a positive event's 'against' ref ADDS to the bill it names — so a bill paid in full
+  // can open again. Each bill keeps its place in the oldest-first order (`seq`), and the last bill
+  // of each name that closed is remembered so it re-opens on its own date and due date.
+  const seq = new Map<OutstandingBill, number>()
+  let nextSeq = 0
+  const closedByName = new Map<string, OutstandingBill>()
+  const closed = (bill: OutstandingBill): void => { closedByName.set(bill.number, bill) }
 
   const dueDateFor = (date: string, ref?: BillRef): string | null => {
     if (ref?.dueDate) return ref.dueDate
@@ -107,7 +115,7 @@ export function billAllocator(creditDays: number | null): BillAllocator {
       const take = Math.min(bill.pending, remaining)
       bill.pending -= take
       remaining -= take
-      if (bill.pending === 0) open.shift()
+      if (bill.pending === 0) closed(open.shift()!)
     }
     credit += remaining
   }
@@ -124,7 +132,7 @@ export function billAllocator(creditDays: number | null): BillAllocator {
     const bill = open[idx]!
     const take = Math.min(bill.pending, amount)
     bill.pending -= take
-    if (bill.pending === 0) open.splice(idx, 1)
+    if (bill.pending === 0) closed(open.splice(idx, 1)[0]!)
     const remaining = amount - take
     if (remaining > 0) settleFifo(remaining)
   }
@@ -134,7 +142,36 @@ export function billAllocator(creditDays: number | null): BillAllocator {
     const take = Math.min(credit, bill.amount)
     credit -= take
     bill.pending = bill.amount - take
+    seq.set(bill, nextSeq++)
     if (bill.pending > 0) open.push(bill)
+    else closed(bill)
+  }
+
+  /** Audit A1: a positive event's 'against' ref naming a bill (no named credit of that name) adds
+   *  to it — the oldest open bill of that name, else the last one of that name paid in full, which
+   *  opens again in its old place (oldest-first order, own date and due date). Advance credit
+   *  already on the account nets off the increase first, as it does off a new bill. A name no
+   *  bill has had opens a bill of that name (a used-up named credit's: named after the entry, as
+   *  the excess over a named credit is) and is called out. */
+  const raiseNamed = (ref: BillRef, ev: BillEvent): void => {
+    const bill = open.find((b) => b.number === ref.name) ?? closedByName.get(ref.name)
+    if (!bill) {
+      const name = creditNames.has(ref.name) ? ev.number : ref.name
+      warnings.push(`${ev.number}: adds to bill "${ref.name}", which no bill has had — opened as a bill of its own${name !== ref.name ? `, ${name}` : ''}`)
+      addBill({ voucherId: ev.voucherId, number: name, date: ev.date, amount: ref.amount, pending: ref.amount, ageDays: 0, dueDate: dueDateFor(ev.date, ref), overdueDays: 0 })
+      return
+    }
+    const take = Math.min(credit, ref.amount)
+    credit -= take
+    const wasOpen = bill.pending > 0
+    bill.amount += ref.amount
+    bill.pending += ref.amount - take
+    if (wasOpen || bill.pending === 0) return
+    // A bill paid in full opens again in its old place in the oldest-first order.
+    closedByName.delete(ref.name)
+    const at = seq.get(bill)!
+    const idx = open.findIndex((b) => seq.get(b)! > at)
+    open.splice(idx === -1 ? open.length : idx, 0, bill)
   }
 
   /** A positive event drawing on a named credit (an invoice against an advance, a refund against
@@ -174,6 +211,8 @@ export function billAllocator(creditDays: number | null): BillAllocator {
             dueDate: dueDateFor(ev.date, ref),
             overdueDays: 0
           })
+        } else if (ev.amount > 0) {
+          raiseNamed(ref, ev)
         } else {
           settleNamed(ref.name, ref.amount, ev.number)
         }

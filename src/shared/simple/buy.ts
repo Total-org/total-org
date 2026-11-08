@@ -471,6 +471,9 @@ export interface PurchaseRow {
   overdueDays: number
   /** WP 9.5: the returns made against this bill (their total; 0 = none) — the list's chip. */
   returned: number
+  /** Audit A1: what later entries ticked against the bill added to it (a debit note, a journal) —
+   *  the allocated bill's amount beyond the bill's own total, while the bill is open. Absent = none. */
+  added?: number
 }
 
 export interface PurchaseView extends PurchaseRow {

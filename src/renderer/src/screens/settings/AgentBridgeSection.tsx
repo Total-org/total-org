@@ -115,6 +115,9 @@ function AgentDraftsPanel({ canDiscard }: { canDiscard: boolean }): React.JSX.El
   )
 }
 
+/** Audit A3: a passphrase-locked business gets no plaintext mirror (main refuses and removes one). */
+const MIRROR_LOCKED_TEXT = 'This business is locked with a passphrase, so no mirror is written — a plain copy of the books would sit beside the encrypted ones. A mirror written before the lock is removed.'
+
 export function AgentBridgeSection(): React.JSX.Element {
   const toast = useToasts()
   const queryClient = useQueryClient()
@@ -182,13 +185,18 @@ export function AgentBridgeSection(): React.JSX.Element {
                 </div>
                 <Button
                   data-testid="btn-settings-agent-export"
-                  disabled={exporting || capabilityRefused(user, 'canExport')}
-                  disabledTitle={capabilityRefused(user, 'canExport') ? CAPABILITY_REFUSED_TEXT.canExport : undefined}
+                  disabled={exporting || capabilityRefused(user, 'canExport') || config.locked === true}
+                  disabledTitle={config.locked ? MIRROR_LOCKED_TEXT : capabilityRefused(user, 'canExport') ? CAPABILITY_REFUSED_TEXT.canExport : undefined}
                   onClick={() => void exportMirror()}
                 >
                   {exporting ? 'Exporting…' : 'Export mirror now'}
                 </Button>
               </div>
+              {config.locked && (
+                <p className="mt-2 text-hint text-warning" data-testid="agent-mirror-locked">
+                  {MIRROR_LOCKED_TEXT}
+                </p>
+              )}
               {lastExport && (
                 <p className="mt-2 text-hint text-muted">
                   Wrote {lastExport.files.length} files to <span className="num">{lastExport.dir}</span>
