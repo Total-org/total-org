@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Bills to SEZ units and export buyers get the right GST** (#PRNUM, audit 2026-11 Phase 2). A bill to a
+**Bills to SEZ units and export buyers get the right GST** (#244, audit 2026-11 Phase 2). A bill to a
 customer marked "SEZ" in your own state used to add CGST + SGST; it now adds IGST, as the law says
 (IGST Act s.7(5)(b)). A bill to an SEZ unit or an export buyer marked "without payment" (under LUT or
 bond) used to add IGST to the customer's bill; it now adds no GST (s.16(3)) — the bill, GSTR-1, GSTR-3B
