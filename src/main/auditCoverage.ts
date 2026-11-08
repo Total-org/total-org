@@ -448,25 +448,6 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'payroll:ptCsv': EXPORT,
   'payroll:ptReturnCsv': EXPORT,
 
-  // ---------- fixed assets ----------
-  'fa:classSave': a('ca_asset_class'),
-  'fa:classDelete': a('ca_asset_class'),
-  'fa:blockSave': a('it_block'),
-  'fa:blockDelete': a('it_block'),
-  'fa:blockRateSave': a('it_block_rate'),
-  'fa:blockRateDelete': a('it_block_rate'),
-  'fa:blockOpeningSet': a('it_block'),
-  'fa:blockOpeningClear': a('it_block'),
-  'fa:groupSave': a('fixed_asset_group'),
-  'fa:groupDelete': a('fixed_asset_group'),
-  'fa:save': a('fixed_asset'),
-  'fa:delete': a('fixed_asset'),
-  'fa:additionSave': a('fixed_asset'),
-  'fa:additionDelete': a('fixed_asset'),
-  'fa:componentSplit': a('fixed_asset'),
-  'fa:runPost': a('depreciation_run', 'voucher'),
-  'fa:dispose': a('fixed_asset', 'voucher', 'ledger'),
-
   // ---------- AI agent (WP 5.1) — conversations are not books; settings, drafts and deletions are audited ----------
   'ai:settings:set': a('ai_settings'),
   'ai:notice:accept': a('ai_settings'),

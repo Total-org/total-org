@@ -87,8 +87,6 @@ const load_screens_ManufactureRegister = () => import('./screens/ManufactureRegi
 export const ManufactureRegisterScreen = lazyScreen(load_screens_ManufactureRegister, 'ManufactureRegisterScreen')
 const load_screens_ManufactureReports = () => import('./screens/ManufactureReports')
 export const ManufactureReportsScreen = lazyScreen(load_screens_ManufactureReports, 'ManufactureReportsScreen')
-const load_screens_FixedAssets = () => import('./screens/FixedAssets')
-export const FixedAssetsScreen = lazyScreen(load_screens_FixedAssets, 'FixedAssetsScreen')
 const load_screens_CashForecast = () => import('./screens/CashForecast')
 export const CashForecastScreen = lazyScreen(load_screens_CashForecast, 'CashForecastScreen')
 const load_screens_StockMovements = () => import('./screens/StockMovements')
@@ -225,7 +223,6 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'counter-billing': [CounterBillingScreen],
   'manufacture-register': [ManufactureRegisterScreen],
   'manufacture-reports': [ManufactureReportsScreen],
-  'fixed-assets': [FixedAssetsScreen],
   'stock-movements': [StockMovementsScreen],
   'stock-journal': [StockJournalScreen],
   'stock-reports': [StockReportsScreen],

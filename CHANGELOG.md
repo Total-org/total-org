@@ -20,14 +20,22 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Interest on overdue bills removed** (A13b). Credit control has no Interest tab any more, the
-ledger form no longer asks for an interest rate or grace days, and Settings → Receivables drops the
-interest options. *For accountants:* no figure changes — interest debit notes already in your books
-stay as ordinary entries in every report and return, can still only be moved to the bin, and an
-opening bill they charged still can't be renumbered. *For developers:* `receivables:interestPreview`
-/ `postInterest` / `interestCharges` are gone; `interest_charges`, the ledger columns, migration 032
-and the `interest_charge` audit entity stay; `cutFeaturesRead.dbtest.ts` proves an old book reads
-exactly as before.
+**Interest on overdue bills and the fixed-asset register removed** (A13b). Credit control has no
+Interest tab any more, the ledger form no longer asks for an interest rate or grace days, and
+Settings → Receivables drops the interest options. The Fixed assets screen (asset register,
+depreciation runs, the disposal wizard, the asset schedule and the income-tax block statement) is
+gone too, with its More features card and the year-end close's "depreciation not run" warning; the
+month-end checklist's "Depreciation posted" row stays for books that have depreciation runs, and
+now points to a plain journal. *For accountants:* no figure changes — interest
+debit notes, depreciation journals and asset-sale entries already in your books stay as ordinary
+entries in every report and return (the cash flow still adds depreciation back, and GSTR-1 / 3B
+still carry the extra s.18(6) tax an asset sale posted), can still only be moved to the bin (an
+asset sale's journal and its tax invoice go to the bin and come back together), and an opening bill
+interest charged still can't be renumbered. *For developers:* `receivables:interestPreview` /
+`postInterest` / `interestCharges` and every `fa:*` channel are gone; `interest_charges`, the ledger
+columns, migration 032, the fixed-asset tables, migration 026 and their audit entities stay;
+`cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
+`fixedAssetsLegacy.dbtest.ts` keeps the old journals' guards tested.
 
 **Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
 the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready

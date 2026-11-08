@@ -1,5 +1,5 @@
 // Feature cleanup: cost centres, cheque books + PDC + bulk payment files,
-// the fixed-asset register, the trade cycle and payroll statutory are
+// the trade cycle and payroll statutory are
 // hidden for a company that has none of their data (`unused` on config:features:get) — no sidebar
 // entry, no Features card, no tab — and shown exactly as before for one that has.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,7 +48,7 @@ beforeEach(() => {
 })
 afterEach(() => cleanup())
 
-const HIDDEN_NAV = ['nav-cost-centres', 'nav-fixed-assets', 'nav-pending-challans', 'nav-quotations']
+const HIDDEN_NAV = ['nav-cost-centres', 'nav-pending-challans', 'nav-quotations']
 
 async function shell(): Promise<void> {
   renderUi(
@@ -91,14 +91,18 @@ describe('hidden until used', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    for (const h of ['costCentres', 'cheques', 'fixedAssets', 'tradeCycle', 'payrollStatutory']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
+    for (const h of ['costCentres', 'cheques', 'tradeCycle', 'payrollStatutory']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
     expect(screen.queryByTestId('feature-more-card-forex')).toBeNull()
-    fireEvent.click(screen.getByTestId('btn-feature-more-fixedAssets'))
-    await waitFor(() => expect(stored.turnedOn).toEqual(['fixedAssets']))
-    await waitFor(() => expect(screen.getByTestId('feature-more-card-fixedAssets').dataset.on).toBe('true'))
+    expect(screen.queryByTestId('feature-more-card-fixedAssets')).toBeNull() // removed (audit A13b)
+    fireEvent.click(screen.getByTestId('btn-feature-more-tradeCycle'))
+    await waitFor(() => expect(stored.turnedOn).toEqual(['tradeCycle']))
+    // a flag feature: its card moves to the main list, on
+    await waitFor(() => expect(screen.getByTestId('feature-card-orders').dataset.on).toBe('true'))
+    expect(screen.queryByTestId('feature-more-card-tradeCycle')).toBeNull()
     cleanup()
     await shell()
-    expect(document.querySelector('[data-testid="nav-fixed-assets"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="nav-quotations"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="nav-fixed-assets"]')).toBeNull()
     expect(document.querySelector('[data-testid="nav-cost-centres"]')).toBeNull()
   })
 
@@ -122,6 +126,6 @@ describe('hidden until used', () => {
     fireEvent.click(await screen.findByTestId('btn-features-more'))
     expect(screen.getByTestId('feature-more-card-cheques')).toBeTruthy()
     expect(screen.getByTestId('feature-more-card-payrollStatutory')).toBeTruthy()
-    expect(screen.queryByTestId('feature-more-card-fixedAssets')).toBeNull()
+    expect(screen.queryByTestId('feature-more-card-tradeCycle')).toBeNull()
   })
 })

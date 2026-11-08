@@ -460,8 +460,8 @@ export const CA_POINTS = [
     rule: 'Schedule II Companies Act; rules 40(2) / 44(6) CGST Rules; s.32 / s.50 Income-tax Act',
     covers: [{ list: 'FIXED_ASSET_UNVERIFIED', all: true }],
     questions: [1, 2, 9, 10, 11, 12, 44, 45, 46, 47, 48, 49],
-    closed: 'feature_hidden',
-    note: 'The fixed-asset register is hidden until used (Phase 1 triage §5) — its points close with the feature.'
+    closed: 'feature_removed',
+    note: 'The fixed-asset register was removed (audit A13b); depreciation / disposal journals in older books stay as ordinary entries, and the s.18(6) extra tax an old GST disposal posted is still read into GSTR-1 / 3B (the cg-* entries record how).'
   },
   {
     id: 'payroll-statutory',

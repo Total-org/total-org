@@ -457,17 +457,6 @@ export const SCREENS: ScreenDef[] = [
     invalidates: ['transferCost', 'stockByGodown', 'godowns', 'batches', 'serialsAvailable', 'nextNumber', 'stockItems', 'voucherTypes', 'jobWorkSendChallans', 'ledgers']
   },
   {
-    name: 'fixed-assets',
-    // Feature cleanup: hidden for a company with no fixed-asset data (shared/features.ts).
-    feature: 'fixedAssets',
-    modes: ['accountant'],
-    title: 'Fixed assets',
-    keywords: ['asset register', 'depreciation', 'schedule ii', 'block of assets', 'disposal', 'asset schedule', 'net block'],
-    screen: { name: 'fixed-assets' },
-    navSection: 'books',
-    invalidates: ['faList', 'faGroups', 'faBlocks', 'faClasses', 'faRunPreview', 'faRuns', 'faSchedule', 'faIt', 'faCandidates', 'faDisposal']
-  },
-  {
     name: 'year-end',
     modes: ['accountant'],
     simpleSection: 'home',

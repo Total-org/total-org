@@ -52,7 +52,6 @@ import {
   CounterBillingScreen,
   ManufactureRegisterScreen,
   ManufactureReportsScreen,
-  FixedAssetsScreen,
   CashForecastScreen,
   StockMovementsScreen,
   StockJournalScreen,
@@ -282,7 +281,6 @@ export default function App(): React.JSX.Element {
           {screen.name === 'counter-billing' && <CounterBillingScreen />}
           {screen.name === 'manufacture-register' && <ManufactureRegisterScreen />}
           {screen.name === 'manufacture-reports' && <ManufactureReportsScreen key={screen.tab ?? 'production'} tab={screen.tab} />}
-          {screen.name === 'fixed-assets' && <FixedAssetsScreen tab={screen.tab} />}
           {screen.name === 'stock-movements' && (
             <StockMovementsScreen key={`${screen.itemId ?? ''}-${screen.godownId ?? ''}`} itemId={screen.itemId} godownId={screen.godownId} />
           )}

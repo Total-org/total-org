@@ -111,7 +111,6 @@ import * as priceLevels from './services/priceLevels'
 import { quickCreateItem } from './services/quickCreate'
 import { quickItemSchema } from '@shared/schemas'
 import * as yearEnd from './services/yearEnd'
-import { registerFixedAssetIpc } from './ipcFixedAssets'
 import { registerPayrollStatutoryIpc } from './ipcPayrollStatutory'
 import { registerPricingIpc } from './ipcPricing'
 import { registerReportsIpc } from './ipcReports'
@@ -635,8 +634,6 @@ export function registerIpc(): void {
   }, 15_000)
   idleTimer.unref?.()
 
-  // ---------- fixed assets (WP 3.6) — channels live in ipcFixedAssets.ts ----------
-  registerFixedAssetIpc(handle, () => requireCompany().db)
   // ---------- payroll statutory (WP 3.7) — channels live in ipcPayrollStatutory.ts ----------
   registerPayrollStatutoryIpc(handle, () => requireCompany())
   registerPricingIpc(handle, () => requireCompany())

@@ -19,12 +19,6 @@ const PROBES: Record<HideableFeature, readonly string[]> = {
     'SELECT 1 FROM bank_payment_templates',
     'SELECT 1 FROM bank_payment_batches'
   ],
-  // The fixed-asset register (the seeded asset groups do not count).
-  fixedAssets: [
-    'SELECT 1 FROM fixed_assets',
-    'SELECT 1 FROM depreciation_runs',
-    'SELECT 1 FROM fixed_asset_groups WHERE is_seeded = 0'
-  ],
   // Quotations / orders (trade documents, a user's own document type) and challans / GRNs.
   tradeCycle: [
     'SELECT 1 FROM trade_docs',

@@ -1729,8 +1729,6 @@ export const en = {
   'simple.features.billWise': 'Match each payment to the bills it pays, so you know exactly which bills are still due.',
   'simple.features.more': 'More features',
   'simple.features.moreHint': 'These stay out of sight until your business uses them. Turn one on to start using it.',
-  'simple.features.label.fixedAssets': 'Machines and furniture (depreciation)',
-  'simple.features.fixedAssets': 'You own machines, vehicles or furniture and want their value to go down each year.',
   'simple.features.label.cheques': 'Cheque books and post-dated cheques',
   'simple.features.cheques': 'You write cheques, take post-dated cheques or send payment files to your bank.',
   'simple.features.label.payrollStatutory': 'PF, ESI and professional tax',

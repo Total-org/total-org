@@ -277,7 +277,7 @@ This is the full app. It is built to match what an accountant expects from Tally
 #### Books and year-end
 
 - Trial balance, Profit & Loss, Balance sheet, Cash flow and registers.
-- Fixed assets with depreciation.
+- Fixed assets with depreciation was removed in November 2026; depreciation and asset-sale entries already in old books stay as they are.
 - **Year-end close**, with closing entries that cannot be edited.
 - Period locks.
 - A bin for deleted entries.

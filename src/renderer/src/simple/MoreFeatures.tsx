@@ -18,7 +18,6 @@ import { moreFeatures, turnOffFeature, turnOnFeature, type CompanyFeatures, type
 const NAMES: Record<HideableFeature, { name: MessageKey; who: MessageKey }> = {
   costCentres: { name: 'simple.features.label.costCentres', who: 'simple.features.costCentres' }, // i18n-technical
   cheques: { name: 'simple.features.label.cheques', who: 'simple.features.cheques' }, // i18n-technical
-  fixedAssets: { name: 'simple.features.label.fixedAssets', who: 'simple.features.fixedAssets' }, // i18n-technical
   tradeCycle: { name: 'simple.features.label.orders', who: 'simple.features.orders' }, // i18n-technical
   payrollStatutory: { name: 'simple.features.label.payrollStatutory', who: 'simple.features.payrollStatutory' } // i18n-technical
 }

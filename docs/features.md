@@ -103,7 +103,7 @@ chain, pending reports, three-way match, GRNI/GDNI. Turn it on in Features.
 
 ### Books
 Trial balance, Profit & Loss, Balance sheet, Cash flow, Stock summary and movements, Stock journal,
-Fixed assets with depreciation, Year-end close, Registers. Everything is computed from vouchers at the
+Year-end close, Registers. Everything is computed from vouchers at the
 moment you open it.
 
 ### Analysis

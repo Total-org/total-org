@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /** Features hidden until used (the feature cleanup — see below). */
-export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'fixedAssets', 'tradeCycle', 'payrollStatutory'] as const
+export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'tradeCycle', 'payrollStatutory'] as const
 export type HideableFeature = (typeof HIDEABLE_FEATURES)[number]
 
 /**
@@ -165,7 +165,6 @@ export const flagCardShown = (key: keyof CompanyFeatures, unused: ReadonlySet<Hi
  *  hideable feature that has no stored flag of its own. `unused` absent = nothing hidden. */
 export interface ScreenFeatures extends CompanyFeatures {
   manufacturing: boolean
-  fixedAssets: boolean
   cheques: boolean
   payrollStatutory: boolean
 }
@@ -177,7 +176,6 @@ export function screenFeatures(f: FeaturesView): ScreenFeatures {
     ...effectiveFeatures(stored),
     costCentres: stored.costCentres && used('costCentres'),
     orders: stored.orders && used('tradeCycle'),
-    fixedAssets: used('fixedAssets'),
     cheques: used('cheques'),
     payrollStatutory: used('payrollStatutory')
   }

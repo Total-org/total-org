@@ -3,8 +3,8 @@
  *
  * Every record goes through its NORMAL save path — saveVoucher for vouchers, updateLedger /
  * updateStockItem for masters — inside its own savepoint, so the lock date, the immutable kinds
- * (year-end closing journals, interest notes, loan / forex / pay-run / fixed-asset / manufacture
- * vouchers), credit holds, posting validation and the audit trail all apply exactly as they do
+ * (year-end closing journals, interest notes, loan / forex / pay-run / manufacture vouchers, the
+ * depreciation / disposal journals of the removed fixed-asset register), credit holds, posting validation and the audit trail all apply exactly as they do
  * for a single edit; a record a rule refuses is listed with that rule's own message.
  *
  *  - preview = the same run inside one transaction that is then rolled back (a dry run), so the

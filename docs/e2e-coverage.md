@@ -47,7 +47,7 @@ row: `node scripts/run-e2e.mjs --repeat 3`, a CI shard: `--shard 2/3`).
 | 3.5 | NIC: connection test against the fake sandbox; e-way JSON | 06, 13 | |
 | 3.5 | E-invoice JSON export | 70 (gap filled) | live IRN: see 70's header |
 | 3.5 | NIC follow-ups: signed invoice / QR stored and saved, Cancel IRN, cancel e-way bill + history, correction workflow (`irn_frozen` / `irn_live`) | 70 | against the fake sandbox; Extend validity only says when its ±8 h window opens (the fake's clock can't reach it) — the extension itself is in `nicContract.dbtest` / `einvoiceDetails.test` |
-| 3.6 | Fixed assets | 22 | |
+| 3.6 | ~~Fixed assets~~ — removed in A13b; old books read: `cutFeaturesRead.dbtest.ts` (guards: `fixedAssetsLegacy.dbtest.ts`) | — | |
 | 3.7 | Payroll + statutory (PF / ESI / PT / salary TDS / Form 16) | 07, 27 | |
 | 3.8 | Audit trail / edit log, chain verification | 30 | |
 | — | GSTR-1 / 3B | 06, 46 | |
@@ -134,9 +134,9 @@ row: `node scripts/run-e2e.mjs --repeat 3`, a CI shard: `--shard 2/3`).
 
 Removed (their rows above are struck through): group consolidation (6.5), the report builder and
 scheduled packs (6.1), the MCP server and agent inbox (5.7), budgets, loan schedules, the AI evals
-(5.8), the year-end repair tool and interest on overdue bills (audit A13b). Hidden until a company has their data:
-cost centres, cheque books + PDC + bulk payment files, the fixed-asset register, the trade
-cycle and payroll statutory — the scenarios that drive one (11, 22, 24, 26, 28, 31, 69) start with
+(5.8), the year-end repair tool, interest on overdue bills and the fixed-asset register (audit A13b). Hidden until a company has their data:
+cost centres, cheque books + PDC + bulk payment files, the trade
+cycle and payroll statutory — the scenarios that drive one (11, 24, 26, 28, 31, 69) start with
 `h.useFeature(name)`, which turns it on as an owner does (Settings → Features → More features →
 Turn on); 32, 34 and 72 make theirs used by their own first entries. The hiding itself
 is covered by `__tests__/hiddenFeatures.test.tsx` and `featureUsage.dbtest.ts`.

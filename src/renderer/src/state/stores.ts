@@ -195,7 +195,6 @@ export type Screen =
   | { name: 'cash-forecast' }
   | { name: 'company-info'; backTo?: 'simple-taxes' }
   | { name: 'year-end' }
-  | { name: 'fixed-assets'; tab?: 'register' | 'depreciation' | 'schedule' | 'income-tax' | 'setup' }
   | { name: 'audit-trail'; voucherId?: number }
   | { name: 'settings'; tab?: 'appearance' | 'backups' | 'bin' | 'users' | 'security' | 'audit' | 'nic' | 'features' | 'invoice' | 'receivables' | 'agents' | 'ai' | 'about' }
 

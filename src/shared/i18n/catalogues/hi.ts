@@ -1639,8 +1639,6 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.features.billWise': 'हर भुगतान को उन बिलों से जोड़ें जिन्हें वह चुकाता है, ताकि ठीक-ठीक पता रहे कि कौन-से बिल अभी बाकी हैं।',
   'simple.features.more': 'और सुविधाएँ',
   'simple.features.moreHint': 'ये तब तक छिपी रहती हैं जब तक आपका कारोबार इनका इस्तेमाल न करे। शुरू करने के लिए किसी को चालू करें।',
-  'simple.features.label.fixedAssets': 'मशीन और फ़र्नीचर (घिसाई)',
-  'simple.features.fixedAssets': 'आपके पास मशीन, गाड़ी या फ़र्नीचर है और आप चाहते हैं कि उनकी कीमत हर साल घटे।',
   'simple.features.label.cheques': 'चेक बुक और आगे की तारीख़ के चेक',
   'simple.features.cheques': 'आप चेक काटते हैं, आगे की तारीख़ के चेक लेते हैं या बैंक को भुगतान की फ़ाइल भेजते हैं।',
   'simple.features.label.payrollStatutory': 'PF, ESI और प्रोफ़ेशनल टैक्स',

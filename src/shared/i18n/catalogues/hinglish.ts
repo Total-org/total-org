@@ -1634,8 +1634,6 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.features.billWise': 'Har payment ko un bills se jodein jinhe woh chukata hai, taaki theek-theek pata rahe ki kaun-se bills abhi baaki hain.',
   'simple.features.more': 'Aur features',
   'simple.features.moreHint': 'Yeh tab tak chhupe rehte hain jab tak aapka business inka use na kare. Shuru karne ke liye kisi ko chalu karein.',
-  'simple.features.label.fixedAssets': 'Machine aur furniture (ghisai)',
-  'simple.features.fixedAssets': 'Aapke paas machine, gaadi ya furniture hai aur aap chahte hain ki unki keemat har saal ghate.',
   'simple.features.label.cheques': 'Cheque book aur aage ki date ke cheque',
   'simple.features.cheques': 'Aap cheque kaatte hain, aage ki date ke cheque lete hain ya bank ko payment file bhejte hain.',
   'simple.features.label.payrollStatutory': 'PF, ESI aur professional tax',
