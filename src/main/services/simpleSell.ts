@@ -14,7 +14,7 @@
 //   allocation for its customer.
 import type { DB } from '../db/connection'
 import type { MoneyHow } from '@shared/simple/intents'
-import type { SaleRow, SaleView, SellSetup } from '@shared/simple/sell'
+import { billFigures, type SaleRow, type SaleView, type SellSetup } from '@shared/simple/sell'
 import { billAmount } from '@shared/simple/saveCard'
 import { getVoucher, IN_BOOKS } from './vouchers'
 import { counterAccounts, WALK_IN_NAME } from './counter'
@@ -71,9 +71,9 @@ export function sellSetup(db: DB): SellSetup {
 /** Every in-books sales bill dated `from`…`to`, newest first, with what is still due on it. */
 export function salesList(db: DB, from: string, to: string, today: string): SaleRow[] {
   const rows = registerVoucherRows(db, 'sales', from, to)
-  const open = new Map<number, { pending: number; dueDate: string | null; overdueDays: number }>()
+  const open = new Map<number, { pending: number; amount: number; dueDate: string | null; overdueDays: number }>()
   for (const p of outstandingsWithAdvances(db, 'receivable', today).parties) {
-    for (const b of p.bills) if (b.voucherId != null) open.set(b.voucherId, { pending: b.pending, dueDate: b.dueDate, overdueDays: lateDays(b) })
+    for (const b of p.bills) if (b.voucherId != null) open.set(b.voucherId, { pending: b.pending, amount: b.amount, dueDate: b.dueDate, overdueDays: lateDays(b) })
   }
   const walkInId = counterAccounts(db).walkInLedgerId
   // WP 7.1: the bills' heads and lines in chunks of 500 (was two queries per bill).
@@ -107,9 +107,9 @@ export function salesList(db: DB, from: string, to: string, today: string): Sale
       // The bill as the customer owes it — the register's debit side is the UNROUNDED total on a
       // rounded-down bill (its round-off sits on the customer's side).
       const total = billAmount(linesById.get(r.voucherId) ?? [], r.partyLedgerId)
-      const due = Math.min(o?.pending ?? 0, total)
       const back = returns.get(r.voucherId) ?? []
       const offBill = back.reduce((s, x) => s + x.offBill, 0)
+      const { due, paid, added } = billFigures(total, o, offBill)
       return {
         voucherId: r.voucherId,
         number: v.number,
@@ -119,11 +119,12 @@ export function salesList(db: DB, from: string, to: string, today: string): Sale
         walkIn: r.partyLedgerId != null && (r.partyLedgerId === walkInId || v.name === WALK_IN_NAME),
         total,
         tax: r.tax,
-        paid: Math.max(0, total - due - offBill),
+        paid,
         due,
         dueDate: o?.dueDate ?? null,
         overdueDays: o?.overdueDays ?? 0,
-        returned: back.reduce((s, x) => s + x.total, 0)
+        returned: back.reduce((s, x) => s + x.total, 0),
+        ...(added ? { added } : {})
       }
     })
     .sort((a, b) => b.date.localeCompare(a.date) || b.voucherId - a.voucherId)
@@ -159,9 +160,9 @@ export function saleView(db: DB, id: number, today: string): SaleView | null {
   }
   // This bill's own row in the allocation (by voucher id — another bill may share its name).
   const open = v.partyLedgerId != null ? partyAllocation(db, v.partyLedgerId, today).bills.find((b) => b.voucherId === v.id) : undefined
-  const due = Math.min(open?.pending ?? 0, total)
   const back = v.partyLedgerId != null ? (returnsOfBills(db, 'sale', [{ id: v.id, number: v.number, reference: v.reference, date: v.date, partyId: v.partyLedgerId }]).get(v.id) ?? []) : []
   const offBill = back.reduce((s, x) => s + x.offBill, 0)
+  const { due, paid, added } = billFigures(total, open, offBill)
   return {
     voucherId: v.id,
     number: v.number,
@@ -178,10 +179,11 @@ export function saleView(db: DB, id: number, today: string): SaleView | null {
     total,
     tax,
     rounding,
-    paid: Math.max(0, total - due - offBill),
+    paid,
     due,
     dueDate: open?.dueDate ?? null,
     overdueDays: open?.overdueDays ?? 0,
-    returned: back.reduce((s, x) => s + x.total, 0)
+    returned: back.reduce((s, x) => s + x.total, 0),
+    ...(added ? { added } : {})
   }
 }

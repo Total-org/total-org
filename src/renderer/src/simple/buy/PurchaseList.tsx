@@ -231,6 +231,7 @@ function PurchaseBillView({ billId }: { billId: number }): React.JSX.Element {
               ? t('simple.purchase.dueBy', { amount: money(bill.due), date: toPlainDate(bill.dueDate, t.lang) })
               : t('simple.purchase.due', { amount: money(bill.due) })}
           {bill.due > 0 && bill.paid > 0 && ` ${t('simple.purchase.paidSoFar', { amount: money(bill.paid) })}`}
+          {(bill.added ?? 0) > 0 && <span data-testid="purchase-view-added">{` ${t('simple.purchase.addedLater', { amount: money(bill.added!) })}`}</span>}
           {bill.due > 0 && offByReturns > 0 && ` ${t('simple.purchase.offByReturns', { amount: money(offByReturns) })}`}
         </p>
 
