@@ -148,6 +148,10 @@ function supplyFor(form: SellForm, ctx: SellContext): SupplyType {
  *  supply without payment. */
 const addsGst = (form: SellForm, ctx: SellContext): boolean => chargesGstOn(ctx.invoice, form.date) && !taxClassFor(form, ctx).zeroTax
 
+/** Review of #244: the date charges GST but this customer buys without payment of GST (an SEZ unit /
+ *  an export under LUT or bond) — the screen says why no GST is added. */
+export const zeroTaxCustomer = (form: SellForm, ctx: SellContext): boolean => chargesGstOn(ctx.invoice, form.date) && taxClassFor(form, ctx).zeroTax
+
 /** The GST % an item line is charged at on the bill's date (computeInvoice's rule). */
 function itemRate(ctx: SellContext, itemId: number, charges: boolean): { rate: number; cess: number } {
   if (!charges) return { rate: 0, cess: 0 }

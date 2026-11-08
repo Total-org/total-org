@@ -9,7 +9,7 @@ import { computeInvoice, emptyInvoiceState } from '../voucherEdit'
 import { mapIntent, normaliseIntent, type IntentContext, type IntentFacts, type IntentLedger } from './intents'
 import { bannedWordsIn } from './bannedWords'
 import {
-  addScannedProduct, billTitleKey, changeDue, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
   type BasisMemo, type SellContext, type SellForm
 } from './sell'
 
@@ -95,6 +95,12 @@ describe('Phase 2: SEZ / export customers (shared/gst/zeroRated.ts)', () => {
     const lut = form({ customerId: 14, paid: 'credit', ratesIncludeGst: true, lines: [line(1, 1, '4', 25_000)] })
     expect(sellTotals(lut, zc())).toMatchObject({ taxable: 100_000, tax: 0, total: 100_000 })
     expect(zPosted(lut, zc()).facts.total).toBe(100_000)
+  })
+  it('the screen says why no GST is added only for the customer under LUT (zeroTaxCustomer)', () => {
+    expect(zeroTaxCustomer(form({ customerId: 14 }), zc())).toBe(true)
+    expect(zeroTaxCustomer(form({ customerId: 13 }), zc())).toBe(false)
+    expect(zeroTaxCustomer(form({ customerId: 10 }), zc())).toBe(false)
+    expect(zeroTaxCustomer(form({ customerId: 14 }), { ...zc(), invoice: { ...zc().invoice, gstRegistrationType: 'unregistered' } })).toBe(false)
   })
   it('just an amount: ₹1,000 @ 18 % — IGST ₹180 to the SEZ unit, nothing under LUT', () => {
     const sez = form({ customerId: 13, paid: 'credit', mode: 'amount', amount: 100_000, gstRate: 18 })

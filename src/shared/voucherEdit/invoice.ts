@@ -288,14 +288,19 @@ function groupRoundedTax(detail: InvoiceLineDetail[], supply: SupplyType, zeroTa
   return addBreakups([...buckets.values()].map((b) => computeGst(b.taxable, b.rate, supply, b.cessRate)))
 }
 
-/** Everything the tax of an invoice depends on (legacyGroupTax compares it with the loaded form). */
+/** Everything the tax of an invoice depends on (legacyGroupTax / legacyZeroRated compare it with the
+ *  loaded form). Only the rows the computation uses — the editor's trailing blank row is no change
+ *  (review of #244; a saved bill loads without one, so its key is the same as before). */
 export function taxInputsKey(state: InvoiceFormState): string {
   return JSON.stringify([
     state.date, state.partyId, state.accountId, state.posOverride, state.currencyCode, state.fxRateText,
     !!state.legacyTax, !!state.taxedOriginal,
-    state.rows.map((r) => [r.itemId, r.qtyText, r.rate, r.discount])
+    state.rows.filter(computedRow).map((r) => [r.itemId, r.qtyText, r.rate, r.discount])
   ])
 }
+
+/** A row computeInvoice prices (item, rate and a positive quantity); any other row is skipped. */
+const computedRow = (r: InvoiceRowState): boolean => r.itemId != null && r.rate != null && (parseQtyText(r.qtyText) ?? 0) > 0
 
 /** What a `fixedTax` was set on (the tax inputs of the form): it applies only while they are unchanged. */
 export function fixedTaxKey(state: InvoiceFormState): string {
@@ -304,7 +309,7 @@ export function fixedTaxKey(state: InvoiceFormState): string {
     !!state.legacyTax, !!state.taxedOriginal,
     // Only the rows the computation uses (an editor's trailing blank row is not a change).
     state.rows
-      .filter((r) => r.itemId != null && r.rate != null && (parseQtyText(r.qtyText) ?? 0) > 0)
+      .filter(computedRow)
       .map((r) => [r.itemId, r.qtyText, r.rate, r.discount, r.source?.lineUid ?? null, r.source?.linkType ?? null])
   ])
 }

@@ -1931,6 +1931,8 @@ export const en = {
   'simple.sell.justAmount': 'Just an amount instead',
   'simple.sell.useProducts': 'Pick products instead',
   'simple.sell.amount': 'Amount',
+  'simple.sell.zeroRated': 'No GST is added: this customer buys without payment of GST (an SEZ unit or an export under LUT or bond).',
+  'simple.sell.zeroRatedAmount': 'For the GST return, add what you sold as products, so each one carries its GST rate.',
   'simple.sell.amountIncl': 'Amount (with GST)',
   'simple.sell.amountExcl': 'Amount (before GST)',
   'simple.sell.whatFor': 'What for (optional)',

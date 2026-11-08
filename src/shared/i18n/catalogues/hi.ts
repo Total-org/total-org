@@ -1836,6 +1836,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.sell.justAmount': 'सिर्फ़ रकम लिखें',
   'simple.sell.useProducts': 'सामान चुनें',
   'simple.sell.amount': 'रकम',
+  'simple.sell.zeroRated': 'कोई GST नहीं जुड़ता: यह ग्राहक बिना GST भरे खरीदता है (SEZ यूनिट, या LUT या बॉन्ड पर निर्यात)।',
+  'simple.sell.zeroRatedAmount': 'GST रिटर्न के लिए जो बेचा उसे सामान के रूप में जोड़ें, ताकि हर एक की GST दर साथ रहे।',
   'simple.sell.amountIncl': 'रकम (GST के साथ)',
   'simple.sell.amountExcl': 'रकम (GST से पहले)',
   'simple.sell.whatFor': 'किस लिए (ज़रूरी नहीं)',

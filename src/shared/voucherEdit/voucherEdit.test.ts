@@ -215,6 +215,9 @@ describe('invoice mode state ⇄ payload', () => {
     // Narration / bill changes keep the saved rounding ...
     const renamed = built(buildInvoicePayload({ ...rep.state, narration: 'Changed' }, ctxFor('sales'), 1, TAX))
     expect(renamed.lines.find((l) => l.ledgerId === TAX.cgst)!.amount).toBe(2714)
+    // ... and so does the editor's trailing blank row (review of #244: InvoiceEntry adds one on load).
+    const blankRow = { itemId: null, qtyText: '', rate: null, discount: null, godownId: null, batchId: null }
+    expect(diffPayloads(built(buildInvoicePayload({ ...rep.state, rows: [...rep.state.rows, blankRow] }, ctxFor('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
     // ... a changed line recomputes the whole bill per line.
     const edited = { ...rep.state, rows: rep.state.rows.map((r, i) => (i === 2 ? { ...r, qtyText: '2' } : r)) }
     const c = computeInvoice(edited, ctxFor('sales'))
@@ -290,6 +293,9 @@ describe('invoice mode state ⇄ payload', () => {
         if (!rep.ok) continue
         expect(rep.state.legacyZeroRated).toBeDefined()
         expect(diffPayloads(built(buildInvoicePayload(rep.state, flagged('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
+        // The editor opens it with a blank row at the end (InvoiceEntry): still saved back as saved (review of #244).
+        const withBlank = { ...rep.state, rows: [...rep.state.rows, { itemId: null, qtyText: '', rate: null, discount: null, godownId: null, batchId: null }] }
+        expect(diffPayloads(built(buildInvoicePayload(withBlank, flagged('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
         // A narration / bill change keeps the saved tax ...
         const renamed = built(buildInvoicePayload({ ...rep.state, narration: 'Changed' }, flagged('sales'), 1, TAX))
         expect(renamed.lines.filter((l) => l.ledgerId !== SALES && l.ledgerId !== party)).toEqual(v.lines.filter((l) => l.ledgerId !== SALES && l.ledgerId !== party).map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount, costAllocations: [] })))
