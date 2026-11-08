@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The website is safer and says what it keeps** (#PRNUM, audit A6). The changelog page now shows
+release notes as plain text and links (only ordinary web links), so a note can no longer slip a
+script into the page. Every page sends a strict Content-Security-Policy and the usual security
+headers. The waitlist form says exactly what it keeps (your e-mail and when you joined), why (one
+e-mail when 1.0 is out), how long (the list is deleted within 30 days after that) and how to be
+removed (write to total@irminflow.com); a new Privacy page says it in full. The app's update
+check (`/api/latest`, `/api/download`, on both the new and the old address) answers exactly as
+before.
+
 **Locking leaves nothing on screen** (#238, audit A3). Locking Total (⌘L, the auto-lock or Lock) — or
 someone else signing in — now clears everything the last person had open: the figures Total had
 kept in memory, the screens (the next person starts on their own Home), half-typed answers kept for
