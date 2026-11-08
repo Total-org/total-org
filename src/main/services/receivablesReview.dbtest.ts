@@ -1,10 +1,6 @@
-// WP 4.2 review fixes: stable bill identity for interest (renumbering never re-opens a charged
-// period), interest GST following the original invoice's GSTR-1 class (SEZ / export with and
-// without payment, place-of-supply override, multi-rate with cess, IGST) and agreeing exactly with
-// what GSTR-1 reports for the note, opening-balance bills charged from their true origin across a
-// year end, the "creates new credit" credit-hold rule on every path, interest notes immutable,
-// output-tax ledgers only, date validation, the SAC setting, ledger-delete audit, and the
-// missing coverage (part-paid, leap year, grace across a year end, statement with an opening).
+// WP 4.2 review fixes: the "creates new credit" credit-hold rule on every path, old interest
+// notes immutable (interest on overdue bills itself was removed, audit A13b), ledger-delete audit
+// and a statement with an opening.
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
@@ -18,12 +14,9 @@ vi.mock('./pdf', () => ({
 import type { DB } from '../db/connection'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import type { CompanyInfo } from '@shared/domain'
-import { computeGst } from '@shared/gst/calc'
-import { simpleInterest } from '@shared/receivables/interest'
 import { createLedger, deleteLedger } from './masters'
 import { saveVoucher, getVoucher, CREDIT_HOLD_PREFIX, INTEREST_NOTE_IMMUTABLE } from './vouchers'
 import { ledgerStatement } from './reports'
-import { extractOutwardDocs } from './gst'
 import { counterCheckout } from './counter'
 import { pricingFixture } from './pricingFixture.testutil'
 import { dc, item, tradeBooks } from './tradeFixture.testutil'
@@ -79,216 +72,8 @@ function receipt(b: Books, partyId: number, date: string, amount: number): void 
   saveVoucher(b.db, { voucherTypeId: vtId(b.db, 'receipt'), date, partyLedgerId: partyId, lines: [{ ledgerId: b.bank, drCr: 'dr', amount }, { ledgerId: partyId, drCr: 'cr', amount }] })
 }
 
-const taxType = (db: DB, id: number): string | null => (db.prepare('SELECT tax_type AS t FROM ledgers WHERE id = ?').get(id) as { t: string | null }).t
 
-/** The note's tax lines by type, the GSTR-1 document for it, and the stored per-bill GST. */
-function noteVsGstr1(db: DB, noteId: number) {
-  const v = getVoucher(db, noteId)!
-  const lines = { cgst: 0, sgst: 0, igst: 0, cess: 0 }
-  for (const l of v.lines) {
-    const t = taxType(db, l.ledgerId) as keyof typeof lines | null
-    if (t && l.drCr === 'cr') lines[t] += l.amount
-  }
-  const doc = extractOutwardDocs(db, COMPANY, v.date, v.date).find((d) => d.voucherId === noteId)!
-  const reported = { cgst: 0, sgst: 0, igst: 0, cess: 0 }
-  for (const i of doc.items) for (const k of ['cgst', 'sgst', 'igst', 'cess'] as const) reported[k] += i[k]
-  const stored = (db.prepare('SELECT COALESCE(SUM(gst_paise), 0) AS g FROM interest_charges WHERE debit_note_voucher_id = ?').get(noteId) as { g: number }).g
-  const dr = v.lines.filter((l) => l.drCr === 'dr').reduce((s, l) => s + l.amount, 0)
-  const cr = v.lines.filter((l) => l.drCr === 'cr').reduce((s, l) => s + l.amount, 0)
-  return { lines, reported, stored, doc, v, balanced: dr === cr }
-}
-
-const sum4 = (t: { cgst: number; sgst: number; igst: number; cess: number }): number => t.cgst + t.sgst + t.igst + t.cess
-
-describe('1. a bill keeps its identity when renumbered', () => {
-  it('charge → renumber the invoice → nothing more to charge for that period', () => {
-    const b = books()
-    const p = party(b, 'Renumbered Co')
-    const inv = invoice(b, p, '2026-04-01', [[b.s18, 100_000]], { number: 'INV-1' })
-    rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    const v = getVoucher(b.db, inv)!
-    saveVoucher(b.db, { ...v, number: 'INV-1-RENUMBERED' } as never, inv)
-    expect(rx.interestPreview(b.db, COMPANY, '2026-06-05')).toEqual([])
-    expect(rx.interestPreview(b.db, COMPANY, '2026-06-10').map((r) => [r.billRef, r.billKey, r.from])).toEqual([['INV-1-RENUMBERED', `v:${inv}`, '2026-06-06']])
-  })
-
-  it('charge → rename the bill ref → nothing more to charge', () => {
-    const b = books()
-    const p = party(b, 'Renamed Ref Co')
-    const inv = invoice(b, p, '2026-04-01', [[b.s18, 100_000]], { billRef: 'BILL-A' })
-    rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    const v = getVoucher(b.db, inv)!
-    saveVoucher(b.db, { ...v, billRefs: v.billRefs.map((r) => ({ ...r, name: 'BILL-B' })) } as never, inv)
-    expect(rx.interestPreview(b.db, COMPANY, '2026-06-05')).toEqual([])
-  })
-
-  it('row keys are unique across parties (opening bills of two parties)', () => {
-    const b = books()
-    party(b, 'Opening One', { opening: 50_000 })
-    party(b, 'Opening Two', { opening: 50_000 })
-    const rows = rx.interestPreview(b.db, COMPANY, '2026-03-31', undefined, false)
-    expect(rows.map((r) => r.billKey)).toEqual(['o:Opening', 'o:Opening'])
-    expect(new Set(rows.map((r) => r.key)).size).toBe(2)
-  })
-})
-
-describe('2. interest GST follows the original invoice and equals what GSTR-1 reports', () => {
-  const run = (exportType: 'sez_wp' | 'sez_wop' | 'exp_wp' | 'exp_wop' | null, state: string | null, opts: { posOverride?: string; parts?: (b: Books) => [number, number][] } = {}) => {
-    const b = books()
-    const p = party(b, 'Customer', { state, exportType })
-    invoice(b, p, '2026-04-01', opts.parts ? opts.parts(b) : [[b.s18, 100_000]], { posOverride: opts.posOverride })
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    expect(res.notes).toHaveLength(1)
-    return { b, res, ...noteVsGstr1(b.db, res.voucherId) }
-  }
-
-  it('SEZ with payment of tax → IGST, as GSTR-1 reports it', () => {
-    const r = run('sez_wp', '27')
-    expect(r.lines.cgst + r.lines.sgst).toBe(0)
-    expect(r.lines.igst).toBe(computeGst(r.res.interestPaise, 18, 'inter').igst)
-    expect(r.reported).toEqual(r.lines)
-    expect(r.doc.invTyp).toBe('SEWP')
-    expect(r.stored).toBe(sum4(r.lines))
-    expect(r.balanced).toBe(true)
-  })
-
-  it('SEZ / export without payment of tax → no tax, flagged; GSTR-1 reports none', () => {
-    for (const t of ['sez_wop', 'exp_wop'] as const) {
-      const b = books()
-      const p = party(b, 'Zero', { state: t === 'sez_wop' ? '27' : null, exportType: t })
-      invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-      const [row] = rx.interestPreview(b.db, COMPANY, '2026-06-05')
-      expect(row!.zeroTax).toBe(true)
-      expect(row!.warning).toMatch(/without payment/)
-      const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-      const r = noteVsGstr1(b.db, res.voucherId)
-      expect(sum4(r.lines)).toBe(0)
-      expect(sum4(r.reported)).toBe(0)
-      expect(r.stored).toBe(0)
-    }
-  })
-
-  it('export with payment of tax → IGST', () => {
-    const r = run('exp_wp', null)
-    expect(r.lines.igst).toBeGreaterThan(0)
-    expect(r.reported).toEqual(r.lines)
-    expect(r.doc.invTyp).toBe('EXPWP')
-  })
-
-  it("the invoice's place-of-supply override carries onto the note (intra party, inter supply)", () => {
-    const r = run(null, '27', { posOverride: '29' })
-    expect(r.v.posOverride).toBe('29')
-    expect(r.lines.igst).toBeGreaterThan(0)
-    expect(r.lines.cgst).toBe(0)
-    expect(r.doc.pos).toBe('29')
-    expect(r.reported).toEqual(r.lines)
-  })
-
-  it('multi-rate with cess (intra): one line per class, cess included, equal to GSTR-1 and the stored figures', () => {
-    const r = run(null, '27', { parts: (b) => [[b.s18, 60_000], [b.s28c, 30_000], [b.s5, 10_000]] })
-    expect(r.lines.cess).toBeGreaterThan(0)
-    expect(r.lines.igst).toBe(0)
-    expect(r.reported).toEqual(r.lines)
-    expect(r.stored).toBe(sum4(r.lines))
-    const names = r.v.lines.map((l) => (r.b.db.prepare('SELECT name FROM ledgers WHERE id = ?').get(l.ledgerId) as { name: string }).name)
-    expect(names).toEqual(expect.arrayContaining(['Interest on Overdue Bills @ 28% + cess 12%', 'Interest on Overdue Bills @ 18%', 'Interest on Overdue Bills @ 5%']))
-  })
-
-  it('IGST for an inter-state party', () => {
-    const r = run(null, '29')
-    expect(r.lines.igst).toBe(computeGst(r.res.interestPaise, 18, 'inter').igst)
-    expect(r.reported).toEqual(r.lines)
-  })
-
-  it('stored per-bill GST equals the posted tax exactly on a multi-bill note', () => {
-    const b = books()
-    const p = party(b, 'Many Bills')
-    for (let i = 0; i < 5; i++) invoice(b, p, `2026-04-0${i + 1}`, [[b.s18, 33_333 + i * 7], [b.s5, 11_111 + i]])
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    const r = noteVsGstr1(b.db, res.voucherId)
-    expect(res.charges).toBe(5)
-    expect(r.stored).toBe(sum4(r.lines))
-    expect(r.reported).toEqual(r.lines)
-    expect(r.balanced).toBe(true)
-  })
-
-  it('never posts output tax to an Input* ledger — creates Output CGST / SGST when only input ones are tagged', () => {
-    const b = books()
-    b.db.prepare("UPDATE ledgers SET name = 'Input CGST' WHERE id = ?").run(b.cgst)
-    b.db.prepare("UPDATE ledgers SET name = 'Input SGST' WHERE id = ?").run(b.sgst)
-    const p = party(b, 'Tax Ledger Co')
-    invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    const used = getVoucher(b.db, res.voucherId)!.lines.map((l) => (b.db.prepare('SELECT name FROM ledgers WHERE id = ?').get(l.ledgerId) as { name: string }).name)
-    expect(used).toEqual(expect.arrayContaining(['Output CGST', 'Output SGST']))
-    expect(used.some((n) => /input/i.test(n))).toBe(false)
-  })
-
-  it('a bill with no invoice: not charged without a default rate (reason shown); charged at the default with a warning', () => {
-    const b = books()
-    const p = party(b, 'Opening Only', { opening: 100_000 })
-    const [blocked] = rx.interestPreview(b.db, COMPANY, '2026-03-31')
-    expect(blocked!.blocked).toMatch(/default rate/)
-    expect(() => rx.postInterest(b.db, COMPANY, { asOn: '2026-03-31', ledgerId: p })).toThrow(/default rate/)
-    rx.setReceivablesConfig(b.db, { ...rx.getReceivablesConfig(b.db), interest: { ...rx.getReceivablesConfig(b.db).interest, defaultGstRate: 18 } })
-    const [row] = rx.interestPreview(b.db, COMPANY, '2026-03-31')
-    expect(row!.warning).toMatch(/default 18%/)
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-03-31', ledgerId: p })
-    expect(noteVsGstr1(b.db, res.voucherId).lines.cgst).toBe(computeGst(res.interestPaise, 18, 'intra').cgst)
-  })
-
-  it('the SAC setting goes on the interest ledgers and into the GSTR-1 HSN summary', () => {
-    const b = books()
-    rx.setReceivablesConfig(b.db, { ...rx.getReceivablesConfig(b.db), interest: { ...rx.getReceivablesConfig(b.db).interest, sac: '9971' } })
-    const p = party(b, 'SAC Co')
-    invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    expect(noteVsGstr1(b.db, res.voucherId).doc.hsnLines.map((h) => h.hsn)).toEqual(['9971'])
-  })
-})
-
-describe('5. opening-balance bills across a year end', () => {
-  it('run from the books-begin date (+ credit days), never re-dated; charging resumes after the last charged day', () => {
-    const b = books() // books from 2025
-    const p = party(b, 'Old Debtor', { opening: 100_000, creditDays: 30 })
-    const [first] = rx.interestPreview(b.db, COMPANY, '2026-03-31', p, false)
-    expect([first!.billKey, first!.billDate, first!.dueDate, first!.from, first!.days]).toEqual(['o:Opening', '2025-04-01', '2025-05-01', '2025-05-02', 334])
-    rx.postInterest(b.db, COMPANY, { asOn: '2026-03-31', ledgerId: p, gstOnInterest: false })
-    // The new FY: the ageing re-dates the opening bill to 1 April 2026; interest does not.
-    const [next] = rx.interestPreview(b.db, COMPANY, '2026-04-30', p, false)
-    expect([next!.billDate, next!.from, next!.to, next!.days]).toEqual(['2025-04-01', '2026-04-01', '2026-04-30', 30])
-    expect(next!.interestPaise).toBe(simpleInterest(100_000, 1800, 30))
-  })
-
-  it('grace across a year end: due 28 Mar + 5 grace → interest from 3 Apr', () => {
-    const b = books()
-    const p = party(b, 'Grace Co', { creditDays: 27, graceDays: 5 })
-    invoice(b, p, '2026-03-01', [[b.s18, 100_000]])
-    const [r] = rx.interestPreview(b.db, COMPANY, '2026-04-10', p)
-    expect([r!.dueDate, r!.from, r!.days]).toEqual(['2026-03-28', '2026-04-03', 8])
-  })
-
-  it('leap year: 29 Feb counts as a day, the divisor stays 365', () => {
-    const b = books()
-    const p = party(b, 'Leap Co', { creditDays: 0 })
-    invoice(b, p, '2028-02-27', [[b.s18, 36_50_000]])
-    const [r] = rx.interestPreview(b.db, COMPANY, '2028-03-01', p, false)
-    expect([r!.from, r!.days]).toEqual(['2028-02-28', 3])
-    expect(r!.interestPaise).toBe(simpleInterest(36_50_000, 1800, 3))
-  })
-
-  it('part-paid bill: interest on the pending amount only; fully paid bill: nothing', () => {
-    const b = books()
-    const p = party(b, 'Part Payer', { creditDays: 0 })
-    invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-    receipt(b, p, '2026-04-10', 40_000)
-    const [r] = rx.interestPreview(b.db, COMPANY, '2026-04-30', p, false)
-    expect(r!.pendingPaise).toBe(60_000)
-    expect(r!.interestPaise).toBe(simpleInterest(60_000, 1800, 29))
-    receipt(b, p, '2026-04-20', 60_000)
-    expect(rx.interestPreview(b.db, COMPANY, '2026-04-30', p, false)).toEqual([])
-  })
-
+describe('statements', () => {
   it('statement with a non-zero opening equals the ledger statement', () => {
     const b = books()
     const p = party(b, 'Opening Statement', { opening: 25_000 })
@@ -348,22 +133,21 @@ describe('3. credit hold: every save that creates new credit is refused', () => 
 })
 
 describe('plausible items', () => {
-  it('an interest debit note can only be binned, not edited', () => {
+  it('an interest debit note from before the cut (audit A13b) can only be binned, not edited', () => {
     const b = books()
     const p = party(b, 'Immutable Co')
-    invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-    const res = rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p })
-    const v = getVoucher(b.db, res.voucherId)!
+    const inv = invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
+    const note = saveVoucher(b.db, {
+      voucherTypeId: vtId(b.db, 'debit_note'), date: '2026-06-05', partyLedgerId: p,
+      lines: [{ ledgerId: p, drCr: 'dr', amount: 1_746 }, { ledgerId: b.s18, drCr: 'cr', amount: 1_746 }]
+    }).id
+    // What the removed interest feature stored beside its note (old books carry these rows).
+    b.db.prepare(
+      `INSERT INTO interest_charges (party_ledger_id, bill_voucher_id, bill_ref, bill_key, period_from, period_to, days, principal_paise, rate_bp, interest_paise, gst_paise, debit_note_voucher_id)
+       VALUES (?, ?, 'INV-1', ?, '2026-05-01', '2026-06-05', 36, 100000, 1800, 1746, 0, ?)`
+    ).run(p, inv, `v:${inv}`, note)
+    const v = getVoucher(b.db, note)!
     expect(() => saveVoucher(b.db, { ...v, narration: 'edited' } as never, v.id)).toThrow(INTEREST_NOTE_IMMUTABLE)
-  })
-
-  it('validates the dates: as-on not after today, note not before the as-on date nor in the future', () => {
-    const b = books()
-    const p = party(b, 'Dates Co')
-    invoice(b, p, '2026-04-01', [[b.s18, 100_000]])
-    expect(() => rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', ledgerId: p }, '2026-06-01')).toThrow(/up to today/)
-    expect(() => rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', date: '2026-06-01', ledgerId: p }, '2026-07-01')).toThrow(/before the as-on/)
-    expect(() => rx.postInterest(b.db, COMPANY, { asOn: '2026-06-05', date: '2026-07-02', ledgerId: p }, '2026-07-01')).toThrow(/future/)
   })
 
   it('deleting a ledger records the reminders / follow-ups it took with it', () => {

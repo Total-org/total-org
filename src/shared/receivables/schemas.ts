@@ -27,17 +27,6 @@ export const remindBulkSchema = z.object({
   channel: z.enum(REMINDER_CHANNELS).default('pdf')
 })
 export const reminderLogSchema = z.object({ from: isoDate, to: isoDate, ledgerId: id.optional() })
-export const interestPreviewSchema = z.object({ asOn: isoDate, ledgerId: id.optional(), gstOnInterest: z.boolean().optional() })
-export const postInterestSchema = z.object({
-  asOn: isoDate,
-  /** Debit note date (defaults to asOn). */
-  date: isoDate.optional(),
-  ledgerId: id,
-  /** Bill keys (billKeyOf) to charge; absent = every chargeable bill of the party. */
-  keys: z.array(z.string().max(120)).max(500).optional(),
-  gstOnInterest: z.boolean().optional()
-})
-export const interestChargesSchema = z.object({ ledgerId: id.optional() })
 export const setHoldSchema = z
   .object({ ledgerId: id, hold: z.boolean(), reason: z.string().trim().max(300).default('') })
   .refine((h) => !h.hold || h.reason.length > 0, { message: 'Give a reason for the credit hold', path: ['reason'] })

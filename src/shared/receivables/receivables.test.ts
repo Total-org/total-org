@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeGst } from '../gst/calc'
-import { billInterest, bpToPercent, daysBetweenIso, interestPeriod, percentToBp, simpleInterest, splitInterestGst } from './interest'
+import { addDaysIso, daysBetweenIso } from './interest'
 import { ageingBucketIndex, ageingBuckets, mailtoLink, mergeTemplate, reminderBucketFor, reminderCadence, reminderFields } from './reminders'
 import { collectionMonth, daysInMonth, dso, monthsBetween } from './collections'
 import { DEFAULT_RECEIVABLES_CONFIG, parseReceivablesConfig, receivablesConfigSchema } from './config'
@@ -10,70 +9,12 @@ import { sampleDocument } from '../print/sample'
 import { CLASSIC_DEFAULT, MODERN_DEFAULT, RECEIPT_80MM_DEFAULT, printKindForVoucherKind } from '../printTemplates'
 import type { CompanyInfo } from '../domain'
 
-describe('interest maths (actual/365, simple, half-up per bill)', () => {
-  it('computes pending × rate × days / 365', () => {
-    // ₹1,00,000 at 18% for 365 days = ₹18,000 exactly.
-    expect(simpleInterest(1_00_000_00, 1800, 365)).toBe(18_000_00)
-    // ₹1,180 at 18% for 30 days = 1745.75 paise → 1746 (half up).
-    expect(simpleInterest(118_000, 1800, 30)).toBe(1746)
-    // 0.5 paise rounds up, 0.49 down.
-    expect(simpleInterest(365, 10_000, 1)).toBe(1) // 365 × 1 × 1 / 365 = 1
-    expect(simpleInterest(1, 10_000, 182)).toBe(0) // 0.4986…
-    expect(simpleInterest(1, 10_000, 183)).toBe(1) // 0.5013…
-    expect(simpleInterest(0, 1800, 30)).toBe(0)
-    expect(simpleInterest(1000, 0, 30)).toBe(0)
-    expect(simpleInterest(1000, 1800, -3)).toBe(0)
-  })
-
-  it('stays exact for very large bills (BigInt)', () => {
-    // ₹10,000 crore at 24% for 1000 days.
-    const p = 10_000 * 1_00_00_000 * 100
-    expect(simpleInterest(p, 2400, 1000)).toBe(Math.round((p * 0.24 * 1000) / 365))
-  })
-
-  it('runs from the day after due + grace to the as-on date, both inclusive', () => {
-    expect(interestPeriod('2026-04-01', '2026-05-01', 5, '2026-06-05', null)).toEqual({ from: '2026-05-07', to: '2026-06-05', days: 30 })
-    // Inside the grace: nothing.
-    expect(interestPeriod('2026-04-01', '2026-05-01', 5, '2026-05-06', null)).toBeNull()
-    // The first chargeable day itself is one day.
-    expect(interestPeriod('2026-04-01', '2026-05-01', 5, '2026-05-07', null)!.days).toBe(1)
-    // No due date: runs from the bill date.
-    expect(interestPeriod('2026-04-01', null, 0, '2026-04-11', null)).toEqual({ from: '2026-04-02', to: '2026-04-11', days: 10 })
-    // Already charged to 5 Jun → resumes on 6 Jun; charged to the as-on date → nothing.
-    expect(interestPeriod('2026-04-01', '2026-05-01', 5, '2026-06-15', '2026-06-05')).toEqual({ from: '2026-06-06', to: '2026-06-15', days: 10 })
-    expect(interestPeriod('2026-04-01', '2026-05-01', 5, '2026-06-05', '2026-06-05')).toBeNull()
-    // Leap day counts as a day (actual days), the divisor stays 365.
+describe('day helpers and the interest rule record', () => {
+  it('counts actual days, leap day included', () => {
     expect(daysBetweenIso('2028-02-28', '2028-03-01')).toBe(2)
-    expect(billInterest({ billDate: '2028-01-01', dueDate: '2028-02-27', pendingPaise: 36_500_00, rateBp: 1000, graceDays: 0, chargedTo: null }, '2028-02-29').interestPaise).toBe(2000) // ₹36,500 × 10% × 2 / 365
-  })
-
-  it('splits interest over the supply rates by taxable value, adding up exactly', () => {
-    const lines = splitInterestGst(1001, [{ rate: 18, taxablePaise: 2000 }, { rate: 5, taxablePaise: 1000 }, { rate: 18, taxablePaise: 1000 }], 'intra', true)
-    expect(lines.map((l) => [l.rate, l.interestPaise])).toEqual([[18, 751], [5, 250]])
-    expect(lines.reduce((s, l) => s + l.interestPaise, 0)).toBe(1001)
-    const g = computeGst(751, 18, 'intra')
-    expect(lines[0]).toEqual({ rate: 18, cessRate: 0, interestPaise: 751, cgst: g.cgst, sgst: g.sgst, igst: 0, cess: 0 })
-    // Cess classes stay apart and carry their cess; zero-rated without payment keeps rates, no tax.
-    const withCess = splitInterestGst(1000, [{ rate: 28, cessRate: 12, taxablePaise: 500 }, { rate: 28, taxablePaise: 500 }], 'inter', true)
-    expect(withCess.map((l) => [l.rate, l.cessRate, l.interestPaise, l.igst, l.cess])).toEqual([[28, 12, 500, 140, 60], [28, 0, 500, 140, 0]])
-    expect(splitInterestGst(1000, [{ rate: 18, taxablePaise: 1 }], 'inter', true, true)).toEqual([{ rate: 18, cessRate: 0, interestPaise: 1000, cgst: 0, sgst: 0, igst: 0, cess: 0 }])
-    expect(splitInterestGst(500, [{ rate: 12, taxablePaise: 9 }], 'inter', true)[0]!.igst).toBe(computeGst(500, 12, 'inter').igst)
-    // No supply (opening balance) or GST off → one untaxed line.
-    expect(splitInterestGst(500, [], 'intra', true)).toEqual([{ rate: 0, cessRate: 0, interestPaise: 500, cgst: 0, sgst: 0, igst: 0, cess: 0 }])
-    expect(splitInterestGst(500, [{ rate: 18, taxablePaise: 9 }], 'intra', false)).toEqual([{ rate: 0, cessRate: 0, interestPaise: 500, cgst: 0, sgst: 0, igst: 0, cess: 0 }])
-    expect(splitInterestGst(0, [{ rate: 18, taxablePaise: 9 }], 'intra', true)).toEqual([])
-  })
-
-  it('parses and prints percent ↔ basis points', () => {
-    expect(percentToBp('18')).toBe(1800)
-    expect(percentToBp('1.5')).toBe(150)
-    expect(percentToBp('12.25')).toBe(1225)
-    expect(percentToBp('')).toBeNull()
-    expect(percentToBp('abc')).toBeNaN()
-    expect(bpToPercent(1800)).toBe('18')
-    expect(bpToPercent(150)).toBe('1.5')
-    expect(bpToPercent(1225)).toBe('12.25')
-    expect(bpToPercent(null)).toBe('')
+    expect(daysBetweenIso('2026-05-07', '2026-05-01')).toBe(-6)
+    expect(addDaysIso('2026-02-28', 1)).toBe('2026-03-01')
+    expect(addDaysIso('2026-03-01', -1)).toBe('2026-02-28')
   })
 
   it('cites every rule and marks the open questions UNVERIFIED', () => {

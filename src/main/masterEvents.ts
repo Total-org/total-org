@@ -29,7 +29,7 @@ export function masterEntitiesOf(channel: string): MasterEntity[] {
  *  or books import with cost centres, a post-dated cheque, a challan …). */
 export const FEATURE_DATA_ENTITIES = [
   'voucher', 'ledger', 'costCentre',
-  'cheque_book', 'cheque', 'cheque_config', 'pdc', 'payment_batch', 'payment_template', 'interest_charge',
+  'cheque_book', 'cheque', 'cheque_config', 'pdc', 'payment_batch', 'payment_template',
   'fixed_asset', 'fixed_asset_group', 'depreciation_run', 'trade_doc', 'tradeDocType',
   'payroll_run', 'statutory_payment', 'statutory_rate', 'tally_import', 'import_batch'
 ] as const satisfies readonly AuditEntity[]

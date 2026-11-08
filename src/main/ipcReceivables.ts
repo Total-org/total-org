@@ -1,5 +1,5 @@
 // IPC channels for receivables (WP 4.2): settings, statements of account, reminder letters,
-// interest on overdue bills, credit holds, credit control, follow-ups / promised dates and the
+// credit holds, credit control, follow-ups / promised dates and the
 // collection reports. Registered from ipc.ts with its `handle` (role gate + { ok, data | error }
 // envelope); every payload is Zod-parsed here.
 import { dialog, shell } from 'electron'
@@ -10,7 +10,7 @@ import type { CompanyInfo } from '@shared/domain'
 import type { Role } from './services/roles'
 import { asOnSchema, isoDate } from '@shared/schemas'
 import {
-  collectionsSchema, followupInputSchema, followupsQuerySchema, interestChargesSchema, interestPreviewSchema, postInterestSchema,
+  collectionsSchema, followupInputSchema, followupsQuerySchema,
   remindBulkSchema, reminderLogSchema, remindSchema, setHoldSchema, statementQuerySchema, statementsBulkSchema, topOverdueSchema
 } from '@shared/receivables/schemas'
 import { RECEIVABLES_SOURCES } from '@shared/receivables/sources'
@@ -88,18 +88,6 @@ export function registerReceivablesIpc(handle: Handle, company: () => Company): 
     const q = reminderLogSchema.parse(p)
     return rx.reminderLog(db(), q.from, q.to, q.ledgerId)
   }, 'viewer')
-
-  // ---------- interest ----------
-  handle('receivables:interestPreview', (p) => {
-    const q = interestPreviewSchema.parse(p)
-    const c = company()
-    return rx.interestPreview(c.db, c.info, q.asOn, q.ledgerId, q.gstOnInterest)
-  }, 'viewer')
-  handle('receivables:postInterest', (p) => {
-    const c = company()
-    return rx.postInterest(c.db, c.info, postInterestSchema.parse(p))
-  })
-  handle('receivables:interestCharges', (p) => rx.interestCharges(db(), interestChargesSchema.parse(p ?? {}).ledgerId), 'viewer')
 
   // ---------- credit control ----------
   // Owner only: a hold stops invoicing a customer (and only an owner may override one).

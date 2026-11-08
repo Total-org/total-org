@@ -5,9 +5,9 @@
 //   raw SQL like the Tally import's);
 // - every bill-wise reader agrees to the paisa on 2 opening bills + a part receipt / payment
 //   (Outstandings, party allocation / open bills, MSME replay, statement, dashboard, cash forecast,
-//   payables plan, interest);
-// - interest runs from a stored bill's own date / due date, the unnamed opening from books-begin;
-// - a bill with a matched receipt or an interest charge can't be renumbered or removed;
+//   payables plan);
+// - a bill with a matched receipt or an interest charge (old books — the interest feature was
+//   removed, audit A13b) can't be renumbered or removed;
 // - overdrawn banks are something you owe; the owner's money goes to the capital account chosen.
 import { describe, expect, it } from 'vitest'
 import { freshDb } from '../db/testdb'
@@ -21,7 +21,7 @@ import { outstandings, openBills, partyAllocation, partyBillEvents } from './ana
 import { allocateBills } from '@shared/outstanding'
 import { createLedger, getLedger, updateLedger } from './masters'
 import { saveVoucher } from './vouchers'
-import { statementData, interestPreview, postInterest } from './receivables'
+import { statementData } from './receivables'
 import { dashboardSeries } from './dashboard'
 import { forecastBase } from './cashForecast'
 import { payablesPlan } from './payables'
@@ -72,6 +72,9 @@ function fixture(): DB {
   return db
 }
 
+const incomeLedger = (db: DB): number =>
+  (db.prepare("SELECT l.id FROM ledgers l JOIN groups g ON g.id = l.group_id WHERE g.name IN ('Sales Accounts', 'Indirect Incomes') ORDER BY l.id LIMIT 1").get() as { id: number }).id
+
 const bills = (list: { number: string; pending: number }[]): [string, number][] => list.map((b) => [b.number, b.pending])
 
 describe('opening bills: one reader', () => {
@@ -102,22 +105,6 @@ describe('opening bills: one reader', () => {
     // Payables plan.
     const plan = payablesPlan(db, AS_ON)
     expect(plan.rows.filter((r) => r.ledgerId === gupta).map((r) => [r.number, r.pending])).toEqual(bills(pay.bills))
-    // Interest (receivables) on the same bills.
-    updateLedger(db, sharma, { ...getLedger(db, sharma)!, interestRateBp: 1800 })
-    expect(interestPreview(db, company, AS_ON, sharma).map((r) => [r.billRef, r.pendingPaise])).toEqual(bills(rec.bills))
-  })
-
-  it('interest runs from a stored bill’s own date / due; the unnamed opening from books-begin', () => {
-    const db = fixture()
-    const sharma = L(db, 'Sharma Stores')
-    updateLedger(db, sharma, { ...getLedger(db, sharma)!, interestRateBp: 1800 })
-    // A second customer with no split: one unnamed opening.
-    createLedger(db, { name: 'Verma', groupId: (db.prepare("SELECT id FROM groups WHERE name = 'Sundry Debtors'").get() as { id: number }).id, openingBalance: 1_000_00, interestRateBp: 1800, pan: null } as never)
-    const rows = interestPreview(db, readCompanyInfo(db), AS_ON)
-    const row = (party: string, bill: string) => rows.find((r) => r.partyName === party && r.billRef === bill)!
-    expect(row('Sharma Stores', 'B-12')).toMatchObject({ billKey: 'o:B-12', billDate: '2026-03-10', dueDate: '2026-03-10' })
-    expect(row('Sharma Stores', 'Opening')).toMatchObject({ billKey: 'o:Opening', billDate: '2026-04-01', dueDate: '2026-04-01' })
-    expect(row('Verma', 'Opening')).toMatchObject({ billDate: '2026-04-01', dueDate: null })
   })
 })
 
@@ -204,8 +191,17 @@ describe('opening bills: in use', () => {
   it('a bill with an interest charge can’t be renumbered either', () => {
     const db = fixture()
     const sharma = L(db, 'Sharma Stores')
-    updateLedger(db, sharma, { ...getLedger(db, sharma)!, interestRateBp: 2400 })
-    postInterest(db, readCompanyInfo(db), { asOn: '2026-06-30', ledgerId: sharma, keys: ['o:Opening'] }, TODAY)
+    // Interest on overdue bills was removed (audit A13b); old books still carry its charges, so
+    // the rule is kept: an interest debit note + its interest_charges row on the unnamed opening.
+    const note = saveVoucher(db, {
+      ...base, voucherTypeId: vt(db, 'debit_note'), date: '2026-06-30', partyLedgerId: sharma,
+      lines: [{ ledgerId: sharma, drCr: 'dr', amount: 25_00, costAllocations: [] }, { ledgerId: incomeLedger(db), drCr: 'cr', amount: 25_00, costAllocations: [] }],
+      billRefs: []
+    }).id
+    db.prepare(
+      `INSERT INTO interest_charges (party_ledger_id, bill_voucher_id, bill_ref, bill_key, period_from, period_to, days, principal_paise, rate_bp, interest_paise, gst_paise, debit_note_voucher_id)
+       VALUES (?, NULL, 'Opening', 'o:Opening', '2026-04-02', '2026-06-30', 90, 150000, 2400, 2500, 0, ?)`
+    ).run(sharma, note)
     const st = openingsState(db).customers.find((c) => c.ledgerId === sharma)!
     const renamed: SimpleOpeningsInput = { cash: { amount: 5_000_00, base: 5_000_00 }, customers: [{ ledgerId: sharma, base: 4_500_00, bills: st.bills.map((b) => (b.ref === 'Opening' ? { ...b, ref: 'Old dues' } : b)) }] }
     expect(() => previewOpenings(db, renamed)).toThrow(/already has a payment or an interest charge/)

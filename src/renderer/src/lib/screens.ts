@@ -508,16 +508,16 @@ export const SCREENS: ScreenDef[] = [
     navSection: 'analysis',
     invalidates: ['outstandings', 'followups', 'statement', 'receivablesConfig']
   },
-  // WP 4.2: receivables — credit control, reminder letters, interest, collection reports.
+  // WP 4.2: receivables — credit control, reminder letters, collection reports.
   {
     name: 'receivables',
     modes: ['accountant'],
     simpleSection: 'people',
     title: 'Credit control',
-    keywords: ['receivables', 'reminders', 'dunning', 'interest on overdue', 'credit hold', 'dso', 'collections', 'promised payments', 'follow-up'],
+    keywords: ['receivables', 'reminders', 'dunning', 'credit hold', 'dso', 'collections', 'promised payments', 'follow-up'],
     screen: { name: 'receivables' },
     navSection: 'analysis',
-    invalidates: ['creditControl', 'promisedWeek', 'reminderCandidates', 'reminderLog', 'interestPreview', 'interestCharges', 'collections', 'topOverdue', 'receivablesConfig']
+    invalidates: ['creditControl', 'promisedWeek', 'reminderCandidates', 'reminderLog', 'collections', 'topOverdue', 'receivablesConfig']
   },
   {
     name: 'payables',
@@ -1545,7 +1545,7 @@ export const SCREEN_LINK_PARAMS: { [N in Screen['name']]?: LinkParamValues<N> } 
   settings: { tab: ['appearance', 'backups', 'bin', 'users', 'security', 'audit', 'nic', 'features', 'invoice', 'receivables', 'agents', 'ai', 'about'] },
   banking: { tab: ['recon', 'import', 'rules', 'cheques', 'pdc', 'bulk', 'brs'] },
   registers: { tab: ['sales', 'purchase', 'items', 'entries'] },
-  receivables: { tab: ['control', 'reminders', 'interest', 'collections'] },
+  receivables: { tab: ['control', 'reminders', 'collections'] },
   payables: { tab: ['plan', 'batch', 'runs', 'msme', 'suppliers'] }
 }
 

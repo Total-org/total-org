@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Interest on overdue bills removed** (A13b). Credit control has no Interest tab any more, the
+ledger form no longer asks for an interest rate or grace days, and Settings → Receivables drops the
+interest options. *For accountants:* no figure changes — interest debit notes already in your books
+stay as ordinary entries in every report and return, can still only be moved to the bin, and an
+opening bill they charged still can't be renumbered. *For developers:* `receivables:interestPreview`
+/ `postInterest` / `interestCharges` are gone; `interest_charges`, the ledger columns, migration 032
+and the `interest_charge` audit entity stay; `cutFeaturesRead.dbtest.ts` proves an old book reads
+exactly as before.
+
 **Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
 the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready
 message, E-mail opens a draft, and on a Mac "More ways…" opens the share sheet with the PDF. The PDF

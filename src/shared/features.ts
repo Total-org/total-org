@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /** Features hidden until used (the feature cleanup — see below). */
-export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'interest', 'fixedAssets', 'tradeCycle', 'payrollStatutory'] as const
+export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'fixedAssets', 'tradeCycle', 'payrollStatutory'] as const
 export type HideableFeature = (typeof HIDEABLE_FEATURES)[number]
 
 /**
@@ -167,7 +167,6 @@ export interface ScreenFeatures extends CompanyFeatures {
   manufacturing: boolean
   fixedAssets: boolean
   cheques: boolean
-  interest: boolean
   payrollStatutory: boolean
 }
 
@@ -180,7 +179,6 @@ export function screenFeatures(f: FeaturesView): ScreenFeatures {
     orders: stored.orders && used('tradeCycle'),
     fixedAssets: used('fixedAssets'),
     cheques: used('cheques'),
-    interest: used('interest'),
     payrollStatutory: used('payrollStatutory')
   }
 }

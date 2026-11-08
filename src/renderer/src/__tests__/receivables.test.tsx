@@ -1,5 +1,5 @@
 // WP 4.2: the Credit control screen (exposure table, hold with a reason, promised this week),
-// the reminders and interest tabs, Outstandings' bill follow-ups (inline add) and statement
+// the reminders tab (the Interest tab was removed, audit A13b), Outstandings' bill follow-ups (inline add) and statement
 // preview, and the invoice form's credit-hold block with the owner override.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_FEATURES } from '@shared/features'
 import { DEFAULT_RECEIVABLES_CONFIG } from '@shared/receivables/config'
 import { RECEIVABLES_SOURCES } from '@shared/receivables/sources'
-import type { CreditControlRow, InterestRow, ReminderCandidate } from '@shared/receivables/types'
+import type { CreditControlRow, ReminderCandidate } from '@shared/receivables/types'
 import type { OutstandingParty } from '@shared/reports'
 import { ReceivablesScreen } from '../screens/Receivables'
 import { OutstandingsScreen } from '../screens/Outstandings'
@@ -30,15 +30,6 @@ const CC: CreditControlRow[] = [
 const CAND: ReminderCandidate[] = [
   { ledgerId: 10, name: 'Mehta Traders', email: 'a@m.in', bucket: 'final', overdue: 590_000, total: 590_000, billCount: 1, oldestBill: 'INV-1', oldestBillDate: '2026-03-01', maxOverdueDays: 64, lastSent: null, lastBucket: null, allowed: true, nextAllowed: null },
   { ledgerId: 11, name: 'Shah & Sons', email: null, bucket: 'gentle', overdue: 10_000, total: 100_000, billCount: 1, oldestBill: 'INV-9', oldestBillDate: '2026-04-20', maxOverdueDays: 3, lastSent: '2026-05-02', lastBucket: 'gentle', allowed: false, nextAllowed: '2026-05-09' }
-]
-
-const INTEREST: InterestRow[] = [
-  {
-    key: '10:v:5', billKey: 'v:5', billVoucherId: 5, billRef: 'INV-1', ledgerId: 10, partyName: 'Mehta Traders', billDate: '2026-03-01', dueDate: '2026-03-31', graceDays: 5,
-    rateBp: 1800, pendingPaise: 590_000, chargedTo: null, from: '2026-04-06', to: '2026-05-05', days: 30, interestPaise: 8729,
-    gst: [{ rate: 18, cessRate: 0, interestPaise: 8729, cgst: 786, sgst: 786, igst: 0, cess: 0 }], gstPaise: 1572, totalPaise: 10301, supply: 'intra',
-    pos: '27', invTyp: 'R', zeroTax: false, notePos: null, warning: null, blocked: null
-  }
 ]
 
 const PARTY: OutstandingParty = {
@@ -64,9 +55,6 @@ beforeEach(() => {
       case 'receivables:setHold': return { ok: true, data: { hold: true, reason: (payload as { reason: string }).reason, at: 'x' } }
       case 'receivables:reminderCandidates': return { ok: true, data: CAND }
       case 'receivables:reminderLog': return { ok: true, data: [] }
-      case 'receivables:interestPreview': return { ok: true, data: INTEREST }
-      case 'receivables:interestCharges': return { ok: true, data: [] }
-      case 'receivables:postInterest': return { ok: true, data: { notes: [{ voucherId: 77, number: 'DN-3', interestPaise: 8729, gstPaise: 1572 }], voucherId: 77, number: 'DN-3', interestPaise: 8729, gstPaise: 1572, charges: 1 } }
       case 'analysis:outstandings': return { ok: true, data: [PARTY] }
       case 'receivables:followups': return { ok: true, data: followups }
       case 'receivables:addFollowup': {
@@ -119,16 +107,12 @@ describe('Credit control', () => {
     expect(rows.textContent).toContain('09-May-26')
   })
 
-  it('previews interest with the GST split and posts a party’s debit note', async () => {
+  it('has no Interest tab; an old link to it opens Credit control (audit A13b)', async () => {
     wrap(<ReceivablesScreen tab="interest" />)
-    const rows = await screen.findByTestId('rows-interest-preview')
-    await waitFor(() => expect(rows.textContent).toContain('INV-1'))
-    expect(rows.textContent).toContain('87.29')
-    fireEvent.click(within(rows).getByTestId('btn-interest-post'))
-    fireEvent.click(await screen.findByTestId('confirm-ok'))
-    await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith('receivables:postInterest', { asOn: '2026-05-05', ledgerId: 10, keys: ['10:v:5'], gstOnInterest: true })
-    )
+    await screen.findByTestId('rows-credit-control')
+    expect(screen.getByTestId('tab-receivables-control').getAttribute('aria-selected')).toBe('true')
+    expect(screen.queryByTestId('tab-receivables-interest')).toBeNull()
+    expect(invoke.mock.calls.some(([c]) => String(c).includes('nterest'))).toBe(false)
   })
 })
 

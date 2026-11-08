@@ -19,8 +19,6 @@ const PROBES: Record<HideableFeature, readonly string[]> = {
     'SELECT 1 FROM bank_payment_templates',
     'SELECT 1 FROM bank_payment_batches'
   ],
-  // Interest on overdue bills: a charge posted, or interest terms set on a party.
-  interest: ['SELECT 1 FROM interest_charges', 'SELECT 1 FROM ledgers WHERE interest_rate_bp IS NOT NULL'],
   // The fixed-asset register (the seeded asset groups do not count).
   fixedAssets: [
     'SELECT 1 FROM fixed_assets',

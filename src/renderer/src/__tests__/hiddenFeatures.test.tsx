@@ -1,5 +1,5 @@
 // Feature cleanup: cost centres, cheque books + PDC + bulk payment files,
-// interest on overdue bills, the fixed-asset register, the trade cycle and payroll statutory are
+// the fixed-asset register, the trade cycle and payroll statutory are
 // hidden for a company that has none of their data (`unused` on config:features:get) — no sidebar
 // entry, no Features card, no tab — and shown exactly as before for one that has.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -91,7 +91,7 @@ describe('hidden until used', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    for (const h of ['costCentres', 'cheques', 'interest', 'fixedAssets', 'tradeCycle', 'payrollStatutory']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
+    for (const h of ['costCentres', 'cheques', 'fixedAssets', 'tradeCycle', 'payrollStatutory']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
     expect(screen.queryByTestId('feature-more-card-forex')).toBeNull()
     fireEvent.click(screen.getByTestId('btn-feature-more-fixedAssets'))
     await waitFor(() => expect(stored.turnedOn).toEqual(['fixedAssets']))
@@ -117,11 +117,11 @@ describe('hidden until used', () => {
   })
 
   it('simple mode has the same collapsed list', async () => {
-    unused = ['cheques', 'interest']
+    unused = ['cheques', 'payrollStatutory']
     renderUi(<SimpleFeatures />)
     fireEvent.click(await screen.findByTestId('btn-features-more'))
     expect(screen.getByTestId('feature-more-card-cheques')).toBeTruthy()
-    expect(screen.getByTestId('feature-more-card-interest')).toBeTruthy()
+    expect(screen.getByTestId('feature-more-card-payrollStatutory')).toBeTruthy()
     expect(screen.queryByTestId('feature-more-card-fixedAssets')).toBeNull()
   })
 })

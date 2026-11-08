@@ -484,8 +484,8 @@ export const CA_POINTS = [
     rule: 's.12(6) / 13(6) CGST Act (interest); SAC 9971',
     covers: [],
     questions: [31],
-    closed: 'feature_hidden',
-    note: 'Interest on overdue bills is hidden until used (Phase 1 triage §5).'
+    closed: 'feature_removed',
+    note: 'Interest on overdue bills was removed (audit A13b); old interest debit notes stay as ordinary entries.'
   },
   {
     id: 'msme-interest',

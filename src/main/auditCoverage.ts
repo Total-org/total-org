@@ -256,7 +256,6 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'receivables:statementsBulk': EXPORT,
   'receivables:remind': a('reminder'),
   'receivables:remindBulk': a('reminder'),
-  'receivables:postInterest': a('voucher', 'interest_charge', 'ledger'),
   'receivables:setHold': a('credit_hold'),
   'receivables:addFollowup': a('bill_followup'),
   'receivables:deleteFollowup': a('bill_followup'),
