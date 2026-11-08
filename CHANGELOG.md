@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**One way to make a sale in simple mode** (#PR_A, A13a). Quick bill is folded into Make a bill: with
+**One way to make a sale in simple mode** (#240, A13a). Quick bill is folded into Make a bill: with
 stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
 Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the
 customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card and ⌘↵ to save. The
