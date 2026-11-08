@@ -262,6 +262,7 @@ export function MoneyIn({ party, amount, bill, billId, date, bankId, reference, 
           <HowPaid side={IN_SIDE} how={form.how} accountId={form.accountId} reference={form.reference} setup={setup ?? null} error={errors.get(F.into)} onChange={update} />
 
           <MoneyFooter
+            amount={form.amount}
             preview={flow.preview}
             previewing={flow.previewing}
             ready={Object.keys(clientErrors).length === 0}
