@@ -2939,6 +2939,8 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'errors.security.passphraseRequired': 'Passphrase likhein.',
   'errors.security.wrongPassphrase': 'Yeh passphrase sahi nahi hai. Check karke phir se likhein.',
   'errors.security.tooManyTries': 'Bahut baar koshish ho gayi. 30 second rukkar phir se koshish karein.',
+  'errors.security.pinWait': 'Bahut baar galat PIN daala gaya. {minutes} minute rukkar phir se koshish karein.',
+  'errors.security.pinWaitPlain': 'Bahut baar galat PIN daala gaya. Kuch minute rukkar phir se koshish karein.',
   'errors.security.passphrasesDiffer': 'Dono passphrase ek jaise nahi hain.',
   'errors.security.alreadyLocked': 'Yeh business pehle se passphrase se lock hai.',
   'errors.security.notLocked': 'Yeh business passphrase se lock nahi hai.',

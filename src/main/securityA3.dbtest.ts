@@ -213,6 +213,20 @@ describe('canSeeProfit: false — the doors the audit sweep found (A3)', () => {
     const same = log.rows.filter((r) => r.entity === 'voucher' && r.entityId !== closed.voucherId)
     expect(same).toEqual(owned)
 
+    // Purged, the closing journal is gone from vouchers — its rows (the create row was written
+    // before the flag was set) stay hidden all the same.
+    await asOwner()
+    await ok('company:lock:set', { date: null })
+    await ok('voucher:delete', { id: closed.voucherId })
+    await ok('voucher:purge', { id: closed.voucherId })
+    await asAcct()
+    const after = (await ok<{ rows: Row[] }>('audit:list', { pageSize: 500 })).rows.filter((r) => r.entity === 'voucher' && r.entityId === closed.voucherId)
+    expect(after.length).toBeGreaterThanOrEqual(3) // create, delete (to the bin), purge
+    for (const r of after) {
+      expect(r.beforeJson === null || r.beforeJson === '{"profitHidden":true}').toBe(true)
+      expect(r.afterJson === null || r.afterJson === '{"profitHidden":true}').toBe(true)
+    }
+
     // The edit-log CSV leaves the same figures out.
     const csv = await ok<{ path: string }>('audit:exportCsv', {})
     const text = readFileSync(csv.path, 'utf8')
@@ -285,7 +299,14 @@ describe('deleting a business at its privacy screen (SEC-8)', () => {
   it('a passphrase-locked business gets no plaintext agent mirror (SEC-12)', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('A3 Mirror Lock Co'))
     await ok('company:open', { slug })
+    // A mirror written while the books were plain …
+    await ok('agent:exportMirror', { what: 'reports', format: 'json' })
+    expect(existsSync(join(agentBridge.agentDir(slug), 'trial-balance.json'))).toBe(true)
+    expect(await ok('agent:getConfig')).toMatchObject({ locked: false })
     await ok('security:passphrase:on', { passphrase: PASS, confirm: PASS })
+    // … is gone once the lock is on (the lock's reopen removes it), and Settings is told why.
+    expect(existsSync(agentBridge.agentDir(slug))).toBe(false)
+    expect(await ok('agent:getConfig')).toMatchObject({ locked: true })
     const r = await call('agent:exportMirror', { what: 'all', format: 'all' })
     expect(r.ok).toBe(false)
     expect(r.error).toBe(agentBridge.MIRROR_LOCKED_MESSAGE)
@@ -297,14 +318,15 @@ describe('deleting a business at its privacy screen (SEC-8)', () => {
 })
 
 describe('the PIN lockout grows (SEC-13)', () => {
-  it('30 s at the 5th wrong PIN, then 1 min, 5 min, 15 min and 1 hour from the 9th on', () => {
-    expect([1, 4, 5, 6, 7, 8, 9, 20].map((n) => users.lockoutMsFor(n))).toEqual([0, 0, 30_000, 60_000, 300_000, 900_000, 3_600_000, 3_600_000])
-    expect([5, 6, 7, 8, 9].map((n) => users.authThrottleMessage(n))).toEqual([
-      'Too many attempts — wait 30 seconds',
-      'Too many attempts — wait 1 minute',
-      'Too many attempts — wait 5 minutes',
-      'Too many attempts — wait 15 minutes',
-      'Too many attempts — wait 1 hour'
+  it('30 s at the 5th wrong PIN, then 1 min, 5 min, and 15 min from the 8th on (owner: 15-minute cap)', () => {
+    expect([1, 4, 5, 6, 7, 8, 9, 20].map((n) => users.lockoutMsFor(n))).toEqual([0, 0, 30_000, 60_000, 300_000, 900_000, 900_000, 900_000])
+    // The message names the time LEFT, rounded up to whole minutes past the first 30 s.
+    expect([30_000, 30_001, 60_000, 61_000, 14 * 60_000 + 1].map((ms) => [users.authThrottleMessage(ms), users.authThrottleMinutes(ms)])).toEqual([
+      ['Too many attempts — wait 30 seconds', 1],
+      ['Too many attempts — wait 1 minute', 1],
+      ['Too many attempts — wait 1 minute', 1],
+      ['Too many attempts — wait 2 minutes', 2],
+      ['Too many attempts — wait 15 minutes', 15]
     ])
   })
 
@@ -321,7 +343,7 @@ describe('the PIN lockout grows (SEC-13)', () => {
     // The 7th wrong PIN now: 5 minutes.
     expect((await call('auth:login', { userId: owner.id, pin: '0000' })).ok).toBe(false)
     const refused = await call('auth:login', { userId: owner.id, pin: '5555' })
-    expect(refused).toMatchObject({ ok: false, error: 'Too many attempts — wait 5 minutes' })
+    expect(refused).toMatchObject({ ok: false, code: 'auth_throttled', error: 'Too many attempts — wait 5 minutes', params: { minutes: 5 } })
     expect(users.isAuthThrottled(db, owner.id, Date.now() + 4 * 60_000)).toBe(true)
     expect(users.isAuthThrottled(db, owner.id, Date.now() + 6 * 60_000)).toBe(false)
     users.clearAuthFailures(db, owner.id)

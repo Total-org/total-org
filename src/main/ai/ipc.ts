@@ -452,7 +452,13 @@ export function registerAiIpc(handle: Handle, deps: AiIpcDeps): void {
 
   // ---------- meters and logs ----------
   handle('ai:usage', () => store.listUsage(db()), 'viewer')
-  handle('ai:outbound', () => store.listOutbound(db()), 'viewer')
+  // Audit A3 (review of #238): each row's screen context holds the figure "Explain this" was
+  // asked about (e.g. Net profit) — a profit-hidden user gets the context of their own threads only.
+  handle('ai:outbound', () => {
+    const rows = store.listOutbound(db())
+    if (!ownThreadsOnly()) return rows
+    return rows.map((r) => (r.threadId !== null && threadVisible(r.threadId) ? r : { ...r, context: null }))
+  }, 'viewer')
   // Deletes conversations, drafts, memory and aliases. It cannot (and must not) remove the audit
   // trail's rows about AI settings and drafts: audit_log is append-only (MCA rule 3(1)).
   handle('ai:data:deleteAll', (p) => {

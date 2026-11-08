@@ -7,7 +7,7 @@
  * Concurrency: the app and the CLI may have the same company.db open at once — WAL journal mode
  * + busy_timeout (set in db/connection.ts) make that safe; nothing here takes exclusive locks.
  */
-import { mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { DB } from '../db/connection'
 import { companyDir } from '../paths'
@@ -160,6 +160,21 @@ export const MIRROR_LOCKED_MESSAGE =
  *  business locked with a passphrase (whose books, backups and files are encrypted). */
 export function mirrorAllowed(db: DB): boolean {
   return keyOfHandle(db) === null
+}
+
+/** Audit A3 (review of #238): a mirror written BEFORE the passphrase lock went on is a plaintext
+ *  copy of the books beside encrypted ones — removed on the first open of the locked business (the
+ *  lock's own reopen included). Returns whether one was removed. Never throws. */
+export function removeMirrorIfLocked(db: DB, slug: string): boolean {
+  const dir = agentDir(slug)
+  if (mirrorAllowed(db) || !existsSync(dir)) return false
+  try {
+    rmSync(dir, { recursive: true, force: true })
+    return true
+  } catch (err) {
+    log('warn', 'agent-mirror-remove-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+    return false
+  }
 }
 
 /** Regenerate the read mirror under `<company>/agent/` (see buildMirrorFiles). */

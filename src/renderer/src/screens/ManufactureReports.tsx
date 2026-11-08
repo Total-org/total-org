@@ -13,7 +13,7 @@ import { useNav, useSession } from '../state/stores'
 import { Badge, Button, Money, Page, PageHeader, Panel, Segmented, Select, StatGrid, StatTile, TabBar } from '../components/ui'
 import { OptionsPeriod, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
-import { useCapabilityRefused } from '../lib/capabilities'
+import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 import { formatMilli } from '../lib/table'
 import { ItemLink, VoucherLink } from '../components/links'
 import { ItemPicker } from '../components/pickers'
@@ -259,7 +259,10 @@ function CostSheetTab(): React.JSX.Element {
 
 function MarginTab(): React.JSX.Element {
   const { from, to } = useSession()
-  const { data, isLoading } = useQuery({ queryKey: ['manufactureMargin', from, to], queryFn: () => api.manufacture.margin(from, to) })
+  const profitHidden = useCapabilityRefused('canSeeProfit')
+  const { data, isLoading } = useQuery({ queryKey: ['manufactureMargin', from, to], queryFn: () => api.manufacture.margin(from, to), enabled: !profitHidden })
+  // Audit A3: the margin report is refused in main for a user who may not see profit.
+  if (profitHidden) return <Panel><p className="px-3 py-6 text-center text-body-sm text-muted" data-testid="manufacture-margin-hidden">{CAPABILITY_REFUSED_TEXT.canSeeProfit}</p></Panel>
   return (
     <Panel>
       <p className="px-3 pt-3 text-hint text-muted">

@@ -1262,6 +1262,8 @@ export function registerIpc(): void {
     } catch (err) {
       log('warn', 'security-files-resume-failed', { slug, error: err instanceof Error ? err.message : String(err) })
     }
+    // Audit A3: a business locked with a passphrase keeps no plaintext agent mirror on disk.
+    if (agentBridge.removeMirrorIfLocked(db, slug)) log('info', 'agent-mirror-removed-locked', { slug })
     // Online backup needs an open handle, so this runs after open (not before, as it used to).
     // A backup failure here must never fail — or desync — the open itself.
     // To-do §4 (PR #118 review): only the SNAPSHOT is waited for here — it is what protects the
@@ -3701,7 +3703,11 @@ export function registerIpc(): void {
     auditExport(c.db, 'agent_mirror', { dir: r.dir, files: r.files.length })
     return r
   })
-  handle('agent:getConfig', () => ({ enabled: configSvc.getAgentBridgeEnabled(requireCompany().db) }), 'viewer')
+  handle('agent:getConfig', () => {
+    const db = requireCompany().db
+    // `locked`: a passphrase-locked business gets no mirror (Settings says so; audit A3).
+    return { enabled: configSvc.getAgentBridgeEnabled(db), locked: !agentBridge.mirrorAllowed(db) }
+  }, 'viewer')
   handle('agent:setConfig', (p) => {
     const { enabled } = agentBridgeConfigSchema.parse(p)
     const c = requireCompany()

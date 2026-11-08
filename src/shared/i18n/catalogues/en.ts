@@ -3054,6 +3054,8 @@ export const en = {
   'errors.security.passphraseRequired': 'Type the passphrase.',
   'errors.security.wrongPassphrase': 'That passphrase is not right. Check it and try again.',
   'errors.security.tooManyTries': 'Too many tries. Wait 30 seconds and try again.',
+  'errors.security.pinWait': 'Too many wrong PINs. Wait {minutes} min and try again.',
+  'errors.security.pinWaitPlain': 'Too many wrong PINs. Wait a few minutes and try again.',
   'errors.security.passphrasesDiffer': 'The two passphrases are not the same.',
   'errors.security.alreadyLocked': 'This business is already locked with a passphrase.',
   'errors.security.notLocked': 'This business is not locked with a passphrase.',

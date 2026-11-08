@@ -436,9 +436,23 @@ export function listAudit(db: DB, query: AuditListQuery): { rows: AuditRow[]; to
  * The hash chain is verified by main over the stored rows (audit:verify), never over these.
  */
 export function redactAuditRowsForProfit<T extends Pick<AuditRow, 'entity' | 'entityId' | 'beforeJson' | 'afterJson'>>(db: DB, rows: T[]): T[] {
+  // Every closing journal there is or was: the live flag, the year-end close rows (their voucherId),
+  // and any voucher row whose image says so — a purged closing journal is gone from vouchers, and
+  // its create row was written before the flag was set (review of #238).
   const closing = new Set(
     (db.prepare('SELECT id FROM vouchers WHERE is_year_end_close = 1').all() as { id: number }[]).map((r) => r.id)
   )
+  for (const r of db.prepare("SELECT after_json AS a FROM audit_log WHERE entity = 'year_end'").all() as { a: string | null }[]) {
+    try {
+      const id = (JSON.parse(r.a ?? 'null') as { voucherId?: unknown } | null)?.voucherId
+      if (typeof id === 'number') closing.add(id)
+    } catch {
+      /* not JSON: nothing to learn */
+    }
+  }
+  for (const r of db
+    .prepare("SELECT DISTINCT entity_id AS id FROM audit_log WHERE entity = 'voucher' AND (before_json LIKE '%\"isYearEndClose\":true%' OR after_json LIKE '%\"isYearEndClose\":true%')")
+    .all() as { id: number }[]) closing.add(r.id)
   const hidden = JSON.stringify({ profitHidden: true })
   const dropKeys = (json: string | null, keys: readonly string[]): string | null => {
     if (json === null) return null

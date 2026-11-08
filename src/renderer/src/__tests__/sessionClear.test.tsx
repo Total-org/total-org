@@ -17,6 +17,7 @@ import { useAiScreenParams } from '../lib/aiContext'
 import { useHelpPanel } from '../help/store'
 import { hasKeptForm, keepForm, useLastSaved } from '../lib/handoff'
 import type { SessionUser } from '../lib/client'
+import { loadRecents, recentsKey, rememberQuery } from '../lib/searchRecents'
 
 const INFO: CompanyInfo = {
   name: 'A', stateCode: '27', gstin: null, gstRegistrationType: 'regular', address: '',
@@ -119,6 +120,17 @@ describe('session end (audit A3)', () => {
     useSession.getState().setUser(OWNER)
     useSession.getState().setLocked(false)
     expectNothingLeft()
+  })
+
+  it('⌘K recent searches belong to the signed-in user (a company without users keeps its old key)', () => {
+    rememberQuery('company-a', 'Ramesh Traders')
+    expect(recentsKey('company-a')).toBe('total-search-recents-company-a:u1')
+    useSession.getState().setUser(VIEWER)
+    expect(loadRecents('company-a').queries).toEqual([])
+    useSession.getState().setUser(OWNER)
+    expect(loadRecents('company-a').queries).toEqual(['Ramesh Traders'])
+    useSession.getState().setUser(null)
+    expect(recentsKey('company-a')).toBe('total-search-recents-company-a')
   })
 
   it('keeps the cache for what is not a session end (a Company Info save, an unlock, the same user)', () => {

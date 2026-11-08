@@ -251,6 +251,8 @@ export const ERROR_MAP = {
   passphrase_required: e('errors.security.passphraseRequired', 'passphrase'),
   wrong_passphrase: e('errors.security.wrongPassphrase', 'passphrase'),
   passphrase_throttled: e('errors.security.tooManyTries', 'passphrase'),
+  // Audit A3: a PIN locked out after wrong tries (services/users.ts), the minutes left in params.
+  auth_throttled: e('errors.security.pinWait', undefined, ['minutes'], 'errors.security.pinWaitPlain'),
   passphrase_mismatch: e('errors.security.passphrasesDiffer', 'confirm'),
   security_already_locked: e('errors.security.alreadyLocked'),
   security_not_locked: e('errors.security.notLocked'),

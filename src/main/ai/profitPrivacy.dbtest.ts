@@ -237,6 +237,26 @@ describe('AI threads with profit hidden (A3 / SEC-11)', () => {
     expect(((await call('ai:threads')) as { id: number }[]).map((t) => t.id).sort()).toEqual([ashaThread, fresh.threadId].sort())
   })
 
+  it('the outbound log keeps the screen context ("Explain this" on Net profit) to the user’s own threads', async () => {
+    // The owner asks about the net profit from the P&L (Explain this): its context is logged.
+    const context = { screen: 'profit-loss', label: 'Profit & Loss', explain: { label: 'Net profit', value: '₹3,000.00' } }
+    const sent = (await call('ai:send', { text: 'Explain this figure', context })) as { runId: string; threadId: number }
+    await done(sent.runId)
+    type Row = { threadId: number | null; context: unknown }
+    const ownerRows = (await call('ai:outbound')) as Row[]
+    expect(ownerRows.find((r) => r.threadId === sent.threadId)?.context).toMatchObject(context)
+
+    who = { name: 'Asha', role: 'accountant', canSeeProfit: false }
+    const asha = (await call('ai:outbound')) as Row[]
+    const row = asha.find((r) => r.threadId === sent.threadId)!
+    expect(row.context).toBeNull()
+    expect(JSON.stringify(asha)).not.toContain('3,000.00')
+    // her own thread's context is still hers to read
+    const mine = (await call('ai:send', { threadId: ashaThread, text: 'And the bank?', context: { screen: 'trial-balance' } })) as { runId: string }
+    await done(mine.runId)
+    expect(((await call('ai:outbound')) as Row[]).find((r) => r.threadId === ashaThread)?.context).toMatchObject({ screen: 'trial-balance' })
+  })
+
   it('a profit-hidden session without a name sees no threads', async () => {
     who = { name: null, role: 'viewer', canSeeProfit: false }
     expect(await call('ai:threads')).toEqual([])

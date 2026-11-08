@@ -6,6 +6,7 @@ import { Badge, Button, DrawerSection, Money, Page, PageHeader, Panel } from '..
 import { OptionsPeriod, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
 import { ItemLink } from '../components/links'
+import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 
 // Manufacture register (WP 2.2; WP 2.4 live re-pricing): one row per live manufacture voucher in
 // the period. "Cost now" is the engine's CURRENT production cost (materials re-derived at every
@@ -75,7 +76,10 @@ export function ManufactureRegisterScreen(): React.JSX.Element {
   const { from, to } = useSession()
   const nav = useNav()
   const opts = useScreenOptions('manufacture-register', {})
-  const { data, isLoading } = useQuery({ queryKey: ['manufactureRegister', from, to], queryFn: () => api.manufacture.register(from, to) })
+  // Audit A3: the register shows sale value and profit per run — refused in main for a user who
+  // may not see profit; the reports beside it (production register, cost sheet) stay open.
+  const profitHidden = useCapabilityRefused('canSeeProfit')
+  const { data, isLoading } = useQuery({ queryKey: ['manufactureRegister', from, to], queryFn: () => api.manufacture.register(from, to), enabled: !profitHidden })
   const periodLabel = `${toDisplayDate(from)} – ${toDisplayDate(to)}`
   const repriced = (data ?? []).filter((r) => r.repriced).length
   const report = (tab: 'production' | 'cost-sheet' | 'margin' | 'variance' | 'job-work', label: string): React.JSX.Element => (
@@ -123,6 +127,11 @@ export function ManufactureRegisterScreen(): React.JSX.Element {
           books carry; profit uses it.
         </p>
       )}
+      {profitHidden ? (
+        <Panel>
+          <p className="px-3 py-6 text-center text-body-sm text-muted" data-testid="manufacture-register-hidden">{CAPABILITY_REFUSED_TEXT.canSeeProfit}</p>
+        </Panel>
+      ) : (
       <Panel>
         <DataTable
           viewId="manufacture-register"
@@ -139,6 +148,7 @@ export function ManufactureRegisterScreen(): React.JSX.Element {
           exportOptions={{ title: 'Manufacture register', periodLabel, filename: 'manufacture-register' }}
         />
       </Panel>
+      )}
     </Page>
   )
 }
