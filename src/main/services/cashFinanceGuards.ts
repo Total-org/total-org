@@ -1,5 +1,5 @@
 // WP 4.4 — vouchers owned by forex records (revaluations and their reversals, settlements) are
-// immutable except through the bin, like depreciation and closing journals. (Loan instalment and
+// immutable except through the bin, like closing journals (and the depreciation journals of the removed fixed-asset register). (Loan instalment and
 // disbursement vouchers were owned too; with the loan schedules removed they are ordinary vouchers.) vouchers.ts calls these three hooks:
 // - assertCashFinanceVoucherEditable on an edit: always refused for an owned voucher;
 // - binCashFinancePartners inside deleteVoucher's transaction: a revaluation and its reversal go

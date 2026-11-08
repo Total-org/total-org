@@ -3,31 +3,14 @@ import { computeMonthlyPay, daysInMonth } from './payroll'
 import { parseTallyExport, parseTallyAmount, parseTallyDate, parseTallyQty, parseXml, collect, childText } from './tally'
 
 describe('payroll engine', () => {
-  const emp = { basic: 20_000_00, hra: 8_000_00, special: 4_000_00, pfEnabled: true, esiEnabled: true, ptEnabled: true }
+  const emp = { basic: 20_000_00, hra: 8_000_00, special: 4_000_00 }
 
-  it('computes a full month with PF ceiling and PT', () => {
+  it('computes a full month (no PF / ESI / PT since audit A13b)', () => {
     const p = computeMonthlyPay(emp, 31, 31)
     expect(p.gross).toBe(32_000_00)
-    // PF on min(basic 20,000, ceiling 15,000) = 1,800 each side
-    expect(p.pfEmp).toBe(1_800_00)
-    expect(p.pfEr).toBe(1_800_00)
-    // Gross 32,000 > ESI limit 21,000 → no ESI
-    expect(p.esiEmp).toBe(0)
-    expect(p.pt).toBe(200_00)
-    expect(p.net).toBe(32_000_00 - 1_800_00 - 200_00)
-    // Employer cost now includes the EPFO admin 0.5% + EDLI 0.5% charges on the capped wage.
-    expect(p.employerCost).toBe(32_000_00 + 1_800_00 + 75_00 + 75_00)
-  })
-
-  it('applies ESI below the limit with round-up-to-rupee', () => {
-    const low = { basic: 12_000_00, hra: 4_000_00, special: 2_000_00, pfEnabled: true, esiEnabled: true, ptEnabled: true }
-    const p = computeMonthlyPay(low, 30, 30)
-    expect(p.gross).toBe(18_000_00)
-    expect(p.esiEmp).toBe(135_00) // 0.75% of 18,000 = 135 exactly
-    expect(p.esiEr).toBe(585_00) // 3.25% of 18,000
-    const odd = computeMonthlyPay(low, 29, 30)
-    // prorated gross 17,400 → 0.75% = 130.50 → rounds UP to 131
-    expect(odd.esiEmp).toBe(131_00)
+    expect([p.pfEmp, p.pfEr, p.esiEmp, p.pt]).toEqual([0, 0, 0, 0])
+    expect(p.net).toBe(32_000_00)
+    expect(p.employerCost).toBe(32_000_00)
   })
 
   it('prorates by attendance', () => {

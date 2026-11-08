@@ -315,7 +315,6 @@ export function OutstandingsScreen({ initialSide = 'receivable' }: { initialSide
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" data-testid="btn-outstandings-credit-control" onClick={() => nav.go({ name: 'receivables', tab: 'control' })}>Credit control</Button>
                     <Button size="sm" data-testid="btn-outstandings-reminders" onClick={() => nav.go({ name: 'receivables', tab: 'reminders' })}>Reminder letters</Button>
-                    <Button size="sm" data-testid="btn-outstandings-interest" onClick={() => nav.go({ name: 'receivables', tab: 'interest' })}>Interest</Button>
                     <Button size="sm" onClick={() => nav.go({ name: 'receivables', tab: 'collections' })}>Collection reports</Button>
                   </div>
                   <p className="text-hint text-muted">Reminder templates, the email subject / body and the cadence: Settings → Receivables.</p>

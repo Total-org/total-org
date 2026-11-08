@@ -525,27 +525,28 @@ export const employeeInputSchema = z.object({
   designation: z.string().trim().max(80).nullable().default(null),
   joined: isoDate.nullable().default(null),
   pan: z.string().trim().max(10).transform((s) => s.toUpperCase()).nullable().default(null),
-  uan: z.string().trim().max(20).nullable().default(null),
-  esicNo: z.string().trim().max(20).nullable().default(null),
   basic: z.number().int().min(0),
   hra: z.number().int().min(0).default(0),
   special: z.number().int().min(0).default(0),
-  pfEnabled: z.boolean().default(true),
-  esiEnabled: z.boolean().default(true),
-  ptEnabled: z.boolean().default(true),
-  ptState: z.enum(PT_STATES).default('MH'),
   active: z.boolean().default(true),
-  // WP 3.7 statutory profile
-  pfNumber: z.string().trim().max(30).nullable().default(null),
-  gender: z.enum(['male', 'female', 'other']).nullable().default(null),
   dob: isoDate.nullable().default(null),
   taxRegime: z.enum(['new', 'old']).default('new'),
-  vpfRateBp: z.number().int().min(0).max(8800).default(0),
-  pfOnFullWage: z.boolean().default(false),
-  epsEligible: z.boolean().default(true),
-  disabled: z.boolean().default(false),
   metro: z.boolean().default(false),
-  tdsEnabled: z.boolean().default(true)
+  tdsEnabled: z.boolean().default(true),
+  // The PF / ESI / PT profile (audit A13b: pay runs no longer deduct them). Still accepted so old
+  // payloads and imports parse; ABSENT = keep what the employee has (a new one: off / none).
+  uan: z.string().trim().max(20).nullable().optional(),
+  esicNo: z.string().trim().max(20).nullable().optional(),
+  pfEnabled: z.boolean().optional(),
+  esiEnabled: z.boolean().optional(),
+  ptEnabled: z.boolean().optional(),
+  ptState: z.enum(PT_STATES).optional(),
+  pfNumber: z.string().trim().max(30).nullable().optional(),
+  gender: z.enum(['male', 'female', 'other']).nullable().optional(),
+  vpfRateBp: z.number().int().min(0).max(8800).optional(),
+  pfOnFullWage: z.boolean().optional(),
+  epsEligible: z.boolean().optional(),
+  disabled: z.boolean().optional()
 })
 export type EmployeeInput = z.infer<typeof employeeInputSchema>
 /** What the renderer actually sends (defaulted fields optional) — keeps older forms compiling. */
@@ -992,7 +993,7 @@ export const exportCsvSchema = z.object({
 })
 export type ExportCsvInput = z.infer<typeof exportCsvSchema>
 
-// ---------- payroll pay heads + statutory exports (lane Y, task Y1) ----------
+// ---------- payroll pay heads (lane Y, task Y1) ----------
 
 /** payroll:heads:save input. `value` is monthly paise for calc 'flat', or percent × 100 (basis
  *  points of basic, 4000 = 40%) for 'percent_of_basic'. */
@@ -1022,42 +1023,7 @@ export const employeeHeadsSetSchema = z.object({
 })
 export type EmployeeHeadsSetInput = z.infer<typeof employeeHeadsSetSchema>
 
-/** payroll:ecr / payroll:esi / payroll:ptSummary input. */
-export const payrollRunIdSchema = z.object({ runId: id })
-
-// ---------- payroll statutory (WP 3.7) ----------
-
-export const STATUTORY_RATE_KINDS = ['epf', 'eps', 'edli', 'epf_admin', 'esi_emp', 'esi_er', 'pt', 'ss_wages'] as const
-export type StatutoryRateKind = (typeof STATUTORY_RATE_KINDS)[number]
-
-/** payroll:rates:save — one effective-dated statutory rate / PT slab row. */
-export const statutoryRateInputSchema = z
-  .object({
-    kind: z.enum(STATUTORY_RATE_KINDS),
-    state: z.string().trim().toUpperCase().length(2).nullable().default(null),
-    effectiveFrom: isoDate,
-    effectiveTo: isoDate.nullable().default(null),
-    rateBp: z.number().int().min(0).max(10000).nullable().default(null),
-    ceilingPaise: z.number().int().min(0).nullable().default(null),
-    thresholdPaise: z.number().int().min(0).nullable().default(null),
-    minPaise: z.number().int().min(0).nullable().default(null),
-    slabFromPaise: z.number().int().min(0).nullable().default(null),
-    slabToPaise: z.number().int().min(0).nullable().default(null),
-    amountPaise: z.number().int().min(0).nullable().default(null),
-    basis: z.enum(['month', 'half_year', 'year']).default('month'),
-    gender: z.enum(['any', 'male', 'female']).default('any'),
-    variant: z.enum(['standard', 'disabled']).default('standard'),
-    specialMonth: z.number().int().min(1).max(12).nullable().default(null),
-    specialAmountPaise: z.number().int().min(0).nullable().default(null),
-    source: z.string().trim().min(1).max(600),
-    verified: z.boolean().default(false)
-  })
-  .refine((v) => v.effectiveTo == null || v.effectiveTo >= v.effectiveFrom, { message: 'Effective to is before effective from', path: ['effectiveTo'] })
-  .refine((v) => v.kind !== 'pt' || (v.state != null && v.amountPaise != null && v.slabFromPaise != null), {
-    message: 'A professional-tax row needs a state, a slab start and an amount', path: ['kind']
-  })
-  .refine((v) => v.kind === 'pt' || v.rateBp != null, { message: 'A rate row needs a rate', path: ['rateBp'] })
-export type StatutoryRateInput = z.infer<typeof statutoryRateInputSchema>
+// ---------- payroll salary TDS (WP 3.7; PF / ESI / PT removed in audit A13b) ----------
 
 export const DECLARATION_SECTION_IDS = [
   '80C', '80CCD1B', '80D', '80D_PARENTS', '24B', 'RENT', 'OTHER_INCOME', 'PREV_SALARY', 'PREV_TDS', 'PREV_PT'
@@ -1077,14 +1043,18 @@ export const taxDeclarationsSetSchema = z.object({
 })
 export type TaxDeclarationsSetInput = z.infer<typeof taxDeclarationsSetSchema>
 
+/** Kinds a statutory_payments row can hold. Since audit A13b a PF / ESI / PT payment is recorded
+ *  only against a due an old run left outstanding (the service checks it); new runs deduct none. */
 export const STATUTORY_PAYMENT_KINDS = ['pf', 'esi', 'pt', 'tds'] as const
 export type StatutoryPaymentKind = (typeof STATUTORY_PAYMENT_KINDS)[number]
 
-/** payroll:payments:record — pay a month's dues: books a Payment voucher (Dr the tagged payable /
- *  Cr bank or cash) and records it against the period. */
+/** payroll:payments:record — pay a month's salary TDS, or an old PF / ESI / PT due (only one an
+ *  old run left outstanding — payrollStatutory.recordStatutoryPayment refuses any other): books a
+ *  Payment voucher (Dr the payable / Cr bank or cash) and records it against the period. */
 export const statutoryPaymentInputSchema = z.object({
   kind: z.enum(STATUTORY_PAYMENT_KINDS),
   period: z.string().regex(/^\d{4}-\d{2}$/),
+  /** Professional tax only: the state it is paid to. */
   state: z.string().trim().toUpperCase().length(2).nullable().default(null),
   amountPaise: z.number().int().positive(),
   paidOn: isoDate,

@@ -1,13 +1,13 @@
 // #148 (PR #144 gap): every export button a canExport-refused sign-in would be refused by main is
-// hidden or disabled with the plain reason up front — payroll's PF ECR / ESI / PT files, the
-// statement PDF, Form 24Q's CSV, the simple Taxes "prepare the files" step. Owners and unflagged
-// users see what they saw before.
+// hidden or disabled with the plain reason up front — the statement PDF, Form 24Q's CSV, the
+// simple Taxes "prepare the files" step (payroll's PF ECR / ESI / PT files went in audit A13b).
+// Owners and unflagged users see what they saw before.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useSession } from '../state/stores'
 import type { SessionUser } from '../lib/client'
-import { PtSummaryModal, RunActions } from '../screens/Payroll'
+import { RunActions } from '../screens/Payroll'
 import { StatementModal } from '../components/receivables/StatementModal'
 import { Form24qPanel } from '../screens/tds/Form24qPanel'
 import { HeaderExport } from '../components/ScreenOptions'
@@ -30,7 +30,6 @@ beforeEach(() => {
     platform: 'test',
     invoke: vi.fn(async (channel: string) => {
       switch (channel) {
-        case 'payroll:ptSummary': return { ok: true, data: [{ state: 'MH', employees: 2, gross: 50_000_00, pt: 400_00 }] }
         case 'tds:form24q': return { ok: true, data: { deductees: [{ entryId: 1, employeeId: 1, name: 'Asha', challanSerial: 1 }], employees: [] } }
         case 'receivables:statement': return { ok: true, data: null }
         default: return { ok: true, data: null }
@@ -43,39 +42,12 @@ afterEach(() => {
   act(() => useSession.setState({ slug: null, user: null }))
 })
 
-describe('payroll upload files (PF ECR / ESI / PT)', () => {
-  it('an owner and an unflagged accountant keep PF ECR and ESI CSV', () => {
-    for (const u of [null, user('owner', { canExport: false }), user('accountant')]) {
-      signIn(u)
-      renderUi(<RunActions run={RUN as never} onPt={() => undefined} />)
-      expect(screen.queryByTestId('btn-payroll-ecr'), JSON.stringify(u)).not.toBeNull()
-      expect(screen.queryByTestId('btn-payroll-esi')).not.toBeNull()
-      expect(screen.queryByTestId('payroll-export-refused')).toBeNull()
-      cleanup()
-    }
-  })
-
-  it('a sign-in refused export gets the plain reason instead (the PT summary still opens)', () => {
-    signIn(REFUSED)
-    renderUi(<RunActions run={RUN as never} onPt={() => undefined} />)
-    expect(screen.queryByTestId('btn-payroll-ecr')).toBeNull()
-    expect(screen.queryByTestId('btn-payroll-esi')).toBeNull()
-    expect(screen.getByTestId('payroll-export-refused').getAttribute('title')).toBe(REASON)
-    expect(screen.queryByTestId('btn-payroll-pt')).not.toBeNull()
-  })
-
-  it('the PT summary: state returns hidden and the PT CSV disabled with the reason', async () => {
-    signIn(REFUSED)
-    renderUi(<PtSummaryModal run={RUN as never} onClose={() => undefined} />)
-    const btn = (await screen.findByTestId('btn-payroll-pt-csv')) as HTMLButtonElement
-    expect(btn.disabled).toBe(true)
-    expect(btn.parentElement?.getAttribute('title')).toBe(REASON)
-    expect(screen.queryByTestId('btn-payroll-pt-state-MH')).toBeNull()
-    cleanup()
+describe('a posted pay run (PF / ESI / PT removed in audit A13b)', () => {
+  it('offers no upload files any more — only the voucher, payslips and delete', () => {
     signIn(user('accountant'))
-    renderUi(<PtSummaryModal run={RUN as never} onClose={() => undefined} />)
-    expect(((await screen.findByTestId('btn-payroll-pt-csv')) as HTMLButtonElement).disabled).toBe(false)
-    await waitFor(() => expect(screen.queryByTestId('btn-payroll-pt-state-MH')).not.toBeNull())
+    renderUi(<RunActions run={RUN as never} />)
+    for (const id of ['btn-payroll-ecr', 'btn-payroll-esi', 'btn-payroll-pt', 'payroll-export-refused']) expect(screen.queryByTestId(id), id).toBeNull()
+    for (const id of ['btn-payroll-voucher', 'btn-payroll-payslips', 'btn-payroll-delete-run']) expect(screen.queryByTestId(id), id).not.toBeNull()
   })
 })
 

@@ -1,5 +1,5 @@
-// Feature cleanup: cost centres, cheque books + PDC + bulk payment files,
-// interest on overdue bills, the fixed-asset register, the trade cycle and payroll statutory are
+// Feature cleanup: cost centres, cheque books + PDC + bulk payment files
+// and the trade cycle are (payroll PF / ESI / PT was removed in audit A13b)
 // hidden for a company that has none of their data (`unused` on config:features:get) — no sidebar
 // entry, no Features card, no tab — and shown exactly as before for one that has.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,7 +48,7 @@ beforeEach(() => {
 })
 afterEach(() => cleanup())
 
-const HIDDEN_NAV = ['nav-cost-centres', 'nav-fixed-assets', 'nav-pending-challans', 'nav-quotations']
+const HIDDEN_NAV = ['nav-cost-centres', 'nav-pending-challans', 'nav-quotations']
 
 async function shell(): Promise<void> {
   renderUi(
@@ -91,14 +91,19 @@ describe('hidden until used', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    for (const h of ['costCentres', 'cheques', 'interest', 'fixedAssets', 'tradeCycle', 'payrollStatutory']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
+    for (const h of ['costCentres', 'cheques', 'tradeCycle']) expect(screen.getByTestId(`feature-more-card-${h}`).dataset.on, h).toBe('false')
     expect(screen.queryByTestId('feature-more-card-forex')).toBeNull()
-    fireEvent.click(screen.getByTestId('btn-feature-more-fixedAssets'))
-    await waitFor(() => expect(stored.turnedOn).toEqual(['fixedAssets']))
-    await waitFor(() => expect(screen.getByTestId('feature-more-card-fixedAssets').dataset.on).toBe('true'))
+    expect(screen.queryByTestId('feature-more-card-fixedAssets')).toBeNull() // removed (audit A13b)
+    expect(screen.queryByTestId('feature-more-card-payrollStatutory')).toBeNull() // removed (audit A13b)
+    fireEvent.click(screen.getByTestId('btn-feature-more-tradeCycle'))
+    await waitFor(() => expect(stored.turnedOn).toEqual(['tradeCycle']))
+    // a flag feature: its card moves to the main list, on
+    await waitFor(() => expect(screen.getByTestId('feature-card-orders').dataset.on).toBe('true'))
+    expect(screen.queryByTestId('feature-more-card-tradeCycle')).toBeNull()
     cleanup()
     await shell()
-    expect(document.querySelector('[data-testid="nav-fixed-assets"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="nav-quotations"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="nav-fixed-assets"]')).toBeNull()
     expect(document.querySelector('[data-testid="nav-cost-centres"]')).toBeNull()
   })
 
@@ -117,11 +122,11 @@ describe('hidden until used', () => {
   })
 
   it('simple mode has the same collapsed list', async () => {
-    unused = ['cheques', 'interest']
+    unused = ['cheques', 'costCentres']
     renderUi(<SimpleFeatures />)
     fireEvent.click(await screen.findByTestId('btn-features-more'))
     expect(screen.getByTestId('feature-more-card-cheques')).toBeTruthy()
-    expect(screen.getByTestId('feature-more-card-interest')).toBeTruthy()
-    expect(screen.queryByTestId('feature-more-card-fixedAssets')).toBeNull()
+    expect(screen.getByTestId('feature-more-card-costCentres')).toBeTruthy()
+    expect(screen.queryByTestId('feature-more-card-tradeCycle')).toBeNull()
   })
 })

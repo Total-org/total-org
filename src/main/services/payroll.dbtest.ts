@@ -5,8 +5,7 @@ import type { EmployeeInputPayload as EmployeeInput } from '@shared/schemas'
 import { setLockDate } from './vouchers'
 import {
   saveEmployee, listEmployees, listPayHeads, savePayHead, deletePayHead,
-  getEmployeeHeads, setEmployeeHeads, previewRun, commitRun, getRun, deleteRun,
-  ecrForRun, esiForRun, ptSummaryForRun
+  getEmployeeHeads, setEmployeeHeads, previewRun, commitRun, getRun, deleteRun
 } from './payroll'
 
 const emp = (over: Partial<EmployeeInput> = {}): EmployeeInput => ({
@@ -69,11 +68,12 @@ describe('pay heads', () => {
     expect(line!.headAmounts.map((h) => h.name)).toEqual(['Basic', 'HRA', 'Special Allowance', 'Conveyance', 'Canteen'])
   })
 
-  it('previewRun honors the employee PT state', () => {
+  it('previewRun deducts no PF / ESI / PT whatever the stored flags say (audit A13b)', () => {
     const db = seededDb()
-    saveEmployee(db, emp({ name: 'KA Emp', basic: 15_000_00, hra: 5_000_00, special: 0, ptState: 'KA' }))
+    saveEmployee(db, emp({ name: 'MH Emp', basic: 15_000_00, hra: 5_000_00, special: 0, ptState: 'MH' }))
     const [line] = previewRun(db, '2026-07', [])
-    expect(line!.pt).toBe(0) // 20,000 gross is below Karnataka's ₹25,000 threshold
+    // Gross 20,000 used to lose PF 1,800 + PT 200; now net = gross (TDS nil: 1.8 lakh a year).
+    expect(line).toMatchObject({ gross: 20_000_00, pfEmp: 0, pfEr: 0, esiEmp: 0, esiEr: 0, pt: 0, tds: 0, net: 20_000_00 })
   })
 })
 
@@ -81,7 +81,7 @@ const voucherCount = (db: DB): number =>
   (db.prepare('SELECT COUNT(*) AS n FROM vouchers').get() as { n: number }).n
 
 describe('commitRun', () => {
-  it('books employer PF split charges and custom deductions in a balanced voucher', () => {
+  it('books salaries against Salaries Payable only — no PF / ESI / PT lines (audit A13b)', () => {
     const db = seededDb()
     saveEmployee(db, emp())
     const run = commitRun(db, '2026-07', [])
@@ -93,24 +93,17 @@ describe('commitRun', () => {
          JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? ORDER BY vl.line_order`
       )
       .all(run.voucherId) as { name: string; drCr: 'dr' | 'cr'; amount: number }[]
-
-    const byName = new Map(lines.map((l) => [l.name, l]))
-    expect(byName.get('Salaries')).toMatchObject({ drCr: 'dr', amount: 32_000_00 })
-    expect(byName.get('Employer PF Contribution')).toMatchObject({ drCr: 'dr', amount: 1_800_00 })
-    // admin 0.5% + EDLI 0.5% on the capped ₹15,000 wage = ₹75 + ₹75, and (WP 3.7) the EPFO
-    // minimum admin charge of ₹500 a month per establishment tops admin up by ₹425.
-    expect(byName.get('PF Admin & EDLI Charges')).toMatchObject({ drCr: 'dr', amount: 75_00 + 75_00 + 425_00 })
-    expect(byName.get('PF Payable')).toMatchObject({ drCr: 'cr', amount: 1_800_00 + 1_800_00 + 575_00 })
-    const dr = lines.filter((l) => l.drCr === 'dr').reduce((s, l) => s + l.amount, 0)
-    const cr = lines.filter((l) => l.drCr === 'cr').reduce((s, l) => s + l.amount, 0)
-    expect(dr).toBe(cr)
-
-    // Stored line carries the statutory split + head breakdown
+    // Gross 20,000 + 8,000 + 4,000 = 32,000; a year of 32,000 × 9 = 2.88 lakh is under the new
+    // regime's rebate, so no TDS: Salaries Dr 32,000 / Salaries Payable Cr 32,000.
+    expect(lines).toEqual([
+      { name: 'Salaries', drCr: 'dr', amount: 32_000_00 },
+      { name: 'Salaries Payable', drCr: 'cr', amount: 32_000_00 }
+    ])
+    expect(run.pfAdminTopUp).toBe(0)
     const stored = getRun(db, run.id)!.lines[0]!
-    expect(stored.epsEr).toBe(1_250_00) // 1,249.50 rupee-rounded (EPS 2026 para 4(3))
-    expect(stored.pfAdmin).toBe(75_00)
-    expect(stored.edli).toBe(75_00)
+    expect(stored).toMatchObject({ pfEmp: 0, pfEr: 0, epsEr: 0, pfAdmin: 0, edli: 0, esiEmp: 0, esiEr: 0, pt: 0, net: 32_000_00 })
     expect(stored.headAmounts.length).toBeGreaterThan(0)
+    expect(db.prepare("SELECT COUNT(*) AS n FROM ledgers WHERE statutory_kind IN ('pf', 'esi', 'pt')").get()).toEqual({ n: 0 })
   })
 
   it('is atomic: a failure while writing run rows also rolls back the salary voucher', () => {
@@ -143,58 +136,17 @@ describe('commitRun', () => {
   })
 })
 
-describe('statutory exports', () => {
-  it('ecrForRun emits #~# lines for PF members with UANs and errors when there are none', () => {
-    const db = seededDb()
-    saveEmployee(db, emp({ uan: '100123456789' }))
-    saveEmployee(db, emp({ name: 'No Uan', uan: null }))
-    const run = commitRun(db, '2026-07', [])
-
-    const { filename, text } = ecrForRun(db, run.id)
-    expect(filename).toBe('pf-ecr-2026-07.txt')
-    const lines = text.split('\n')
-    expect(lines).toHaveLength(1) // only the UAN-carrying employee
-    expect(lines[0]).toBe('100123456789#~#ASHA KUMAR#~#32000#~#15000#~#15000#~#15000#~#1800#~#1250#~#550#~#0#~#0')
-
-    const db2 = seededDb()
-    saveEmployee(db2, emp({ uan: null }))
-    const run2 = commitRun(db2, '2026-07', [])
-    expect(() => ecrForRun(db2, run2.id)).toThrow(/UAN/)
-  })
-
-  it('esiForRun lists only contributing insured persons with ESIC numbers', () => {
-    const db = seededDb()
-    // Gross 18,000 ≤ 21,000 → ESI applies
-    saveEmployee(db, emp({ basic: 12_000_00, hra: 4_000_00, special: 2_000_00, esicNo: '1234567890' }))
-    // Gross above the limit → no contribution even with a number
-    saveEmployee(db, emp({ name: 'High Earner', esicNo: '9999999999' }))
-    const run = commitRun(db, '2026-07', [])
-
-    const { filename, text } = esiForRun(db, run.id)
-    expect(filename).toBe('esi-upload-2026-07.csv')
-    const lines = text.split('\n')
-    expect(lines[0]).toContain('IP Number')
-    expect(lines).toHaveLength(2)
-    // WP 3.7: from 21-11-2025 ESI wages are Code on Social Security s.2(88) wages — basic +
-    // special 14,000 (HRA 4,000 is excluded and under half of remuneration), not gross 18,000.
-    expect(lines[1]).toBe('1234567890,Asha Kumar,31,14000,0,')
-  })
-
-  it('ptSummaryForRun groups PT by the employees\' states', () => {
-    const db = seededDb()
-    saveEmployee(db, emp({ name: 'MH One' }))
-    saveEmployee(db, emp({ name: 'KA One', basic: 15_000_00, hra: 5_000_00, special: 0, ptState: 'KA' }))
-    const run = commitRun(db, '2026-07', [])
-
-    const rows = ptSummaryForRun(db, run.id)
-    expect(rows).toEqual([
-      { state: 'KA', employees: 1, gross: 20_000_00, pt: 0 },
-      { state: 'MH', employees: 1, gross: 32_000_00, pt: 200_00 }
-    ])
-  })
-})
-
 describe('employees regression', () => {
+  it('a new employee starts with PF / ESI / PT off; an edit that leaves them out keeps what is stored', () => {
+    const db = seededDb()
+    const e = saveEmployee(db, { name: 'New Hire', basic: 10_000_00 })
+    expect(e).toMatchObject({ pfEnabled: false, esiEnabled: false, ptEnabled: false, ptState: 'MH', uan: null, esicNo: null })
+    // An old book's employee with the old profile: an edit from today's form keeps it.
+    const old = saveEmployee(db, emp({ name: 'Old Hand', uan: '100100100100', esicNo: '3100123456', ptState: 'KA', pfNumber: 'MH/123/45' }))
+    const edited = saveEmployee(db, { name: 'Old Hand', basic: 21_000_00 }, old.id)
+    expect(edited).toMatchObject({ pfEnabled: true, esiEnabled: true, ptEnabled: true, ptState: 'KA', uan: '100100100100', esicNo: '3100123456', pfNumber: 'MH/123/45', basic: 21_000_00 })
+  })
+
   it('listEmployees surfaces ptState with the migration default', () => {
     const db = seededDb()
     db.prepare("INSERT INTO employees (name, basic) VALUES ('Raw Row', 1000000)").run()

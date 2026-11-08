@@ -77,7 +77,7 @@ export function CloseTab({ initialPeriod }: { initialPeriod?: string }): React.J
           title: status === 'done' ? `Mark “${c.title}” done` : `Mark “${c.title}” not applicable`,
           message: 'Add a note for the audit trail (optional).',
           initial: '',
-          placeholder: status === 'done' ? 'e.g. reviewed with the bank statement' : 'e.g. depreciation is posted yearly',
+          placeholder: status === 'done' ? 'e.g. reviewed with the bank statement' : 'e.g. no post-dated cheques this month',
           confirmLabel: status === 'done' ? 'Mark done' : 'Not applicable'
         })
         if (n === null) return

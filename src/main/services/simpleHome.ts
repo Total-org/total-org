@@ -16,6 +16,7 @@ import type { CompanyInfo } from '@shared/domain'
 import { addDays, addMonths, monthOf, monthRange, monthSpan } from '@shared/dashboard'
 import { fyOf, gstPeriodOf } from '@shared/dates'
 import { upcomingDeadlines } from '@shared/compliance'
+import { payrollDeductionMonths } from './payrollStatutory'
 import { parseGstr2b, reconcile2b, recon2bOptionsFrom } from '@shared/gst/recon2b'
 import {
   ANOMALY_HOME_CAP, attentionItems, BACKUP_NUDGE_DAYS, daysSince, owedSummary,
@@ -156,7 +157,11 @@ function compute(db: DB, company: CompanyInfo, opts: { today: string; backups: D
   // ---- deadlines (WP 8.0: applicable ones only), other than GST ----
   const hasPayroll = features.payroll && !!db.prepare('SELECT 1 FROM employees WHERE active = 1 LIMIT 1').get()
   const tds = tdsApplies(db, company, features.tds, tdsPayableLedgers(ledgers, dutiesIds, bal).length > 0)
-  const deadlines = upcomingDeadlines(today, company.gstRegistrationType, hasPayroll, 30, { tds, gstFiling: filing, stateCode: company.stateCode }).filter((d) => d.kind !== 'gst')
+  // Audit A13b review: a PF / ESI date only for a wage month an (old) run deducted it in.
+  const deducted = hasPayroll ? payrollDeductionMonths(db) : { pf: [], esi: [] }
+  const deadlines = upcomingDeadlines(today, company.gstRegistrationType, hasPayroll, 30, {
+    tds, gstFiling: filing, stateCode: company.stateCode, pfMonths: deducted.pf, esiMonths: deducted.esi
+  }).filter((d) => d.kind !== 'gst')
 
   // ---- backup nudge ----
   const mine = userBackupsOf(opts.backups)

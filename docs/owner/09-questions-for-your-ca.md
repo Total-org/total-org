@@ -166,7 +166,7 @@ not merged, when this was written. Their files and ids exist only after they mer
     - Today: GSTR-9 labels come from a secondary copy, and the Rs 2 crore exemption (Notification 15/2025). The JSON files for GSTR-9, ITC-04 and IMS are Total's own layout, for review, not upload.
     - Confirm: labels and the exemption. How is an IMS record identified?
     - In the code: `src/shared/gst/sources.ts` ids `gstr9-layout`, `gstr9-json`, `gstr9-exempt`, `itc04-json`, `ims-json`, `ims-key`.
-31. **Interest charged on overdue bills**
+31. **Interest charged on overdue bills** (the feature was removed in November 2026, audit A13b — this only matters for interest notes already in old books)
     - Today: the interest debit note carries GST. GST on interest is due when the interest is received, but Total puts it on the note by default (paid early, never late). It reports through the interest ledger with no HSN. The SAC is left blank.
     - Confirm: charge GST when claimed or when received? Which SAC (9971)? Which HSN in Table 12?
     - In the code: `src/shared/receivables/sources.ts` ids `cgst-12-6`, `hsn-of-interest`, `sac-of-interest`.
@@ -341,9 +341,9 @@ note); this list is rewritten from that file, so it never drifts from what the a
 | `msme-form1-udyam` | The MSME Form 1 layout and how a Udyam number is read (state, then district) come from copies, not the official text. *(MSME Form 1 (MSMED Act s.9); Udyam registration number)* | Q36 | Payables → MSME tab |
 | `forecast-dates` | The tax due dates in the forecast (GST, TDS) were written from summaries, and a small supplier’s bills move to their s.15 date as Total reads the rule. Check them. *(Statutory due dates in the cash forecast (GST, TDS))* | Q50, Q37, Q54 | Cash forecast screen header |
 | `audit-retention` | How long the edit log must be kept, and what it must show, was not re-read in the law’s exact words. *(s.128(5) Companies Act; Income-tax rule 6F; IT Act 2025 s.62 / Rules 2026 r.46(9))* | Q52 | Edit log screen header |
-| `fixed-assets` | The fixed-asset register is hidden until used (Phase 1 triage §5) — its points close with the feature. | Q1, Q2, Q9, Q10, Q11, Q12, Q44, Q45, Q46, Q47, Q48, Q49 | closed — feature hidden |
-| `payroll-statutory` | Payroll statutory (PF / ESI / PT) is hidden until used (Phase 1 triage §5). | Q7, Q38, Q39, Q40, Q41, Q42 | closed — feature hidden |
-| `receivables-interest` | Interest on overdue bills is hidden until used (Phase 1 triage §5). | Q31 | closed — feature hidden |
+| `fixed-assets` | The fixed-asset register was removed (audit A13b); depreciation / disposal journals in older books stay as ordinary entries, and the s.18(6) extra tax an old GST disposal posted is still read into GSTR-1 / 3B (the cg-* entries record how). | Q1, Q2, Q9, Q10, Q11, Q12, Q44, Q45, Q46, Q47, Q48, Q49 | closed — feature removed |
+| `payroll-statutory` | Payroll PF / ESI / PT was removed (audit A13b): pay runs no longer deduct them; runs, dues and payments in older books stay as saved. The compute-only gratuity / bonus helper (Payroll → Salary TDS) posts nothing. | Q7, Q38, Q39, Q40, Q41, Q42 | closed — feature removed |
+| `receivables-interest` | Interest on overdue bills was removed (audit A13b); old interest debit notes stay as ordinary entries. | Q31 | closed — feature removed |
 | `msme-interest` | MSME interest is indicative and never posted; it closes with the feature (Phase 1 triage §5). | Q34 | closed — feature hidden |
 | `forex` | Forex revaluation and settlement were removed in the 1.0 cleanup (PR #195). | Q51 | closed — feature removed |
 | `gateway-api` | The GST gateway is sandbox-only in 1.0 (live switch off); its API shapes are proved by a GSP sandbox, not a CA. | — | closed — sandbox only |

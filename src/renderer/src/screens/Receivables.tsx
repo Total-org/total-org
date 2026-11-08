@@ -1,15 +1,13 @@
 // WP 4.2 — Credit control: parties by exposure (holds, limits, DSO, promises), reminder letters
-// by ageing bucket with their log, interest on overdue bills (preview → debit note) and the
-// collection reports (DSO by month, collection efficiency, ageing trend, top overdue). Every
+// by ageing bucket with their log and the collection reports (DSO by month, collection efficiency, ageing trend, top overdue). Every
 // figure is computed from the books at query time (services/receivables.ts).
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { todayISO, toDisplayDate, toMonthLabel } from '@shared/dates'
 import { formatPaise } from '@shared/money'
 import { REMINDER_BUCKET_LABELS, type ReminderBucket } from '@shared/receivables/config'
-import { bpToPercent } from '@shared/receivables/interest'
 import {
-  receivablesApi, type CollectionReport, type CreditControlRow, type FollowupRow, type InterestChargeRow, type InterestRow,
+  receivablesApi, type CollectionReport, type CreditControlRow, type FollowupRow,
   type ReminderCandidate, type ReminderLogRow, type TopOverdueRow
 } from '../lib/receivablesClient'
 import { useSession, useToasts } from '../state/stores'
@@ -22,12 +20,12 @@ import { DataTable, defineColumns } from '../components/table'
 import { LedgerLink, VoucherLink } from '../components/links'
 import { TabBar } from '../components/TabBar'
 
-export type ReceivablesTab = 'control' | 'reminders' | 'interest' | 'collections'
+export type ReceivablesTab = 'control' | 'reminders' | 'collections'
 
 const rupees = (p: number): string => formatPaise(p, { symbol: true })
 
-/** The as-on date for credit control, reminders and interest: the period end, but never a day in
- *  the future (the working period usually runs to 31 March — interest can't accrue to then). */
+/** The as-on date for credit control and reminders: the period end, but never a day in the
+ *  future (the working period usually runs to 31 March). */
 export function useAsOn(): string {
   const { to } = useSession()
   const today = todayISO()
@@ -107,42 +105,6 @@ const LOG_COLUMNS = defineColumns<ReminderLogRow>([
   { id: 'channel', header: 'Channel', kind: 'text', value: (r) => r.channel, width: 80 },
   { id: 'by', header: 'By', kind: 'text', value: (r) => r.userName ?? '', width: 110 },
   { id: 'doc', header: 'Document', kind: 'text', value: (r) => r.documentPath?.split(/[\\/]/).pop() ?? '', minWidth: 150, defaultHidden: true }
-])
-
-const INTEREST_COLUMNS = defineColumns<InterestRow>([
-  { id: 'party', header: 'Party', kind: 'text', value: (r) => r.partyName, minWidth: 130, cell: (r) => <LedgerLink ledgerId={r.ledgerId} name={r.partyName} /> },
-  { id: 'bill', header: 'Bill', kind: 'text', value: (r) => r.billRef, width: 110, hideable: false, cell: (r) => <VoucherLink voucherId={r.billVoucherId} label={r.billRef} /> },
-  { id: 'due', header: 'Due', kind: 'date', value: (r) => r.dueDate ?? r.billDate, width: 108 },
-  { id: 'grace', header: 'Grace', kind: 'number', value: (r) => r.graceDays, width: 70, defaultHidden: true },
-  { id: 'from', header: 'From', kind: 'date', value: (r) => r.from, width: 108 },
-  { id: 'to', header: 'To', kind: 'date', value: (r) => r.to, width: 96, defaultHidden: true },
-  { id: 'days', header: 'Days', kind: 'number', value: (r) => r.days, width: 60 },
-  { id: 'pending', header: 'Pending', kind: 'money', value: (r) => r.pendingPaise, width: 110 },
-  { id: 'rate', header: 'Rate', kind: 'number', value: (r) => r.rateBp / 100, width: 70, text: (r) => `${bpToPercent(r.rateBp)} %` },
-  { id: 'interest', header: 'Interest', kind: 'money', value: (r) => r.interestPaise, aggregate: 'sum', width: 110, className: 'font-medium' },
-  { id: 'gstRate', header: 'GST rate', kind: 'text', value: (r) => r.gst.filter((g) => g.rate > 0).map((g) => `${g.rate}%`).join(' + ') || 'none', width: 80, defaultHidden: true },
-  { id: 'gst', header: 'GST', kind: 'money', value: (r) => r.gstPaise, aggregate: 'sum', width: 90 },
-  { id: 'total', header: 'Debit note', kind: 'money', value: (r) => r.totalPaise, aggregate: 'sum', width: 110 },
-  { id: 'charged', header: 'Charged to', kind: 'date', value: (r) => r.chargedTo ?? '', width: 110, defaultHidden: true },
-  {
-    id: 'note', header: 'Note', kind: 'text', value: (r) => r.blocked ?? r.warning ?? '', minWidth: 120, defaultHidden: false,
-    cell: (r) =>
-      r.blocked ? <span title={r.blocked}><Badge tone="danger" testId="badge-interest-blocked">Not charged</Badge></span>
-        : r.warning ? <span title={r.warning}><Badge tone="warning" testId="badge-interest-warning">Check</Badge></span> : null
-  }
-])
-
-const CHARGE_COLUMNS = defineColumns<InterestChargeRow>([
-  { id: 'note', header: 'Debit note', kind: 'text', value: (r) => r.debitNoteNumber, width: 120, cell: (r) => <VoucherLink voucherId={r.debitNoteVoucherId} label={r.debitNoteNumber} /> },
-  { id: 'party', header: 'Party', kind: 'text', value: (r) => r.partyName, minWidth: 140 },
-  { id: 'bill', header: 'Bill', kind: 'text', value: (r) => r.billRef, width: 110 },
-  { id: 'from', header: 'From', kind: 'date', value: (r) => r.periodFrom, width: 100 },
-  { id: 'to', header: 'To', kind: 'date', value: (r) => r.periodTo, width: 100 },
-  { id: 'days', header: 'Days', kind: 'number', value: (r) => r.days, width: 70 },
-  { id: 'principal', header: 'On', kind: 'money', value: (r) => r.principalPaise, width: 110 },
-  { id: 'interest', header: 'Interest', kind: 'money', value: (r) => r.interestPaise, aggregate: 'sum', width: 110 },
-  { id: 'gst', header: 'GST', kind: 'money', value: (r) => r.gstPaise, aggregate: 'sum', width: 90 },
-  { id: 'status', header: 'Status', kind: 'text', value: (r) => (r.binned ? 'In the bin' : 'Live'), width: 90, cell: (r) => (r.binned ? <Badge tone="neutral">In the bin</Badge> : <Badge tone="success">Live</Badge>) }
 ])
 
 type MonthRow = CollectionReport['months'][number]
@@ -375,104 +337,6 @@ function RemindersTab(): React.JSX.Element {
   )
 }
 
-function InterestTab({ gst }: { gst: boolean }): React.JSX.Element {
-  const to = useAsOn()
-  const toast = useToasts()
-  const qc = useQueryClient()
-  const [busy, setBusy] = useState(false)
-  const { data, isLoading } = useQuery({ queryKey: ['interestPreview', to, gst], queryFn: () => receivablesApi.interestPreview(to, gst) })
-  const { data: charges } = useQuery({ queryKey: ['interestCharges'], queryFn: () => receivablesApi.interestCharges() })
-  const rows = data ?? []
-  const postable = rows.filter((r) => !r.blocked)
-  const parties = useMemo(() => [...new Set(rows.filter((r) => !r.blocked).map((r) => r.ledgerId))], [rows])
-  const post = async (ledgerIds: number[]): Promise<void> => {
-    if (busy || !ledgerIds.length) return
-    const sel = postable.filter((r) => ledgerIds.includes(r.ledgerId))
-    if (!sel.length) return void toast.push('warning', rows.find((r) => ledgerIds.includes(r.ledgerId))?.blocked ?? 'Nothing to post')
-    const total = sel.reduce((s, r) => s + r.totalPaise, 0)
-    const ok = await confirmDialog({
-      title: 'Post interest',
-      message: `Post ${ledgerIds.length} debit note${ledgerIds.length === 1 ? '' : 's'} for ${rupees(total)} (${sel.length} bill${sel.length === 1 ? '' : 's'}${gst ? ', GST included' : ', no GST'}) dated ${toDisplayDate(to)}?`,
-      confirmLabel: 'Post'
-    })
-    if (!ok) return
-    setBusy(true)
-    const posted: string[] = []
-    const numbers: string[] = []
-    try {
-      for (const id of ledgerIds) {
-        const party = sel.find((r) => r.ledgerId === id)?.partyName ?? ''
-        if (!sel.some((r) => r.ledgerId === id)) continue
-        const res = await receivablesApi.postInterest({ asOn: to, ledgerId: id, keys: sel.filter((r) => r.ledgerId === id).map((r) => r.key), gstOnInterest: gst })
-        posted.push(party)
-        numbers.push(res.number)
-      }
-      toast.push('success', `Debit note${numbers.length === 1 ? '' : 's'} ${numbers.join(', ')} posted`)
-    } catch (err) {
-      // Parties are posted one at a time: say which went through before the failure.
-      toast.push('error', `${(err as Error).message}${posted.length ? ` — already posted: ${posted.join(', ')} (${numbers.join(', ')})` : ''}`)
-    } finally {
-      setBusy(false)
-      // Refresh either way, so parties already posted leave the list.
-      await qc.invalidateQueries()
-    }
-  }
-  return (
-    <>
-      <StatGrid className="mb-section">
-        <StatTile label="Interest" value={rupees(rows.reduce((s, r) => s + r.interestPaise, 0))} hint={`${rows.length} bills · ${parties.length} parties`} testId="interest-total" />
-        <StatTile label="GST on interest" value={rupees(rows.reduce((s, r) => s + r.gstPaise, 0))} hint={gst ? 'at the supply’s rate (s.15(2)(d))' : 'off — Options'} />
-        <StatTile label="Debit notes" value={rupees(rows.reduce((s, r) => s + r.totalPaise, 0))} hint={`as on ${toDisplayDate(to)}`} />
-        <StatTile label="Charged so far" value={rupees((charges ?? []).filter((c) => !c.binned).reduce((s, c) => s + c.interestPaise, 0))} hint={`${(charges ?? []).filter((c) => !c.binned).length} bill-periods`} />
-      </StatGrid>
-      <Panel>
-        <DataTable
-          viewId="receivables-interest"
-          testId="interest-preview"
-          ariaLabel="Interest on overdue bills"
-          columns={INTEREST_COLUMNS}
-          rows={rows}
-          rowKey={(r) => r.key}
-          rowAttrs={(r) => ({ 'data-row-id': r.ledgerId })}
-          loading={isLoading}
-          empty={{ title: 'No interest due', hint: 'Set an interest rate (and grace days) on a customer ledger; bills past due + grace accrue simple interest on what is still pending — a bill paid in full, however late, accrues nothing.' }}
-          toolbarEnd={
-            <Button size="sm" variant="primary" data-testid="btn-interest-post-all" disabled={busy || !postable.length} onClick={() => void post(parties)}>
-              Post all
-            </Button>
-          }
-          trailing={(r) => (
-            <button type="button" data-testid="btn-interest-post" className="text-hint t-link" disabled={busy} onClick={() => void post([r.ledgerId])}>
-              Post party
-            </button>
-          )}
-          trailingWidth={90}
-          maxHeight="45vh"
-          exportOptions={{ title: 'Interest on overdue bills', periodLabel: `as on ${toDisplayDate(to)}`, filename: 'interest-preview' }}
-        />
-      </Panel>
-      <p className="mt-2 text-hint text-muted" data-testid="interest-hint">
-        Interest is on each bill&apos;s amount still pending — a bill paid in full, however late, accrues nothing. One debit note per party (per place of
-        supply); it can only be binned, not edited. “Not charged” rows need a default GST rate (Settings → Receivables) or GST on interest off.
-      </p>
-      <h2 className="mb-2 mt-section text-title font-semibold">Charged</h2>
-      <Panel>
-        <DataTable
-          viewId="receivables-interest-charged"
-          testId="interest-charges"
-          ariaLabel="Interest charged"
-          columns={CHARGE_COLUMNS}
-          rows={charges ?? []}
-          rowKey={(r) => r.id}
-          empty={{ title: 'No interest charged yet' }}
-          maxHeight="35vh"
-          exportOptions={{ title: 'Interest charged', periodLabel: '', filename: 'interest-charged' }}
-        />
-      </Panel>
-    </>
-  )
-}
-
 function CollectionsTab(): React.JSX.Element {
   const { from } = useSession()
   // Months after today have nothing to measure yet — the report runs to today at the latest.
@@ -530,20 +394,20 @@ function CollectionsTab(): React.JSX.Element {
 const TABS: { id: ReceivablesTab; label: string }[] = [
   { id: 'control', label: 'Credit control' },
   { id: 'reminders', label: 'Reminders' },
-  { id: 'interest', label: 'Interest' },
   { id: 'collections', label: 'Collections' }
 ]
 
-const AREA: Record<ReceivablesTab, string> = { control: 'credit-control', reminders: 'reminder-candidates', interest: 'interest-preview', collections: 'collections' }
+const AREA: Record<ReceivablesTab, string> = { control: 'credit-control', reminders: 'reminder-candidates', collections: 'collections' }
 
-export function ReceivablesScreen({ tab: initialTab = 'control' }: { tab?: ReceivablesTab }): React.JSX.Element {
+/** A tab the screen still has; anything else (the removed Interest tab in an old link or history
+ *  entry — audit A13b) opens Credit control. */
+const knownTab = (t: string | undefined): ReceivablesTab => (TABS.some((x) => x.id === t) ? (t as ReceivablesTab) : 'control')
+
+export function ReceivablesScreen({ tab: initialTab }: { tab?: string }): React.JSX.Element {
   const { from, to } = useSession()
   const toast = useToasts()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<ReceivablesTab>(initialTab)
-  // Feature cleanup: the Interest tab only for a company that has charged interest or set terms.
-  const { interest } = useFeatures()
-  const tabs = interest ? TABS : TABS.filter((t) => t.id !== 'interest' || t.id === tab)
+  const [tab, setTab] = useState<ReceivablesTab>(() => knownTab(initialTab))
   const opts = useScreenOptions('receivables', { showDoneTasks: false })
   const { data: cfg } = useQuery({ queryKey: ['receivablesConfig'], queryFn: receivablesApi.config })
   const config = cfg?.config
@@ -564,12 +428,12 @@ export function ReceivablesScreen({ tab: initialTab = 'control' }: { tab?: Recei
       <PageHeader
         title="Credit control"
         period={asOn}
-        tabs={<TabBar screen="receivables" tabs={tabs} active={tab} onSelect={setTab} />}
+        tabs={<TabBar screen="receivables" tabs={TABS} active={tab} onSelect={setTab} />}
         options={{
           onReset: opts.reset,
           content: (
             <>
-              <OptionsPeriod asOn={tab === 'control' || tab === 'interest'} />
+              <OptionsPeriod asOn={tab === 'control'} />
               <OptionsTable area={AREA[tab]} />
               {tab === 'reminders' && config && (
                 <DrawerSection title="Cadence" testId="options-reminder-cadence">
@@ -591,24 +455,6 @@ export function ReceivablesScreen({ tab: initialTab = 'control' }: { tab?: Recei
                   <p className="text-hint text-muted">
                     Letters by the oldest overdue bill: gentle, firm from {config.firmFromDays} days, final from {config.finalFromDays} days. Templates and thresholds: Settings → Receivables.
                   </p>
-                </DrawerSection>
-              )}
-              {tab === 'interest' && config && (
-                <DrawerSection title="GST on interest" testId="options-interest-gst">
-                  <Checkbox
-                    label="Charge GST on the interest (at the original supply’s rate)"
-                    checked={config.interest.gstOnInterest}
-                    onChange={(v) => void saveConfig((c) => ({ ...c, interest: { ...c.interest, gstOnInterest: v } }))}
-                    testId="input-interest-gst"
-                  />
-                  <ul className="flex flex-col gap-1.5 text-hint text-muted" data-testid="interest-sources">
-                    {(cfg?.sources ?? []).map((s) => (
-                      <li key={s.id}>
-                        {!s.verified && <Badge tone="warning">Unverified</Badge>} {s.rule}
-                        <span className="block italic">{s.citation}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </DrawerSection>
               )}
               {tab === 'collections' && (
@@ -645,7 +491,6 @@ export function ReceivablesScreen({ tab: initialTab = 'control' }: { tab?: Recei
       />
       {tab === 'control' && <ControlTab showDoneTasks={opts.options.showDoneTasks} onShowDoneTasks={(v) => opts.set('showDoneTasks', v)} />}
       {tab === 'reminders' && <RemindersTab />}
-      {tab === 'interest' && <InterestTab gst={config?.interest.gstOnInterest ?? true} />}
       {tab === 'collections' && <CollectionsTab />}
     </Page>
   )

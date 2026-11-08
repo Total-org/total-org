@@ -259,13 +259,13 @@ This is the full app. It is built to match what an accountant expects from Tally
 
 - Outstandings with ageing, bill by bill.
 - Credit control with credit holds.
-- Statements, reminders, and interest on late payment (with GST on interest handled correctly).
+- Statements and reminders. (Interest on late payment was removed in November 2026; interest notes already in old books stay as they are.)
 - **Payables.** Payment runs that pay many suppliers at once. MSME tracking covers the 45-day payment rule and the interest owed.
 
 #### People and pay (switch on in Features)
 
 - Payroll: employees and salary structures.
-- Monthly pay runs with PF, ESI and professional tax.
+- Monthly pay runs. (PF, ESI and professional tax were removed in November 2026; pay runs already in old books keep them as they are.)
 - Salary TDS and payslips.
 
 #### Planning and analysis
@@ -277,7 +277,7 @@ This is the full app. It is built to match what an accountant expects from Tally
 #### Books and year-end
 
 - Trial balance, Profit & Loss, Balance sheet, Cash flow and registers.
-- Fixed assets with depreciation.
+- Fixed assets with depreciation was removed in November 2026; depreciation and asset-sale entries already in old books stay as they are.
 - **Year-end close**, with closing entries that cannot be edited.
 - Period locks.
 - A bin for deleted entries.

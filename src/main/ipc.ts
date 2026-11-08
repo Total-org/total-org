@@ -111,7 +111,6 @@ import * as priceLevels from './services/priceLevels'
 import { quickCreateItem } from './services/quickCreate'
 import { companySlugSchema, quickItemSchema } from '@shared/schemas'
 import * as yearEnd from './services/yearEnd'
-import { registerFixedAssetIpc } from './ipcFixedAssets'
 import { registerPayrollStatutoryIpc } from './ipcPayrollStatutory'
 import { registerPricingIpc } from './ipcPricing'
 import { registerReportsIpc } from './ipcReports'
@@ -191,7 +190,7 @@ import { assertDeleteAuthorized, auditCompanyDeletion } from './services/company
 import { roleAllows, type Role } from './services/roles'
 import {
   bomInputSchema, employeeInputSchema, nicCredentialsSchema, auditListSchema,
-  userInputSchema, authLoginSchema, payHeadInputSchema, employeeHeadsSetSchema, payrollRunIdSchema,
+  userInputSchema, authLoginSchema, payHeadInputSchema, employeeHeadsSetSchema,
   auditRetentionSchema, auditExportSchema, auditTrailRequiredSchema, invoicePdfBatchSchema, linksForVoucherSchema, openSourceLinesSchema, tradePendingSchema, tradeNoteListSchema, tradeDocNextNumberSchema,
   tradeDocTypeSaveSchema, tradeDocListSchema, tradeDocSaveSchema, tradeDocActionSchema, tradeDocConvertSchema, pendingOrdersSchema,
   quotationPipelineSchema, openOrderValueSchema, tradeChainSchema, threeWayMatchSchema, itemDemandSchema, orderBookSchema,
@@ -635,8 +634,6 @@ export function registerIpc(): void {
   }, 15_000)
   idleTimer.unref?.()
 
-  // ---------- fixed assets (WP 3.6) — channels live in ipcFixedAssets.ts ----------
-  registerFixedAssetIpc(handle, () => requireCompany().db)
   // ---------- payroll statutory (WP 3.7) — channels live in ipcPayrollStatutory.ts ----------
   registerPayrollStatutoryIpc(handle, () => requireCompany())
   registerPricingIpc(handle, () => requireCompany())
@@ -3057,38 +3054,7 @@ export function registerIpc(): void {
     return payroll.getEmployeeHeads(requireCompany().db, employeeId)
   }, 'viewer')
   handle('payroll:employeeHeads:set', (p) => payroll.setEmployeeHeads(requireCompany().db, employeeHeadsSetSchema.parse(p)))
-  // statutory exports: PF ECR text, ESI upload CSV, PT summary per state (lane Y, task Y1)
-  handle('payroll:ecr', (p) => {
-    const { runId } = payrollRunIdSchema.parse(p)
-    const c = requireCompany()
-    const { filename, text } = payroll.ecrForRun(c.db, runId)
-    const path = join(companyExportsDir(c.slug), filename)
-    writeFileSync(path, text, 'utf8')
-    auditExport(c.db, 'payroll_ecr', { runId, path })
-    shell.showItemInFolder(path)
-    return { path }
-  })
-  handle('payroll:esi', (p) => {
-    const { runId } = payrollRunIdSchema.parse(p)
-    const c = requireCompany()
-    const { filename, text } = payroll.esiForRun(c.db, runId)
-    const path = join(companyExportsDir(c.slug), filename)
-    writeFileSync(path, text, 'utf8')
-    auditExport(c.db, 'payroll_esi', { runId, path })
-    shell.showItemInFolder(path)
-    return { path }
-  })
-  handle('payroll:ptSummary', (p) => payroll.ptSummaryForRun(requireCompany().db, payrollRunIdSchema.parse(p).runId), 'viewer')
-  handle('payroll:ptCsv', (p) => {
-    const { runId } = payrollRunIdSchema.parse(p)
-    const c = requireCompany()
-    const { filename, text } = payroll.ptCsvForRun(c.db, runId)
-    const path = join(companyExportsDir(c.slug), filename)
-    writeFileSync(path, text, 'utf8')
-    auditExport(c.db, 'payroll_pt_csv', { runId, path })
-    shell.showItemInFolder(path)
-    return { path }
-  })
+  // PF ECR / ESI upload / PT summary + CSV went with payroll PF / ESI / PT (audit A13b).
 
   // ---------- CSV master import ----------
   const importKindSchema = z.enum(['ledgers', 'items', 'openings'])

@@ -95,7 +95,7 @@ export const ERROR_MAP = {
   interest_note_immutable: e('errors.interestNote'),
   payroll_voucher_edit: e('errors.editElsewhere'),
   not_in_bin: e('errors.notInBin'),
-  interest_restore_clash: e('errors.interestNote'),
+  interest_restore_clash: e('errors.interestRestore'),
   year_closed_again: e('errors.yearClosedAgain'),
 
   // ---------- undo (services/undo.ts) ----------

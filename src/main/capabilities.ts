@@ -66,12 +66,6 @@ export const EXPORT_CHANNELS: readonly string[] = [
   'nic:signedCopyExport',
   'payables:msmeForm1Csv',
   'payables:runExportCsv',
-  // PR #144 review: the PF ECR and ESI upload files are statutory return files like the PT CSV
-  // (employees' wages, UAN / IP numbers) — they were missed.
-  'payroll:ecr',
-  'payroll:esi',
-  'payroll:ptCsv',
-  'payroll:ptReturnCsv',
   'pricing:exportCsv',
   // PR #140 review: a party's statement PDF is a report of the books written to a file, like
   // report:pdf — a viewer may save it (its minimum role), unless the owner turned canExport off.

@@ -468,8 +468,8 @@ export const CA_POINTS = [
     rule: 'Schedule II Companies Act; rules 40(2) / 44(6) CGST Rules; s.32 / s.50 Income-tax Act',
     covers: [{ list: 'FIXED_ASSET_UNVERIFIED', all: true }],
     questions: [1, 2, 9, 10, 11, 12, 44, 45, 46, 47, 48, 49],
-    closed: 'feature_hidden',
-    note: 'The fixed-asset register is hidden until used (Phase 1 triage §5) — its points close with the feature.'
+    closed: 'feature_removed',
+    note: 'The fixed-asset register was removed (audit A13b); depreciation / disposal journals in older books stay as ordinary entries, and the s.18(6) extra tax an old GST disposal posted is still read into GSTR-1 / 3B (the cg-* entries record how).'
   },
   {
     id: 'payroll-statutory',
@@ -484,16 +484,16 @@ export const CA_POINTS = [
       { list: 'UNVERIFIED_WP37', at: 9, has: 'Gratuity' }
     ],
     questions: [7, 38, 39, 40, 41, 42],
-    closed: 'feature_hidden',
-    note: 'Payroll statutory (PF / ESI / PT) is hidden until used (Phase 1 triage §5).'
+    closed: 'feature_removed',
+    note: 'Payroll PF / ESI / PT was removed (audit A13b): pay runs no longer deduct them; runs, dues and payments in older books stay as saved. The compute-only gratuity / bonus helper (Payroll → Salary TDS) posts nothing.'
   },
   {
     id: 'receivables-interest',
     rule: 's.12(6) / 13(6) CGST Act (interest); SAC 9971',
     covers: [],
     questions: [31],
-    closed: 'feature_hidden',
-    note: 'Interest on overdue bills is hidden until used (Phase 1 triage §5).'
+    closed: 'feature_removed',
+    note: 'Interest on overdue bills was removed (audit A13b); old interest debit notes stay as ordinary entries.'
   },
   {
     id: 'msme-interest',

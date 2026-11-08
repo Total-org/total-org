@@ -6,7 +6,7 @@ import type { Screen } from '../../state/stores'
 const PLAIN: readonly string[] = [
   'company-info', 'trial-balance', 'profit-loss', 'balance-sheet', 'outstandings', 'stock-summary', 'gstr3b', 'tds',
   'manufacture-register', 'pending-challans', 'pending-grns', 'pending-sales-orders', 'pending-purchase-orders', 'banking',
-  'cash-forecast', 'unbilled-goods', 'fixed-assets', 'gstr1', 'receivables', 'payables'
+  'cash-forecast', 'unbilled-goods', 'gstr1', 'receivables', 'payables'
 ]
 
 export function screenFor(s: Extract<AiSource, { kind: 'screen' }>): Screen | null {

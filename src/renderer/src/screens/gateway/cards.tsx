@@ -12,6 +12,7 @@ import { COMPLIANCE_UNVERIFIED, EINVOICE_COMPLIANCE_UNVERIFIED, upcomingDeadline
 import { GST_FILING_UNVERIFIED } from '@shared/gst/filing'
 import { CaCheck } from '../../components/CaCheck'
 import { api } from '../../lib/client'
+import { statApi } from '../../lib/payrollStatutoryClient'
 import { useNav, useSession } from '../../state/stores'
 import { Badge, Checklist, Money } from '../../components/ui'
 import { ItemLink, LedgerLink, drillRowProps } from '../../components/links'
@@ -238,7 +239,8 @@ export function ComplianceCard({
   tds: CardState<DashTds | null> | null
   /** WP 4.1 — post-dated cheques maturing this week (null = none / not loaded). */
   pdc?: DashPdc | null
-  /** Payroll feature on AND active employees — PF/ESI deadlines show only then. */
+  /** Payroll feature on AND active employees — PF / ESI deadlines show only then, and only for a
+   *  wage month a pay run deducted them in (payroll:deductionMonths). */
   hasPayroll: boolean
   dashboardLoaded: boolean
 }): React.JSX.Element {
@@ -256,21 +258,29 @@ export function ComplianceCard({
   // To-do §4: the business profile says e-invoicing is required and the switch is off.
   const { data: einvoiceStatus } = useQuery({ queryKey: ['einvoiceStatus'], queryFn: api.gst.einvoiceStatus, enabled: regType === 'regular' })
   const einvoiceTurnOn = einvoiceStatus?.turnOn ?? null
-  const deadlines = useMemo(() => upcomingDeadlines(today, regType, hasPayroll, 30, { tds: tdsApplies, gstFiling, stateCode: info?.stateCode }), [today, regType, hasPayroll, tdsApplies, gstFiling, info?.stateCode])
+  // Audit A13b review: a PF / ESI date only for a wage month an (old) pay run deducted it in.
+  const deductedQ = useQuery({ queryKey: ['payrollDeductionMonths'], queryFn: statApi.deductionMonths, enabled: hasPayroll })
+  const pfMonths = deductedQ.data?.pf
+  const esiMonths = deductedQ.data?.esi
+  const deductedKnown = !hasPayroll || deductedQ.isFetched
+  const deadlines = useMemo(
+    () => upcomingDeadlines(today, regType, hasPayroll, 30, { tds: tdsApplies, gstFiling, stateCode: info?.stateCode, pfMonths, esiMonths }),
+    [today, regType, hasPayroll, tdsApplies, gstFiling, info?.stateCode, pfMonths, esiMonths]
+  )
   // GST and TDS have their own rows; the list carries the rest (PF/ESI/advance tax).
   const others = deadlines.filter((d) => d.kind !== 'gst' && !(d.kind === 'tds' && tds))
 
   useEffect(() => {
     // WP 8.0: wait for the TDS section too, so the notice never lists a TDS date that won't apply.
-    if (!info || !slug || !dashboardLoaded || tds?.state === 'loading' || notifiedCompanies.has(slug)) return
+    if (!info || !slug || !dashboardLoaded || tds?.state === 'loading' || !deductedKnown || notifiedCompanies.has(slug)) return
     notifiedCompanies.add(slug)
-    const soon = upcomingDeadlines(today, regType, hasPayroll, 3, { tds: tdsApplies, gstFiling, stateCode: info?.stateCode })
+    const soon = upcomingDeadlines(today, regType, hasPayroll, 3, { tds: tdsApplies, gstFiling, stateCode: info?.stateCode, pfMonths, esiMonths })
     if (soon.length) {
       // Fire-and-forget: an OS notification failing is not worth interrupting the Gateway for.
       void api.app.notifyDeadlines(soon.map((d) => ({ title: d.form, body: `${d.title} — due ${toDisplayDate(d.date)}` }))).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, slug, hasPayroll, dashboardLoaded, tds?.state])
+  }, [info, slug, hasPayroll, dashboardLoaded, tds?.state, deductedKnown])
 
   const combined: CardState<{ gst: DashGst | null | string; tds: DashTds | null | string }> =
     gst.state === 'loading' || tds?.state === 'loading'

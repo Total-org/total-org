@@ -272,7 +272,7 @@ export interface BrsReport {
   bankBalance: number
 }
 
-/** Mirrors src/main/services/payroll.ts's PayHead / EmployeeHeadRow / PtSummaryRow shapes (kept
+/** Mirrors src/main/services/payroll.ts's PayHead / EmployeeHeadRow shapes (kept
  *  local — that file is main-process only). */
 export interface PayHead {
   id: number
@@ -282,7 +282,8 @@ export interface PayHead {
   /** Paise for 'flat'; percent × 100 (4000 = 40%) for 'percent_of_basic'. */
   value: number
   active: boolean
-  /** WP 3.7: "wages" under the Code on Social Security s.2(88) (false = excluded, e.g. HRA). */
+  /** "Wages" under the Code on Social Security s.2(88) — the old PF / ESI base; stored, no longer
+   *  read (audit A13b). */
   inWages: boolean
 }
 
@@ -293,13 +294,6 @@ export interface EmployeeHeadRow {
   calc: 'flat' | 'percent_of_basic'
   value: number
   overrideValue: number | null
-}
-
-export interface PtSummaryRow {
-  state: string
-  employees: number
-  gross: number
-  pt: number
 }
 
 export type {
@@ -1402,11 +1396,7 @@ export const api = {
     employeeHeads: {
       get: (employeeId: number) => call<EmployeeHeadRow[]>('payroll:employeeHeads:get', { employeeId }),
       set: (input: EmployeeHeadsSetInput) => call<EmployeeHeadRow[]>('payroll:employeeHeads:set', input)
-    },
-    ecr: (runId: number) => call<{ path: string }>('payroll:ecr', { runId }),
-    esiCsv: (runId: number) => call<{ path: string }>('payroll:esi', { runId }),
-    ptSummary: (runId: number) => call<PtSummaryRow[]>('payroll:ptSummary', { runId }),
-    ptCsv: (runId: number) => call<{ path: string }>('payroll:ptCsv', { runId })
+    }
   },
   yearEnd: {
     preview: (fyStartYear: number) =>

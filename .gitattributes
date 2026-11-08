@@ -11,3 +11,4 @@ src/main/services/gstGolden/schemas/*.sample.json binary
 # hsnSac.json is generated from it (hsnMaster.test.ts) — not hand-edited, no text diff needed.
 src/shared/gst/hsnMaster/*.xlsx binary
 src/shared/gst/hsnMaster/hsnSac.json -diff linguist-generated
+src/main/services/__fixtures__/cutFeatures/book.db.gz binary

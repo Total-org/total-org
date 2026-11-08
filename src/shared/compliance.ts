@@ -57,7 +57,10 @@ function monthLabel(y: number, m: number): string {
 /**
  * All statutory deadlines falling within `[today, today + horizonDays]` inclusive, sorted by
  * date. GST return deadlines (GSTR-1/GSTR-3B) only apply to `regular` registrations — composition
- * dealers and unregistered businesses don't file them. PF/ESI only appear when `hasPayroll`.
+ * dealers and unregistered businesses don't file them. PF / ESI only appear when `hasPayroll`
+ * AND a pay run in the books deducted PF / ESI for that wage month (`pfMonths` / `esiMonths`,
+ * audit A13b review, owner 8 Nov 2026: Total no longer computes PF / ESI, so only old runs can
+ * leave such a payment to make; absent = none).
  */
 export function upcomingDeadlines(
   today: string,
@@ -72,6 +75,10 @@ export function upcomingDeadlines(
     jobWork?: boolean; itc04?: 'half_yearly' | 'annual'; tds?: boolean; gstFiling?: 'monthly' | 'quarterly'
     /** WP 9.9: the company's state (GSTIN prefix) — a quarterly filer's GSTR-3B day (22nd / 24th). */
     stateCode?: string | null
+    /** Wage months 'YYYY-MM' whose in-books pay run deducted PF / ESI (payrollStatutory
+     *  `payrollDeductionMonths`); a month not listed has no PF / ESI date. */
+    pfMonths?: readonly string[]
+    esiMonths?: readonly string[]
   } = {}
 ): Deadline[] {
   const horizonEnd = addDays(today, horizonDays)
@@ -146,11 +153,14 @@ export function upcomingDeadlines(
       out.push({ id: `tds-${period.y}-${pad2(period.m)}`, form: 'TDS Challan', title: `TDS deposit — challan for ${periodLabel}`, date: tdsDate, kind: 'tds' })
     }
 
-    if (hasPayroll) {
+    const wageMonth = `${period.y}-${pad2(period.m)}`
+    if (hasPayroll && annual.pfMonths?.includes(wageMonth)) {
       const pfDate = ymd(filingY, filingM, 15)
       if (inRange(pfDate)) {
         out.push({ id: `pf-${period.y}-${pad2(period.m)}`, form: 'PF ECR', title: `PF contribution — ${periodLabel}`, date: pfDate, kind: 'pf' })
       }
+    }
+    if (hasPayroll && annual.esiMonths?.includes(wageMonth)) {
       const esiDate = ymd(filingY, filingM, 15)
       if (inRange(esiDate)) {
         out.push({ id: `esi-${period.y}-${pad2(period.m)}`, form: 'ESI', title: `ESI contribution — ${periodLabel}`, date: esiDate, kind: 'esi' })
@@ -221,7 +231,8 @@ export interface ComplianceApplicability {
   /** The TDS row and its monthly deposit date: TDS switched on AND something deducted (an entry
    *  or a balance on a TDS payable ledger) — a shop that never deducts sees no TDS deadline. */
   tds: boolean
-  /** PF / ESI: payroll on with active employees. */
+  /** PF / ESI: payroll on with active employees (the dates themselves also need a run that
+   *  deducted them — upcomingDeadlines `pfMonths` / `esiMonths`). */
   payroll: boolean
 }
 

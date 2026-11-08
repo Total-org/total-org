@@ -20,6 +20,48 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (#243, A13b).
+Credit control has no Interest tab any more, the ledger form no longer asks for an interest rate or
+grace days, and Settings → Receivables drops the interest options. The Fixed assets screen (asset
+register, depreciation runs, the disposal wizard, the asset schedule and the income-tax block
+statement) is gone too, with its More features card and the year-end close's "depreciation not run"
+warning; the month-end checklist's "Depreciation posted" row stays for books that have depreciation
+runs, and now points to a plain journal. Payroll no longer deducts or books PF, ESI or professional
+tax: the Statutory and Statutory rates tabs, the PF ECR / ESI upload / PT return files, the PT
+summary and the employee form's PF / ESI / PT fields are gone, with the "PF, ESI and professional
+tax" More features card. Salary TDS stays in full on a new Payroll → Salary TDS tab (TDS by month,
+paying it with the BSR code / challan, data for Form 16), with declarations, workings and Form 24Q
+as before. PF, ESI or professional tax an older pay run deducted and that is not yet marked paid
+shows on that tab under "Left from before", where you can still record its payment (or delete one,
+which opens the due again) — only for such old dues; books that never used PF see nothing new.
+Home and the Gateway list a month's PF / ESI date only when a pay run in the books deducted PF /
+ESI for that month, and the "Why?" next to it says to pay it on the EPFO / ESIC portal. The
+month-end "Depreciation posted" check now says what to do when it fails: post the depreciation as
+a journal, then mark the check done. *For accountants:* no figure changes in your books — interest debit notes, depreciation
+journals, asset-sale entries and pay runs already saved stay as they are in every report and
+return (a pay run keeps its PF / ESI / PT lines and payable balances; the cash forecast still
+counts unpaid PF / ESI / PT dues of old runs, and stops counting one once you record its payment
+under "Left from before"; the cash flow still adds depreciation back, and GSTR-1 / 3B still carry the
+extra s.18(6) tax an asset sale posted), can still only be moved to the bin (an asset sale's journal
+and its tax invoice go to the bin and come back together), and an opening bill interest charged
+still can't be renumbered. A pay run posted from now on has no PF / ESI / PT lines whatever an
+employee's old flags say; for an employee on the **old tax regime** the projected salary TDS can be
+a little higher than before, because employee PF no longer reduces the taxable income (80C) for the
+months still to come (owner decision, 8 Nov). *For developers:* `receivables:interestPreview` /
+`postInterest` / `interestCharges`, every `fa:*` channel, `payroll:rates:*`, `payroll:ptStates`,
+`payroll:ecr` / `esi` / `ptSummary` / `ptCsv` / `ptReturnCsv` are gone; `payroll:payments:record`
+takes kind `pf` / `esi` / `pt` only for a due an old run left outstanding (`oldDuesLeft`, same kind +
+month + PT state; anything else is refused) and `payroll:payments:delete` removes any payment as
+before; `payroll:dues` / `payments:list` list salary TDS plus those old dues and their payments
+(`statutoryDues` itself is unchanged — the forecast reads it); the new viewer read
+`payroll:deductionMonths` (`payrollDeductionMonths`) gives the wage months an in-books run deducted
+PF / ESI in, and `upcomingDeadlines` takes them as `pfMonths` / `esiMonths` (absent = no PF / ESI
+date); the employee schema keeps the PF / ESI / PT fields optional (absent = keep, a
+new employee starts with them off); `interest_charges`, the ledger columns, migration 032, the
+fixed-asset tables, migration 026, `statutory_rates` / `statutory_payments`, migration 029 and their
+audit entities stay; `cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
+`fixedAssetsLegacy.dbtest.ts` keeps the old journals' guards tested.
+
 **The website is safer and says what it keeps** (#242, audit A6). The changelog page now shows
 release notes as plain text and links (only ordinary web links), so a note can no longer slip a
 script into the page. Every page sends a strict Content-Security-Policy and the usual security

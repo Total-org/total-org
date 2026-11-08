@@ -20,7 +20,6 @@ import { ForeignOpeningNote } from './ForeignOpeningNote'
 import { PartyNotesPanel } from './partyNotes/PartyNotes'
 import { CaCheck } from './CaCheck'
 import { AttachmentList } from './attachments/Attachments'
-import { bpToPercent, percentToBp } from '@shared/receivables/interest'
 import { useMode } from '../lib/mode'
 import { isPhoneNumber } from '@shared/simple/accountKinds'
 import type { AccountContext } from '@shared/simple/accountKinds'
@@ -178,14 +177,12 @@ function LedgerForm({
   const [itcEligibility, setItcEligibility] = useState<Ledger['itcEligibility']>(ledger?.itcEligibility ?? 'eligible')
   // WP 2.6: the party's price level and its party-wise rates.
   const [priceLevelId, setPriceLevelId] = useState<number | ''>(ledger?.priceLevelId ?? '')
-  // WP 4.2: email for statements / reminders, credit limit, interest on overdue bills.
+  // WP 4.2: email for statements / reminders, credit limit.
   const [email, setEmail] = useState(ledger?.email ?? '')
   // WP 8.4 (migration "phone"): a party's phone / WhatsApp.
   const [phone, setPhone] = useState(ledger?.phone ?? '')
   const [whatsapp, setWhatsapp] = useState(ledger?.whatsapp ?? '')
   const [creditLimit, setCreditLimit] = useState<number | null>(ledger?.creditLimit ?? null)
-  const [interestPct, setInterestPct] = useState(bpToPercent(ledger?.interestRateBp ?? null))
-  const [graceDays, setGraceDays] = useState(ledger?.interestGraceDays ? String(ledger.interestGraceDays) : '')
   // WP 4.2: the credit hold (an existing customer) — owner only, through receivables:setHold after
   // the form's own save, like Credit control; everyone else sees it read-only.
   const sessionUser = useSession((s) => s.user)
@@ -205,8 +202,6 @@ function LedgerForm({
   const isTaxLedger = !isParty && ancestry.some((n) => TAX_GROUPS.includes(n))
   const isTradingLedger = !isParty && !isTaxLedger && ancestry.some((n) => TRADING_GROUPS.includes(n))
   const isDebtor = partyRole === 'debtor'
-  const interestBp = percentToBp(interestPct)
-  const interestError = Number.isNaN(interestBp) || (interestBp ?? 0) > 10000 ? 'A yearly rate like 18 or 1.5' : null
   const phoneError = phone.trim() && !isPhoneNumber(phone) ? 'Not a phone number' : null
   const whatsappError = whatsapp.trim() && !isPhoneNumber(whatsapp) ? 'Not a phone number' : null
   const emailError = email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? 'Not an email address' : null
@@ -224,7 +219,7 @@ function LedgerForm({
     try {
       if (gstinError) return void toast.push('error', gstinError)
       if (panError) return void toast.push('error', panError)
-      if (isParty && (interestError || emailError)) return void toast.push('error', interestError ?? emailError!)
+      if (isParty && emailError) return void toast.push('error', emailError)
       if (isParty && (phoneError || whatsappError)) return void toast.push('error', phoneError ?? whatsappError!)
       const termsError = isCreditor ? supplierTermsError(supplierTerms) : null
       if (termsError) return void toast.push('error', termsError)
@@ -264,9 +259,9 @@ function LedgerForm({
         ...(isParty ? { email: email.trim() || null } : {}),
         // WP 8.4 — likewise only where shown (absent = keep).
         ...(isParty ? { phone: phone.trim() || null, whatsapp: whatsapp.trim() || null } : {}),
-        ...(isDebtor
-          ? { creditLimit: creditLimit && creditLimit > 0 ? creditLimit : null, interestRateBp: interestBp || null, interestGraceDays: graceDays.trim() ? Math.max(0, Math.min(365, Math.trunc(Number(graceDays) || 0))) : 0 }
-          : {}),
+        // Interest terms are no longer edited (interest on overdue bills removed, audit A13b): never
+        // sent, so a ledger's stored terms stay as they are (absent = keep).
+        ...(isDebtor ? { creditLimit: creditLimit && creditLimit > 0 ? creditLimit : null } : {}),
         // Sent only where the form shows it; otherwise the server keeps the stored terms.
         ...(isCreditor ? supplierTermsPayload(supplierTerms) : {})
       }
@@ -544,12 +539,6 @@ function LedgerForm({
               <div className="grid grid-cols-3 gap-3" data-testid="ledger-credit-terms">
                 <Field label="Credit limit" hint="Invoices warn past it (block under F11)">
                   <AmountInput paise={creditLimit} onPaise={setCreditLimit} testId="ledger-credit-limit" placeholder="No limit" />
-                </Field>
-                <Field label="Interest % a year" hint="Simple, on overdue bills" error={interestError}>
-                  <TextInput data-testid="ledger-interest-rate" className="num text-right" value={interestPct} onChange={(e) => setInterestPct(e.target.value)} placeholder="None" />
-                </Field>
-                <Field label="Grace days" hint="Interest-free after the due date">
-                  <TextInput data-testid="ledger-interest-grace" className="num text-right" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" />
                 </Field>
               </div>
             )}

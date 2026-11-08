@@ -1,12 +1,13 @@
 // Settings → Receivables (WP 4.2): the statement email (subject / body), the payment-request line,
-// the three reminder letters (gentle / firm / final) with their merge fields and thresholds, the
-// reminder cadence, and the interest posting options (ledger name, GST on interest, minimum).
+// the three reminder letters (gentle / firm / final) with their merge fields and thresholds and the
+// reminder cadence. (The interest posting options went with interest on overdue bills, audit A13b;
+// the stored `interest` block still parses and is saved back unchanged.)
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MERGE_FIELDS, REMINDER_BUCKETS, REMINDER_BUCKET_LABELS, type ReceivablesConfig } from '@shared/receivables/config'
 import { receivablesApi } from '../../lib/receivablesClient'
 import { useToasts } from '../../state/stores'
-import { Badge, Button, Checkbox, Field, Panel, SectionTitle, Skeleton, TextInput, Textarea } from '../../components/ui'
+import { Button, Field, Panel, SectionTitle, Skeleton, TextInput, Textarea } from '../../components/ui'
 
 export function ReceivablesSection(): React.JSX.Element {
   const toast = useToasts()
@@ -89,42 +90,6 @@ export function ReceivablesSection(): React.JSX.Element {
               </span>
             ))}
           </div>
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <h3 className="text-detail font-semibold">Interest on overdue bills</h3>
-          <p className="text-hint text-muted">The rate (% a year) and grace days are set per party on the ledger. Interest is simple, actual days ÷ 365, from the day after due date + grace.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Interest income ledger" hint='Under Indirect Incomes; one per GST rate ("… @ 18%").'>
-              <TextInput value={draft.interest.ledgerName} onChange={(e) => set((c) => ({ ...c, interest: { ...c.interest, ledgerName: e.target.value } }))} />
-            </Field>
-            <Field label="Leave out charges below (paise)">
-              <TextInput className="num text-right" value={String(draft.interest.minimumPaise)} onChange={(e) => set((c) => ({ ...c, interest: { ...c.interest, minimumPaise: num(e.target.value, c.interest.minimumPaise) } }))} />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Default GST rate (%) for bills with no invoice" hint="Opening balances, journals. Blank = such bills aren't charged while GST on interest is on.">
-              <TextInput
-                className="num text-right"
-                data-testid="input-rx-default-gst"
-                value={draft.interest.defaultGstRate == null ? '' : String(draft.interest.defaultGstRate)}
-                onChange={(e) => set((c) => ({ ...c, interest: { ...c.interest, defaultGstRate: e.target.value.trim() === '' || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) } }))}
-              />
-            </Field>
-            <Field label="SAC for interest on delayed payment" hint="Stamped on the interest ledgers (GSTR-1 HSN summary, the note's print). 9971 is a suggestion only — unverified; many report the goods' HSN.">
-              <TextInput className="num" data-testid="input-rx-sac" placeholder="e.g. 9971" value={draft.interest.sac} onChange={(e) => set((c) => ({ ...c, interest: { ...c.interest, sac: e.target.value.trim() } }))} />
-            </Field>
-          </div>
-          <Checkbox
-            label="Charge GST on the interest, at the original supply's rate"
-            hint="CGST Act s.15(2)(d): interest for delayed payment is part of the value of the supply (CBIC Circular 102/21/2019-GST). Timing (s.12(6): on receipt) is unverified practice — see Credit control → Interest → Options."
-            checked={draft.interest.gstOnInterest}
-            onChange={(v) => set((c) => ({ ...c, interest: { ...c.interest, gstOnInterest: v } }))}
-            testId="input-rx-gst"
-          />
-          {(data?.sources ?? []).some((s) => !s.verified) && (
-            <p className="text-hint text-muted"><Badge tone="warning">Unverified</Badge> {(data?.sources ?? []).filter((s) => !s.verified).length} practice points are marked unverified — read them before relying on the GST split.</p>
-          )}
         </section>
 
         <div className="flex justify-end gap-2">

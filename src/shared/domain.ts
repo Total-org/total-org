@@ -602,13 +602,15 @@ export interface Employee {
   basic: number
   hra: number
   special: number
+  /** The PF / ESI / PT profile (uan, esicNo, these flags, ptState, pfNumber, gender, vpfRateBp,
+   *  pfOnFullWage, epsEligible, disabled): stored and round-tripped, no longer read by a pay run
+   *  (PF / ESI / PT removed in audit A13b). */
   pfEnabled: boolean
   esiEnabled: boolean
   ptEnabled: boolean
-  /** Professional-tax state code (PT_SLABS key in src/shared/payroll.ts), e.g. 'MH'. */
+  /** Professional-tax state code, e.g. 'MH'. */
   ptState: string
   active: boolean
-  /** WP 3.7 statutory profile (migration 029). */
   /** EPF member id (establishment code + member number), as on the ECR / pay slip. */
   pfNumber: string | null
   gender: 'male' | 'female' | 'other' | null
@@ -699,7 +701,7 @@ export interface PayrollRun {
   month: string
   voucherId: number | null
   createdAt: string
-  /** EPFO minimum admin-charge top-up posted on the run (0 when the 0.5% already exceeds it). */
+  /** EPFO minimum admin-charge top-up posted on the run (runs before audit A13b; 0 since). */
   pfAdminTopUp: number
   lines: PayrollLine[]
 }

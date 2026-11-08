@@ -460,17 +460,6 @@ export const SCREENS: ScreenDef[] = [
     invalidates: ['transferCost', 'stockByGodown', 'godowns', 'batches', 'serialsAvailable', 'nextNumber', 'stockItems', 'voucherTypes', 'jobWorkSendChallans', 'ledgers']
   },
   {
-    name: 'fixed-assets',
-    // Feature cleanup: hidden for a company with no fixed-asset data (shared/features.ts).
-    feature: 'fixedAssets',
-    modes: ['accountant'],
-    title: 'Fixed assets',
-    keywords: ['asset register', 'depreciation', 'schedule ii', 'block of assets', 'disposal', 'asset schedule', 'net block'],
-    screen: { name: 'fixed-assets' },
-    navSection: 'books',
-    invalidates: ['faList', 'faGroups', 'faBlocks', 'faClasses', 'faRunPreview', 'faRuns', 'faSchedule', 'faIt', 'faCandidates', 'faDisposal']
-  },
-  {
     name: 'year-end',
     modes: ['accountant'],
     simpleSection: 'home',
@@ -511,16 +500,16 @@ export const SCREENS: ScreenDef[] = [
     navSection: 'analysis',
     invalidates: ['outstandings', 'followups', 'statement', 'receivablesConfig']
   },
-  // WP 4.2: receivables — credit control, reminder letters, interest, collection reports.
+  // WP 4.2: receivables — credit control, reminder letters, collection reports.
   {
     name: 'receivables',
     modes: ['accountant'],
     simpleSection: 'people',
     title: 'Credit control',
-    keywords: ['receivables', 'reminders', 'dunning', 'interest on overdue', 'credit hold', 'dso', 'collections', 'promised payments', 'follow-up'],
+    keywords: ['receivables', 'reminders', 'dunning', 'credit hold', 'dso', 'collections', 'promised payments', 'follow-up'],
     screen: { name: 'receivables' },
     navSection: 'analysis',
-    invalidates: ['creditControl', 'promisedWeek', 'reminderCandidates', 'reminderLog', 'interestPreview', 'interestCharges', 'collections', 'topOverdue', 'receivablesConfig']
+    invalidates: ['creditControl', 'promisedWeek', 'reminderCandidates', 'reminderLog', 'collections', 'topOverdue', 'receivablesConfig']
   },
   {
     name: 'payables',
@@ -675,7 +664,7 @@ export const SCREENS: ScreenDef[] = [
     navSection: 'payroll',
     navLabel: 'Employees & runs',
     feature: 'payroll',
-    invalidates: ['employees', 'payrollRuns', 'payrollPreview', 'payHeads', 'employeeHeads', 'ptSummary']
+    invalidates: ['employees', 'payrollRuns', 'payrollPreview', 'payHeads', 'employeeHeads']
   },
 
   {
@@ -1549,7 +1538,7 @@ export const SCREEN_LINK_PARAMS: { [N in Screen['name']]?: LinkParamValues<N> } 
   settings: { tab: ['appearance', 'backups', 'bin', 'users', 'security', 'audit', 'nic', 'features', 'invoice', 'receivables', 'agents', 'ai', 'about'] },
   banking: { tab: ['recon', 'import', 'rules', 'cheques', 'pdc', 'bulk', 'brs'] },
   registers: { tab: ['sales', 'purchase', 'items', 'entries'] },
-  receivables: { tab: ['control', 'reminders', 'interest', 'collections'] },
+  receivables: { tab: ['control', 'reminders', 'collections'] },
   payables: { tab: ['plan', 'batch', 'runs', 'msme', 'suppliers'] },
   checks: { tab: ['close', 'anomalies', 'exceptions', 'stale', 'gst2b'] }
 }

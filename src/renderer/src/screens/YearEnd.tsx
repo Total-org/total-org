@@ -221,23 +221,6 @@ export function YearEndScreen(): React.JSX.Element {
         </Banner>
       )}
 
-      {preview?.depreciation?.missing && !preview.alreadyClosed && (
-        <Banner
-          tone="warning"
-          className="mb-section"
-          testId="year-end-depreciation-missing"
-          title={`Depreciation for FY ${fy.label} has not been run${preview.depreciation.coveredThrough ? ` past ${toDisplayDate(preview.depreciation.coveredThrough)}` : ''}.`}
-          action={
-            <Button size="sm" data-testid="btn-year-end-run-depreciation" onClick={() => nav.go({ name: 'fixed-assets', tab: 'depreciation' })}>
-              Run depreciation
-            </Button>
-          }
-        >
-          {preview.depreciation.assetsInService} fixed asset{preview.depreciation.assetsInService === 1 ? ' is' : 's are'} in service. Closing now
-          leaves the year&apos;s depreciation out of its profit.
-        </Banner>
-      )}
-
       {/* WP 2.5d (design §9 Q5): goods received / delivered but not invoiced on 31 March — warn, no journal. */}
       {preview?.unbilled && !preview.alreadyClosed && (preview.unbilled.grni.value > 0 || preview.unbilled.gdni.value > 0) && (
         <Banner

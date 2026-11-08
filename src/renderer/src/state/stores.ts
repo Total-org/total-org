@@ -155,8 +155,8 @@ export type Screen =
   // `source` narrow it (a register month's kind, a cash-flow line's vouchers).
   | { name: 'registers'; tab?: 'sales' | 'purchase' | 'items' | 'entries'; from?: string; to?: string; kind?: string; voucherIds?: number[]; source?: string; visit?: boolean }
   | { name: 'outstandings'; side?: 'receivable' | 'payable'; backTo?: 'simple-people'; backFilter?: PeopleFilter }
-  // WP 4.2: credit control, reminders, interest on overdue bills, collection reports.
-  | { name: 'receivables'; tab?: 'control' | 'reminders' | 'interest' | 'collections' }
+  // WP 4.2: credit control, reminders, collection reports (the Interest tab was removed, audit A13b).
+  | { name: 'receivables'; tab?: 'control' | 'reminders' | 'collections' }
   // WP 4.3: payables — planning, batch payments, runs, MSME, supplier reconciliation.
   | { name: 'payables'; tab?: 'plan' | 'batch' | 'runs' | 'msme' | 'suppliers' }
   // WP 2.5b: delivery challans not invoiced / GRNs not billed.
@@ -202,7 +202,6 @@ export type Screen =
   | { name: 'cash-forecast' }
   | { name: 'company-info'; backTo?: 'simple-taxes' }
   | { name: 'year-end' }
-  | { name: 'fixed-assets'; tab?: 'register' | 'depreciation' | 'schedule' | 'income-tax' | 'setup' }
   | { name: 'audit-trail'; voucherId?: number }
   | { name: 'settings'; tab?: 'appearance' | 'backups' | 'bin' | 'users' | 'security' | 'audit' | 'nic' | 'features' | 'invoice' | 'receivables' | 'agents' | 'ai' | 'about' }
 

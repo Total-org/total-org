@@ -436,7 +436,7 @@ describe('canExport: false refuses every export channel (review follow-up)', () 
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     // every channel the gate maps to canExport (ipc's own map, not a list kept here), each registered
     const exportChannels = [...ipc.channelCapabilityMap()].filter(([, cap]) => cap === 'canExport').map(([ch]) => ch)
-    expect(exportChannels).toEqual(expect.arrayContaining(['receivables:statementsBulk', 'payroll:ecr', 'payroll:esi', 'bulkPay:export']))
+    expect(exportChannels).toEqual(expect.arrayContaining(['receivables:statementsBulk', 'tds:form24qCsv', 'bulkPay:export']))
     const leaked: string[] = []
     for (const ch of exportChannels) {
       expect(ipc.CHANNEL_ROLES.has(ch), ch).toBe(true)
@@ -527,7 +527,7 @@ describe('every export-audited channel is gated by canExport unless it is a prin
     expect(unlisted).toEqual([])
     // the scan really reads the handlers (a regex that silently matches nothing would pass)
     expect(seen.size).toBeGreaterThan(500)
-    for (const ch of ['banking:brsPdf', 'payroll:form16Pdf', 'tds:form16aPdf', 'payroll:ecr']) expect(seen.has(ch), ch).toBe(true)
+    for (const ch of ['banking:brsPdf', 'payroll:form16Pdf', 'tds:form16aPdf', 'tds:form24qCsv']) expect(seen.has(ch), ch).toBe(true)
     for (const ch of Object.keys(NOT_FILE_WRITES)) expect(ipc.CHANNEL_ROLES.has(ch), ch).toBe(true)
     for (const ch of Object.keys(caps.NOT_EXPORTS)) expect(ipc.CHANNEL_ROLES.has(ch), ch).toBe(true)
   })

@@ -376,8 +376,11 @@ export const CLOSE_CHECK_DEFS: Record<CloseCheckKey, Def> = {
   depreciation: {
     title: 'Depreciation posted',
     area: 'Assets',
-    fix: { screen: 'fixed-assets', label: 'Open fixed assets' },
-    help: 'If depreciation is posted monthly, a run covering this month must exist; if it is posted yearly, only March needs it (mark the other months not applicable).',
+    // The fixed-asset register that made these runs was removed (audit A13b). The check stays, worked
+    // out exactly as before from the runs an older book holds (Home lifts it too), but its fix is a
+    // plain journal: post the depreciation by hand and mark the check done or not applicable.
+    fix: { screen: 'voucher-entry', label: 'Post a journal', params: { kindHint: 'journal' } },
+    help: 'Reads the depreciation runs of Total’s former fixed-asset register. If depreciation is posted monthly, a run covering this month must exist; if it is posted yearly, only March needs it. Depreciation is now posted as an ordinary journal, which this check does not see — once it is posted, mark the check done (or not applicable).',
     build: (f, c) => {
       const d = f.depreciation
       if (!d || d.assetsInService === 0) return { status: 'na', summary: 'No fixed assets in service.', rows: [] }
@@ -386,8 +389,10 @@ export const CLOSE_CHECK_DEFS: Record<CloseCheckKey, Def> = {
       const monthly = !!d.coveredThrough && d.coveredThrough >= prevEnd
       const yearEnd = c.period.endsWith('-03')
       const rows = [{ label: 'Book depreciation', detail: d.coveredThrough ? `last run covers up to ${d.coveredThrough}` : 'no run this financial year' }]
-      if (monthly) return { status: 'fail', summary: `Posted for last month (to ${d.coveredThrough}) but not for this one.`, rows }
-      if (yearEnd) return { status: 'fail', summary: `The year ends this month and depreciation is posted only up to ${d.coveredThrough ?? 'nothing yet'}.`, rows }
+      // Audit A13b review: the fail says what to do now — the register that made the runs is gone.
+      const todo = 'Post the depreciation as a journal, then mark this check done.'
+      if (monthly) return { status: 'fail', summary: `Posted for last month (to ${d.coveredThrough}) but not for this one. ${todo}`, rows }
+      if (yearEnd) return { status: 'fail', summary: `The year ends this month and depreciation is posted only up to ${d.coveredThrough ?? 'nothing yet'}. ${todo}`, rows }
       return { status: 'ok', summary: d.coveredThrough ? `Posted up to ${d.coveredThrough} (not monthly).` : 'Not posted yet this year (posted yearly?).', rows }
     }
   },

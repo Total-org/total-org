@@ -19,26 +19,11 @@ const PROBES: Record<HideableFeature, readonly string[]> = {
     'SELECT 1 FROM bank_payment_templates',
     'SELECT 1 FROM bank_payment_batches'
   ],
-  // Interest on overdue bills: a charge posted, or interest terms set on a party.
-  interest: ['SELECT 1 FROM interest_charges', 'SELECT 1 FROM ledgers WHERE interest_rate_bp IS NOT NULL'],
-  // The fixed-asset register (the seeded asset groups do not count).
-  fixedAssets: [
-    'SELECT 1 FROM fixed_assets',
-    'SELECT 1 FROM depreciation_runs',
-    'SELECT 1 FROM fixed_asset_groups WHERE is_seeded = 0'
-  ],
   // Quotations / orders (trade documents, a user's own document type) and challans / GRNs.
   tradeCycle: [
     'SELECT 1 FROM trade_docs',
     'SELECT 1 FROM trade_doc_types WHERE is_system = 0',
     `SELECT 1 FROM vouchers v JOIN voucher_types t ON t.id = v.voucher_type_id WHERE t.kind IN ('delivery_note', 'receipt_note')`
-  ],
-  // PF / ESI / PT: a payroll line that deducted any of them, a statutory payment, or a rate the
-  // user entered (the seeded rates do not count).
-  payrollStatutory: [
-    'SELECT 1 FROM payroll_lines WHERE pf_emp <> 0 OR pf_er <> 0 OR esi_emp <> 0 OR esi_er <> 0 OR pt <> 0',
-    'SELECT 1 FROM statutory_payments',
-    'SELECT 1 FROM statutory_rates WHERE is_seeded = 0'
   ]
 }
 

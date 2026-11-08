@@ -1,15 +1,15 @@
-// Payroll → Statutory (WP 3.7): PF / ESI / PT / salary TDS payable by month with due dates and
-// paid / unpaid status, paying a month's dues (a Payment voucher against the tagged payable
-// ledger; salary TDS can register its challan on the TDS screen too), the exports per due (ECR,
-// ESI upload, PT return per state; 24Q lives on the TDS screen), data for Form 16 per employee,
-// and the compute-only gratuity / bonus helpers.
+// Payroll → Salary TDS (WP 3.7; PF / ESI / PT removed in audit A13b): salary TDS payable by
+// month with due dates and paid / unpaid status, paying a month's TDS (a Payment voucher against
+// the TDS 192 payable, registering its challan on the TDS screen with a BSR code), data for Form
+// 16 per employee (24Q lives on the TDS screen), and the compute-only gratuity / bonus helpers.
+// "Left from before" (owner, 8 Nov 2026): the PF / ESI / PT dues pay runs saved before the cut
+// left outstanding, with Record payment — shown only while there is one.
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Group, Ledger } from '@shared/domain'
 import { fyFromStartYear, fyOf, toDisplayDate, todayISO } from '@shared/dates'
 import { CASH_BANK_GROUPS } from '@shared/seed'
 import { bonus, gratuity } from '@shared/payrollStatutory'
-import { api } from '../../lib/client'
 import { statApi, type Form16Data, type StatutoryDueRow, type StatutoryPayment } from '../../lib/payrollStatutoryClient'
 import { useNav, useToasts } from '../../state/stores'
 import { useGroups, useLedgers } from '../../components/pickers'
@@ -19,10 +19,6 @@ import {
 } from '../../components/ui'
 import { DataTable, defineColumns } from '../../components/table'
 import { VoucherLink } from '../../components/links'
-import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../../lib/capabilities'
-
-const KIND_LABEL: Record<StatutoryDueRow['kind'], string> = { pf: 'EPF', esi: 'ESI', pt: 'Professional tax', tds: 'Salary TDS' }
-const KIND_OPTIONS = (Object.keys(KIND_LABEL) as StatutoryDueRow['kind'][]).map((k) => ({ value: k, label: KIND_LABEL[k] }))
 const STATUS: Record<StatutoryDueRow['status'], { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' | 'info' }> = {
   paid: { label: 'Paid', tone: 'success' },
   part: { label: 'Part paid', tone: 'warning' },
@@ -35,15 +31,8 @@ const monthLabel = (m: string): string => `${MONTHS[Number(m.slice(5, 7)) - 1]} 
 
 export const DUE_COLUMNS = defineColumns<StatutoryDueRow>([
   { id: 'period', header: 'Month', kind: 'text', value: (r) => r.period, text: (r) => monthLabel(r.period), width: 96, hideable: false },
-  {
-    id: 'kind', header: 'Statute', kind: 'enum', value: (r) => r.kind, options: KIND_OPTIONS, width: 168,
-    text: (r) => `${KIND_LABEL[r.kind]}${r.state ? ` · ${r.state}` : ''}`,
-    cell: (r) => <span className="font-medium">{KIND_LABEL[r.kind]}{r.state && <span className="num ml-1 font-normal text-muted">· {r.state}</span>}</span>
-  },
-  { id: 'employees', header: 'Employees', kind: 'number', value: (r) => r.employees, width: 92, defaultHidden: true },
-  { id: 'employee', header: 'Employee', kind: 'money', value: (r) => r.employeePaise, aggregate: 'sum', width: 112 },
-  { id: 'employer', header: 'Employer', kind: 'money', value: (r) => r.employerPaise, aggregate: 'sum', width: 112 },
-  { id: 'payable', header: 'Payable', kind: 'money', value: (r) => r.payablePaise, aggregate: 'sum', width: 112, className: 'font-medium' },
+  { id: 'employees', header: 'Employees', kind: 'number', value: (r) => r.employees, width: 92 },
+  { id: 'payable', header: 'TDS deducted', kind: 'money', value: (r) => r.payablePaise, aggregate: 'sum', width: 124, className: 'font-medium' },
   { id: 'paid', header: 'Paid', kind: 'money', value: (r) => r.paidPaise, aggregate: 'sum', width: 104 },
   { id: 'outstanding', header: 'Outstanding', kind: 'money', value: (r) => r.outstandingPaise, aggregate: 'sum', width: 112 },
   { id: 'due', header: 'Due by', kind: 'date', value: (r) => r.dueDate, width: 100 },
@@ -54,14 +43,39 @@ export const DUE_COLUMNS = defineColumns<StatutoryDueRow>([
   }
 ])
 
+const KIND_LABEL: Record<StatutoryDueRow['kind'], string> = { pf: 'PF', esi: 'ESI', pt: 'Professional tax', tds: 'Salary TDS' }
+const dueLabel = (d: { kind: StatutoryDueRow['kind']; state: string | null }): string => `${KIND_LABEL[d.kind]}${d.state ? ` (${d.state})` : ''}`
+
+/** Old PF / ESI / PT dues still outstanding (runs saved before audit A13b). */
+export const OLD_DUE_COLUMNS = defineColumns<StatutoryDueRow>([
+  { id: 'what', header: 'For', kind: 'text', value: (r) => dueLabel(r), width: 150, hideable: false },
+  { id: 'period', header: 'Month', kind: 'text', value: (r) => r.period, text: (r) => monthLabel(r.period), width: 96 },
+  { id: 'payable', header: 'Deducted', kind: 'money', value: (r) => r.payablePaise, aggregate: 'sum', width: 116 },
+  { id: 'paid', header: 'Paid', kind: 'money', value: (r) => r.paidPaise, aggregate: 'sum', width: 104 },
+  { id: 'outstanding', header: 'Outstanding', kind: 'money', value: (r) => r.outstandingPaise, aggregate: 'sum', width: 112, className: 'font-medium' },
+  { id: 'due', header: 'Due by', kind: 'date', value: (r) => r.dueDate, width: 100 },
+  {
+    id: 'status', header: 'Status', kind: 'enum', value: (r) => r.status, width: 96,
+    options: (Object.keys(STATUS) as StatutoryDueRow['status'][]).map((s) => ({ value: s, label: STATUS[s].label })),
+    cell: (r) => <Badge tone={STATUS[r.status].tone} testId={`due-status-${r.key}`}>{STATUS[r.status].label}</Badge>
+  }
+])
+
 export const PAYMENT_COLUMNS = defineColumns<StatutoryPayment>([
   { id: 'paidOn', header: 'Paid on', kind: 'date', value: (p) => p.paidOn, width: 104 },
-  { id: 'kind', header: 'Statute', kind: 'enum', value: (p) => p.kind, options: KIND_OPTIONS, width: 130, cell: (p) => KIND_LABEL[p.kind] },
-  { id: 'period', header: 'For', kind: 'text', value: (p) => p.period, text: (p) => `${monthLabel(p.period)}${p.state ? ` · ${p.state}` : ''}`, width: 120 },
+  { id: 'period', header: 'For', kind: 'text', value: (p) => p.period, text: (p) => monthLabel(p.period), width: 120 },
   { id: 'amount', header: 'Amount', kind: 'money', value: (p) => p.amountPaise, aggregate: 'sum', width: 116 },
   { id: 'voucher', header: 'Voucher', kind: 'text', value: (p) => p.voucherNumber ?? '', width: 100, cell: (p) => <VoucherLink voucherId={p.paymentVoucherId} label={p.voucherNumber ?? 'Open'} /> },
   { id: 'reference', header: 'Reference', kind: 'text', value: (p) => p.reference ?? '', className: 'text-muted' },
   { id: 'challan', header: 'TDS challan', kind: 'text', value: (p) => (p.tdsChallanId ? 'Registered' : ''), width: 110, className: 'text-muted' }
+])
+
+export const OLD_PAYMENT_COLUMNS = defineColumns<StatutoryPayment>([
+  { id: 'paidOn', header: 'Paid on', kind: 'date', value: (p) => p.paidOn, width: 104 },
+  { id: 'what', header: 'For', kind: 'text', value: (p) => `${dueLabel(p)} ${p.period}`, text: (p) => `${dueLabel(p)} · ${monthLabel(p.period)}`, width: 200 },
+  { id: 'amount', header: 'Amount', kind: 'money', value: (p) => p.amountPaise, aggregate: 'sum', width: 116 },
+  { id: 'voucher', header: 'Voucher', kind: 'text', value: (p) => p.voucherNumber ?? '', width: 100, cell: (p) => <VoucherLink voucherId={p.paymentVoucherId} label={p.voucherNumber ?? 'Open'} /> },
+  { id: 'reference', header: 'Reference', kind: 'text', value: (p) => p.reference ?? '', className: 'text-muted' }
 ])
 
 type F16Row = Form16Data['employees'][number]
@@ -87,7 +101,7 @@ function cashBank(ledgers: Ledger[], groups: Group[]): Ledger[] {
   return ledgers.filter((l) => isCb(l.groupId))
 }
 
-export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JSX.Element {
+export function SalaryTdsTab({ fyStartYear }: { fyStartYear: number }): React.JSX.Element {
   const toast = useToasts()
   const nav = useNav()
   const queryClient = useQueryClient()
@@ -97,21 +111,18 @@ export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JS
   const { data: f16, isLoading: f16Loading } = useQuery({ queryKey: ['payrollForm16', fyStartYear], queryFn: () => statApi.form16(fyStartYear) })
   const [paying, setPaying] = useState<StatutoryDueRow | null>(null)
 
-  const outstanding = (k: StatutoryDueRow['kind']): number => (dues ?? []).filter((d) => d.kind === k).reduce((s, d) => s + d.outstandingPaise, 0)
-  const overdue = (k: StatutoryDueRow['kind']): number => (dues ?? []).filter((d) => d.kind === k && d.status === 'overdue').length
+  // payroll:dues / payments:list carry salary TDS plus the old PF / ESI / PT dues still
+  // outstanding and their payments (`kind` tells them apart).
+  const tdsDues = (dues ?? []).filter((d) => d.kind === 'tds')
+  const oldDues = (dues ?? []).filter((d) => d.kind !== 'tds')
+  const tdsPayments = (payments ?? []).filter((p) => p.kind === 'tds')
+  const oldPayments = (payments ?? []).filter((p) => p.kind !== 'tds')
+  const outstanding = tdsDues.reduce((s, d) => s + d.outstandingPaise, 0)
+  const overdue = tdsDues.filter((d) => d.status === 'overdue').length
 
-  const exportRefused = useCapabilityRefused('canExport') // #148: hide / disable export buttons the owner refused
-  const exportDue = async (d: StatutoryDueRow): Promise<void> => {
-    try {
-      if (d.kind === 'tds') return nav.go({ name: 'tds' })
-      const r = d.kind === 'pf' ? await api.payroll.ecr(d.runId) : d.kind === 'esi' ? await api.payroll.esiCsv(d.runId) : await statApi.ptReturnCsv(d.runId, d.state!)
-      toast.push('success', `${d.kind === 'pf' ? 'PF ECR' : d.kind === 'esi' ? 'ESI upload CSV' : `PT return (${d.state})`}: ${r.path.split(/[\\/]/).pop()}`)
-    } catch (err) {
-      toast.push('error', (err as Error).message)
-    }
-  }
   const removePayment = async (p: StatutoryPayment): Promise<void> => {
-    if (!(await confirmDialog({ title: 'Delete payment', message: `Delete this ${KIND_LABEL[p.kind]} payment and move its voucher to the bin?`, confirmLabel: 'Delete', danger: true }))) return
+    const what = p.kind === 'tds' ? 'salary TDS' : dueLabel(p)
+    if (!(await confirmDialog({ title: 'Delete payment', message: `Delete this ${what} payment and move its voucher to the bin?`, confirmLabel: 'Delete', danger: true }))) return
     try {
       await statApi.deletePayment(p.id)
       await queryClient.invalidateQueries()
@@ -129,32 +140,29 @@ export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JS
     }
   }
 
-  const tile = (k: StatutoryDueRow['kind']): React.JSX.Element => (
-    <StatTile
-      key={k}
-      label={`${KIND_LABEL[k]} outstanding`}
-      value={<Money paise={outstanding(k)} />}
-      delta={overdue(k) ? `${overdue(k)} overdue` : 'nothing overdue'}
-      deltaTone={overdue(k) ? 'danger' : 'neutral'}
-      loading={isLoading}
-      testId={`payroll-due-${k}`}
-    />
-  )
-
   return (
     <div className="flex flex-col gap-section">
-      <StatGrid>{(['pf', 'esi', 'pt', 'tds'] as const).map(tile)}</StatGrid>
+      <StatGrid>
+        <StatTile
+          label="Salary TDS outstanding"
+          value={<Money paise={outstanding} />}
+          delta={overdue ? `${overdue} overdue` : 'nothing overdue'}
+          deltaTone={overdue ? 'danger' : 'neutral'}
+          loading={isLoading}
+          testId="payroll-due-tds"
+        />
+      </StatGrid>
 
       <Panel>
         <div className="px-3 pt-3">
-          <SectionTitle as="h3">Dues — FY {fy.label}</SectionTitle>
+          <SectionTitle as="h3">Salary TDS by month — FY {fy.label}</SectionTitle>
         </div>
         <DataTable
           viewId="payroll-dues"
           testId="payroll-dues"
-          ariaLabel={`Statutory dues — FY ${fy.label}`}
+          ariaLabel={`Salary TDS dues — FY ${fy.label}`}
           columns={DUE_COLUMNS}
-          rows={dues ?? []}
+          rows={tdsDues}
           rowKey={(d) => d.key}
           rowAttrs={(d) => ({ 'data-row-id': d.key })}
           loading={isLoading}
@@ -169,14 +177,12 @@ export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JS
                   Pay…
                 </button>
               )}
-              <button className="text-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-50" data-testid={`btn-due-export-${d.key}`} onClick={() => void exportDue(d)}
-                disabled={exportRefused && d.kind !== 'tds'}
-                title={d.kind === 'tds' ? 'Form 24Q is on the TDS screen (Returns)' : exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : 'Export the return / upload file'}>
-                {d.kind === 'pf' ? 'ECR' : d.kind === 'esi' ? 'ESI CSV' : d.kind === 'pt' ? 'PT CSV' : '24Q →'}
+              <button className="text-muted hover:text-ink" data-testid={`btn-due-24q-${d.key}`} onClick={() => nav.go({ name: 'tds' })} title="Form 24Q is on the TDS screen (Returns)">
+                24Q →
               </button>
             </span>
           )}
-          exportOptions={{ title: 'Statutory dues', periodLabel: `FY ${fy.label}`, filename: `statutory-dues-${fy.label}` }}
+          exportOptions={{ title: 'Salary TDS dues', periodLabel: `FY ${fy.label}`, filename: `salary-tds-dues-${fy.label}` }}
         />
       </Panel>
 
@@ -185,12 +191,12 @@ export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JS
         <DataTable
           viewId="payroll-payments"
           testId="payroll-payments"
-          ariaLabel="Statutory payments"
+          ariaLabel="Salary TDS payments"
           columns={PAYMENT_COLUMNS}
-          rows={payments ?? []}
+          rows={tdsPayments}
           rowKey={(p) => p.id}
           maxHeight="30vh"
-          empty={{ title: 'No statutory payments recorded', hint: 'Use Pay… on a due' }}
+          empty={{ title: 'No salary TDS payments recorded', hint: 'Use Pay… on a month' }}
           trailingWidth={72}
           trailing={(p) => (
             <button className="text-small text-cr hover:underline" onClick={() => void removePayment(p)}>
@@ -199,6 +205,50 @@ export function StatutoryTab({ fyStartYear }: { fyStartYear: number }): React.JS
           )}
         />
       </Panel>
+
+      {oldDues.length > 0 && (
+        <Panel testId="payroll-left-from-before">
+          <div className="px-3 pt-3"><SectionTitle as="h3">Left from before</SectionTitle></div>
+          <p className="px-3 pb-2 text-hint text-muted">
+            PF, ESI and professional tax that pay runs saved before Total stopped computing them deducted and that are not yet marked paid.
+            Pay them on the EPFO / ESIC / state portal, then record the payment here. New pay runs deduct none of them.
+          </p>
+          <DataTable
+            viewId="payroll-old-dues"
+            testId="payroll-old-dues"
+            ariaLabel="PF, ESI and professional tax left from before"
+            columns={OLD_DUE_COLUMNS}
+            rows={oldDues}
+            rowKey={(d) => d.key}
+            rowAttrs={(d) => ({ 'data-row-id': d.key })}
+            maxHeight="30vh"
+            viewDefaults={{ sort: [{ id: 'period', dir: 'asc' }] }}
+            trailingWidth={128}
+            trailing={(d) => (
+              <button className="text-small text-blue hover:underline" data-testid={`btn-due-pay-${d.key}`} onClick={() => setPaying(d)}>
+                Record payment
+              </button>
+            )}
+          />
+          {oldPayments.length > 0 && (
+            <DataTable
+              viewId="payroll-old-payments"
+              testId="payroll-old-payments"
+              ariaLabel="Payments of the PF, ESI and professional tax left from before"
+              columns={OLD_PAYMENT_COLUMNS}
+              rows={oldPayments}
+              rowKey={(p) => p.id}
+              maxHeight="24vh"
+              trailingWidth={72}
+              trailing={(p) => (
+                <button className="text-small text-cr hover:underline" data-testid={`btn-payment-delete-${p.id}`} onClick={() => void removePayment(p)}>
+                  Delete
+                </button>
+              )}
+            />
+          )}
+        </Panel>
+      )}
 
       <Panel>
         <div className="px-3 pt-3">
@@ -249,13 +299,15 @@ function PayDueModal({ due, onClose }: { due: StatutoryDueRow; onClose: () => vo
   const queryClient = useQueryClient()
   const banks = cashBank(useLedgers(), useGroups())
   const [amount, setAmount] = useState<number | null>(due.outstandingPaise)
-  const [paidOn, setPaidOn] = useState(todayISO() < due.dueDate ? todayISO() : due.dueDate)
+  const [paidOn, setPaidOn] = useState(due.kind !== 'tds' || todayISO() < due.dueDate ? todayISO() : due.dueDate)
   const [bankId, setBankId] = useState<number | ''>('')
   const [reference, setReference] = useState('')
   const [bsr, setBsr] = useState('')
   const [challan, setChallan] = useState('')
   const [saving, setSaving] = useState(false)
   const bank = bankId || banks.find((b) => b.name !== 'Cash')?.id || banks[0]?.id || ''
+  const isTds = due.kind === 'tds'
+  const what = dueLabel(due)
 
   const save = async (): Promise<void> => {
     if (!bank) return void toast.push('error', 'Create a bank or cash ledger first')
@@ -265,11 +317,11 @@ function PayDueModal({ due, onClose }: { due: StatutoryDueRow; onClose: () => vo
       await statApi.recordPayment({
         kind: due.kind, period: due.period, state: due.state, amountPaise: amount, paidOn, bankLedgerId: Number(bank),
         reference: reference.trim() || null,
-        bsrCode: due.kind === 'tds' && bsr.trim() ? bsr.trim() : null,
-        challanNo: due.kind === 'tds' && challan.trim() ? challan.trim() : null
+        bsrCode: isTds && bsr.trim() ? bsr.trim() : null,
+        challanNo: isTds && challan.trim() ? challan.trim() : null
       })
       await queryClient.invalidateQueries()
-      toast.push('success', `${KIND_LABEL[due.kind]} for ${monthLabel(due.period)} paid — Payment voucher booked`)
+      toast.push('success', `${what} for ${monthLabel(due.period)} paid — Payment voucher booked`)
       onClose()
     } catch (err) {
       toast.push('error', (err as Error).message)
@@ -279,10 +331,10 @@ function PayDueModal({ due, onClose }: { due: StatutoryDueRow; onClose: () => vo
   }
 
   return (
-    <Modal title={`Pay ${KIND_LABEL[due.kind]}${due.state ? ` (${due.state})` : ''} — ${monthLabel(due.period)}`} onClose={onClose}>
+    <Modal title={isTds ? `Pay salary TDS — ${monthLabel(due.period)}` : `Record payment — ${what}, ${monthLabel(due.period)}`} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <p className="text-body-sm text-muted">
-          Due by {toDisplayDate(due.dueDate)} · payable <Money paise={due.payablePaise} />, paid so far <Money paise={due.paidPaise} />. Books a Payment voucher debiting the payable ledger.
+          Due by {toDisplayDate(due.dueDate)} · payable <Money paise={due.payablePaise} />, paid so far <Money paise={due.paidPaise} />. Books a Payment voucher debiting the {isTds ? 'TDS 192' : what} payable.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Amount"><AmountInput paise={amount} onPaise={setAmount} testId="input-due-amount" /></Field>
@@ -292,10 +344,10 @@ function PayDueModal({ due, onClose }: { due: StatutoryDueRow; onClose: () => vo
               {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </Select>
           </Field>
-          <Field label={due.kind === 'pf' ? 'TRRN / challan' : due.kind === 'esi' ? 'Challan no.' : 'Reference'}>
+          <Field label="Reference">
             <TextInput value={reference} onChange={(e) => setReference(e.target.value)} data-testid="input-due-reference" />
           </Field>
-          {due.kind === 'tds' && (
+          {isTds && (
             <>
               <Field label="BSR code" hint="Registers the challan on the TDS screen"><TextInput value={bsr} onChange={(e) => setBsr(e.target.value)} className="num" data-testid="input-due-bsr" /></Field>
               <Field label="Challan serial"><TextInput value={challan} onChange={(e) => setChallan(e.target.value)} className="num" data-testid="input-due-challan" /></Field>

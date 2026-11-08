@@ -1,8 +1,15 @@
 /**
- * Payroll statutory — server side (WP 3.7): effective-dated statutory rates (statutory_rates,
- * migration 029), tax declarations, tagged payable ledgers, the dues dashboard (PF / ESI / PT /
- * salary TDS payable by month, paid / unpaid, due dates), statutory payments, salary TDS entries
- * for the TDS screen (section 192 / 2025 s.392), and the Form 24Q / Form 16 Part B data.
+ * Payroll statutory — server side (WP 3.7): tax declarations, tagged payable ledgers, the dues
+ * list (salary TDS payable by month, paid / unpaid, due dates — and, for old books, the PF / ESI /
+ * PT their runs deducted), salary TDS payments, salary TDS entries for the TDS screen (section
+ * 192 / 2025 s.392), and the Form 24Q / Form 16 Part B data.
+ *
+ * PF / ESI / PT were removed for good in audit A13b (owner, 8 Nov 2026): the rates master
+ * (statutory_rates, migration 029 — the table stays) and the ECR / ESI / PT files are gone, and
+ * new runs deduct none of them. `statutoryDues` still lists what old runs deducted (the cash
+ * forecast reads it, unchanged); a PF / ESI / PT due an old run left with something outstanding
+ * can still be marked paid (`oldDuesLeft`, owner 8 Nov: "Let old dues be marked paid") and its
+ * payments removed again — nothing else of those kinds is recorded.
  *
  * Every figure the dashboard shows is computed at query time from payroll_lines of runs whose
  * voucher is in the books, and from statutory_payments whose voucher is in the books — nothing is
@@ -10,172 +17,18 @@
  */
 import type { DB } from '../db/connection'
 import type { CompanyInfo } from '@shared/domain'
+import type { StatutoryPaymentInput, StatutoryPaymentKind, TaxDeclarationsSetInput } from '@shared/schemas'
 import type {
-  StatutoryPaymentInput, StatutoryPaymentKind, StatutoryRateInput, StatutoryRateKind, TaxDeclarationsSetInput
-} from '@shared/schemas'
-import { statutoryRateInputSchema } from '@shared/schemas'
-import type {
-  DueStatus, Form16Data, Form16Employee, Form24qData, Form24qDeducteeRow, Form24qSalaryRow, StatutoryDueRow, StatutoryPayment,
-  StatutoryRate, TaxDeclaration
+  DueStatus, Form16Data, Form16Employee, Form24qData, Form24qDeducteeRow, Form24qSalaryRow, StatutoryDueRow, StatutoryPayment, TaxDeclaration
 } from '@shared/payrollStatutoryTypes'
 import { fyFromStartYear } from '@shared/dates'
 import { tdsQuarterBounds } from '@shared/tds'
-import {
-  DECLARATION_LABELS, DEFAULT_ESI_RATES, DEFAULT_PF_RATES, esiDueDate, incomeTaxYear, pfDueDate, tdsDueDate,
-  weightedCeiling, type DeclarationSection, type EsiRates, type PfRates, type PtSlab, type SalaryWorkings
-} from '@shared/payrollStatutory'
+import { DECLARATION_LABELS, esiDueDate, incomeTaxYear, pfDueDate, tdsDueDate, type DeclarationSection, type SalaryWorkings } from '@shared/payrollStatutory'
 import { daysInMonth } from '@shared/payroll'
 import { writeAudit } from './audit'
 import { deleteVoucher, IN_BOOKS, NOT_DELETED, saveVoucher } from './vouchers'
 import { ensureTdsPayableLedger } from './tds'
 import { challanFromPayment } from './tdsWorkbench'
-
-// ---------------------------------------------------------------------------------------------
-// Statutory rates
-// ---------------------------------------------------------------------------------------------
-
-interface RateRow {
-  id: number; kind: StatutoryRateKind; state: string | null; effective_from: string; effective_to: string | null
-  rate_bp: number | null; ceiling_paise: number | null; threshold_paise: number | null; min_paise: number | null
-  slab_from_paise: number | null; slab_to_paise: number | null; amount_paise: number | null
-  basis: 'month' | 'half_year' | 'year'; gender: 'any' | 'male' | 'female'; variant: 'standard' | 'disabled'
-  special_month: number | null; special_amount_paise: number | null; source: string; verified: number; is_seeded: number
-}
-
-const mapRate = (r: RateRow): StatutoryRate => ({
-  id: r.id, kind: r.kind, state: r.state, effectiveFrom: r.effective_from, effectiveTo: r.effective_to,
-  rateBp: r.rate_bp, ceilingPaise: r.ceiling_paise, thresholdPaise: r.threshold_paise, minPaise: r.min_paise,
-  slabFromPaise: r.slab_from_paise, slabToPaise: r.slab_to_paise, amountPaise: r.amount_paise,
-  basis: r.basis, gender: r.gender, variant: r.variant, specialMonth: r.special_month, specialAmountPaise: r.special_amount_paise,
-  source: r.source, verified: !!r.verified, isSeeded: !!r.is_seeded
-})
-
-export function listStatutoryRates(db: DB): StatutoryRate[] {
-  return (db.prepare(
-    `SELECT * FROM statutory_rates ORDER BY CASE kind WHEN 'pt' THEN 1 ELSE 0 END, kind, state, effective_from, slab_from_paise, gender`
-  ).all() as RateRow[]).map(mapRate)
-}
-
-export function saveStatutoryRate(db: DB, raw: StatutoryRateInput, id?: number): StatutoryRate {
-  const v = statutoryRateInputSchema.parse(raw)
-  const values = [
-    v.kind, v.kind === 'pt' ? v.state : null, v.effectiveFrom, v.effectiveTo, v.rateBp, v.ceilingPaise, v.thresholdPaise, v.minPaise,
-    v.slabFromPaise, v.slabToPaise, v.amountPaise, v.basis, v.gender, v.variant, v.specialMonth, v.specialAmountPaise, v.source, v.verified ? 1 : 0
-  ]
-  const before = id != null ? (db.prepare('SELECT * FROM statutory_rates WHERE id = ?').get(id) as RateRow | undefined) : undefined
-  if (id != null && !before) throw new Error('Rate row not found')
-  if (id != null) {
-    db.prepare(
-      `UPDATE statutory_rates SET kind = ?, state = ?, effective_from = ?, effective_to = ?, rate_bp = ?, ceiling_paise = ?,
-         threshold_paise = ?, min_paise = ?, slab_from_paise = ?, slab_to_paise = ?, amount_paise = ?, basis = ?, gender = ?,
-         variant = ?, special_month = ?, special_amount_paise = ?, source = ?, verified = ? WHERE id = ?`
-    ).run(...values, id)
-  } else {
-    const res = db.prepare(
-      `INSERT INTO statutory_rates (kind, state, effective_from, effective_to, rate_bp, ceiling_paise, threshold_paise, min_paise,
-         slab_from_paise, slab_to_paise, amount_paise, basis, gender, variant, special_month, special_amount_paise, source, verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(...values)
-    id = Number(res.lastInsertRowid)
-  }
-  const after = mapRate(db.prepare('SELECT * FROM statutory_rates WHERE id = ?').get(id) as RateRow)
-  writeAudit(db, 'statutory_rate', id, before ? 'update' : 'create', before ? mapRate(before) : null, after)
-  return after
-}
-
-export function deleteStatutoryRate(db: DB, id: number): void {
-  const before = db.prepare('SELECT * FROM statutory_rates WHERE id = ?').get(id) as RateRow | undefined
-  if (!before) throw new Error('Rate row not found')
-  db.prepare('DELETE FROM statutory_rates WHERE id = ?').run(id)
-  writeAudit(db, 'statutory_rate', id, 'delete', mapRate(before), null)
-}
-
-const inForce = (r: StatutoryRate, date: string): boolean => r.effectiveFrom <= date && (r.effectiveTo == null || r.effectiveTo >= date)
-
-export interface StatutoryRatesOn {
-  pf: PfRates
-  esi: EsiRates
-  /** CoSS s.2(88) wages in force (excluded-items cap, bp), or null before 21-11-2025. */
-  ssWagesCapBp: number | null
-  /** State → slabs in force (an entry with an empty list = the state levies no PT for the date). */
-  ptByState: Map<string, PtSlab[]>
-}
-
-/** The rates in force on `date` (the last day of the wage month). A kind with no row in force
- *  falls back to the cited default in payrollStatutory.ts. */
-export function statutoryRatesOn(db: DB, date: string): StatutoryRatesOn {
-  const rows = listStatutoryRates(db).filter((r) => inForce(r, date))
-  // Latest effective_from wins within a kind/variant.
-  const pick = (kind: StatutoryRateKind, variant: 'standard' | 'disabled' = 'standard'): StatutoryRate | undefined =>
-    rows.filter((r) => r.kind === kind && r.variant === variant).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
-  const epf = pick('epf')
-  const eps = pick('eps')
-  const edli = pick('edli')
-  const admin = pick('epf_admin')
-  const esiEe = pick('esi_emp')
-  const esiEr = pick('esi_er')
-  const esiDisabled = pick('esi_emp', 'disabled')
-  const pf: PfRates = {
-    eeRateBp: epf?.rateBp ?? DEFAULT_PF_RATES.eeRateBp,
-    erRateBp: epf?.rateBp ?? DEFAULT_PF_RATES.erRateBp,
-    epsRateBp: eps?.rateBp ?? DEFAULT_PF_RATES.epsRateBp,
-    edliRateBp: edli?.rateBp ?? DEFAULT_PF_RATES.edliRateBp,
-    adminRateBp: admin?.rateBp ?? DEFAULT_PF_RATES.adminRateBp,
-    ceilingPaise: epf?.ceilingPaise ?? eps?.ceilingPaise ?? DEFAULT_PF_RATES.ceilingPaise,
-    adminMinPaise: admin?.minPaise ?? DEFAULT_PF_RATES.adminMinPaise
-  }
-  const esi: EsiRates = {
-    eeRateBp: esiEe?.rateBp ?? DEFAULT_ESI_RATES.eeRateBp,
-    erRateBp: esiEr?.rateBp ?? DEFAULT_ESI_RATES.erRateBp,
-    thresholdPaise: esiEe?.thresholdPaise ?? DEFAULT_ESI_RATES.thresholdPaise,
-    disabledThresholdPaise: esiDisabled?.thresholdPaise ?? DEFAULT_ESI_RATES.disabledThresholdPaise,
-    eeExemptDailyWagePaise: esiEe?.minPaise ?? DEFAULT_ESI_RATES.eeExemptDailyWagePaise
-  }
-  const ptByState = new Map<string, PtSlab[]>()
-  for (const r of rows.filter((x) => x.kind === 'pt' && x.state)) {
-    // Only the newest effective_from per state is in force (a revision replaces every slab).
-    const list = ptByState.get(r.state!) ?? []
-    list.push({
-      fromPaise: r.slabFromPaise ?? 0, toPaise: r.slabToPaise, amountPaise: r.amountPaise ?? 0, basis: r.basis,
-      gender: r.gender, specialMonth: r.specialMonth, specialAmountPaise: r.specialAmountPaise,
-      _from: r.effectiveFrom
-    } as PtSlab & { _from: string })
-    ptByState.set(r.state!, list)
-  }
-  for (const [state, list] of ptByState) {
-    const latest = (list as (PtSlab & { _from: string })[]).reduce((m, x) => (x._from > m ? x._from : m), '')
-    ptByState.set(state, (list as (PtSlab & { _from: string })[]).filter((x) => x._from === latest).map(({ _from, ...s }) => s)
-      .sort((a, b) => a.fromPaise - b.fromPaise))
-  }
-  const ss = pick('ss_wages')
-  return { pf, esi, ptByState, ssWagesCapBp: ss ? (ss.rateBp ?? 5000) : null }
-}
-
-/**
- * The rates for a wage month: those in force on its last day, except the PF wage ceiling, which
- * is day-weighted when it changes inside the month (September 2026: ₹15,000 to the 16th,
- * ₹25,000 from the 17th — S.O. 5109(E); proration per the EPFO FAQ, UNVERIFIED).
- */
-export function statutoryRatesForMonth(db: DB, month: string): StatutoryRatesOn {
-  const n = daysInMonth(month)
-  const last = `${month}-${String(n).padStart(2, '0')}`
-  const base = statutoryRatesOn(db, last)
-  const spans = new Map<number, number>()
-  for (let d = 1; d <= n; d++) {
-    const c = statutoryRatesOn(db, `${month}-${String(d).padStart(2, '0')}`).pf.ceilingPaise
-    spans.set(c, (spans.get(c) ?? 0) + 1)
-  }
-  if (spans.size > 1) {
-    base.pf = { ...base.pf, ceilingPaise: weightedCeiling([...spans].map(([ceilingPaise, days]) => ({ ceilingPaise, days }))) }
-  }
-  return base
-}
-
-/** States that have PT rows at all (any date) — the profile's PT state choices. */
-export function ptStates(db: DB): string[] {
-  return (db.prepare("SELECT DISTINCT state FROM statutory_rates WHERE kind = 'pt' AND state IS NOT NULL ORDER BY state").all() as { state: string }[])
-    .map((r) => r.state)
-}
 
 // ---------------------------------------------------------------------------------------------
 // Tax declarations
@@ -218,7 +71,7 @@ export function setDeclarations(db: DB, input: TaxDeclarationsSetInput): TaxDecl
 // Tagged payable ledgers (ledgers.statutory_kind) and the salary TDS section
 // ---------------------------------------------------------------------------------------------
 
-export type { DueStatus, Form16Data, Form16Employee, Form24qData, Form24qDeducteeRow, Form24qSalaryRow, StatutoryDueRow, StatutoryPayment, StatutoryRate, TaxDeclaration }
+export type { DueStatus, Form16Data, Form16Employee, Form24qData, Form24qDeducteeRow, Form24qSalaryRow, StatutoryDueRow, StatutoryPayment, TaxDeclaration }
 
 export type StatutoryLedgerKind = 'pf' | 'esi' | 'pt' | 'salary'
 
@@ -272,7 +125,7 @@ interface RunLineAgg {
 }
 
 /**
- * PT due date by state for a wage month. Each state's rule and its citation live with the PT
+ * PT due date by state for a wage month — only for the PT old runs deducted (statutoryDues). Each state's rule and its citation live with the PT
  * rows in migration 029; this mirrors the employer's monthly-return due date:
  * MH last day of the following month (MH PT Rules r.11A, monthly enrolment liability
  * > ₹1 lakh a year — UNVERIFIED for smaller employers who pay annually by 31 March), KA 20th of the
@@ -295,6 +148,10 @@ export function ptDueDate(state: string, month: string): string {
   }
 }
 
+/** Every payable a posted run left, by month: salary TDS, and the PF / ESI / PT that runs posted
+ *  before audit A13b deducted (new runs carry none). The cash forecast reads all of it; the
+ *  Payroll → Salary TDS tab shows the TDS rows and, under "Left from before", the old PF / ESI /
+ *  PT rows still outstanding (payroll:dues, `oldDuesLeft`). */
 export function statutoryDues(db: DB, fyStartYear: number, today: string): StatutoryDueRow[] {
   const fy = fyFromStartYear(fyStartYear)
   const fromMonth = fy.from.slice(0, 7)
@@ -352,6 +209,33 @@ export function statutoryDues(db: DB, fyStartYear: number, today: string): Statu
   return out
 }
 
+/** Wage months 'YYYY-MM' whose in-books pay run deducted PF / ESI (any line with an employee or
+ *  employer share) — only runs saved before audit A13b can. The compliance calendar
+ *  (upcomingDeadlines `pfMonths` / `esiMonths`) lists a month's PF / ESI date only for these. */
+export function payrollDeductionMonths(db: DB): { pf: string[]; esi: string[] } {
+  const rows = db.prepare(
+    `SELECT r.month,
+            MAX(CASE WHEN pl.pf_emp + pl.pf_er > 0 THEN 1 ELSE 0 END) AS pf,
+            MAX(CASE WHEN pl.esi_emp + pl.esi_er > 0 THEN 1 ELSE 0 END) AS esi
+       FROM payroll_runs r JOIN vouchers v ON v.id = r.voucher_id JOIN payroll_lines pl ON pl.run_id = r.id
+      WHERE ${IN_BOOKS}
+      GROUP BY r.month ORDER BY r.month`
+  ).all() as { month: string; pf: number; esi: number }[]
+  return { pf: rows.filter((r) => r.pf).map((r) => r.month), esi: rows.filter((r) => r.esi).map((r) => r.month) }
+}
+
+/** The PF / ESI / PT dues old runs (saved before audit A13b) left with something still to pay,
+ *  for the FY — the Salary TDS tab's "Left from before". New runs never add to it. */
+export function oldDuesLeft(db: DB, fyStartYear: number, today: string): StatutoryDueRow[] {
+  return statutoryDues(db, fyStartYear, today).filter((d) => d.kind !== 'tds' && d.outstandingPaise > 0)
+}
+
+/** FY start year of a wage month 'YYYY-MM' (April–March). */
+const fyStartOfMonth = (month: string): number => {
+  const [y, m] = month.split('-').map(Number) as [number, number]
+  return m >= 4 ? y : y - 1
+}
+
 function statutoryPaidMap(db: DB): Map<string, number> {
   const rows = db.prepare(
     `SELECT sp.kind, sp.period, sp.state, SUM(sp.amount_paise) AS paid
@@ -381,10 +265,20 @@ export function listStatutoryPayments(db: DB, fyStartYear?: number): StatutoryPa
 
 const KIND_LABEL: Record<StatutoryPaymentKind, string> = { pf: 'EPF', esi: 'ESI', pt: 'Professional tax', tds: 'Salary TDS' }
 
+/** Pay a month's salary TDS, or an old PF / ESI / PT due (audit A13b: only one an old run left
+ *  with something outstanding — `oldDuesLeft`, same key kind + month + PT state). Books a Payment
+ *  voucher (Dr the payable / Cr bank or cash). With a BSR code + challan serial a TDS challan is
+ *  registered on the TDS screen too. */
 export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): StatutoryPayment {
   if (input.kind === 'pt' && !input.state) throw new Error('Pick the state the professional tax is paid to')
   if (input.kind !== 'pt' && input.state) throw new Error('Only professional tax is paid per state')
+  if (input.kind !== 'tds' && (input.bsrCode != null || input.challanNo != null)) throw new Error('A challan is registered for salary TDS only')
   if ((input.bsrCode == null) !== (input.challanNo == null)) throw new Error('Give both the BSR code and the challan serial, or neither')
+  if (input.kind !== 'tds') {
+    const key = `${input.kind}:${input.period}${input.state ? `:${input.state}` : ''}`
+    const left = oldDuesLeft(db, fyStartOfMonth(input.period), input.paidOn).some((d) => d.key === key)
+    if (!left) throw new Error(`No ${KIND_LABEL[input.kind]} is left to pay for ${input.period} — new pay runs deduct no PF, ESI or professional tax`)
+  }
   const bank = db.prepare(
     `WITH RECURSIVE cb(id) AS (SELECT id FROM groups WHERE name IN ('Bank Accounts', 'Cash-in-Hand', 'Bank OD A/c')
        UNION ALL SELECT g.id FROM groups g JOIN cb ON g.parent_id = cb.id)
@@ -423,6 +317,7 @@ export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): St
 export function deleteStatutoryPayment(db: DB, id: number): void {
   const row = listStatutoryPayments(db).find((p) => p.id === id)
   if (!row) throw new Error('Payment not found')
+  // An old PF / ESI / PT payment may be removed too (as before audit A13b): its due opens again.
   db.transaction(() => {
     if (row.paymentVoucherId) {
       db.prepare('DELETE FROM tds_challans WHERE payment_voucher_id = ?').run(row.paymentVoucherId)

@@ -3,13 +3,13 @@ import { call } from './client'
 import type { ReceivablesConfig, ReceivablesConfigInput, ReminderChannel } from '@shared/receivables/config'
 import type { RuleSource } from '@shared/receivables/sources'
 import type {
-  CollectionReport, CreditControlRow, FollowupRow, InterestChargeRow, InterestPostResult, InterestRow, PromisedSummary,
+  CollectionReport, CreditControlRow, FollowupRow, PromisedSummary,
   ReminderBulkResult, ReminderCandidate, ReminderLogRow, ReminderResult, StatementData, StatementPdfResult, StatementsBulkResult, TopOverdueRow
 } from '@shared/receivables/types'
 import type { FollowupInput } from '@shared/receivables/schemas'
 
 export type {
-  CollectionReport, CreditControlRow, FollowupRow, InterestChargeRow, InterestPostResult, InterestRow, PromisedSummary,
+  CollectionReport, CreditControlRow, FollowupRow, PromisedSummary,
   ReminderBulkResult, ReminderCandidate, ReminderLogRow, ReminderResult, StatementData, StatementPdfResult, StatementsBulkResult, TopOverdueRow
 } from '@shared/receivables/types'
 
@@ -26,11 +26,6 @@ export const receivablesApi = {
   remindBulk: (asOn: string, channel: ReminderChannel, ledgerIds?: number[]) =>
     call<ReminderBulkResult>('receivables:remindBulk', { asOn, channel, ...(ledgerIds ? { ledgerIds } : {}) }),
   reminderLog: (from: string, to: string, ledgerId?: number) => call<ReminderLogRow[]>('receivables:reminderLog', { from, to, ledgerId }),
-  interestPreview: (asOn: string, gstOnInterest?: boolean, ledgerId?: number) =>
-    call<InterestRow[]>('receivables:interestPreview', { asOn, gstOnInterest, ledgerId }),
-  postInterest: (q: { asOn: string; date?: string; ledgerId: number; keys?: string[]; gstOnInterest?: boolean }) =>
-    call<InterestPostResult>('receivables:postInterest', q),
-  interestCharges: (ledgerId?: number) => call<InterestChargeRow[]>('receivables:interestCharges', { ledgerId }),
   setHold: (ledgerId: number, hold: boolean, reason: string) =>
     call<{ hold: boolean; reason: string | null; at: string | null }>('receivables:setHold', { ledgerId, hold, reason }),
   creditControl: (asOn: string) => call<CreditControlRow[]>('receivables:creditControl', { asOn }),

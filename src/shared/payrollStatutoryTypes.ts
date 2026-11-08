@@ -1,30 +1,7 @@
 // Row shapes of payroll statutory (WP 3.7), shared by main (src/main/services/payrollStatutory.ts)
 // and the renderer / print path. Types only.
-import type { StatutoryPaymentKind, StatutoryRateKind } from './schemas'
+import type { StatutoryPaymentKind } from './schemas'
 import type { DeclarationSection, IncomeTaxYear, SalaryWorkings } from './payrollStatutory'
-
-export interface StatutoryRate {
-  id: number
-  kind: StatutoryRateKind
-  state: string | null
-  effectiveFrom: string
-  effectiveTo: string | null
-  rateBp: number | null
-  ceilingPaise: number | null
-  thresholdPaise: number | null
-  minPaise: number | null
-  slabFromPaise: number | null
-  slabToPaise: number | null
-  amountPaise: number | null
-  basis: 'month' | 'half_year' | 'year'
-  gender: 'any' | 'male' | 'female'
-  variant: 'standard' | 'disabled'
-  specialMonth: number | null
-  specialAmountPaise: number | null
-  source: string
-  verified: boolean
-  isSeeded: boolean
-}
 
 export interface TaxDeclaration {
   section: DeclarationSection

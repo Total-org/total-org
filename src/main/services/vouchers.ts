@@ -425,7 +425,7 @@ function irnFactsChanged(before: Voucher, input: VoucherInputParsed): boolean {
 export const IRN_RENUMBER_REFUSED = 'This invoice has an e-invoice IRN — its number and voucher type can’t change (cancel the IRN on the portal and enter a new invoice instead)'
 
 export const INTEREST_NOTE_IMMUTABLE =
-  'This is an interest debit note (Credit control › Interest) — bin it and post the interest again; an edit would leave the charged periods wrong'
+  'This is an interest debit note made by Total’s former interest feature — it can’t be edited, only moved to the bin (an edit would leave the charged periods wrong)'
 
 const interestTable = new WeakMap<DB, boolean>()
 function hasInterestCharges(db: DB): boolean {

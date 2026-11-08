@@ -1,12 +1,11 @@
 import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Employee, PayrollLine, PayrollRun } from '@shared/domain'
-import { daysInMonth, PT_STATES } from '@shared/payroll'
+import { daysInMonth } from '@shared/payroll'
 import { fyOf, todayISO } from '@shared/dates'
-import { api, type EmployeeHeadRow, type PayHead, type PtSummaryRow } from '../lib/client'
+import { api, type EmployeeHeadRow, type PayHead } from '../lib/client'
 import { formatPaise, parseRupees } from '@shared/money'
 import { useNav, useSession, useToasts } from '../state/stores'
-import { useFeatures } from '../lib/useFeatures'
 import {
   AmountInput, Button, DrawerSection, EmptyState, Field, Modal, Money, Page, PageHeader, Panel, ScrollList, Select, SkeletonRows, Spinner, TextInput, inputCls
 } from '../components/ui'
@@ -14,18 +13,11 @@ import { OptionToggle, OptionsTable, useScreenOptions } from '../components/Scre
 import { confirmDialog } from '../lib/dialogs'
 import { TabBar } from '../components/TabBar'
 import { DataTable, defineColumns, Popover } from '../components/table'
-import { statApi } from '../lib/payrollStatutoryClient'
 import { DeclarationsModal, TdsWorkingsModal } from './payroll/EmployeeTax'
-import { StatutoryTab, useFyChoices } from './payroll/StatutoryTab'
-import { RatesTab } from './payroll/RatesTab'
-import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
+import { SalaryTdsTab, useFyChoices } from './payroll/SalaryTdsTab'
 import { CaCheck } from '../components/CaCheck'
 
-type Tab = 'employees' | 'runs' | 'statutory' | 'rates'
-
-const PT_STATE_NAMES: Record<string, string> = {
-  MH: 'Maharashtra', KA: 'Karnataka', WB: 'West Bengal', TN: 'Tamil Nadu (Chennai)', GJ: 'Gujarat', AP: 'Andhra Pradesh', TS: 'Telangana', MP: 'Madhya Pradesh'
-}
+type Tab = 'employees' | 'runs' | 'tds'
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -70,13 +62,10 @@ export const EMPLOYEE_COLUMNS = defineColumns<Employee>([
   { id: 'special', header: 'Special', kind: 'money', value: (e) => e.special, aggregate: activeSum((e) => e.special), width: 124 },
   { id: 'gross', header: 'Gross / mo', kind: 'money', value: grossOf, aggregate: activeSum(grossOf), width: 140, className: 'font-medium' },
   { id: 'status', header: 'Status', kind: 'enum', value: (e) => (e.active ? 'active' : 'inactive'), options: STATUS_OPTIONS, defaultHidden: true, width: 112 },
-  { id: 'ptState', header: 'PT state', kind: 'text', value: (e) => (e.ptEnabled ? e.ptState : ''), width: 84, className: 'num text-muted', defaultHidden: true },
   {
     id: 'regime', header: 'Regime', kind: 'enum', value: (e) => (e.tdsEnabled ? e.taxRegime : 'off'), width: 80,
     options: [{ value: 'new', label: 'New' }, { value: 'old', label: 'Old' }, { value: 'off', label: 'No TDS' }]
   },
-  { id: 'uan', header: 'UAN', kind: 'text', value: (e) => e.uan, defaultHidden: true, width: 120, className: 'num text-muted' },
-  { id: 'esic', header: 'ESI IP no.', kind: 'text', value: (e) => e.esicNo, defaultHidden: true, width: 120, className: 'num text-muted' },
   { id: 'pan', header: 'PAN', kind: 'text', value: (e) => e.pan, defaultHidden: true, width: 110, className: 'num text-muted' }
 ])
 
@@ -92,34 +81,27 @@ export const RUN_COLUMNS = defineColumns<PayrollRun>([
   { id: 'net', header: 'Net pay', kind: 'money', value: runNet, aggregate: 'sum', width: 140 }
 ])
 
-const STATUTORY_NOTE =
-  'EPF 12% + 12% (EPS 8.33%) on wages up to the ceiling (₹15,000; ₹25,000 from 17 Sep 2026), EDLI and admin 0.5% · ESI 0.75% / 3.25% while wages ≤ ₹21,000 (covered to the end of the contribution period) · professional tax by state slab · salary TDS projected for the year under the employee’s regime and declarations. From 21 Nov 2025 EPF and ESI are on Code on Social Security wages (allowances other than HRA-type exclusions count; exclusions over half are added back). Rates and citations: the Statutory rates tab. Posting books one Journal voucher: salaries and employer contributions against tagged PF / ESI / PT / TDS 192 / Salaries payable ledgers.'
+const PAYROLL_NOTE =
+  'Gross pay from the salary heads, prorated by the days worked · custom deduction heads · salary TDS projected for the year under the employee’s regime and declarations, spread over the months left. PF, ESI and professional tax are not deducted (they were removed from Total); pay runs posted before keep their figures. Posting books one Journal voucher: Salaries against the TDS 192 payable, Employee Deductions Payable and Salaries Payable ledgers.'
 
 /** The Options drawer's note on how payroll is computed (moved off the page). */
-function StatutorySection(): React.JSX.Element {
+function PayrollNote(): React.JSX.Element {
   return (
     <DrawerSection title="How payroll is computed">
-      <p className="text-hint text-muted">{STATUTORY_NOTE}</p>
+      <p className="text-hint text-muted">{PAYROLL_NOTE}</p>
     </DrawerSection>
   )
 }
 
 export function PayrollScreen(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('employees')
-  // Feature cleanup: the PF / ESI / PT tabs only for a company with statutory payroll data.
-  const { payrollStatutory } = useFeatures()
   const tabs = (
     <TabBar
       screen="payroll"
       tabs={[
         { id: 'employees', label: 'Employees' },
         { id: 'runs', label: 'Pay runs' },
-        ...(payrollStatutory
-          ? [
-              { id: 'statutory' as const, label: 'Statutory' },
-              { id: 'rates' as const, label: 'Statutory rates' }
-            ]
-          : [])
+        { id: 'tds', label: 'Salary TDS' }
       ]}
       active={tab}
       onSelect={setTab}
@@ -127,12 +109,12 @@ export function PayrollScreen(): React.JSX.Element {
   )
   return (
     <Page width="wide">
-      {tab === 'employees' ? <EmployeesTab tabs={tabs} /> : tab === 'runs' ? <RunsTab tabs={tabs} /> : tab === 'statutory' ? <StatutoryScreenTab tabs={tabs} /> : <RatesScreenTab tabs={tabs} />}
+      {tab === 'employees' ? <EmployeesTab tabs={tabs} /> : tab === 'runs' ? <RunsTab tabs={tabs} /> : <SalaryTdsScreenTab tabs={tabs} />}
     </Page>
   )
 }
 
-function StatutoryScreenTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
+function SalaryTdsScreenTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
   const { info } = useSession()
   const years = useFyChoices(info?.booksFrom)
   const [fy, setFy] = useState(fyOf(todayISO()).startYear)
@@ -142,22 +124,13 @@ function StatutoryScreenTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Elem
         title="Payroll"
         tabs={tabs}
         controls={
-          <Select aria-label="Financial year" value={fy} onChange={(e) => setFy(Number(e.target.value))} className="w-32" data-testid="payroll-statutory-fy">
+          <Select aria-label="Financial year" value={fy} onChange={(e) => setFy(Number(e.target.value))} className="w-32" data-testid="payroll-tds-fy">
             {years.map((y) => <option key={y} value={y}>FY {y}-{String((y + 1) % 100).padStart(2, '0')}</option>)}
           </Select>
         }
-        options={{ content: <><OptionsTable area="payroll-dues" label="Dues table" /><StatutorySection /></> }}
+        options={{ content: <><OptionsTable area="payroll-dues" label="Dues table" /><PayrollNote /></> }}
       />
-      <StatutoryTab fyStartYear={fy} />
-    </>
-  )
-}
-
-function RatesScreenTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
-  return (
-    <>
-      <PageHeader title="Payroll" tabs={tabs} options={{ content: <><OptionsTable area="payroll-rates" label="Rates table" /><StatutorySection /></> }} />
-      <RatesTab />
+      <SalaryTdsTab fyStartYear={fy} />
     </>
   )
 }
@@ -215,7 +188,7 @@ function EmployeesTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
                 <OptionToggle label="Hide inactive employees" checked={opts.options.hideInactive} onChange={(v) => opts.set('hideInactive', v)} testId="input-payroll-hide-inactive" />
               </DrawerSection>
               <OptionsTable area="payroll-employees" />
-              <StatutorySection />
+              <PayrollNote />
             </>
           )
         }}
@@ -293,29 +266,16 @@ function EmployeeModal({ employee, onClose }: { employee: Employee | null; onClo
   const [designation, setDesignation] = useState(employee?.designation ?? '')
   const [code, setCode] = useState(employee?.code ?? '')
   const [pan, setPan] = useState(employee?.pan ?? '')
-  const [uan, setUan] = useState(employee?.uan ?? '')
   const [basic, setBasic] = useState<number | null>(employee?.basic ?? null)
   const [hra, setHra] = useState<number | null>(employee?.hra ?? null)
   const [special, setSpecial] = useState<number | null>(employee?.special ?? null)
-  const [pfEnabled, setPf] = useState(employee?.pfEnabled ?? true)
-  const [esiEnabled, setEsi] = useState(employee?.esiEnabled ?? true)
-  const [ptEnabled, setPt] = useState(employee?.ptEnabled ?? true)
   const [active, setActive] = useState(employee?.active ?? true)
-  // WP 3.7 statutory profile
-  const [esicNo, setEsicNo] = useState(employee?.esicNo ?? '')
-  const [pfNumber, setPfNumber] = useState(employee?.pfNumber ?? '')
-  const [ptState, setPtState] = useState(employee?.ptState ?? 'MH')
-  const [gender, setGender] = useState<Employee['gender']>(employee?.gender ?? null)
+  // Salary TDS profile. The PF / ESI / PT profile (UAN, ESI IP no., PT state …) is no longer asked
+  // (removed in audit A13b) and not sent, so an edit keeps what an old record holds.
   const [dob, setDob] = useState(employee?.dob ?? '')
   const [taxRegime, setTaxRegime] = useState<Employee['taxRegime']>(employee?.taxRegime ?? 'new')
-  const [vpfText, setVpfText] = useState(employee?.vpfRateBp ? String(employee.vpfRateBp / 100) : '')
-  const [pfOnFullWage, setPfOnFullWage] = useState(employee?.pfOnFullWage ?? false)
-  const [epsEligible, setEpsEligible] = useState(employee?.epsEligible ?? true)
-  const [disabled, setDisabled] = useState(employee?.disabled ?? false)
   const [metro, setMetro] = useState(employee?.metro ?? false)
   const [tdsEnabled, setTdsEnabled] = useState(employee?.tdsEnabled ?? true)
-  const vpfBp = vpfText.trim() === '' ? 0 : Math.round(Number(vpfText) * 100)
-  const vpfInvalid = !Number.isFinite(vpfBp) || vpfBp < 0 || vpfBp > 8800
 
   const save = async (): Promise<void> => {
     try {
@@ -326,24 +286,12 @@ function EmployeeModal({ employee, onClose }: { employee: Employee | null; onClo
           designation: designation.trim() || null,
           joined: employee?.joined ?? null,
           pan: pan.trim() || null,
-          uan: uan.trim() || null,
-          esicNo: esicNo.trim() || null,
           basic: basic ?? 0,
           hra: hra ?? 0,
           special: special ?? 0,
-          pfEnabled,
-          esiEnabled,
-          ptEnabled,
-          ptState: ptState as (typeof PT_STATES)[number],
           active,
-          pfNumber: pfNumber.trim() || null,
-          gender,
           dob: /^\d{4}-\d{2}-\d{2}$/.test(dob) ? dob : null,
           taxRegime,
-          vpfRateBp: vpfInvalid ? 0 : vpfBp,
-          pfOnFullWage,
-          epsEligible,
-          disabled,
           metro,
           tdsEnabled
         },
@@ -379,15 +327,12 @@ function EmployeeModal({ employee, onClose }: { employee: Employee | null; onClo
             <TextInput value={designation} onChange={(e) => setDesignation(e.target.value)} />
           </Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Employee code">
             <TextInput value={code} onChange={(e) => setCode(e.target.value)} className="num" />
           </Field>
           <Field label="PAN">
             <TextInput value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} className="num" />
-          </Field>
-          <Field label="UAN">
-            <TextInput value={uan} onChange={(e) => setUan(e.target.value)} className="num" />
           </Field>
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -402,31 +347,12 @@ function EmployeeModal({ employee, onClose }: { employee: Employee | null; onClo
           </Field>
         </div>
         <div className="flex gap-5">
-          {check('EPF', pfEnabled, setPf)}
-          {check('ESI', esiEnabled, setEsi)}
-          {check('Professional tax', ptEnabled, setPt)}
           {check('Salary TDS', tdsEnabled, setTdsEnabled)}
           {check('Active', active, setActive)}
         </div>
-        <p className="border-t border-line pt-3 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Statutory profile</p>
-        <div className="grid grid-cols-4 gap-3">
-          <Field label="PF member id">
-            <TextInput value={pfNumber} onChange={(e) => setPfNumber(e.target.value)} className="num" placeholder="PF account number" data-testid="input-employee-pf-number" />
-          </Field>
-          <Field label="ESI IP number">
-            <TextInput value={esicNo} onChange={(e) => setEsicNo(e.target.value)} className="num" data-testid="input-employee-esic" />
-          </Field>
-          <Field label="PT state">
-            <Select value={ptState} onChange={(e) => setPtState(e.target.value)} data-testid="input-employee-pt-state">
-              {PT_STATES.map((s) => <option key={s} value={s}>{s} — {PT_STATE_NAMES[s]}</option>)}
-            </Select>
-          </Field>
-          <Field label="Gender" hint="MH PT: women’s slab">
-            <Select value={gender ?? ''} onChange={(e) => setGender((e.target.value || null) as Employee['gender'])} data-testid="input-employee-gender">
-              <option value="">Not given</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option>
-            </Select>
-          </Field>
-          <Field label="Date of birth" hint="Senior slabs; EPS to 58">
+        <p className="border-t border-line pt-3 text-caption font-semibold tracking-[0.08em] text-muted uppercase">Salary TDS</p>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Date of birth" hint="Senior citizen slabs">
             <TextInput value={dob} onChange={(e) => setDob(e.target.value)} placeholder="YYYY-MM-DD" className="num" data-testid="input-employee-dob" />
           </Field>
           <Field label="Tax regime">
@@ -434,14 +360,8 @@ function EmployeeModal({ employee, onClose }: { employee: Employee | null; onClo
               <option value="new">New (default)</option><option value="old">Old (opted out)</option>
             </Select>
           </Field>
-          <Field label="VPF % of PF wages" error={vpfInvalid ? '0 – 88' : null}>
-            <TextInput value={vpfText} onChange={(e) => setVpfText(e.target.value)} className="num text-right" placeholder="0" data-testid="input-employee-vpf" />
-          </Field>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
-          {check('EPS member', epsEligible, setEpsEligible)}
-          {check('PF on full wages (joint option)', pfOnFullWage, setPfOnFullWage)}
-          {check('Person with disability (ESI ₹25,000)', disabled, setDisabled)}
           {check('Rents in a metro (HRA 50%)', metro, setMetro)}
         </div>
         <div className="flex justify-end gap-2">
@@ -492,18 +412,6 @@ const PAY_HEAD_COLUMNS = defineColumns<PayHead>([
     ],
     className: 'text-muted',
     width: 84
-  },
-  {
-    id: 'inWages',
-    header: 'Wages (s.2(88))',
-    kind: 'enum',
-    value: (h) => (h.kind === 'deduction' ? '' : h.inWages ? 'yes' : 'no'),
-    options: [
-      { value: 'yes', label: 'Wages' },
-      { value: 'no', label: 'Excluded' }
-    ],
-    className: 'text-muted',
-    width: 120
   }
 ])
 
@@ -668,12 +576,6 @@ function PayHeadsModal({ onClose }: { onClose: () => void }): React.JSX.Element 
                 <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 Active
               </label>
-              {kind === 'earning' && (
-                <label className="flex items-center gap-2 text-detail text-ink" title="Code on Social Security s.2(88): EPF and ESI are on wages; HRA, conveyance, overtime, commission and bonus are excluded">
-                  <input type="checkbox" checked={inWages} onChange={(e) => setInWages(e.target.checked)} data-testid="input-payroll-head-in-wages" />
-                  Counts as wages (EPF / ESI)
-                </label>
-              )}
             </span>
             <span className="flex gap-2">
               {editingId && <Button onClick={resetForm}>Cancel edit</Button>}
@@ -896,7 +798,6 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
   const [month, setMonth] = useState(todayISO().slice(0, 7))
   const [daysOverride, setDaysOverride] = useState<Record<number, string>>({})
   const [posting, setPosting] = useState(false)
-  const [ptRun, setPtRun] = useState<PayrollRun | null>(null)
   const [workingsFor, setWorkingsFor] = useState<Omit<PayrollLine, 'id'> | null>(null)
 
   // Last 12 months, current first — replaces the free-text YYYY-MM field.
@@ -935,7 +836,7 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
   )
 
   // Server-side preview — the single payroll engine in src/main computes what a commit would post
-  // (pay heads, ESI eligibility, PT slabs included), so preview and posted figures can't drift.
+  // (pay heads and salary TDS included), so preview and posted figures can't drift.
   const { data: previewLines, isFetching: previewFetching } = useQuery({
     queryKey: ['payrollPreview', month, daysPayload],
     queryFn: () => api.payroll.preview(month, daysPayload),
@@ -947,12 +848,11 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
   const totals = (previewLines ?? []).reduce(
     (acc, l) => ({
       gross: acc.gross + l.gross,
-      deductions: acc.deductions + l.pfEmp + l.vpf + l.esiEmp + l.pt + l.tds + l.otherDeductions,
-      employer: acc.employer + l.pfEr + l.pfAdmin + l.edli + l.esiEr,
-      net: acc.net + l.net,
-      cost: acc.cost + l.gross + l.pfEr + l.pfAdmin + l.edli + l.esiEr
+      deductions: acc.deductions + l.otherDeductions,
+      tds: acc.tds + l.tds,
+      net: acc.net + l.net
     }),
-    { gross: 0, deductions: 0, employer: 0, net: 0, cost: 0 }
+    { gross: 0, deductions: 0, tds: 0, net: 0 }
   )
 
   const post = async (): Promise<void> => {
@@ -978,7 +878,7 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
           content: (
             <>
               <OptionsTable area="payroll-runs" label="Posted runs table" />
-              <StatutorySection />
+              <PayrollNote />
             </>
           )
         }}
@@ -1017,12 +917,9 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
                   <th>Employee</th>
                   <th className="r w-24">Days</th>
                   <th className="r w-32">Gross</th>
-                  <th className="r w-24">PF</th>
-                  <th className="r w-24">ESI</th>
-                  <th className="r w-20">PT</th>
+                  <th className="r w-28" title="Deduction pay heads (canteen, advances …)">Deductions</th>
                   <th className="r w-24">TDS</th>
                   <th className="r w-32">Net pay</th>
-                  <th className="r w-32" title="Employer PF (EPS + EPF) + EDLI + admin, and employer ESI">Employer share</th>
                 </tr>
               </thead>
               <tbody data-testid="rows-payroll-preview">
@@ -1048,9 +945,7 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
                         {err && <span className="block text-hint text-danger">{err}</span>}
                       </td>
                       <td className="r">{line ? <Money paise={line.gross} /> : '—'}</td>
-                      <td className="r" title={line?.vpf ? `incl. VPF ${formatPaise(line.vpf)}` : undefined}>{line ? <Money paise={line.pfEmp + line.vpf} /> : '—'}</td>
-                      <td className="r">{line ? <Money paise={line.esiEmp} /> : '—'}</td>
-                      <td className="r">{line ? <Money paise={line.pt} /> : '—'}</td>
+                      <td className="r">{line ? <Money paise={line.otherDeductions} /> : '—'}</td>
                       <td className="r">
                         {line?.tdsWorkings && line.tds > 0 ? (
                           <button
@@ -1065,17 +960,16 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
                         ) : line ? <Money paise={line.tds} /> : '—'}
                       </td>
                       <td className="r font-medium">{line ? <Money paise={line.net} /> : '—'}</td>
-                      <td className="r text-muted">{line ? <Money paise={line.pfEr + line.pfAdmin + line.edli + line.esiEr} /> : '—'}</td>
                     </tr>
                   )
                 })}
                 <tr className="total-row">
-                  <td title="Gross pay plus the employer share">Total <span className="block text-hint font-normal text-muted">cost <Money paise={totals.cost} /></span></td>
+                  <td>Total</td>
                   <td></td>
                   <td className="r"><Money paise={totals.gross} /></td>
-                  <td className="r" colSpan={4}><Money paise={totals.deductions} /></td>
+                  <td className="r"><Money paise={totals.deductions} /></td>
+                  <td className="r"><Money paise={totals.tds} /></td>
                   <td className="r"><Money paise={totals.net} /></td>
-                  <td className="r"><Money paise={totals.employer} /></td>
                 </tr>
               </tbody>
             </table>
@@ -1101,12 +995,11 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
           // Newest month first, as the runs come from the service.
           viewDefaults={{ sort: [{ id: 'month', dir: 'desc' }] }}
           toolbarFeatures={{ groupBy: false }}
-          trailingWidth={380}
-          trailing={(run) => <RunActions run={run} onPt={setPtRun} />}
+          trailingWidth={220}
+          trailing={(run) => <RunActions run={run} />}
           exportOptions={{ title: 'Posted pay runs', periodLabel: '', filename: 'pay-runs' }}
         />
       </Panel>
-      {ptRun && <PtSummaryModal run={ptRun} onClose={() => setPtRun(null)} />}
       {workingsFor?.tdsWorkings && (
         <TdsWorkingsModal name={workingsFor.employeeName} month={monthLabel(month)} tds={workingsFor.tds} w={workingsFor.tdsWorkings} onClose={() => setWorkingsFor(null)} />
       )}
@@ -1117,22 +1010,12 @@ function RunsTab({ tabs }: { tabs: React.ReactNode }): React.JSX.Element {
 /** A posted run's actions (the trailing cell of the runs table). The payslip menu is a portalled
  *  Popover — the table's single-line cells clip anything absolutely positioned inside them — and
  *  it closes on outside click / Escape. */
-export function RunActions({ run, onPt }: { run: PayrollRun; onPt: (run: PayrollRun) => void }): React.JSX.Element {
+export function RunActions({ run }: { run: PayrollRun }): React.JSX.Element {
   const toast = useToasts()
   const nav = useNav()
   const queryClient = useQueryClient()
   const [payslipsOpen, setPayslipsOpen] = useState(false)
   const payslipsRef = useRef<HTMLButtonElement>(null)
-
-  const exportRefused = useCapabilityRefused('canExport') // #148: hide / disable export buttons the owner refused
-  const exportFile = async (kind: 'ecr' | 'esi'): Promise<void> => {
-    try {
-      const r = kind === 'ecr' ? await api.payroll.ecr(run.id) : await api.payroll.esiCsv(run.id)
-      toast.push('success', `${kind === 'ecr' ? 'PF ECR' : 'ESI CSV'}: ${r.path}`)
-    } catch (err) {
-      toast.push('error', (err as Error).message)
-    }
-  }
 
   const remove = async (): Promise<void> => {
     const proceed = await confirmDialog({
@@ -1191,94 +1074,9 @@ export function RunActions({ run, onPt }: { run: PayrollRun; onPt: (run: Payroll
           </ScrollList>
         </Popover>
       )}
-      {/* #148: the upload files are exports — not for a sign-in the owner refused canExport. */}
-      {exportRefused ? (
-        <span className="text-muted opacity-60" data-testid="payroll-export-refused" title={CAPABILITY_REFUSED_TEXT.canExport}>
-          PF ECR · ESI CSV
-        </span>
-      ) : (
-        <>
-          <button className="text-muted hover:text-ink" data-testid="btn-payroll-ecr" onClick={() => void exportFile('ecr')} title="EPFO ECR upload file">
-            PF ECR
-          </button>
-          <button className="text-muted hover:text-ink" data-testid="btn-payroll-esi" onClick={() => void exportFile('esi')} title="ESIC upload CSV">
-            ESI CSV
-          </button>
-        </>
-      )}
-      <button className="text-muted hover:text-ink" data-testid="btn-payroll-pt" onClick={() => onPt(run)} title="Professional tax summary by state">
-        PT
-      </button>
       <button className="text-cr hover:underline" data-testid="btn-payroll-delete-run" onClick={() => void remove()}>
         Delete
       </button>
     </span>
-  )
-}
-
-const PT_COLUMNS = defineColumns<PtSummaryRow>([
-  { id: 'state', header: 'State', kind: 'text', value: (r) => r.state, hideable: false, groupable: false, minWidth: 96 },
-  { id: 'employees', header: 'Employees', kind: 'number', value: (r) => r.employees, aggregate: 'sum', width: 104 },
-  { id: 'gross', header: 'Gross', kind: 'money', value: (r) => r.gross, aggregate: 'sum', width: 124 },
-  { id: 'pt', header: 'PT payable', kind: 'money', value: (r) => r.pt, aggregate: 'sum', width: 124, className: 'font-medium' }
-])
-
-export function PtSummaryModal({ run, onClose }: { run: PayrollRun; onClose: () => void }): React.JSX.Element {
-  const toast = useToasts()
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ['ptSummary', run.id],
-    queryFn: () => api.payroll.ptSummary(run.id)
-  })
-
-  const exportRefused = useCapabilityRefused('canExport') // #148: hide / disable export buttons the owner refused
-  const exportState = async (state: string): Promise<void> => {
-    try {
-      const r = await statApi.ptReturnCsv(run.id, state)
-      toast.push('success', `PT return (${state}): ${r.path}`)
-    } catch (err) {
-      toast.push('error', (err as Error).message)
-    }
-  }
-
-  const exportCsv = async (): Promise<void> => {
-    try {
-      const r = await api.payroll.ptCsv(run.id)
-      toast.push('success', `PT return CSV: ${r.path}`)
-    } catch (err) {
-      toast.push('error', (err as Error).message)
-    }
-  }
-
-  return (
-    <Modal title={`Professional tax — ${monthLabel(run.month)}`} onClose={onClose}>
-      <div className="overflow-hidden rounded-md border border-line">
-        <DataTable
-          testId="payroll-pt"
-          ariaLabel={`Professional tax by state — ${monthLabel(run.month)}`}
-          columns={PT_COLUMNS}
-          rows={rows ?? []}
-          rowKey={(r) => r.state}
-          loading={isLoading}
-          empty={{ title: 'No professional tax this run' }}
-          toolbar={false}
-          maxHeight="50vh"
-          trailingWidth={110}
-          trailing={(r) =>
-            r.pt > 0 && !exportRefused ? (
-              <button className="text-small text-blue hover:underline" data-testid={`btn-payroll-pt-state-${r.state}`} onClick={() => void exportState(r.state)}>
-                {r.state} return
-              </button>
-            ) : null
-          }
-        />
-      </div>
-      {rows && rows.length > 0 && (
-        <div className="mt-4 flex justify-end border-t border-line pt-3">
-          <Button disabled={exportRefused} disabledTitle={exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : undefined} data-testid="btn-payroll-pt-csv" onClick={() => void exportCsv()} title="State-wise PT return CSV (exports folder)">
-            Export PT return CSV
-          </Button>
-        </div>
-      )}
-    </Modal>
   )
 }

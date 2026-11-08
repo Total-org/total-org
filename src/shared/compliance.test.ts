@@ -43,15 +43,35 @@ describe('upcomingDeadlines', () => {
     expect(d.some((x) => x.kind === 'gst')).toBe(false)
   })
 
-  it('includes PF/ESI only when hasPayroll is true', () => {
-    const withoutPayroll = upcomingDeadlines('2026-01-01', 'regular', false, 30)
+  it('includes PF/ESI only when hasPayroll is true and a run deducted them for that wage month', () => {
+    const deducted = { pfMonths: ['2025-12'], esiMonths: ['2025-12'] }
+    const withoutPayroll = upcomingDeadlines('2026-01-01', 'regular', false, 30, deducted)
     expect(withoutPayroll.some((x) => x.kind === 'pf' || x.kind === 'esi')).toBe(false)
 
-    const withPayroll = upcomingDeadlines('2026-01-01', 'regular', true, 30)
+    const withPayroll = upcomingDeadlines('2026-01-01', 'regular', true, 30, deducted)
     const pf = withPayroll.find((x) => x.kind === 'pf')
     const esi = withPayroll.find((x) => x.kind === 'esi')
     expect(pf?.date).toBe('2026-01-15')
     expect(esi?.date).toBe('2026-01-15')
+  })
+
+  it('audit A13b: payroll on but no run deducted PF / ESI → no PF / ESI date at all', () => {
+    // A company that turned payroll on and posts runs (Total deducts no PF / ESI any more): the
+    // facts are empty, or absent, and every month is left out.
+    for (const facts of [{}, { pfMonths: [], esiMonths: [] }, { pfMonths: ['2025-11'], esiMonths: ['2025-11'] }]) {
+      const d = upcomingDeadlines('2026-01-01', 'regular', true, 30, facts)
+      expect(d.filter((x) => x.kind === 'pf' || x.kind === 'esi'), JSON.stringify(facts)).toEqual([])
+    }
+  })
+
+  it('audit A13b: a July run with PF shows the 15 August PF date; ESI follows its own months', () => {
+    // Hand-worked: wage month July 2026 → paid by the 15th of the next month = 2026-08-15. Only
+    // PF was deducted in July, so no ESI date; ESI was deducted in August → 15 September.
+    const facts = { pfMonths: ['2026-07'], esiMonths: ['2026-08'] }
+    const aug = upcomingDeadlines('2026-08-01', 'regular', true, 30, facts).filter((x) => x.kind === 'pf' || x.kind === 'esi')
+    expect(aug.map((x) => [x.id, x.date, x.title])).toEqual([['pf-2026-07', '2026-08-15', 'PF contribution — July 2026']])
+    const sep = upcomingDeadlines('2026-09-01', 'regular', true, 30, facts).filter((x) => x.kind === 'pf' || x.kind === 'esi')
+    expect(sep.map((x) => [x.id, x.date])).toEqual([['esi-2026-08', '2026-09-15']])
   })
 
   it('clips to the horizon window — nothing before today, nothing past today+horizon', () => {
@@ -72,7 +92,7 @@ describe('upcomingDeadlines', () => {
   })
 
   it('sorts all deadlines by date ascending', () => {
-    const d = upcomingDeadlines('2026-01-01', 'regular', true, 30)
+    const d = upcomingDeadlines('2026-01-01', 'regular', true, 30, { pfMonths: ['2025-12'], esiMonths: ['2025-12'] })
     const dates = d.map((x) => x.date)
     const sorted = [...dates].sort()
     expect(dates).toEqual(sorted)

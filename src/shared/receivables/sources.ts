@@ -2,6 +2,9 @@
  * WP 4.2 — the rules the receivables module applies, with their sources. Every tax statement in
  * the module points here; nothing is written from memory. Items marked UNVERIFIED are practice
  * questions the cited text does not settle — the app makes them options rather than rules.
+ *
+ * Interest on overdue bills was removed (audit A13b): these are the rules the interest debit notes
+ * in older books were made under, kept as the record of how those notes were computed.
  */
 
 export interface RuleSource {

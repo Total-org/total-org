@@ -6,7 +6,13 @@
  * in an official (or faithful) copy is in FIXED_ASSET_UNVERIFIED below.
  *
  * The WP 3.6 sources themselves (Schedule II Part C lives, Appendix I rates, s.32 / s.33) stay
- * with migration 026's seeds and FIXED_ASSET_SOURCES in ./fixedAssets.ts.
+ * with migration 026's seeds.
+ *
+ * The fixed-asset register was removed (audit A13b): these are the rules the depreciation /
+ * disposal journals in older books were made under, kept as the record of how they were computed.
+ * The CGST-* texts and the cg-* entries still describe a live read — the s.18(6) extra tax an old
+ * GST disposal journal posted is added to its tax invoice in GSTR-1 / 3B
+ * (services/fixedAssets.ts `applyCapitalGoodsExtraTax`).
  */
 
 export interface FixedAssetSource {
