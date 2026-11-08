@@ -33,6 +33,17 @@ PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 mi
 developers: `company:open` / `company:forgetRemembered` take only a business on the list
 (`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
 
+**Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
+the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready
+message, E-mail opens a draft, and on a Mac "More ways…" opens the share sheet with the PDF. The PDF
+is saved and shown so you can attach it; Total itself sends nothing. Add your UPI ID in Settings →
+Bills & printing and every bill with money still due prints a "Pay by UPI" QR for exactly that amount
+(made on this computer). In the AI settings you can type a US dollar rate so AI costs show in rupees
+(display only). *For accountants:* no figure changes; a print without a UPI ID is byte-identical, and
+credit notes never get a QR. *For developers:* `invoice:share` / `invoice:shareFacts`, `upi:get` /
+`upi:set` (company meta `upi`, no migration), `AiSettings.usdRateMicro`; the UPI link follows NPCI's
+linking spec 1.6 (UNVERIFIED points in `shared/upi.ts`).
+
 **One place to ask** (#231, Phase 3b part 3). ⌘J now opens the same "Ask" panel in both modes. Total
 answers from your books first (no AI key needed); when the AI helper is on, it answers what Total
 can't, or anything you send it with "Ask the AI helper instead". A second tab, "To approve", shows

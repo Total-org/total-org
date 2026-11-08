@@ -280,6 +280,9 @@ export const ERROR_MAP = {
    *  for an older main's answer, in the new words. */
   lock_needs_people: e('errors.security.lockPrivacyOnly'),
   unlock_needs_pin: e('errors.security.unlockNeedsPin'),
+  // ---------- A10: share a bill, the UPI ID (services/upiSettings.ts, ipc.ts) ----------
+  upi_invalid: e('errors.upi.invalid', 'upiId'),
+  share_not_bill: e('errors.share.notBill'),
   // ---------- upgrade guard (db/migrate.ts, db/preUpgrade.ts) ----------
   db_newer_version: e('errors.upgrade.newer'),
   db_upgrade_copy_failed: e('errors.upgrade.copyFailed'),

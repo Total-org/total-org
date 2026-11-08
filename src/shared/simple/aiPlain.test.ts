@@ -73,9 +73,18 @@ describe('costs — rupees only with the company’s own dollar rate', () => {
     { id: 4, date: '2026-10-05', currencyCode: 'EUR', rateMicro: 97_000_000, note: null }
   ]
   it('the newest USD rate on or before today', () => {
-    expect(usdRateOn(rates, '2026-10-14')?.id).toBe(2)
+    expect(usdRateOn(rates, '2026-10-14')).toMatchObject({ date: '2026-10-01', rateMicro: 84_100_000 })
     expect(usdRateOn(rates, '2026-08-01')).toBeNull()
     expect(usdRateOn([], '2026-10-14')).toBeNull()
+  })
+  it('A10 / 3c: the AI settings’ own dollar rate wins, for display only', () => {
+    expect(usdRateOn(rates, '2026-10-14', 86_250_000)).toEqual({ rateMicro: 86_250_000, date: null })
+    expect(usdRateOn([], '2026-10-14', 86_250_000)).toEqual({ rateMicro: 86_250_000, date: null })
+    expect(usdRateOn(rates, '2026-10-14', null)).toMatchObject({ date: '2026-10-01' })
+    const own = usdRateOn([], '2026-10-14', 86_250_000)
+    // $2 × ₹86.25 = ₹172.50
+    expect(costText(2_000_000, own, t)).toBe('about ₹172.50')
+    expect(rateNote(own, t)).toBe('At your rate of ₹86.25 per US dollar (AI settings).')
   })
   it('micro-USD → paise, half-up', () => {
     // $0.015 × ₹84.10 = ₹1.2615 → 126 paise

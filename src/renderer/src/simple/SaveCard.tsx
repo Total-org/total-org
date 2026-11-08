@@ -5,6 +5,7 @@ import { saveCardSentences } from '@shared/simple/saveCard'
 import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
 import { Button } from '../components/kit/Button'
+import { ShareBill } from '../components/ShareBill'
 
 const ROUND = 'round' // i18n-technical: SVG attribute value
 
@@ -51,6 +52,13 @@ export function SaveCard({
     enabled: !undone
   })
   const primary = voucherIds[0]!
+  // A10: a sales bill / return note gets the share ways (WhatsApp, e-mail, share sheet); any other
+  // printable entry keeps the copy-the-sentences share.
+  const { data: shareFacts } = useQuery({
+    queryKey: ['shareFacts', primary], // i18n-technical
+    queryFn: () => api.invoice.shareFacts(primary),
+    enabled: printable && !undone
+  })
   const sentences = given ?? (data ? saveCardSentences(skipParties ? { ...data, parties: [] } : data, t) : [])
 
   const fail = (err: unknown): void => {
@@ -164,9 +172,13 @@ export function SaveCard({
               <Button data-testid="btn-save-card-pdf" disabled={busy} onClick={() => void pdf()}>
                 {t('common.pdf')}
               </Button>
-              <Button data-testid="btn-save-card-share" disabled={busy} onClick={() => void share()}>
-                {t('common.share')}
-              </Button>
+              {shareFacts?.shareable ? (
+                <ShareBill voucherId={primary} plain testId="btn-save-card-share" />
+              ) : (
+                <Button data-testid="btn-save-card-share" disabled={busy} onClick={() => void share()}>
+                  {t('common.share')}
+                </Button>
+              )}
             </>
           )}
           <Button variant="primary" data-testid="btn-save-card-new" onClick={onNew}>

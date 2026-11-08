@@ -28,7 +28,7 @@ import {
   type TemplateList,
   type TemplateSummary
 } from '@shared/printTemplates'
-import { renderDocument, type InvoiceAuditTrail, type InvoiceDocument, type PrintCounterInfo, type PrintDocument, type VoucherDocLine, type VoucherDocument } from '@shared/print/render'
+import { renderDocument, type InvoiceAuditTrail, type InvoiceDocument, type PrintCounterInfo, type PrintDocument, type PrintUpiInfo, type VoucherDocLine, type VoucherDocument } from '@shared/print/render'
 import { sampleDocument } from '@shared/print/sample'
 import type { EdocItem } from '@shared/gst/edocs'
 import { computeGst, supplyTypeFor } from '@shared/gst/calc'
@@ -42,6 +42,8 @@ import { htmlToPdf, writeExportPdf } from './pdf'
 import { plexFontFaceCss } from './printFonts'
 import type { PageLabel } from '@shared/print/labels'
 import { printLocale } from './printLocale'
+import { upiForBill } from './upiSettings'
+import { todayISO } from '@shared/dates'
 import { hasTaxSnapshots } from './taxFacts'
 import { companyExportsDir } from '../paths'
 
@@ -275,6 +277,12 @@ export function auditTrailFor(db: DB, voucherId: number): InvoiceAuditTrail {
   return { enteredBy: entered?.u ?? null, alteredBy: altered?.u ?? null }
 }
 
+function upiField(db: DB, company: CompanyInfo, kind: PrintDocKind, bill: { voucherId: number; partyId: number | null; number: string; totalPaise: number }): { upi?: PrintUpiInfo } {
+  if (kind !== 'sales') return {}
+  const upi = upiForBill(db, company, bill, todayISO())
+  return upi ? { upi } : {}
+}
+
 function partyBalance(db: DB, partyId: number | null, date: string): number | null {
   if (!partyId) return null
   return ledgerStatement(db, partyId, date, date).closing
@@ -324,7 +332,11 @@ export function loadPrintDocument(db: DB, company: CompanyInfo, voucherId: numbe
     return {
       shape: 'invoice', kind, company, invoice: inv, audit: auditTrailFor(db, voucherId), outstandingPaise,
       einvoice: { irn: head.irn, ackNo: head.ackNo, ackDate: head.ackDate, ewbNo: head.ewbNo, ...(head.signedQr ? { signedQr: head.signedQr } : {}) },
-      ...(kind === 'sales' ? { counter: counterPaymentsFor(db, voucherId) } : {})
+      ...(kind === 'sales' ? { counter: counterPaymentsFor(db, voucherId) } : {}),
+      // A10: the UPI pay QR — a sales invoice only (never a credit note / challan / order), only
+      // while a UPI ID is set and something is due on the bill as on today. Absent otherwise, so
+      // a company without a UPI ID prints exactly as before.
+      ...upiField(db, company, kind, { voucherId, partyId: head.partyId, number: inv.number, totalPaise: inv.total })
     }
   }
   const lines = db

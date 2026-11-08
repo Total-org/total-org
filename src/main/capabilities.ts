@@ -94,6 +94,7 @@ export const EXPORT_CHANNELS: readonly string[] = [
 export const NOT_EXPORTS: Readonly<Record<string, string>> = {
   'invoice:pdf': 'print of one document',
   'invoice:pdfBatch': 'prints of the chosen documents',
+  'invoice:share': 'one bill handed to WhatsApp / e-mail / the share sheet by the user',
   'counter:print': 'print of a counter bill',
   'tradeDocs:pdf': 'print of a quotation / order',
   'payroll:payslip': 'print of a payslip',
