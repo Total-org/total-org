@@ -476,8 +476,8 @@ export const CA_POINTS = [
       { list: 'UNVERIFIED_WP37', at: 9, has: 'Gratuity' }
     ],
     questions: [7, 38, 39, 40, 41, 42],
-    closed: 'feature_hidden',
-    note: 'Payroll statutory (PF / ESI / PT) is hidden until used (Phase 1 triage §5).'
+    closed: 'feature_removed',
+    note: 'Payroll PF / ESI / PT was removed (audit A13b): pay runs no longer deduct them; runs, dues and payments in older books stay as saved. The compute-only gratuity / bonus helper (Payroll → Salary TDS) posts nothing.'
   },
   {
     id: 'receivables-interest',

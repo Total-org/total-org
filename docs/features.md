@@ -117,7 +117,8 @@ post-dated cheques, bulk payment files, and document capture (bills to purchase 
 helper).
 
 ### Payroll (off by default)
-Employees, salary structures, monthly pay runs with PF, ESI and professional tax, salary TDS, payslips.
+Employees, salary structures, monthly pay runs, salary TDS (Form 24Q data, Form 16 data), payslips.
+PF, ESI and professional tax were removed in November 2026; pay runs already in old books keep them.
 
 ### GST
 GSTR-1, GSTR-3B, GSTR-9 workings, ITC-04, ITC reversal workings, GSTR-2B reconciliation, e-invoice and

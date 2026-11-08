@@ -1,7 +1,8 @@
-// IPC channels for payroll statutory (WP 3.7): statutory rates, tax declarations, the dues
-// dashboard, statutory payments, salary workings, Form 24Q data (served on the TDS screen's
-// Returns tab) and data for Form 16. Registered from ipc.ts with its `handle` (role gate +
-// { ok, data | error } envelope); every payload is Zod-parsed here.
+// IPC channels for payroll salary TDS (WP 3.7): tax declarations, the salary TDS dues and
+// payments, salary workings, Form 24Q data (served on the TDS screen's Returns tab) and data for
+// Form 16. PF / ESI / PT (rates, PT return files, their dues and payments) were removed in audit
+// A13b. Registered from ipc.ts with its `handle` (role gate + { ok, data | error } envelope);
+// every payload is Zod-parsed here.
 import { shell } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
@@ -10,7 +11,7 @@ import type { DB } from './db/connection'
 import type { CompanyInfo } from '@shared/domain'
 import type { Role } from './services/roles'
 import {
-  form16InputSchema, payrollFySchema, statutoryPaymentInputSchema, statutoryRateInputSchema, taxDeclarationsSetSchema
+  form16InputSchema, payrollFySchema, statutoryPaymentInputSchema, taxDeclarationsSetSchema
 } from '@shared/schemas'
 import { todayISO } from '@shared/dates'
 import { renderForm16Html } from '@shared/print/form16'
@@ -39,18 +40,6 @@ const writeExport = (c: Company, filename: string, text: string, kind: string, d
 export function registerPayrollStatutoryIpc(handle: Handle, company: () => Company): void {
   const db = (): DB => company().db
 
-  // Statutory rates — the master is owner-edited (like tds:rateSave / fa:classSave).
-  handle('payroll:rates:list', () => st.listStatutoryRates(db()), 'viewer')
-  handle('payroll:rates:save', (p) => {
-    const { id, data } = z.object({ id: z.number().int().positive().optional(), data: statutoryRateInputSchema }).parse(p)
-    return st.saveStatutoryRate(db(), data, id)
-  }, 'owner')
-  handle('payroll:rates:delete', (p) => {
-    st.deleteStatutoryRate(db(), idSchema.parse(p).id)
-    return null
-  }, 'owner')
-  handle('payroll:ptStates', () => st.ptStates(db()), 'viewer')
-
   // Declarations
   handle('payroll:declarations:get', (p) => {
     const { employeeId, fyStartYear } = z.object({ employeeId: z.number().int().positive(), fyStartYear: fySchema }).parse(p)
@@ -62,21 +51,14 @@ export function registerPayrollStatutoryIpc(handle: Handle, company: () => Compa
     return payroll.actualWorkings(db(), employeeId, fyStartYear)
   }, 'viewer')
 
-  // Dues dashboard + payments
-  handle('payroll:dues', (p) => st.statutoryDues(db(), payrollFySchema.parse(p).fyStartYear, todayISO()), 'viewer')
-  handle('payroll:payments:list', (p) => st.listStatutoryPayments(db(), payrollFySchema.parse(p).fyStartYear), 'viewer')
+  // Salary TDS dues + payments (old books' PF / ESI / PT rows stay in the tables — the cash
+  // forecast reads them — but are no longer listed here).
+  handle('payroll:dues', (p) => st.statutoryDues(db(), payrollFySchema.parse(p).fyStartYear, todayISO()).filter((d) => d.kind === 'tds'), 'viewer')
+  handle('payroll:payments:list', (p) => st.listStatutoryPayments(db(), payrollFySchema.parse(p).fyStartYear).filter((r) => r.kind === 'tds'), 'viewer')
   handle('payroll:payments:record', (p) => st.recordStatutoryPayment(db(), statutoryPaymentInputSchema.parse(p)))
   handle('payroll:payments:delete', (p) => {
     st.deleteStatutoryPayment(db(), idSchema.parse(p).id)
     return null
-  })
-
-  // PT return CSV for one state of a run
-  handle('payroll:ptReturnCsv', (p) => {
-    const { runId, state } = z.object({ runId: z.number().int().positive(), state: z.string().trim().toUpperCase().length(2) }).parse(p)
-    const c = company()
-    const { filename, text } = payroll.ptCsvForRun(c.db, runId, state)
-    return writeExport(c, filename, text, 'payroll_pt_return', { runId, state })
   })
 
   // Form 24Q (TDS screen → Returns)

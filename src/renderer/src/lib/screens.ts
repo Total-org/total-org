@@ -646,7 +646,7 @@ export const SCREENS: ScreenDef[] = [
     navSection: 'payroll',
     navLabel: 'Employees & runs',
     feature: 'payroll',
-    invalidates: ['employees', 'payrollRuns', 'payrollPreview', 'payHeads', 'employeeHeads', 'ptSummary']
+    invalidates: ['employees', 'payrollRuns', 'payrollPreview', 'payHeads', 'employeeHeads']
   },
 
   {

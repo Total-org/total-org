@@ -5,14 +5,14 @@ describe('screenFeatures (feature cleanup)', () => {
   it('nothing hidden when `unused` is absent or empty: the stored flags as before, every hideable feature on', () => {
     for (const v of [{ ...DEFAULT_FEATURES }, { ...DEFAULT_FEATURES, unused: [] }]) {
       const f = screenFeatures(v)
-      expect(f).toMatchObject({ ...DEFAULT_FEATURES, manufacturing: true, cheques: true, payrollStatutory: true })
+      expect(f).toMatchObject({ ...DEFAULT_FEATURES, manufacturing: true, cheques: true })
     }
   })
 
   it('an unused feature turns its flags off; the stored flags are untouched', () => {
     const view = { ...DEFAULT_FEATURES, orders: true, unused: [...HIDEABLE_FEATURES] }
     const f = screenFeatures(view)
-    expect(f).toMatchObject({ costCentres: false, orders: false, cheques: false, payrollStatutory: false })
+    expect(f).toMatchObject({ costCentres: false, orders: false, cheques: false })
     expect(f).toMatchObject({ inventory: true, tds: true, payroll: true, billWise: true })
     expect(splitFeaturesView(view).stored).toEqual({ ...DEFAULT_FEATURES, orders: true })
   })
@@ -29,7 +29,7 @@ describe('More features — the door to a hidden feature (review of #194)', () =
   const none = (): ReturnType<typeof splitFeaturesView> => splitFeaturesView({ ...DEFAULT_FEATURES, unused: [...HIDEABLE_FEATURES] })
 
   it('lists every hidden feature (forex is gone — 1.0 cleanup)', () => {
-    expect(moreFeatures(none().noData, DEFAULT_FEATURES).map((m) => m.feature)).toEqual(['costCentres', 'cheques', 'tradeCycle', 'payrollStatutory'])
+    expect(moreFeatures(none().noData, DEFAULT_FEATURES).map((m) => m.feature)).toEqual(['costCentres', 'cheques', 'tradeCycle'])
     expect(moreFeatures(new Set(), DEFAULT_FEATURES)).toEqual([])
   })
 
@@ -37,14 +37,14 @@ describe('More features — the door to a hidden feature (review of #194)', () =
     const stored = { ...DEFAULT_FEATURES, costCentres: false, orders: false, inventory: false, payroll: false }
     let next = turnOnFeature(stored, 'tradeCycle')
     expect(next).toMatchObject({ orders: true, inventory: true, turnedOn: ['tradeCycle'] })
-    next = turnOnFeature(turnOnFeature(turnOnFeature(next, 'costCentres'), 'payrollStatutory'), 'cheques')
-    expect(next).toMatchObject({ costCentres: true, payroll: true, turnedOn: ['tradeCycle', 'costCentres', 'payrollStatutory', 'cheques'] })
+    next = turnOnFeature(turnOnFeature(next, 'costCentres'), 'cheques')
+    expect(next).toMatchObject({ costCentres: true, payroll: false, turnedOn: ['tradeCycle', 'costCentres', 'cheques'] })
     const f = screenFeatures({ ...next, unused: [...HIDEABLE_FEATURES] })
-    expect(f).toMatchObject({ orders: true, costCentres: true, payrollStatutory: true, cheques: true })
+    expect(f).toMatchObject({ orders: true, costCentres: true, cheques: true })
     // a turned-on flag feature's card is back in the main list; More lists it no more
     const { unused, noData } = splitFeaturesView({ ...next, unused: [...HIDEABLE_FEATURES] })
     expect(flagCardShown('costCentres', unused)).toBe(true)
-    expect(moreFeatures(noData, next).map((m) => m.feature)).toEqual(['cheques', 'payrollStatutory'])
+    expect(moreFeatures(noData, next).map((m) => m.feature)).toEqual(['cheques'])
     expect(moreFeatures(noData, next).find((m) => m.feature === 'cheques')?.on).toBe(true)
   })
 
@@ -58,9 +58,7 @@ describe('More features — the door to a hidden feature (review of #194)', () =
     const cc = turnOnFeature(DEFAULT_FEATURES, 'costCentres')
     expect(flagTurnedOff(cc, 'costCentres')).toMatchObject({ costCentres: false, turnedOn: [] })
     expect(flagTurnedOff(cc, 'tds')).toEqual({ ...cc, tds: false })
-    // what a feature needs going off takes the feature with it: Payroll off → PF / ESI / PT hidden again
-    const pf = turnOnFeature({ ...DEFAULT_FEATURES, payroll: false }, 'payrollStatutory')
-    expect(flagTurnedOff(pf, 'payroll')).toMatchObject({ payroll: false, turnedOn: [] })
+    // what a feature needs going off takes the feature with it: stock off → the trade cycle hidden again
     const tc = turnOnFeature(DEFAULT_FEATURES, 'tradeCycle')
     expect(flagTurnedOff(tc, 'inventory')).toMatchObject({ inventory: false, turnedOn: [] })
   })
@@ -74,6 +72,9 @@ describe('More features — the door to a hidden feature (review of #194)', () =
     expect(mergeFeatures({ turnedOn: ['interest', 'cheques'] })).toEqual({ ...DEFAULT_FEATURES, turnedOn: ['cheques'] })
     // so was the fixed-asset register (audit A13b)
     expect(mergeFeatures({ turnedOn: ['fixedAssets', 'tradeCycle'] })).toEqual({ ...DEFAULT_FEATURES, turnedOn: ['tradeCycle'] })
+    // and payroll PF / ESI / PT (audit A13b): the payroll flag it switched on stays as stored
+    expect(mergeFeatures({ payroll: true, turnedOn: ['payrollStatutory', 'cheques'] })).toEqual({ ...DEFAULT_FEATURES, turnedOn: ['cheques'] })
+    expect(mergeFeatures({ payroll: false, turnedOn: ['payrollStatutory'] })).toEqual({ ...DEFAULT_FEATURES, payroll: false, turnedOn: [] })
     expect(mergeFeatures({})).toEqual(DEFAULT_FEATURES)
   })
 })

@@ -20,21 +20,36 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Interest on overdue bills and the fixed-asset register removed** (A13b). Credit control has no
-Interest tab any more, the ledger form no longer asks for an interest rate or grace days, and
-Settings → Receivables drops the interest options. The Fixed assets screen (asset register,
-depreciation runs, the disposal wizard, the asset schedule and the income-tax block statement) is
-gone too, with its More features card and the year-end close's "depreciation not run" warning; the
-month-end checklist's "Depreciation posted" row stays for books that have depreciation runs, and
-now points to a plain journal. *For accountants:* no figure changes — interest
-debit notes, depreciation journals and asset-sale entries already in your books stay as ordinary
-entries in every report and return (the cash flow still adds depreciation back, and GSTR-1 / 3B
-still carry the extra s.18(6) tax an asset sale posted), can still only be moved to the bin (an
-asset sale's journal and its tax invoice go to the bin and come back together), and an opening bill
-interest charged still can't be renumbered. *For developers:* `receivables:interestPreview` /
-`postInterest` / `interestCharges` and every `fa:*` channel are gone; `interest_charges`, the ledger
-columns, migration 032, the fixed-asset tables, migration 026 and their audit entities stay;
-`cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
+**Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (A13b).
+Credit control has no Interest tab any more, the ledger form no longer asks for an interest rate or
+grace days, and Settings → Receivables drops the interest options. The Fixed assets screen (asset
+register, depreciation runs, the disposal wizard, the asset schedule and the income-tax block
+statement) is gone too, with its More features card and the year-end close's "depreciation not run"
+warning; the month-end checklist's "Depreciation posted" row stays for books that have depreciation
+runs, and now points to a plain journal. Payroll no longer deducts or books PF, ESI or professional
+tax: the Statutory and Statutory rates tabs, the PF ECR / ESI upload / PT return files, the PT
+summary and the employee form's PF / ESI / PT fields are gone, with the "PF, ESI and professional
+tax" More features card. Salary TDS stays in full on a new Payroll → Salary TDS tab (TDS by month,
+paying it with the BSR code / challan, data for Form 16), with declarations, workings and Form 24Q
+as before. *For accountants:* no figure changes in your books — interest debit notes, depreciation
+journals, asset-sale entries and pay runs already saved stay as they are in every report and
+return (a pay run keeps its PF / ESI / PT lines and payable balances; the cash forecast still
+counts unpaid PF / ESI / PT dues of old runs; Home and the Gateway still list the PF / ESI dates
+while payroll is on; the cash flow still adds depreciation back, and GSTR-1 / 3B still carry the
+extra s.18(6) tax an asset sale posted), can still only be moved to the bin (an asset sale's journal
+and its tax invoice go to the bin and come back together), and an opening bill interest charged
+still can't be renumbered. A pay run posted from now on has no PF / ESI / PT lines whatever an
+employee's old flags say; for an employee on the **old tax regime** the projected salary TDS can be
+a little higher than before, because employee PF no longer reduces the taxable income (80C) for the
+months still to come (owner decision, 8 Nov). *For developers:* `receivables:interestPreview` /
+`postInterest` / `interestCharges`, every `fa:*` channel, `payroll:rates:*`, `payroll:ptStates`,
+`payroll:ecr` / `esi` / `ptSummary` / `ptCsv` / `ptReturnCsv` are gone; `payroll:payments:record`
+takes kind `tds` only and `payroll:payments:delete` refuses an old PF / ESI / PT payment;
+`payroll:dues` / `payments:list` list salary TDS only (`statutoryDues` itself is unchanged — the
+forecast reads it); the employee schema keeps the PF / ESI / PT fields optional (absent = keep, a
+new employee starts with them off); `interest_charges`, the ledger columns, migration 032, the
+fixed-asset tables, migration 026, `statutory_rates` / `statutory_payments`, migration 029 and their
+audit entities stay; `cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
 `fixedAssetsLegacy.dbtest.ts` keeps the old journals' guards tested.
 
 **Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,

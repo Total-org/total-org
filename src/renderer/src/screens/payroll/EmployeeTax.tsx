@@ -145,7 +145,7 @@ export function DeclarationsModal({ employee, onClose }: { employee: Employee; o
           </div>
         )}
         <p className="text-hint text-muted">
-          The pay run projects the year's tax from these and spreads what is still due over the months left. Employee PF counts under 80C automatically.
+          The pay run projects the year's tax from these and spreads what is still due over the months left. Employee PF deducted by pay runs posted before PF was removed counts under 80C automatically.
           Previous-employer figures are the Form 12B / Form 122 declaration.
         </p>
         <div className="flex justify-end gap-2 border-t border-line pt-3">

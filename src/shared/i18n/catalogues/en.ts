@@ -1731,8 +1731,6 @@ export const en = {
   'simple.features.moreHint': 'These stay out of sight until your business uses them. Turn one on to start using it.',
   'simple.features.label.cheques': 'Cheque books and post-dated cheques',
   'simple.features.cheques': 'You write cheques, take post-dated cheques or send payment files to your bank.',
-  'simple.features.label.payrollStatutory': 'PF, ESI and professional tax',
-  'simple.features.payrollStatutory': 'Your staff are covered by PF, ESI or professional tax.',
   'simple.features.intro': 'Turn on only what your business needs. Turning something off only hides it — what you already recorded stays in your books and reports.',
   'simple.features.on': 'On',
   'simple.features.off': 'Off',

@@ -14,8 +14,7 @@ const ledgerId = (db: DB, name: string): number => (db.prepare('SELECT id FROM l
 const SEED: Record<HideableFeature, (db: DB) => void> = {
   costCentres: (db) => void saveCostCentre(db, { name: 'Mumbai', parentId: null, active: true }),
   cheques: (db) => db.prepare("INSERT INTO cheque_books (bank_ledger_id, name, from_no, to_no) VALUES (?, 'Book 1', 1, 50)").run(ledgerId(db, 'Cash')),
-  tradeCycle: (db) => db.prepare("INSERT INTO trade_doc_types (name, kind) VALUES ('Export order', 'sales_order')").run(),
-  payrollStatutory: (db) => db.prepare("INSERT INTO statutory_payments (kind, period, amount_paise, paid_on) VALUES ('pf', '2026-04', 1000, '2026-05-15')").run()
+  tradeCycle: (db) => db.prepare("INSERT INTO trade_doc_types (name, kind) VALUES ('Export order', 'sales_order')").run()
 }
 
 describe('unusedFeatures', () => {
@@ -32,6 +31,13 @@ describe('unusedFeatures', () => {
   it('a fixed-asset register from before the cut (audit A13b) makes no feature used', () => {
     const db = seededDb()
     db.prepare("INSERT INTO fixed_asset_groups (name, life_months) VALUES ('Lab equipment', 120)").run()
+    expect(unusedFeatures(db)).toEqual([...HIDEABLE_FEATURES])
+  })
+
+  it('PF / ESI / PT data from before the cut (audit A13b) makes no feature used', () => {
+    const db = seededDb()
+    db.prepare("INSERT INTO statutory_payments (kind, period, amount_paise, paid_on) VALUES ('pf', '2026-04', 1000, '2026-05-15')").run()
+    db.prepare("UPDATE statutory_rates SET is_seeded = 0 WHERE id = (SELECT MIN(id) FROM statutory_rates)").run()
     expect(unusedFeatures(db)).toEqual([...HIDEABLE_FEATURES])
   })
 

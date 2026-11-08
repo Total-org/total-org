@@ -1641,8 +1641,6 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.features.moreHint': 'ये तब तक छिपी रहती हैं जब तक आपका कारोबार इनका इस्तेमाल न करे। शुरू करने के लिए किसी को चालू करें।',
   'simple.features.label.cheques': 'चेक बुक और आगे की तारीख़ के चेक',
   'simple.features.cheques': 'आप चेक काटते हैं, आगे की तारीख़ के चेक लेते हैं या बैंक को भुगतान की फ़ाइल भेजते हैं।',
-  'simple.features.label.payrollStatutory': 'PF, ESI और प्रोफ़ेशनल टैक्स',
-  'simple.features.payrollStatutory': 'आपके कर्मचारी PF, ESI या प्रोफ़ेशनल टैक्स के दायरे में आते हैं।',
   'simple.features.intro': 'सिर्फ़ वही चालू करें जिसकी आपके बिज़नेस को ज़रूरत है। कुछ बंद करने से वह बस छिप जाता है — जो आप पहले लिख चुके हैं, वह आपके हिसाब और रिपोर्ट में रहता है।',
   'simple.features.on': 'चालू',
   'simple.features.off': 'बंद',

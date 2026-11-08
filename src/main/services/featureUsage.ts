@@ -24,13 +24,6 @@ const PROBES: Record<HideableFeature, readonly string[]> = {
     'SELECT 1 FROM trade_docs',
     'SELECT 1 FROM trade_doc_types WHERE is_system = 0',
     `SELECT 1 FROM vouchers v JOIN voucher_types t ON t.id = v.voucher_type_id WHERE t.kind IN ('delivery_note', 'receipt_note')`
-  ],
-  // PF / ESI / PT: a payroll line that deducted any of them, a statutory payment, or a rate the
-  // user entered (the seeded rates do not count).
-  payrollStatutory: [
-    'SELECT 1 FROM payroll_lines WHERE pf_emp <> 0 OR pf_er <> 0 OR esi_emp <> 0 OR esi_er <> 0 OR pt <> 0',
-    'SELECT 1 FROM statutory_payments',
-    'SELECT 1 FROM statutory_rates WHERE is_seeded = 0'
   ]
 }
 

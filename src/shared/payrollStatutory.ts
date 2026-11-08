@@ -1,14 +1,13 @@
 /**
- * Payroll statutory engine (WP 3.7): EPF / EPS / EDLI / EPFO admin charges, ESI with
- * contribution-period stickiness, professional tax by state slab, salary TDS projection (old and
- * new regime, s.192 of the Income-tax Act 1961 to FY 2025-26, s.392 of the Income-tax Act 2025
- * from FY 2026-27), and compute-only gratuity / bonus helpers. Pure: no I/O. Integer paise in and
- * out; rates in basis points (1200 = 12%).
+ * Payroll statutory engine (WP 3.7): salary TDS projection (old and new regime, s.192 of the
+ * Income-tax Act 1961 to FY 2025-26, s.392 of the Income-tax Act 2025 from FY 2026-27), the EPF /
+ * ESI due dates old runs' dues are dated by, and compute-only gratuity / bonus helpers. Pure: no
+ * I/O. Integer paise in and out; rates in basis points.
  *
- * Rates, ceilings and PT slabs are DATA (statutory_rates, migration 029 — every seeded row cites
- * its source there); the defaults below are the same figures, used when a caller has no rate rows
- * (pure tests, the legacy computeMonthlyPay call shape). Income-tax slabs are effective-dated by
- * financial year in INCOME_TAX_YEARS below, each with its citation.
+ * The EPF / EPS / EDLI / ESI / professional-tax computation was removed for good in audit A13b
+ * (owner, 8 Nov 2026); the rates master (statutory_rates, migration 029) stays in old books,
+ * unread. Income-tax slabs are effective-dated by financial year in INCOME_TAX_YEARS below, each
+ * with its citation.
  *
  * SOURCES — see SOURCES_WP37 (all accessed 2026-10-07); UNVERIFIED items are listed in
  * UNVERIFIED_WP37 and repeated in the WP 3.7 report. Statutory-rate rows cite their sources in
@@ -54,25 +53,6 @@ export const UNVERIFIED_WP37: string[] = [
 // Rounding
 // ---------------------------------------------------------------------------------------------
 
-/** `amountPaise × bp / 10000`, rounded to the nearest whole rupee, half up. EPF Scheme 2026 para
- *  18(5): "Each contribution shall be calculated to the nearest rupee, with fifty paise or more to
- *  be counted as the next higher rupee and fraction of a rupee less than fifty paise to be
- *  ignored" [EPFS26]; EPS 2026 para 4(3) [EPS26]; formerly EPF Scheme 1952 para 29 [EPFS52]. */
-export function bpRupeeHalfUp(amountPaise: number, bp: number): number {
-  if (amountPaise <= 0 || bp <= 0) return 0
-  // Integer maths: amountPaise × bp is at most ~1e12 for any realistic wage — exact in a double.
-  const num = amountPaise * bp // paise × 10000
-  return Math.floor((num + 500_000) / 1_000_000) * 100
-}
-
-/** `amountPaise × bp / 10000`, rounded UP to the next whole rupee — Social Security (Central)
- *  Rules 2026 rule 19(1): "(rounded to the next higher rupee)" [SSR26]. */
-export function bpRupeeUp(amountPaise: number, bp: number): number {
-  if (amountPaise <= 0 || bp <= 0) return 0
-  const num = amountPaise * bp
-  return Math.ceil(num / 1_000_000) * 100
-}
-
 /** Nearest multiple of ₹10, half up: total income and any amount payable — 2025 Act s.516
  *  (paise dropped, then the nearest ₹10) [ACT25]; 1961 ss.288A / 288B (UNVERIFIED). */
 export function roundTenRupees(paise: number): number {
@@ -87,131 +67,10 @@ export function roundRupee(paise: number): number {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Wages under the Code on Social Security 2020 (s.2(88)) — from 21-11-2025 for EPF and ESI
+// EPF / ESI due dates — only for the PF / ESI that runs posted before audit A13b deducted (the
+// PF / ESI / PT computation was removed for good; services/payrollStatutory.ts statutoryDues and
+// the cash forecast still date those old dues)
 // ---------------------------------------------------------------------------------------------
-
-export interface WageComponent {
-  amountPaise: number
-  /** true: part of "wages" (basic, DA, retaining allowance, any allowance not excluded);
-   *  false: an excluded item (HRA, conveyance, overtime, commission, bonus …). */
-  inWages: boolean
-}
-
-/**
- * s.2(88) wages: the components that are wages, plus — first proviso — whatever the excluded
- * items exceed one-half (`excludedCapBp` = 5000) of all remuneration by, "deemed to be
- * remuneration and ... added in wages" [COSS s.2(88)]. ESIC applies the same definition from
- * 21-11-2025 [ESIC-W]; the EPF Scheme 2026 para 18(2) contributes on "wages" [EPFS26].
- */
-export function codeWages(components: readonly WageComponent[], excludedCapBp = 5000): number {
-  let wages = 0
-  let excluded = 0
-  for (const c of components) {
-    if (c.amountPaise <= 0) continue
-    if (c.inWages) wages += c.amountPaise
-    else excluded += c.amountPaise
-  }
-  const total = wages + excluded
-  const cap = Math.floor((total * excludedCapBp) / 10000)
-  return excluded > cap ? wages + (excluded - cap) : wages
-}
-
-/** Day-weighted wage ceiling for a month whose ceiling changes mid-month (17-9-2026: ₹15,000 →
- *  ₹25,000): Σ ceiling × days in force ÷ days in the month, rupee-rounded. The EPFO wage-ceiling
- *  FAQ illustrates this proration (UNVERIFIED source — see UNVERIFIED_WP37). */
-export function weightedCeiling(spans: readonly { days: number; ceilingPaise: number }[]): number {
-  const days = spans.reduce((s, x) => s + x.days, 0)
-  if (days <= 0) return 0
-  return roundRupee(spans.reduce((s, x) => s + x.ceilingPaise * x.days, 0) / days)
-}
-
-// ---------------------------------------------------------------------------------------------
-// EPF / EPS / EDLI / admin charges
-// ---------------------------------------------------------------------------------------------
-
-export interface PfRates {
-  /** Employee share (s.6 EPF Act) — 1200. */
-  eeRateBp: number
-  /** Employer share — 1200 (EPS 8.33% + EPF 3.67%). */
-  erRateBp: number
-  /** EPS out of the employer share (EPS 1995 para 3(2)) — 833. */
-  epsRateBp: number
-  /** EDLI (EDLI Scheme 1976 para 8 / s.6C) — 50. */
-  edliRateBp: number
-  /** EPFO administrative charges on EPF wages — 50. */
-  adminRateBp: number
-  /** Statutory wage ceiling — ₹15,000 to 16-9-2026, ₹25,000 from 17-9-2026 [SO5109]. */
-  ceilingPaise: number
-  /** Minimum administrative charges per establishment per month (applied at run level). */
-  adminMinPaise: number
-}
-
-export const DEFAULT_PF_RATES: PfRates = {
-  eeRateBp: 1200,
-  erRateBp: 1200,
-  epsRateBp: 833,
-  edliRateBp: 50,
-  adminRateBp: 50,
-  ceilingPaise: 15_000_00,
-  adminMinPaise: 500_00
-}
-
-export interface PfProfile {
-  enabled: boolean
-  /** Voluntary PF over and above the 12% (employee only; employer not bound) — bp of PF wages. */
-  vpfRateBp: number
-  /** Contribute on actual PF wages above the ceiling (EPF Scheme para 26A(2) joint option).
-   *  EPS / EDLI stay capped at the ceiling regardless. */
-  onFullWage: boolean
-  /** Not an EPS member (joined on/after 1-9-2014 with pay above the ceiling — EPS para 6A — or
-   *  aged 58+): the whole employer 12% goes to EPF. */
-  epsEligible: boolean
-}
-
-export interface PfResult {
-  /** EPF wages (capped unless onFullWage). */
-  epfWage: number
-  /** EPS / EDLI wages (always capped; EPS 0 when not an EPS member). */
-  epsWage: number
-  edliWage: number
-  ee: number
-  vpf: number
-  er: number
-  /** Part of the employer share remitted to EPS (A/c 10). */
-  eps: number
-  /** Employer EPF difference (A/c 1 employer side) = er − eps. */
-  epfEr: number
-  edli: number
-  admin: number
-}
-
-const ZERO_PF: PfResult = { epfWage: 0, epsWage: 0, edliWage: 0, ee: 0, vpf: 0, er: 0, eps: 0, epfEr: 0, edli: 0, admin: 0 }
-
-/** EPF contributions for one month. `pfWagesPaise` = basic + DA (+ retaining allowance) actually
- *  paid this month (s.2(b) / s.6). Each amount is rounded to the rupee [EPFS para 29]. */
-export function computePf(pfWagesPaise: number, profile: PfProfile, rates: PfRates = DEFAULT_PF_RATES): PfResult {
-  if (!profile.enabled || pfWagesPaise <= 0) return { ...ZERO_PF }
-  const capped = Math.min(pfWagesPaise, rates.ceilingPaise)
-  const epfWage = profile.onFullWage ? pfWagesPaise : capped
-  const epsWage = profile.epsEligible ? capped : 0
-  const edliWage = capped
-  const ee = bpRupeeHalfUp(epfWage, rates.eeRateBp)
-  const vpf = bpRupeeHalfUp(epfWage, profile.vpfRateBp)
-  const er = bpRupeeHalfUp(epfWage, rates.erRateBp)
-  const eps = Math.min(er, bpRupeeHalfUp(epsWage, rates.epsRateBp))
-  return {
-    epfWage, epsWage, edliWage, ee, vpf, er, eps, epfEr: er - eps,
-    edli: bpRupeeHalfUp(edliWage, rates.edliRateBp),
-    admin: bpRupeeHalfUp(epfWage, rates.adminRateBp)
-  }
-}
-
-/** Run-level admin-charge top-up: EPFO charges at least `adminMinPaise` per establishment per
- *  month when there is at least one contributing member. Returns the extra to post (≥ 0). */
-export function pfAdminTopUp(sumAdminPaise: number, members: number, rates: PfRates = DEFAULT_PF_RATES): number {
-  if (members <= 0) return 0
-  return Math.max(0, rates.adminMinPaise - sumAdminPaise)
-}
 
 /** Due date for EPF remittance of a wage month: within 15 days of the close of the month — EPF
  *  Scheme 2026 paras 20(1), 28(3) [EPFS26] (1952 para 38(1)). */
@@ -219,130 +78,10 @@ export function pfDueDate(month: string): string {
   return `${nextMonth(month)}-15`
 }
 
-// ---------------------------------------------------------------------------------------------
-// ESI
-// ---------------------------------------------------------------------------------------------
-
-export interface EsiRates {
-  /** Employee share 0.75% (SS (Central) Rules 2026 r.19(1)(b) [SSR26]; from 1-7-2019 [ESIC-C]) — 75. */
-  eeRateBp: number
-  /** Employer share 3.25% — 325. */
-  erRateBp: number
-  /** Coverage wage ceiling — ₹21,000 (ESIC practice [ESIC-C]; basis under the Code UNVERIFIED). */
-  thresholdPaise: number
-  /** Ceiling for employees with disability — ₹25,000. */
-  disabledThresholdPaise: number
-  /** Average daily wage at or below which the employee share is nil (employer still pays) — ₹176. */
-  eeExemptDailyWagePaise: number
-}
-
-export const DEFAULT_ESI_RATES: EsiRates = {
-  eeRateBp: 75,
-  erRateBp: 325,
-  thresholdPaise: 21_000_00,
-  disabledThresholdPaise: 25_000_00,
-  eeExemptDailyWagePaise: 176_00
-}
-
-/** ESI contribution periods: 1 April–30 September and 1 October–31 March [ESIC-C]; draft ESI
- *  (General) Regulations 2026 reg 5. */
-export function esiContributionPeriod(month: string): { from: string; to: string; label: string } {
-  const [y, m] = month.split('-').map(Number) as [number, number]
-  if (m >= 4 && m <= 9) return { from: `${y}-04`, to: `${y}-09`, label: `Apr–Sep ${y}` }
-  const startY = m >= 10 ? y : y - 1
-  return { from: `${startY}-10`, to: `${startY + 1}-03`, label: `Oct ${startY}–Mar ${startY + 1}` }
-}
-
-export interface EsiInput {
-  enabled: boolean
-  /** Full contracted monthly wages (coverage is judged on the rate of wages, not attendance). */
-  contractedWagesPaise: number
-  /** Wages actually paid this month (contributions are on these). */
-  wagesPaise: number
-  payableDays: number
-  disabled: boolean
-  /** Covered in an earlier month of the same contribution period — stays covered to its end
-   *  even after crossing the ceiling (ESI (Central) Rules 1950 r.50 proviso; not found in the
-   *  Code / 2026 Rules — UNVERIFIED, ESIC still applies it). */
-  coveredEarlierInPeriod: boolean
-}
-
-export interface EsiResult {
-  covered: boolean
-  ee: number
-  er: number
-  wages: number
-}
-
-export function computeEsi(input: EsiInput, rates: EsiRates = DEFAULT_ESI_RATES): EsiResult {
-  if (!input.enabled) return { covered: false, ee: 0, er: 0, wages: 0 }
-  const ceiling = input.disabled ? rates.disabledThresholdPaise : rates.thresholdPaise
-  const covered = input.contractedWagesPaise <= ceiling || input.coveredEarlierInPeriod
-  if (!covered) return { covered: false, ee: 0, er: 0, wages: 0 }
-  const wages = input.wagesPaise
-  const daily = input.payableDays > 0 ? wages / input.payableDays : 0
-  const eeExempt = input.payableDays > 0 && daily <= rates.eeExemptDailyWagePaise
-  return {
-    covered: true,
-    ee: eeExempt ? 0 : bpRupeeUp(wages, rates.eeRateBp),
-    er: bpRupeeUp(wages, rates.erRateBp),
-    wages
-  }
-}
-
 /** ESI contributions are due within 15 days of the last day of the calendar month [ESIC-C]
  *  (ESI (General) Regulations 1950 reg. 31; draft 2026 reg 19). */
 export function esiDueDate(month: string): string {
   return `${nextMonth(month)}-15`
-}
-
-// ---------------------------------------------------------------------------------------------
-// Professional tax
-// ---------------------------------------------------------------------------------------------
-
-export type PtBasis = 'month' | 'half_year' | 'year'
-export type Gender = 'male' | 'female' | 'other'
-
-export interface PtSlab {
-  /** Lower bound of the slab's salary (inclusive), paise, on the slab's basis. */
-  fromPaise: number
-  /** Upper bound (inclusive), paise; null = no ceiling. */
-  toPaise: number | null
-  /** Tax for one period of the basis, paise. */
-  amountPaise: number
-  basis: PtBasis
-  /** 'any', or a gender the row is restricted to (Maharashtra's women's slab). */
-  gender: 'any' | 'male' | 'female'
-  /** Calendar month (1–12) in which `specialAmountPaise` replaces amountPaise (MH February ₹300). */
-  specialMonth: number | null
-  specialAmountPaise: number | null
-}
-
-/**
- * PT deducted for a wage month. Monthly slabs look up the month's gross. Half-yearly / annual
- * slabs (Tamil Nadu, Madhya Pradesh) project the period's salary from the month's gross and
- * spread the period tax evenly, rupee-rounded, with the remainder in the period's last month
- * (September / March for half-years, March for the year).
- */
-export function computePt(slabs: readonly PtSlab[], monthlyGrossPaise: number, month: string, gender: Gender | null): number {
-  if (slabs.length === 0 || monthlyGrossPaise <= 0) return 0
-  const basis = slabs[0]!.basis
-  const m = Number(month.slice(5, 7))
-  const periodMonths = basis === 'month' ? 1 : basis === 'half_year' ? 6 : 12
-  const income = monthlyGrossPaise * periodMonths
-  // Slabs are matched on their upper bound only (the first slab, in ascending order, whose
-  // ceiling covers the income) so a fractional-rupee salary between two printed bounds — ₹7,500.50
-  // between "up to 7,500" and "7,501 to 10,000" — falls in the higher slab, never in a gap.
-  const byCeiling = (a: PtSlab, b: PtSlab): number => (a.toPaise ?? Infinity) - (b.toPaise ?? Infinity)
-  const pick = (rows: PtSlab[]): PtSlab | undefined => [...rows].sort(byCeiling).find((s) => s.toPaise == null || income <= s.toPaise)
-  // A gender-specific table (Maharashtra's women's slab) replaces the general one for that gender.
-  const own = gender ? slabs.filter((s) => s.gender === gender) : []
-  const hit = own.length > 0 ? pick(own) : pick(slabs.filter((s) => s.gender === 'any'))
-  if (!hit) return 0
-  if (basis === 'month') return hit.specialMonth === m && hit.specialAmountPaise != null ? hit.specialAmountPaise : hit.amountPaise
-  const per = Math.floor(hit.amountPaise / periodMonths / 100) * 100
-  const last = basis === 'year' ? m === 3 : m === 9 || m === 3
-  return last ? hit.amountPaise - per * (periodMonths - 1) : per
 }
 
 // ---------------------------------------------------------------------------------------------

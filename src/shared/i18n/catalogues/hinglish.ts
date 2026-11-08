@@ -1636,8 +1636,6 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.features.moreHint': 'Yeh tab tak chhupe rehte hain jab tak aapka business inka use na kare. Shuru karne ke liye kisi ko chalu karein.',
   'simple.features.label.cheques': 'Cheque book aur aage ki date ke cheque',
   'simple.features.cheques': 'Aap cheque kaatte hain, aage ki date ke cheque lete hain ya bank ko payment file bhejte hain.',
-  'simple.features.label.payrollStatutory': 'PF, ESI aur professional tax',
-  'simple.features.payrollStatutory': 'Aapke staff PF, ESI ya professional tax ke daayre mein aate hain.',
   'simple.features.intro': 'Sirf wahi on karein jiski aapke business ko zaroorat hai. Kuch off karne se woh bas chhup jaata hai — jo aap pehle likh chuke hain, woh aapke hisaab aur reports mein rehta hai.',
   'simple.features.on': 'Chalu',
   'simple.features.off': 'Band',

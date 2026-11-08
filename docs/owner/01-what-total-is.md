@@ -265,7 +265,7 @@ This is the full app. It is built to match what an accountant expects from Tally
 #### People and pay (switch on in Features)
 
 - Payroll: employees and salary structures.
-- Monthly pay runs with PF, ESI and professional tax.
+- Monthly pay runs. (PF, ESI and professional tax were removed in November 2026; pay runs already in old books keep them as they are.)
 - Salary TDS and payslips.
 
 #### Planning and analysis

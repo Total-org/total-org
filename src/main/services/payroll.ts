@@ -3,21 +3,15 @@ import type { CompanyInfo, Employee, PayrollHeadAmount, PayrollLine, PayrollRun 
 import type { EmployeeInput, EmployeeInputPayload, EmployeeHeadsSetInput, PayHeadInput } from '@shared/schemas'
 import { employeeInputSchema } from '@shared/schemas'
 import type { SalaryWorkingsSnapshot } from '@shared/domain'
-import {
-  buildEcr, buildEsiCsv, buildPtCsv, buildPtStateCsv, computeMonthlyPay, daysInMonth, withTds, type EmployeePayInput, type PayComputation, type PayContext, type PayHeadSpec
-} from '@shared/payroll'
-import {
-  ageBand, esiContributionPeriod, fyStartOfMonth, monthlyTds, monthsRemainingInFy, pfAdminTopUp, salaryWorkings, type SalaryWorkings
-} from '@shared/payrollStatutory'
+import { computeMonthlyPay, daysInMonth, withTds, type EmployeePayInput, type PayComputation, type PayHeadSpec } from '@shared/payroll'
+import { ageBand, fyStartOfMonth, monthlyTds, monthsRemainingInFy, salaryWorkings, type SalaryWorkings } from '@shared/payrollStatutory'
 import { fyFromStartYear } from '@shared/dates'
 import { amountInWords, formatPaise } from '@shared/money'
 import { deleteVoucher, getLockDate, IN_BOOKS, saveVoucher } from './vouchers'
 import { findOrCreateLedger } from './masters'
 import { writeAudit } from './audit'
 import { writeExportPdf } from './pdf'
-import {
-  declarationsMap, ensureSalaryTdsPayable, ensureStatutoryLedger, salaryTdsSectionId, statutoryRatesForMonth, type Form24qSalaryRow
-} from './payrollStatutory'
+import { declarationsMap, ensureSalaryTdsPayable, ensureStatutoryLedger, salaryTdsSectionId, type Form24qSalaryRow } from './payrollStatutory'
 
 // ---------- employees ----------
 
@@ -61,31 +55,40 @@ function syncSeededHeads(db: DB, employeeId: number, input: EmployeeInput): void
 export function saveEmployee(db: DB, raw: EmployeeInputPayload, id?: number): Employee {
   const input: EmployeeInput = employeeInputSchema.parse(raw)
   const before = id ? db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as EmployeeRow | undefined : undefined
+  // The PF / ESI / PT profile (audit A13b): absent = what the employee has; a new one starts off.
+  const keep = <T>(given: T | undefined, stored: T | undefined, fallback: T): T => given !== undefined ? given : stored !== undefined ? stored : fallback
+  const b = before ? mapEmployee(before) : undefined
+  const statutory = [
+    keep(input.uan, b?.uan, null), keep(input.esicNo, b?.esicNo, null),
+    +keep(input.pfEnabled, b?.pfEnabled, false), +keep(input.esiEnabled, b?.esiEnabled, false), +keep(input.ptEnabled, b?.ptEnabled, false),
+    keep<string>(input.ptState, b?.ptState, 'MH')
+  ]
   const profile = [
-    input.pfNumber ?? null, input.gender ?? null, input.dob ?? null, input.taxRegime ?? 'new', input.vpfRateBp ?? 0,
-    +(input.pfOnFullWage ?? false), +(input.epsEligible ?? true), +(input.disabled ?? false), +(input.metro ?? false), +(input.tdsEnabled ?? true)
+    keep(input.pfNumber, b?.pfNumber, null), keep(input.gender, b?.gender, null), input.dob ?? null, input.taxRegime ?? 'new',
+    keep(input.vpfRateBp, b?.vpfRateBp, 0), +keep(input.pfOnFullWage, b?.pfOnFullWage, false), +keep(input.epsEligible, b?.epsEligible, true),
+    +keep(input.disabled, b?.disabled, false), +(input.metro ?? false), +(input.tdsEnabled ?? true)
   ]
   if (id) {
     db.prepare(
       `UPDATE employees SET name = ?, code = ?, designation = ?, joined = ?, pan = ?, uan = ?, esic_no = ?,
-       basic = ?, hra = ?, special = ?, pf_enabled = ?, esi_enabled = ?, pt_enabled = ?, pt_state = ?, active = ?,
+       pf_enabled = ?, esi_enabled = ?, pt_enabled = ?, pt_state = ?, basic = ?, hra = ?, special = ?, active = ?,
        pf_number = ?, gender = ?, dob = ?, tax_regime = ?, vpf_rate_bp = ?, pf_full_wage = ?, eps_eligible = ?,
        is_disabled = ?, metro = ?, tds_enabled = ? WHERE id = ?`
-    ).run(input.name, input.code, input.designation, input.joined, input.pan, input.uan, input.esicNo,
-      input.basic, input.hra, input.special, +input.pfEnabled, +input.esiEnabled, +input.ptEnabled, input.ptState, +input.active, ...profile, id)
+    ).run(input.name, input.code, input.designation, input.joined, input.pan, ...statutory,
+      input.basic, input.hra, input.special, +input.active, ...profile, id)
   } else {
     const res = db.prepare(
-      `INSERT INTO employees (name, code, designation, joined, pan, uan, esic_no, basic, hra, special,
-        pf_enabled, esi_enabled, pt_enabled, pt_state, active,
+      `INSERT INTO employees (name, code, designation, joined, pan, uan, esic_no,
+        pf_enabled, esi_enabled, pt_enabled, pt_state, basic, hra, special, active,
         pf_number, gender, dob, tax_regime, vpf_rate_bp, pf_full_wage, eps_eligible, is_disabled, metro, tds_enabled)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(input.name, input.code, input.designation, input.joined, input.pan, input.uan, input.esicNo,
-      input.basic, input.hra, input.special, +input.pfEnabled, +input.esiEnabled, +input.ptEnabled, input.ptState, +input.active, ...profile)
+    ).run(input.name, input.code, input.designation, input.joined, input.pan, ...statutory,
+      input.basic, input.hra, input.special, +input.active, ...profile)
     id = Number(res.lastInsertRowid)
   }
   syncSeededHeads(db, id, input)
   const saved = mapEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(id) as EmployeeRow)
-  writeAudit(db, 'employee', id, before ? 'update' : 'create', before ? mapEmployee(before) : null, saved)
+  writeAudit(db, 'employee', id, before ? 'update' : 'create', b ?? null, saved)
   return saved
 }
 
@@ -107,7 +110,7 @@ export interface PayHead {
   calc: 'flat' | 'percent_of_basic'
   value: number
   active: boolean
-  /** "Wages" under CoSS s.2(88) (EPF / ESI base from 21-11-2025); false = excluded (HRA, conveyance …). */
+  /** "Wages" under CoSS s.2(88) — the old EPF / ESI base; stored, no longer read (audit A13b). */
   inWages: boolean
 }
 
@@ -196,16 +199,15 @@ export function setEmployeeHeads(db: DB, input: EmployeeHeadsSetInput): Employee
 function loadEmployeeHeadSpecs(db: DB): Map<number, PayHeadSpec[]> {
   const rows = db
     .prepare(
-      `SELECT eph.employee_id AS employeeId, ph.name, ph.kind, ph.calc, ph.in_wages AS inWages,
-              COALESCE(eph.override_value, ph.value) AS value
+      `SELECT eph.employee_id AS employeeId, ph.name, ph.kind, ph.calc, COALESCE(eph.override_value, ph.value) AS value
        FROM employee_pay_heads eph JOIN pay_heads ph ON ph.id = eph.pay_head_id
        WHERE ph.active = 1 ORDER BY ph.id`
     )
-    .all() as { employeeId: number; name: string; kind: 'earning' | 'deduction'; calc: 'flat' | 'percent_of_basic'; value: number; inWages: number }[]
+    .all() as { employeeId: number; name: string; kind: 'earning' | 'deduction'; calc: 'flat' | 'percent_of_basic'; value: number }[]
   const map = new Map<number, PayHeadSpec[]>()
   for (const r of rows) {
     const list = map.get(r.employeeId) ?? []
-    list.push({ name: r.name, kind: r.kind, calc: r.calc, value: r.value, inWages: !!r.inWages })
+    list.push({ name: r.name, kind: r.kind, calc: r.calc, value: r.value })
     map.set(r.employeeId, list)
   }
   return map
@@ -214,8 +216,6 @@ function loadEmployeeHeadSpecs(db: DB): Map<number, PayHeadSpec[]> {
 // ---------- pay runs ----------
 
 export interface RunPreviewLine extends Omit<PayrollLine, 'id'> {
-  /** PT state the line was taxed in. */
-  ptState: string
   taxRegime: 'new' | 'old'
 }
 
@@ -236,18 +236,7 @@ function yearToDate(db: DB, employeeId: number, month: string): YtdRow {
   ).get(employeeId, fy.from.slice(0, 7), month) as YtdRow
 }
 
-/** Covered by ESI in an earlier posted month of the same contribution period? */
-function esiCoveredEarlier(db: DB, employeeId: number, month: string): boolean {
-  const period = esiContributionPeriod(month)
-  return !!db.prepare(
-    `SELECT 1 FROM payroll_lines pl JOIN payroll_runs r ON r.id = pl.run_id JOIN vouchers v ON v.id = r.voucher_id
-      WHERE pl.employee_id = ? AND r.month >= ? AND r.month < ? AND pl.esi_covered = 1 AND ${IN_BOOKS} LIMIT 1`
-  ).get(employeeId, period.from, month)
-}
-
-const payInput = (e: Employee, heads: PayHeadSpec[] | undefined): EmployeePayInput => ({
-  ...e, heads, vpfRateBp: e.vpfRateBp, pfOnFullWage: e.pfOnFullWage, epsEligible: e.epsEligible, disabled: e.disabled, gender: e.gender
-})
+const payInput = (e: Employee, heads: PayHeadSpec[] | undefined): EmployeePayInput => ({ basic: e.basic, hra: e.hra, special: e.special, heads })
 
 /**
  * Salary TDS for the month: project the year (paid so far + this month + the contracted month ×
@@ -283,34 +272,27 @@ function projectTds(
   }
 }
 
+/** The month's pay per active employee: earnings and deduction heads, prorated, then salary TDS.
+ *  PF, ESI and professional tax are no longer deducted (audit A13b), whatever the employee's
+ *  stored flags say; runs posted before keep the figures they stored. */
 export function previewRun(db: DB, month: string, days: { employeeId: number; payableDays: number }[]): RunPreviewLine[] {
   const monthDays = daysInMonth(month)
   const byId = new Map(days.map((d) => [d.employeeId, d.payableDays]))
   const headsByEmployee = loadEmployeeHeadSpecs(db)
-  const rates = statutoryRatesForMonth(db, month)
   return listEmployees(db)
     .filter((e) => e.active)
     .map((e) => {
       const payableDays = byId.get(e.id) ?? monthDays
       const input = payInput(e, headsByEmployee.get(e.id))
-      const ctx: PayContext = {
-        month, pf: rates.pf, esi: rates.esi, ssWagesCapBp: rates.ssWagesCapBp,
-        // A state with no slab rows in force levies no PT for the month.
-        ptSlabs: rates.ptByState.get(e.ptState) ?? [],
-        esiCoveredEarlier: esiCoveredEarlier(db, e.id, month)
-      }
-      let pay = computeMonthlyPay(input, payableDays, monthDays, ctx)
+      let pay = computeMonthlyPay(input, payableDays, monthDays)
       let tdsWorkings: SalaryWorkingsSnapshot | null = null
       if (e.tdsEnabled) {
-        const full = computeMonthlyPay(input, monthDays, monthDays, ctx)
+        const full = computeMonthlyPay(input, monthDays, monthDays)
         const t = projectTds(db, e, month, pay, full)
         pay = withTds(pay, t.tds)
         tdsWorkings = t.snapshot
       }
-      return {
-        employeeId: e.id, employeeName: e.name, payableDays, monthDays, ...pay,
-        tdsWorkings, ptState: e.ptState, taxRegime: e.taxRegime
-      }
+      return { employeeId: e.id, employeeName: e.name, payableDays, monthDays, ...pay, tdsWorkings, taxRegime: e.taxRegime }
     })
 }
 
@@ -351,7 +333,8 @@ export function actualWorkings(db: DB, employeeId: number, fyStartYear: number):
   }
 }
 
-/** Post the month's payroll: stores the run + lines and books one balanced Journal voucher — all
+/** Post the month's payroll: stores the run + lines and books one balanced Journal voucher (Dr
+ *  Salaries; Cr salary TDS 192 payable, Employee Deductions Payable, Salaries Payable) — all
  *  inside ONE transaction (saveVoucher's inner db.transaction nests as a savepoint), so a failure
  *  while writing run rows can never leave an orphaned salary voucher behind. Salary TDS is
  *  credited to the section 192 payable ledger and recorded as one tds_entries row per employee
@@ -364,15 +347,6 @@ export function commitRun(db: DB, month: string, days: { employeeId: number; pay
 
   const sum = (f: (l: RunPreviewLine) => number): number => lines.reduce((s, l) => s + f(l), 0)
   const gross = sum((l) => l.gross)
-  const pfEmp = sum((l) => l.pfEmp + l.vpf)
-  const pfEr = sum((l) => l.pfEr)
-  const pfAdmin = sum((l) => l.pfAdmin)
-  const edli = sum((l) => l.edli)
-  const rates = statutoryRatesForMonth(db, month)
-  const adminTopUp = pfAdminTopUp(pfAdmin, lines.filter((l) => l.pfEr > 0).length, rates.pf)
-  const esiEmp = sum((l) => l.esiEmp)
-  const esiEr = sum((l) => l.esiEr)
-  const pt = sum((l) => l.pt)
   const tds = sum((l) => l.tds)
   const otherDeductions = sum((l) => l.otherDeductions)
   const net = sum((l) => l.net)
@@ -388,12 +362,6 @@ export function commitRun(db: DB, month: string, days: { employeeId: number; pay
     }
     const byName = (name: string, group: string) => (): number => findOrCreateLedger(db, name, group)
     push(byName('Salaries', 'Indirect Expenses'), 'dr', gross)
-    push(byName('Employer PF Contribution', 'Indirect Expenses'), 'dr', pfEr)
-    push(byName('PF Admin & EDLI Charges', 'Indirect Expenses'), 'dr', pfAdmin + edli + adminTopUp)
-    push(byName('Employer ESI Contribution', 'Indirect Expenses'), 'dr', esiEr)
-    push(() => ensureStatutoryLedger(db, 'pf'), 'cr', pfEmp + pfEr + pfAdmin + edli + adminTopUp)
-    push(() => ensureStatutoryLedger(db, 'esi'), 'cr', esiEmp + esiEr)
-    push(() => ensureStatutoryLedger(db, 'pt'), 'cr', pt)
     push(() => ensureSalaryTdsPayable(db), 'cr', tds)
     push(byName('Employee Deductions Payable', 'Provisions'), 'cr', otherDeductions)
     const salariesPayable = ensureStatutoryLedger(db, 'salary')
@@ -419,7 +387,7 @@ export function commitRun(db: DB, month: string, days: { employeeId: number; pay
       tds: null
     })
 
-    const res = db.prepare('INSERT INTO payroll_runs (month, voucher_id, pf_admin_topup) VALUES (?, ?, ?)').run(month, voucher.id, adminTopUp)
+    const res = db.prepare('INSERT INTO payroll_runs (month, voucher_id, pf_admin_topup) VALUES (?, ?, 0)').run(month, voucher.id)
     const runId = Number(res.lastInsertRowid)
     const insert = db.prepare(
       `INSERT INTO payroll_lines (run_id, employee_id, payable_days, month_days, basic, hra, special, gross,
@@ -438,7 +406,7 @@ export function commitRun(db: DB, month: string, days: { employeeId: number; pay
         l.pfEmp, l.pfEr, l.esiEmp, l.esiEr, l.pt, l.net,
         l.otherEarnings, l.otherDeductions, l.epsEr, l.pfAdmin, l.edli,
         l.headAmounts.length ? JSON.stringify(l.headAmounts) : null,
-        l.vpf, l.epfWage, l.epsWage, l.edliWage, l.esiCovered ? 1 : 0, l.esiWage, l.tds, l.ptState, l.taxRegime,
+        l.vpf, l.epfWage, l.epsWage, l.edliWage, l.esiCovered ? 1 : 0, l.esiWage, l.tds, null, l.taxRegime,
         l.tdsWorkings ? JSON.stringify(l.tdsWorkings) : null)
       if (l.tds > 0) tdsEntry.run(voucher.id, sectionId, salariesPayable, employees.get(l.employeeId)?.pan ?? null, l.gross, l.tds, l.employeeId)
     }
@@ -515,104 +483,6 @@ export function deleteRun(db: DB, id: number): void {
   })
   del()
   writeAudit(db, 'payroll_run', id, 'delete', run, null)
-}
-
-// ---------- statutory exports (PF ECR / ESI upload / PT summary) ----------
-
-/** EPFO ECR 2.0 text for a posted run — one #~# line per PF member with a UAN. */
-export function ecrForRun(db: DB, runId: number): { filename: string; text: string } {
-  const run = getRun(db, runId)
-  if (!run) throw new Error('Pay run not found')
-  const employees = new Map(listEmployees(db).map((e) => [e.id, e]))
-  const rows = run.lines
-    .filter((l) => {
-      const e = employees.get(l.employeeId)
-      return !!e?.pfEnabled && !!e.uan && l.pfEmp > 0
-    })
-    .map((l) => ({
-      uan: employees.get(l.employeeId)!.uan!,
-      name: l.employeeName,
-      gross: l.gross,
-      basic: l.basic,
-      pfEmp: l.pfEmp,
-      pfEr: l.pfEr,
-      epsEr: l.epsEr,
-      payableDays: l.payableDays,
-      monthDays: l.monthDays,
-      epfWage: l.epfWage || undefined,
-      epsWage: l.epfWage ? l.epsWage : undefined,
-      edliWage: l.edliWage || undefined,
-      vpf: l.vpf
-    }))
-  if (rows.length === 0) throw new Error('No PF members with a UAN in this run — add UANs on the employee records first')
-  return { filename: `pf-ecr-${run.month}.txt`, text: buildEcr(rows) }
-}
-
-/** ESIC monthly-contribution upload CSV for a posted run. */
-export function esiForRun(db: DB, runId: number): { filename: string; text: string } {
-  const run = getRun(db, runId)
-  if (!run) throw new Error('Pay run not found')
-  const employees = new Map(listEmployees(db).map((e) => [e.id, e]))
-  const rows = run.lines
-    .filter((l) => {
-      const e = employees.get(l.employeeId)
-      return l.esiEmp > 0 && !!e?.esicNo
-    })
-    .map((l) => ({
-      esicNo: employees.get(l.employeeId)!.esicNo!,
-      name: l.employeeName,
-      payableDays: l.payableDays,
-      // ESI wages as contributed (s.2(88) wages from 21-11-2025); gross for pre-029 lines.
-      gross: l.esiWage || l.gross
-    }))
-  if (rows.length === 0) throw new Error('No ESI contributions with an ESIC number in this run')
-  return { filename: `esi-upload-${run.month}.csv`, text: buildEsiCsv(rows) }
-}
-
-export interface PtSummaryRow {
-  state: string
-  employees: number
-  gross: number
-  pt: number
-}
-
-/** Professional tax collected per state for a posted run (drives the state-wise PT challans). */
-export function ptSummaryForRun(db: DB, runId: number): PtSummaryRow[] {
-  const run = getRun(db, runId)
-  if (!run) throw new Error('Pay run not found')
-  const byState = new Map<string, PtSummaryRow>()
-  for (const l of ptLines(db, runId)) {
-    const row = byState.get(l.state) ?? { state: l.state, employees: 0, gross: 0, pt: 0 }
-    row.employees += 1
-    row.gross += l.gross
-    row.pt += l.pt
-    byState.set(l.state, row)
-  }
-  return [...byState.values()].sort((a, b) => a.state.localeCompare(b.state))
-}
-
-/** A run's lines with the PT state they were taxed in (stored on the line since migration 029;
- *  the employee's current state for older lines). */
-function ptLines(db: DB, runId: number): { employeeName: string; state: string; gross: number; pt: number }[] {
-  return db.prepare(
-    `SELECT e.name AS employeeName, COALESCE(pl.pt_state, e.pt_state, 'MH') AS state, pl.gross, pl.pt
-       FROM payroll_lines pl JOIN employees e ON e.id = pl.employee_id WHERE pl.run_id = ? ORDER BY e.name`
-  ).all(runId) as { employeeName: string; state: string; gross: number; pt: number }[]
-}
-
-/** State-wise PT return CSV for a posted run (the file the state challan is filled from); with
- *  `state`, that state's employee-wise return instead. */
-export function ptCsvForRun(db: DB, runId: number, state?: string): { filename: string; text: string } {
-  const run = getRun(db, runId)
-  if (!run) throw new Error('Pay run not found')
-  if (state) {
-    const rows = ptLines(db, runId).filter((l) => l.state === state)
-    if (rows.length === 0) throw new Error(`No employees taxed in ${state} in this run`)
-    return { filename: `pt-return-${state}-${run.month}.csv`, text: buildPtStateCsv(state, run.month, rows) }
-  }
-  const rows = ptSummaryForRun(db, runId).filter((r) => r.pt > 0)
-  if (rows.length === 0) throw new Error('No professional tax in this run')
-  return { filename: `pt-return-${run.month}.csv`, text: buildPtCsv(rows) }
 }
 
 // ---------- payslip PDF ----------

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /** Features hidden until used (the feature cleanup — see below). */
-export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'tradeCycle', 'payrollStatutory'] as const
+export const HIDEABLE_FEATURES = ['costCentres', 'cheques', 'tradeCycle'] as const
 export type HideableFeature = (typeof HIDEABLE_FEATURES)[number]
 
 /**
@@ -124,8 +124,7 @@ export function splitFeaturesView(v: FeaturesView): { stored: CompanyFeatures; u
 /** A hidden feature's stored flag and what it needs, turned on with it. */
 const TURN_ON: Partial<Record<HideableFeature, Partial<CompanyFeatures>>> = {
   costCentres: { costCentres: true },
-  tradeCycle: { orders: true, inventory: true },
-  payrollStatutory: { payroll: true }
+  tradeCycle: { orders: true, inventory: true }
 }
 
 /** The "More features" list: the hideable features with no data, except a flag feature already
@@ -146,7 +145,7 @@ export function turnOffFeature(stored: CompanyFeatures, h: HideableFeature): Com
 }
 
 /** A main-list flag turned off: a feature turned on through More that needs that flag (its own
- *  flag, or stock / payroll it needs) goes back to hidden too. */
+ *  flag, or the stock it needs) goes back to hidden too. */
 export function flagTurnedOff(stored: CompanyFeatures, key: keyof CompanyFeatures): CompanyFeatures {
   const next = { ...stored, [key]: false }
   const list = stored.turnedOn ?? []
@@ -166,7 +165,6 @@ export const flagCardShown = (key: keyof CompanyFeatures, unused: ReadonlySet<Hi
 export interface ScreenFeatures extends CompanyFeatures {
   manufacturing: boolean
   cheques: boolean
-  payrollStatutory: boolean
 }
 
 export function screenFeatures(f: FeaturesView): ScreenFeatures {
@@ -176,7 +174,6 @@ export function screenFeatures(f: FeaturesView): ScreenFeatures {
     ...effectiveFeatures(stored),
     costCentres: stored.costCentres && used('costCentres'),
     orders: stored.orders && used('tradeCycle'),
-    cheques: used('cheques'),
-    payrollStatutory: used('payrollStatutory')
+    cheques: used('cheques')
   }
 }

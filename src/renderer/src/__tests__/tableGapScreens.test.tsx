@@ -1,5 +1,5 @@
 // WP 1.6b — screens that were held back by DataTable gaps: Banking's import-preview and
-// bank-rules tables and Payroll's pay-head / employee-head / PT tables now live inside their
+// bank-rules tables and Payroll's pay-head / employee-head tables (the PT table went in A13b) live inside their
 // modals on DataTable; GSTR-2B gets its Portal | Books header band back; Masters → Ledgers and
 // e-Invoice host their pre-filters in the table toolbar (which no longer vanishes at zero rows);
 // The All entries footer is the platform's.
@@ -152,10 +152,6 @@ describe('Payroll modal tables', () => {
     handlers['payroll:preview'] = () => []
     handlers['payroll:heads:list'] = () => HEADS
     handlers['payroll:employeeHeads:get'] = () => [{ payHeadId: 1, name: 'Conveyance', kind: 'earning', calc: 'flat', value: 1_600_00, overrideValue: 2_000_00 }]
-    handlers['payroll:ptSummary'] = () => [
-      { state: 'MH', employees: 2, gross: 40_000_00, pt: 400_00 },
-      { state: 'KA', employees: 1, gross: 25_000_00, pt: 200_00 }
-    ]
   })
 
   it('pay heads: flat and percent values, Enter on the active row loads it for editing', async () => {
@@ -183,20 +179,6 @@ describe('Payroll modal tables', () => {
     fireEvent.click(within(bonus!).getByLabelText('Assign Bonus'))
     expect(within(bodyRows('payroll-employee-heads')[1]!).getByTestId('input-payroll-override')).toBeTruthy()
     expect(screen.getByText('Override for Asha')).toBeTruthy()
-  })
-
-  it('PT summary: states with a totals footer', async () => {
-    renderScreen(<PayrollScreen />)
-    await waitFor(() => expect(screen.getByTestId('tab-payroll-runs')).toBeTruthy())
-    fireEvent.click(screen.getByTestId('tab-payroll-runs'))
-    await waitFor(() => expect(bodyRows('payroll-runs')).toHaveLength(1))
-    fireEvent.click(screen.getByTestId('btn-payroll-pt'))
-    await waitFor(() => expect(bodyRows('payroll-pt')).toHaveLength(2))
-    const totals = screen.getByTestId('payroll-pt-table-totals').textContent ?? ''
-    expect(totals).toContain('Total')
-    expect(totals).toContain('65,000.00')
-    expect(totals).toContain('600.00')
-    expect(screen.getByTestId('btn-payroll-pt-csv')).toBeTruthy()
   })
 })
 

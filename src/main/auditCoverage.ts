@@ -435,18 +435,12 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'payroll:heads:delete': a('pay_head'),
   'payroll:employeeHeads:set': a('employee'),
   'payroll:declarations:set': a('employee'),
-  'payroll:rates:save': a('statutory_rate'),
-  'payroll:rates:delete': a('statutory_rate'),
   'payroll:payments:record': a('statutory_payment'),
   'payroll:payments:delete': a('statutory_payment'),
   'payroll:preview': QUERY,
   'payroll:commit': a('payroll_run', 'voucher', 'ledger'),
   'payroll:deleteRun': a('payroll_run', 'voucher'),
   'payroll:payslip': EXPORT,
-  'payroll:ecr': EXPORT,
-  'payroll:esi': EXPORT,
-  'payroll:ptCsv': EXPORT,
-  'payroll:ptReturnCsv': EXPORT,
 
   // ---------- AI agent (WP 5.1) — conversations are not books; settings, drafts and deletions are audited ----------
   'ai:settings:set': a('ai_settings'),
