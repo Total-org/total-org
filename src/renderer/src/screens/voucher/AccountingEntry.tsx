@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ShareBill } from '../../components/ShareBill'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Ledger, Voucher, VoucherBillRef, VoucherKind } from '@shared/domain'
 import type { OutstandingBill } from '@shared/reports'
@@ -939,6 +940,9 @@ export function AccountingEntry({
               <Button data-testid="btn-voucher-print-cheque" onClick={() => void printCheque()}>Print cheque</Button>
               <Button onClick={() => void printAdvice()}>Payment advice</Button>
             </>
+          )}
+          {voucherId && (kind === 'sales' || kind === 'credit_note') && (
+            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
           )}
           {voucherId && TRADING_KINDS.includes(kind) && (
             <Button data-testid="btn-voucher-transport" onClick={() => setShowTransport(true)}>

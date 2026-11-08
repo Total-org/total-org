@@ -2,6 +2,9 @@
 // the API key (stored by main in the OS-encrypted secret store; only a hint comes back), test
 // connection + model ids, privacy options, the price table, usage/cost by day and conversation,
 // the outbound log, WP 5.6 memory (AiMemoryPanel), and "Delete all AI data". Everything but viewing is owner-only (main enforces).
+import { UsdRateField } from '../../components/ai/UsdRateField'
+import { microUsdToPaise } from '@shared/simple/aiPlain'
+import { translator } from '@shared/i18n'
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -80,6 +83,8 @@ const OUTBOUND_COLUMNS = defineColumns<AiOutboundRow>([
   { id: 'hash', header: 'Payload SHA-256', kind: 'text', value: (r) => r.payloadSha256, text: (r) => `${r.payloadSha256.slice(0, 16)}…`, className: 'num text-muted', defaultHidden: true, width: 160 },
   { id: 'status', header: 'Status', kind: 'text', value: (r) => r.status, width: 90 }
 ])
+
+const ENGLISH = translator('en')
 
 export function AiSection(): React.JSX.Element {
   const toast = useToasts()
@@ -207,7 +212,14 @@ export function AiSection(): React.JSX.Element {
 
       <DraftsPanel />
       <AiMemoryPanel view={view} isOwner={isOwner} />
-      <UsagePanel />
+      <UsagePanel
+        rateMicro={view?.settings.usdRateMicro ?? null}
+        canEdit={isOwner}
+        onSaveRate={async (usdRateMicro) => {
+          await aiApi.setSettings({ usdRateMicro })
+          await queryClient.invalidateQueries({ queryKey: ['aiSettings'] })
+        }}
+      />
       <OutboundPanel />
 
       <Panel className="p-5">
@@ -600,16 +612,19 @@ function DraftsPanel(): React.JSX.Element {
   )
 }
 
-function UsagePanel(): React.JSX.Element {
+function UsagePanel({ rateMicro, canEdit, onSaveRate }: { rateMicro: number | null; canEdit: boolean; onSaveRate: (r: number | null) => Promise<void> }): React.JSX.Element {
   const { data: rows = [], isLoading } = useQuery({ queryKey: ['aiUsage'], queryFn: aiApi.usage })
   const [by, setBy] = useState<'day' | 'thread' | 'call'>('day')
   const agg = useMemo(() => (by === 'call' ? [] : aggregateUsage(rows, by)), [rows, by])
   const total = useMemo(() => aggregateUsage(rows, 'day').reduce((s, g) => (g.costMicroUsd == null ? s : (s ?? 0) + g.costMicroUsd), null as number | null), [rows])
   return (
     <div>
-      <SectionTitle right={<span className="text-body-sm text-muted" data-testid="ai-usage-total">Total {formatMicroUsd(total)} · {rows.length} calls</span>}>
+      <SectionTitle right={<span className="text-body-sm text-muted" data-testid="ai-usage-total">Total {formatMicroUsd(total)}{rateMicro && total != null ? ` (≈ ${formatPaise(microUsdToPaise(total, rateMicro), { symbol: true })})` : ''} · {rows.length} calls</span>}>
         Usage and cost
       </SectionTitle>
+      <div className="mb-3">
+        <UsdRateField t={ENGLISH} rateMicro={rateMicro} canEdit={canEdit} onSave={onSaveRate} />
+      </div>
       <Panel>
         {by === 'call' ? (
           <DataTable

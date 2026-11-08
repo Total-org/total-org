@@ -13,6 +13,7 @@ import { DataTable, defineColumns } from '../../components/table'
 import { recordPaymentScreen } from './recordPayment'
 import { returnScreen, useReturnable } from '../returns/returnable'
 import { usePrintBill } from '../printFailure'
+import { ShareBill } from '../../components/ShareBill'
 
 const STATUS_TEXT: Record<SaleStatus, MessageKey> = {
   paid: 'simple.sales.status.paid',
@@ -246,6 +247,7 @@ function BillView({ billId }: { billId: number }): React.JSX.Element {
           <Button data-testid="btn-bill-print" onClick={() => void printBill(bill.voucherId)}>
             {t('common.print')}
           </Button>
+          <ShareBill voucherId={bill.voucherId} plain testId="btn-bill-share" />
           {bill.due > 0 && !bill.walkIn && (
             <Button variant="primary" data-testid="btn-bill-record-payment" onClick={() => nav.go(recordPaymentScreen(bill, setup?.defaults.cash ?? null))}>
               {t('simple.bill.recordPayment')}

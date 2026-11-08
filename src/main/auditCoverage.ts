@@ -380,6 +380,11 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'nic:signedCopyExport': EXPORT,
   'invoice:pdf': EXPORT,
   'invoice:pdfBatch': EXPORT,
+  // A10: share a bill (its PDF written + shown / the share sheet) and the UPI ID on prints.
+  'invoice:share': EXPORT,
+  'invoice:shareFacts': QUERY,
+  'upi:get': QUERY,
+  'upi:set': a('company'),
   'export:caPack': EXPORT,
   'export:tallyXml': EXPORT,
   'cheque:pdf': EXPORT,

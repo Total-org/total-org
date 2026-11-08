@@ -1,4 +1,5 @@
 import { SavedCurrencyPicker } from './SavedCurrencyPicker'
+import { ShareBill } from '../../components/ShareBill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Group, Ledger, Voucher, VoucherBillRef, VoucherKind } from '@shared/domain'
@@ -1121,6 +1122,9 @@ export function InvoiceEntry({
       <div className="mt-5 flex justify-between">
         <div>{isEdit && <Button variant="danger" onClick={() => void remove()}>Delete voucher</Button>}</div>
         <div className="flex gap-2">
+          {isEdit && voucherId && (kind === 'sales' || kind === 'credit_note') && (
+            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
+          )}
           {isEdit && (
             <Button data-testid="btn-voucher-transport" onClick={() => setShowTransport(true)}>
               Transport / e-way details…

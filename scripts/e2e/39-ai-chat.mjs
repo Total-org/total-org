@@ -222,11 +222,13 @@ await scenario('39-ai-chat', async (h) => {
 
   await h.page.keyboard.press('Control+j')
   await h.page.waitForFunction(() => !document.querySelector('[data-testid="ai-panel"]'), null, { timeout: 5000 })
+  // Phase 3b part 3 (#231): ⌘J reopens the ONE panel on Ask (Total answers first); Esc in its box
+  // closes it, not the screen.
   await h.page.keyboard.press('Control+j')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 5000 })
-  await h.page.click('[data-testid="ai-input"]')
+  await h.page.waitForSelector('[data-testid="ask-panel"]', { timeout: 5000 })
+  await h.page.click('[data-testid="ask-input"]')
   await h.page.keyboard.press('Escape')
-  await h.page.waitForFunction(() => !document.querySelector('[data-testid="ai-panel"]'), null, { timeout: 5000 })
+  await h.page.waitForFunction(() => !document.querySelector('[data-testid="ask-panel"]') && !document.querySelector('[data-testid="ai-panel"]'), null, { timeout: 5000 })
   assertEq(await h.page.getAttribute('[data-screen]', 'data-screen'), 'gateway', 'Esc in the panel closes it, not the screen')
   const prefs = await h.page.evaluate(() => JSON.parse(localStorage.getItem('total-ai-panel') ?? '{}'))
   assertEq(prefs.open, false, 'open state remembered')

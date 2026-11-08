@@ -4,6 +4,8 @@ import type {
   TdsRate, TdsCertificateRow, TdsChallan,
   Voucher, VoucherTransport, VoucherType, TradeDocType, SaveVoucherWarnings
 } from '@shared/domain'
+import type { BillShareFacts, ShareVia } from '@shared/billShare'
+import type { UpiSettings } from '@shared/upi'
 import type { UiMode, UiPatch, UiSettings } from '@shared/simple/uiMode'
 import type { Language } from '@shared/i18n'
 import type { EwbExtendRequest, NicCancelReason, NicRecord } from '@shared/gst/nicRecord'
@@ -830,6 +832,11 @@ export const api = {
     skip: () => call<{ startedFresh: true }>('simple:openings:skip')
   },
   /** WP 8.3: GSTR-1 filing frequency (meta `gstProfile`; missing = monthly). `set` is owner-only. */
+  /** A10: the business's UPI ID for the pay QR on bills (meta `upi`). `set` is owner-only. */
+  upi: {
+    get: () => call<UpiSettings>('upi:get'),
+    set: (upiId: string | null) => call<UpiSettings>('upi:set', { upiId })
+  },
   gstProfile: {
     get: () => call<GstProfile>('gstProfile:get'),
     /** A patch (absent = keep, null = clear) — filing, and the e-invoice turnover / exemption. */
@@ -1316,6 +1323,11 @@ export const api = {
   invoice: {
     pdf: (voucherId: number) => call<{ path: string }>('invoice:pdf', { voucherId }),
     pdfBatch: (voucherIds: number[]) => call<{ dir: string; paths: string[] }>('invoice:pdfBatch', { voucherIds }),
+    /** A10: what the share buttons need about one bill (party contact, due, UPI ID). */
+    shareFacts: (voucherId: number) => call<BillShareFacts>('invoice:shareFacts', { voucherId }),
+    /** A10: write the bill's PDF and show it in Finder, or hand it to the macOS share sheet. */
+    share: (voucherId: number, via: ShareVia, text?: string) =>
+      call<{ path: string; sheet: boolean }>('invoice:share', { voucherId, via, ...(text ? { text } : {}) }),
     previewHtml: (voucherId?: number, config?: Partial<InvoiceConfig>) =>
       call<{ html: string }>('invoice:previewHtml', { voucherId, config })
   },

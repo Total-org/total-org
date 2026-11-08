@@ -115,8 +115,7 @@ await scenario('43-ai-memory', async (h) => {
   await h.click('ai-memory-filter-all')
 
   // ---------- the assistant proposes; the user accepts in the panel ----------
-  await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+  await h.openAiChat()
   await h.fill('ai-input', 'Remember that we pay from HDFC Bank')
   await h.page.press('[data-testid="ai-input"]', 'Enter')
   await h.page.waitForSelector('[data-testid="ai-tool-chip"][data-tool="remember"][data-status="ok"]', { timeout: 20000 })

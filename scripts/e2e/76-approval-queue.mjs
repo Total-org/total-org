@@ -45,8 +45,7 @@ await scenario('76-approval-queue', async (h) => {
   const vouchers = async () => (await h.invoke('voucher:list', { from: '2000-04-01', to: '2099-03-31' })).length
 
   // ---------- accountant: two chat drafts → the queue ----------
-  await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+  await h.openAiChat()
   for (const q of ['Pay 2,500 shop rent in cash', 'Pay 700 shop rent in cash']) {
     const before = (await h.invoke('ai:drafts', { status: 'open' })).length
     await h.fill('ai-input', q)
@@ -55,7 +54,15 @@ await scenario('76-approval-queue', async (h) => {
     await h.page.waitForSelector('[data-testid="btn-ai-send"]', { timeout: 20000 })
   }
   assertEq(await vouchers(), 0, 'drafting saved nothing')
-  await h.click('ai-open-queue')
+  // Phase 3b part 3: the same proposals wait on the ONE panel's "To approve" tab (with its count).
+  await h.click('btn-back-ask-total')
+  await h.page.waitForSelector('[data-testid="tab-ai-queue-queue"]', { timeout: 10000 })
+  assert((await h.page.textContent('[data-testid="tab-ai-queue-queue"]')).includes('2'), 'the tab counts the two proposals')
+  await h.click('tab-ai-queue-queue')
+  await h.page.waitForSelector('[data-testid="ask-queue-panel"] [data-testid^="queue-card-draft:"]', { timeout: 10000 })
+  assertEq(await h.page.locator('[data-testid="ask-queue-panel"] [data-testid^="queue-card-draft:"]').count(), 2, 'both drafts on the tab')
+  await bothThemes('00-panel-to-approve')
+  await h.click('ask-queue-full')
   await h.waitScreen('ai-queue')
   await h.page.waitForSelector('[data-key^="draft:"]', { timeout: 10000 })
   const queue = await h.invoke('ai:queue')
