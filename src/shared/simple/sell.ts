@@ -322,8 +322,17 @@ export function saleStatus(total: number, due: number, overdueDays: number, paid
 
 /** WP 9.5: what returns took off a sale / purchase bill — total = paid + due + this (the lists'
  *  `paid` leaves it out, services/simpleSell.ts / simpleBuy.ts); 0 without returns. */
-export function offBillByReturns(b: { total: number; paid: number; due: number; returned: number }): number {
-  return b.returned > 0 ? Math.max(0, b.total - b.paid - Math.max(0, b.due)) : 0
+export function offBillByReturns(b: { total: number; paid: number; due: number; returned: number; added?: number }): number {
+  return b.returned > 0 ? Math.max(0, b.total + (b.added ?? 0) - b.paid - Math.max(0, b.due)) : 0
+}
+
+/** Audit A1: an open bill's due and paid as the simple lists show them — due = the allocation's
+ *  pending (never capped at the bill's total: a debit note / journal ticked against the bill adds
+ *  to it), `added` = what such entries added (the allocated amount beyond the bill's total). */
+export function billFigures(total: number, open: { pending: number; amount: number } | undefined, offBill: number): { due: number; paid: number; added?: number } {
+  const due = open?.pending ?? 0
+  const added = open ? Math.max(0, open.amount - total) : 0
+  return { due, paid: Math.max(0, total + added - due - offBill), ...(added > 0 ? { added } : {}) }
 }
 
 // ---------------------------------------------------------------- read shapes (services/simpleSell.ts)
@@ -365,6 +374,9 @@ export interface SaleRow {
   overdueDays: number
   /** WP 9.5: the returns made against this bill (their total; 0 = none) — the list's chip. */
   returned: number
+  /** Audit A1: what later entries ticked against the bill added to it (a debit note, a journal) —
+   *  the allocated bill's amount beyond the bill's own total, while the bill is open. Absent = none. */
+  added?: number
 }
 
 export interface SaleView {
@@ -390,6 +402,9 @@ export interface SaleView {
   overdueDays: number
   /** WP 9.5: the returns made against this bill (their total; 0 = none). */
   returned: number
+  /** Audit A1: what later entries ticked against the bill added to it (a debit note, a journal) —
+   *  the allocated bill's amount beyond the bill's own total, while the bill is open. Absent = none. */
+  added?: number
 }
 
 /** A price-list rate (tax-exclusive, resolvePrice) as the form shows it: GST-inclusive per unit
