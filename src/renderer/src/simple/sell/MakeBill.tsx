@@ -7,7 +7,7 @@ import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
 import type { SimplePreview } from '@shared/simple/intents'
 import {
-  billTitleKey, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
@@ -38,6 +38,7 @@ const INCL_KEY = 'total-sell-incl' // i18n-technical: localStorage key (per comp
 const SALES_KIND = 'sales' as const // i18n-technical
 const CASH = 'cash' as const // i18n-technical
 const CREDIT = 'credit' as const // i18n-technical
+const PAY_KEYS: Record<string, 'cash' | 'upi' | 'card'> = { F5: 'cash', F6: 'upi', F7: 'card' } // i18n-technical: the Counter's pay keys
 const F = { date: 'date', party: 'party', items: 'items', amount: 'amount', gstRate: 'gstRate', payment: 'payment' } as const satisfies Record<SellField, SellField> // i18n-technical: form field paths
 
 let lineSeq = 0
@@ -63,7 +64,9 @@ const isDirty = (f: SellForm & { lines: FormLine[] }, party?: number): boolean =
  * simple:preview, the save card offers Print / PDF / Share / New / Undo. ⌘↵ saves, ⌘N starts a
  * new bill, Esc asks before discarding. "Accountant view" opens the full sales editor (the saved
  * bill once there is one). WP 9.8: `party` starts the bill for that customer (People → Make a
- * bill), on credit until the user says how it was paid.
+ * bill), on credit until the user says how it was paid. A13: the Counter's speed (Quick bill is
+ * gone) — with stock on, "Scan or type a product" adds a line per scan (the same product again =
+ * one more; the box stays ready for the next), F5 / F6 / F7 = paid by cash / UPI / card.
  */
 export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple-sell'> } = {}): React.JSX.Element {
   const t = useT()
@@ -100,6 +103,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const [paidChosen, setPaidChosen] = useState(!!ask?.prefill.how)
   const [previewProblem, setPreviewProblem] = useState<string | null>(null)
   const [showDiscount, setShowDiscount] = useState(false)
+  // The scan box is remounted (empty, focused) after each product it adds.
+  const [scanSeq, setScanSeq] = useState(0)
   const [leaving, setLeaving] = useState(false)
   const saving = poster.status === 'posting'
 
@@ -155,6 +160,13 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const pickCustomer = (id: number | null): void => {
     if (id == null) update({ customerId: null, ...(form.paid === 'credit' || form.paid === 'part' || !paidChosen ? { paid: CASH } : {}) })
     else update({ customerId: id, ...(!paidChosen ? { paid: CREDIT } : {}) })
+  }
+
+  /** A13: a product from the scan box — one more of it, or a new line (addScannedProduct). */
+  const addProduct = (id: number): void => {
+    setGeneral(null)
+    setForm((f) => ({ ...f, lines: addScannedProduct(f.lines, id, (itemId) => ({ ...newLine(), itemId })) }))
+    setScanSeq((n) => n + 1)
   }
 
   // ---------- prices from the price list (resolvePrice) for lines the user hasn't typed over ----------
@@ -281,6 +293,13 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       else void askDiscard().then((ok) => ok && startNew())
       return
     }
+    const pay = PAY_KEYS[e.key]
+    if (pay && !mod && !e.shiftKey && !e.altKey && !savedIds) {
+      e.preventDefault()
+      e.stopPropagation()
+      update({ paid: pay, accountId: null }, { paidChosen: true }) // as a click on its chip
+      return
+    }
     if (e.key === 'Escape' && dirty) {
       const tag = (e.target as HTMLElement | null)?.tagName
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
@@ -315,6 +334,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     update({ ratesIncludeGst: on, amount: next.amount, lines: next.lines.map((l) => (l.auto ? { ...l, rate: null } : l)) })
   }
 
+  const scanOptions = useMemo(() => items.map((i) => ({ id: i.id, label: i.name, barcode: i.barcode })), [items])
   const customerOptions = useMemo(() => (setup?.customers ?? []).map((c) => ({ id: c.id, label: c.name, ...(c.phone ? { sub: c.phone } : {}) })), [setup?.customers])
   const title = t(billTitleKey(info ?? { gstRegistrationType: 'unregistered' }, form.date)) // i18n-technical: the WP 8.0 print title key
 
@@ -428,6 +448,21 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 </div>
               )}
             </div>
+            {form.mode === 'items' && ctx && (
+              <div className="mb-3">
+                <TypeAhead
+                  key={scanSeq}
+                  options={scanOptions}
+                  value={null}
+                  onPick={(id) => id != null && addProduct(id)}
+                  placeholder={t('simple.sell.scanPlaceholder')}
+                  ariaLabel={t('simple.sell.scanLabel')}
+                  onCreate={canSave ? (name) => setCreating({ what: 'product', name }) : undefined} // i18n-technical
+                  testId="picker-sell-scan"
+                  autoFocus={scanSeq > 0}
+                />
+              </div>
+            )}
             {form.mode === 'items' && ctx ? (
               <BillLines
                 lines={form.lines}
@@ -582,6 +617,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
           onCreated={(id) => {
             const key = creating.lineKey
             setCreating(null)
+            if (key == null) return addProduct(id)
             update({ lines: form.lines.map((l) => (l.key === key ? { ...l, itemId: id, rate: null, auto: true } : l)) })
           }}
         />

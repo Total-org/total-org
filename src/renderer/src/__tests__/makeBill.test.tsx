@@ -28,7 +28,7 @@ const ledger = (id: number, name: string, groupId: number, extra: Partial<Ledger
 const LEDGERS = [ledger(10, 'Ramesh', 2), ledger(11, 'Hold Traders', 2, { creditHold: true }), ledger(20, 'Sales', 5), ledger(30, 'Cash', 1), ledger(31, 'HDFC Bank', 1)]
 const ITEMS = [
   { id: 1, name: 'Sugar 1kg', unitId: 4, gstRate: 5, cessRate: null, barcode: null },
-  { id: 2, name: 'Tea 250g', unitId: 4, gstRate: 5, cessRate: null, barcode: null }
+  { id: 2, name: 'Tea 250g', unitId: 4, gstRate: 5, cessRate: null, barcode: '8901000000017' }
 ]
 const SETUP: SellSetup = {
   walkInId: null,
@@ -161,6 +161,48 @@ describe('Make a bill (WP 9.2)', () => {
     click('btn-sell-save')
     await screen.findByTestId('save-card')
     expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'sale', customerId: 10, items: [{ itemId: 1, qty: 2000, rate: 50_000 }], payment: { how: 'cash', accountId: 30 } } })
+  })
+
+  it('A13: the counter\'s speed — a scanned barcode + Enter adds the product, again = one more, F5 / F6 / F7 = how it was paid', async () => {
+    renderUi()
+    await ready()
+    const scanOnce = async (): Promise<void> => {
+      const box = screen.getByTestId('picker-sell-scan')
+      fireEvent.change(box, { target: { value: '8901000000017' } })
+      await option('Tea')
+      fireEvent.keyDown(box, { key: 'Enter' })
+    }
+    await scanOnce()
+    await waitFor(() => expect((screen.getByTestId('picker-sell-item-0') as HTMLInputElement).value).toBe('Tea 250g'))
+    // The box is empty and focused again, ready for the next scan.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('picker-sell-scan')))
+    expect((screen.getByTestId('picker-sell-scan') as HTMLInputElement).value).toBe('')
+    await scanOnce()
+    await waitFor(() => expect((screen.getByTestId('input-sell-qty-0') as HTMLInputElement).value).toBe('2'))
+    expect(screen.queryByTestId('input-sell-qty-1')).toBeNull()
+    // Another product → its own line.
+    fireEvent.change(screen.getByTestId('picker-sell-scan'), { target: { value: 'Sugar' } })
+    fireEvent.mouseDown(await option('Sugar'))
+    await waitFor(() => expect((screen.getByTestId('picker-sell-item-1') as HTMLInputElement).value).toBe('Sugar 1kg'))
+    // The walk-in pays now: F6 = UPI, F7 = card, F5 = cash.
+    expect(screen.getByTestId('sell-paid-cash').getAttribute('aria-checked')).toBe('true')
+    fireEvent.keyDown(window, { key: 'F6' })
+    expect(screen.getByTestId('sell-paid-upi').getAttribute('aria-checked')).toBe('true')
+    fireEvent.keyDown(window, { key: 'F7' })
+    expect(screen.getByTestId('sell-paid-card').getAttribute('aria-checked')).toBe('true')
+    fireEvent.keyDown(window, { key: 'F5' })
+    expect(screen.getByTestId('sell-paid-cash').getAttribute('aria-checked')).toBe('true')
+    // A customer picked afterwards keeps the way the user chose (not "on credit").
+    await pickCustomer('Ramesh')
+    expect(screen.getByTestId('sell-paid-cash').getAttribute('aria-checked')).toBe('true')
+    expect(bannedWordsIn(visibleText())).toEqual([])
+  })
+
+  it('A13: stock off — no scan box', async () => {
+    features = { ...DEFAULT_FEATURES, inventory: false }
+    renderUi()
+    await ready()
+    expect(screen.queryByTestId('picker-sell-scan')).toBeNull()
   })
 
   it('to-do §4: "Prices include GST" with a price typed converts it — the bill stays ₹1,050', async () => {

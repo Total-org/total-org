@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**One way to make a sale in simple mode** (#PR_A, A13a). Quick bill is folded into Make a bill: with
+stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press
+Enter, the same product again adds one more, and the box is ready for the next one at once. Leave the
+customer empty for a walk-in (paid now), press F5, F6 or F7 for cash, UPI or card and ⌘↵ to save. The
+separate Quick bill entry is gone. *For accountants:* no figure changes; the full app's Counter
+billing is unchanged. *For developers:* registry screen `simple-quick-bill` and `simple/sell/QuickBill.tsx`
+removed (with the Counter's `title` prop); `shared/simple/sell.ts` `addScannedProduct`; the unused
+preset field `homeTask` removed.
+
 **Share a bill, get paid by UPI** (#239, A10). A saved bill now has a Share button (the save card,
 the bill's page, the full sales editor): WhatsApp opens a chat with the customer and a ready
 message, E-mail opens a draft, and on a Mac "More ways…" opens the share sheet with the PDF. The PDF

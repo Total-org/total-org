@@ -9,7 +9,7 @@ import { computeInvoice, emptyInvoiceState } from '../voucherEdit'
 import { mapIntent, normaliseIntent, type IntentContext, type IntentFacts, type IntentLedger } from './intents'
 import { bannedWordsIn } from './bannedWords'
 import {
-  billTitleKey, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
+  addScannedProduct, billTitleKey, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis,
   type BasisMemo, type SellContext, type SellForm
 } from './sell'
 
@@ -323,5 +323,23 @@ describe('review PR #119: switching the basis there and straight back gives the 
     expect(back2.form.lines[0]).toEqual(switchSellBasis(there.form, c, true).lines[0])
     const memo: BasisMemo | null = back2.memo
     expect(memo?.to).toBe(true)
+  })
+})
+
+describe('the scan box (A13: Quick bill folded into Make a bill)', () => {
+  const line = (key: number, itemId: number | null, qtyText = '1', auto = true) => ({ key, itemId, qtyText, rate: null, discount: null, auto })
+  const make = (itemId: number) => line(99, itemId)
+  it('fills the empty line first', () => {
+    expect(addScannedProduct([line(1, null)], 7, make)).toEqual([line(1, 7)])
+  })
+  it('the same product again is one more of it', () => {
+    expect(addScannedProduct([line(1, 7, '2.5'), line(2, null)], 7, make)).toEqual([line(1, 7, '3.5'), line(2, null)])
+  })
+  it('a line with a hand-typed price, or an unreadable quantity, gets a new line instead', () => {
+    expect(addScannedProduct([line(1, 7, '1', false)], 7, make)).toEqual([line(1, 7, '1', false), make(7)])
+    expect(addScannedProduct([line(1, 7, 'abc')], 7, make)).toEqual([line(1, 7, 'abc'), make(7)])
+  })
+  it('another product is added as a new line', () => {
+    expect(addScannedProduct([line(1, 7)], 8, make)).toEqual([line(1, 7), make(8)])
   })
 })

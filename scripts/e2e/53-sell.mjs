@@ -188,6 +188,35 @@ await scenario('53-sell', async (h) => {
   }
   assert(paths.length === 1 && paths[0].endsWith('.pdf') && fs.statSync(paths[0]).size > 1000, `Print opened the bill PDF (${paths.join(', ')})`)
 
+  // A13: the counter's speed lives in Make a bill — a scanner types the barcode + Enter into the
+  // scan box; the same product again is one more of it; F6 / F5 = paid by UPI / cash; ⌘↵ saves.
+  const units = await h.invoke('master:units:list')
+  await h.invoke('master:stockItems:quickCreate', {
+    item: { name: 'Biscuit', groupId: null, unitId: units.find((u) => u.symbol === 'Pcs').id, hsn: null, gstRate: null, cessRate: null, openingQtyMilli: 50_000, openingValue: 50 * 1000, barcode: '8901000000017', reorderLevelMilli: null },
+    sellingPricePaise: 2_000,
+    purchasePricePaise: null
+  })
+  await h.click('simple-nav-sell')
+  await h.click('simple-entry-make-bill')
+  await h.waitScreen('simple-sell')
+  for (let i = 0; i < 2; i++) {
+    const scan = page.locator('[data-testid="picker-sell-scan"]')
+    await scan.click()
+    await scan.fill('8901000000017')
+    await page.locator(PICKER_OPTION, { hasText: 'Biscuit' }).first().waitFor({ timeout: 5000 })
+    await scan.press('Enter')
+    await page.waitForFunction((n) => (document.querySelector('[data-testid="input-sell-qty-0"]')?.value ?? '') === String(n), i + 1, { timeout: 5000 })
+  }
+  assertEq(await page.inputValue('[data-testid="picker-sell-item-0"]'), 'Biscuit', 'the scanned product is on the first line')
+  assertEq(await page.$('[data-testid="input-sell-qty-1"]'), null, 'the second scan added one more, not a new line')
+  await page.waitForFunction(() => document.querySelector('[data-testid="sell-total"]')?.getAttribute('data-paise') === '4000', null, { timeout: 10000 })
+  await page.keyboard.press('F6')
+  await attached(h, '[data-testid="sell-paid-upi"][aria-checked="true"]')
+  await page.keyboard.press('F5')
+  await attached(h, '[data-testid="sell-paid-cash"][aria-checked="true"]')
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
+  await attached(h, '[data-testid="save-card"]')
+
   // ================= 2. a regular company =================
   await h.click('btn-switch-company')
   await h.createCompanyUI('Mehta GST Traders', { mode: 'simple', gstin: '27AAPFU0939F1ZV' })
@@ -243,10 +272,10 @@ await scenario('53-sell', async (h) => {
   await attached(h, '[data-testid="feature-card-inventory"][data-on="false"]')
   assertEq((await h.invoke('config:features:get')).inventory, false, 'stock is off')
   await h.click('simple-nav-sell')
-  assertEq(await page.$('[data-testid="simple-entry-quick-bill"]'), null, 'no Quick bill without stock')
   await h.click('simple-entry-make-bill')
   await h.waitScreen('simple-sell')
   await attached(h, '[data-testid="input-sell-amount"]')
+  assertEq(await page.$('[data-testid="picker-sell-scan"]'), null, 'no scan box without stock')
   assertEq(await page.$('[data-testid^="picker-sell-item"]'), null, 'no product picker with stock off')
   assertEq(await page.$('[data-testid="btn-sell-toggle-mode"]'), null, 'no way to products with stock off')
   await fill('input-sell-amount', '1500')
