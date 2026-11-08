@@ -1,7 +1,7 @@
 // IPC channels for payroll salary TDS (WP 3.7): tax declarations, the salary TDS dues and
 // payments, salary workings, Form 24Q data (served on the TDS screen's Returns tab) and data for
-// Form 16. PF / ESI / PT (rates, PT return files, their dues and payments) were removed in audit
-// A13b. Registered from ipc.ts with its `handle` (role gate + { ok, data | error } envelope);
+// Form 16. PF / ESI / PT (rates, PT return files) were removed in audit A13b; only the dues old
+// runs left outstanding are still listed and can be paid. Registered from ipc.ts with its `handle` (role gate + { ok, data | error } envelope);
 // every payload is Zod-parsed here.
 import { shell } from 'electron'
 import { writeFileSync } from 'fs'
@@ -51,10 +51,22 @@ export function registerPayrollStatutoryIpc(handle: Handle, company: () => Compa
     return payroll.actualWorkings(db(), employeeId, fyStartYear)
   }, 'viewer')
 
-  // Salary TDS dues + payments (old books' PF / ESI / PT rows stay in the tables — the cash
-  // forecast reads them — but are no longer listed here).
-  handle('payroll:dues', (p) => st.statutoryDues(db(), payrollFySchema.parse(p).fyStartYear, todayISO()).filter((d) => d.kind === 'tds'), 'viewer')
-  handle('payroll:payments:list', (p) => st.listStatutoryPayments(db(), payrollFySchema.parse(p).fyStartYear).filter((r) => r.kind === 'tds'), 'viewer')
+  // Salary TDS dues + payments, plus the old PF / ESI / PT dues still outstanding (runs saved
+  // before audit A13b — `kind` tells them apart; the tab shows them under "Left from before") and
+  // the payments recorded against those. A PF / ESI / PT due paid off is no longer listed (the
+  // cash forecast still reads every due).
+  handle('payroll:dues', (p) => {
+    const fy = payrollFySchema.parse(p).fyStartYear
+    return st.statutoryDues(db(), fy, todayISO()).filter((d) => d.kind === 'tds' || d.outstandingPaise > 0)
+  }, 'viewer')
+  handle('payroll:payments:list', (p) => {
+    const fy = payrollFySchema.parse(p).fyStartYear
+    const left = new Set(st.oldDuesLeft(db(), fy, todayISO()).map((d) => d.key))
+    return st.listStatutoryPayments(db(), fy).filter((r) => r.kind === 'tds' || left.has(`${r.kind}:${r.period}${r.state ? `:${r.state}` : ''}`))
+  }, 'viewer')
+  // Wage months an (old) run deducted PF / ESI in — the Gateway's compliance card lists a PF / ESI
+  // date only for these (simple Home reads the same service).
+  handle('payroll:deductionMonths', () => st.payrollDeductionMonths(db()), 'viewer')
   handle('payroll:payments:record', (p) => st.recordStatutoryPayment(db(), statutoryPaymentInputSchema.parse(p)))
   handle('payroll:payments:delete', (p) => {
     st.deleteStatutoryPayment(db(), idSchema.parse(p).id)

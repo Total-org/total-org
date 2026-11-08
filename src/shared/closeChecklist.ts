@@ -389,8 +389,10 @@ export const CLOSE_CHECK_DEFS: Record<CloseCheckKey, Def> = {
       const monthly = !!d.coveredThrough && d.coveredThrough >= prevEnd
       const yearEnd = c.period.endsWith('-03')
       const rows = [{ label: 'Book depreciation', detail: d.coveredThrough ? `last run covers up to ${d.coveredThrough}` : 'no run this financial year' }]
-      if (monthly) return { status: 'fail', summary: `Posted for last month (to ${d.coveredThrough}) but not for this one.`, rows }
-      if (yearEnd) return { status: 'fail', summary: `The year ends this month and depreciation is posted only up to ${d.coveredThrough ?? 'nothing yet'}.`, rows }
+      // Audit A13b review: the fail says what to do now — the register that made the runs is gone.
+      const todo = 'Post the depreciation as a journal, then mark this check done.'
+      if (monthly) return { status: 'fail', summary: `Posted for last month (to ${d.coveredThrough}) but not for this one. ${todo}`, rows }
+      if (yearEnd) return { status: 'fail', summary: `The year ends this month and depreciation is posted only up to ${d.coveredThrough ?? 'nothing yet'}. ${todo}`, rows }
       return { status: 'ok', summary: d.coveredThrough ? `Posted up to ${d.coveredThrough} (not monthly).` : 'Not posted yet this year (posted yearly?).', rows }
     }
   },

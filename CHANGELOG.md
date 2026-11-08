@@ -31,11 +31,17 @@ tax: the Statutory and Statutory rates tabs, the PF ECR / ESI upload / PT return
 summary and the employee form's PF / ESI / PT fields are gone, with the "PF, ESI and professional
 tax" More features card. Salary TDS stays in full on a new Payroll → Salary TDS tab (TDS by month,
 paying it with the BSR code / challan, data for Form 16), with declarations, workings and Form 24Q
-as before. *For accountants:* no figure changes in your books — interest debit notes, depreciation
+as before. PF, ESI or professional tax an older pay run deducted and that is not yet marked paid
+shows on that tab under "Left from before", where you can still record its payment (or delete one,
+which opens the due again) — only for such old dues; books that never used PF see nothing new.
+Home and the Gateway list a month's PF / ESI date only when a pay run in the books deducted PF /
+ESI for that month, and the "Why?" next to it says to pay it on the EPFO / ESIC portal. The
+month-end "Depreciation posted" check now says what to do when it fails: post the depreciation as
+a journal, then mark the check done. *For accountants:* no figure changes in your books — interest debit notes, depreciation
 journals, asset-sale entries and pay runs already saved stay as they are in every report and
 return (a pay run keeps its PF / ESI / PT lines and payable balances; the cash forecast still
-counts unpaid PF / ESI / PT dues of old runs; Home and the Gateway still list the PF / ESI dates
-while payroll is on; the cash flow still adds depreciation back, and GSTR-1 / 3B still carry the
+counts unpaid PF / ESI / PT dues of old runs, and stops counting one once you record its payment
+under "Left from before"; the cash flow still adds depreciation back, and GSTR-1 / 3B still carry the
 extra s.18(6) tax an asset sale posted), can still only be moved to the bin (an asset sale's journal
 and its tax invoice go to the bin and come back together), and an opening bill interest charged
 still can't be renumbered. A pay run posted from now on has no PF / ESI / PT lines whatever an
@@ -44,9 +50,13 @@ a little higher than before, because employee PF no longer reduces the taxable i
 months still to come (owner decision, 8 Nov). *For developers:* `receivables:interestPreview` /
 `postInterest` / `interestCharges`, every `fa:*` channel, `payroll:rates:*`, `payroll:ptStates`,
 `payroll:ecr` / `esi` / `ptSummary` / `ptCsv` / `ptReturnCsv` are gone; `payroll:payments:record`
-takes kind `tds` only and `payroll:payments:delete` refuses an old PF / ESI / PT payment;
-`payroll:dues` / `payments:list` list salary TDS only (`statutoryDues` itself is unchanged — the
-forecast reads it); the employee schema keeps the PF / ESI / PT fields optional (absent = keep, a
+takes kind `pf` / `esi` / `pt` only for a due an old run left outstanding (`oldDuesLeft`, same kind +
+month + PT state; anything else is refused) and `payroll:payments:delete` removes any payment as
+before; `payroll:dues` / `payments:list` list salary TDS plus those old dues and their payments
+(`statutoryDues` itself is unchanged — the forecast reads it); the new viewer read
+`payroll:deductionMonths` (`payrollDeductionMonths`) gives the wage months an in-books run deducted
+PF / ESI in, and `upcomingDeadlines` takes them as `pfMonths` / `esiMonths` (absent = no PF / ESI
+date); the employee schema keeps the PF / ESI / PT fields optional (absent = keep, a
 new employee starts with them off); `interest_charges`, the ledger columns, migration 032, the
 fixed-asset tables, migration 026, `statutory_rates` / `statutory_payments`, migration 029 and their
 audit entities stay; `cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and

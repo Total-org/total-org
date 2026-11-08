@@ -1043,17 +1043,19 @@ export const taxDeclarationsSetSchema = z.object({
 })
 export type TaxDeclarationsSetInput = z.infer<typeof taxDeclarationsSetSchema>
 
-/** Kinds a statutory_payments row can hold: old books keep their PF / ESI / PT payments (the cash
- *  forecast reads them); since audit A13b only salary TDS is recorded. */
+/** Kinds a statutory_payments row can hold. Since audit A13b a PF / ESI / PT payment is recorded
+ *  only against a due an old run left outstanding (the service checks it); new runs deduct none. */
 export const STATUTORY_PAYMENT_KINDS = ['pf', 'esi', 'pt', 'tds'] as const
 export type StatutoryPaymentKind = (typeof STATUTORY_PAYMENT_KINDS)[number]
 
-/** payroll:payments:record — pay a month's salary TDS: books a Payment voucher (Dr the TDS 192
- *  payable / Cr bank or cash) and records it against the period. */
+/** payroll:payments:record — pay a month's salary TDS, or an old PF / ESI / PT due (only one an
+ *  old run left outstanding — payrollStatutory.recordStatutoryPayment refuses any other): books a
+ *  Payment voucher (Dr the payable / Cr bank or cash) and records it against the period. */
 export const statutoryPaymentInputSchema = z.object({
-  kind: z.literal('tds'),
+  kind: z.enum(STATUTORY_PAYMENT_KINDS),
   period: z.string().regex(/^\d{4}-\d{2}$/),
-  state: z.null().default(null),
+  /** Professional tax only: the state it is paid to. */
+  state: z.string().trim().toUpperCase().length(2).nullable().default(null),
   amountPaise: z.number().int().positive(),
   paidOn: isoDate,
   bankLedgerId: id,

@@ -5,9 +5,11 @@
  * 192 / 2025 s.392), and the Form 24Q / Form 16 Part B data.
  *
  * PF / ESI / PT were removed for good in audit A13b (owner, 8 Nov 2026): the rates master
- * (statutory_rates, migration 029 — the table stays), the ECR / ESI / PT files and new PF / ESI /
- * PT payments are gone. `statutoryDues` still lists what old runs deducted (the cash forecast
- * reads it, unchanged) and old PF / ESI / PT payments stay in statutory_payments.
+ * (statutory_rates, migration 029 — the table stays) and the ECR / ESI / PT files are gone, and
+ * new runs deduct none of them. `statutoryDues` still lists what old runs deducted (the cash
+ * forecast reads it, unchanged); a PF / ESI / PT due an old run left with something outstanding
+ * can still be marked paid (`oldDuesLeft`, owner 8 Nov: "Let old dues be marked paid") and its
+ * payments removed again — nothing else of those kinds is recorded.
  *
  * Every figure the dashboard shows is computed at query time from payroll_lines of runs whose
  * voucher is in the books, and from statutory_payments whose voucher is in the books — nothing is
@@ -148,7 +150,8 @@ export function ptDueDate(state: string, month: string): string {
 
 /** Every payable a posted run left, by month: salary TDS, and the PF / ESI / PT that runs posted
  *  before audit A13b deducted (new runs carry none). The cash forecast reads all of it; the
- *  Payroll → Salary TDS tab shows the TDS rows (payroll:dues). */
+ *  Payroll → Salary TDS tab shows the TDS rows and, under "Left from before", the old PF / ESI /
+ *  PT rows still outstanding (payroll:dues, `oldDuesLeft`). */
 export function statutoryDues(db: DB, fyStartYear: number, today: string): StatutoryDueRow[] {
   const fy = fyFromStartYear(fyStartYear)
   const fromMonth = fy.from.slice(0, 7)
@@ -206,6 +209,33 @@ export function statutoryDues(db: DB, fyStartYear: number, today: string): Statu
   return out
 }
 
+/** Wage months 'YYYY-MM' whose in-books pay run deducted PF / ESI (any line with an employee or
+ *  employer share) — only runs saved before audit A13b can. The compliance calendar
+ *  (upcomingDeadlines `pfMonths` / `esiMonths`) lists a month's PF / ESI date only for these. */
+export function payrollDeductionMonths(db: DB): { pf: string[]; esi: string[] } {
+  const rows = db.prepare(
+    `SELECT r.month,
+            MAX(CASE WHEN pl.pf_emp + pl.pf_er > 0 THEN 1 ELSE 0 END) AS pf,
+            MAX(CASE WHEN pl.esi_emp + pl.esi_er > 0 THEN 1 ELSE 0 END) AS esi
+       FROM payroll_runs r JOIN vouchers v ON v.id = r.voucher_id JOIN payroll_lines pl ON pl.run_id = r.id
+      WHERE ${IN_BOOKS}
+      GROUP BY r.month ORDER BY r.month`
+  ).all() as { month: string; pf: number; esi: number }[]
+  return { pf: rows.filter((r) => r.pf).map((r) => r.month), esi: rows.filter((r) => r.esi).map((r) => r.month) }
+}
+
+/** The PF / ESI / PT dues old runs (saved before audit A13b) left with something still to pay,
+ *  for the FY — the Salary TDS tab's "Left from before". New runs never add to it. */
+export function oldDuesLeft(db: DB, fyStartYear: number, today: string): StatutoryDueRow[] {
+  return statutoryDues(db, fyStartYear, today).filter((d) => d.kind !== 'tds' && d.outstandingPaise > 0)
+}
+
+/** FY start year of a wage month 'YYYY-MM' (April–March). */
+const fyStartOfMonth = (month: string): number => {
+  const [y, m] = month.split('-').map(Number) as [number, number]
+  return m >= 4 ? y : y - 1
+}
+
 function statutoryPaidMap(db: DB): Map<string, number> {
   const rows = db.prepare(
     `SELECT sp.kind, sp.period, sp.state, SUM(sp.amount_paise) AS paid
@@ -233,12 +263,22 @@ export function listStatutoryPayments(db: DB, fyStartYear?: number): StatutoryPa
   return rows
 }
 
-/** Pay a month's salary TDS (the only payment recorded since audit A13b; old books keep their PF /
- *  ESI / PT payments). With a BSR code + challan serial the challan is registered on the TDS
- *  screen too. */
+const KIND_LABEL: Record<StatutoryPaymentKind, string> = { pf: 'EPF', esi: 'ESI', pt: 'Professional tax', tds: 'Salary TDS' }
+
+/** Pay a month's salary TDS, or an old PF / ESI / PT due (audit A13b: only one an old run left
+ *  with something outstanding — `oldDuesLeft`, same key kind + month + PT state). Books a Payment
+ *  voucher (Dr the payable / Cr bank or cash). With a BSR code + challan serial a TDS challan is
+ *  registered on the TDS screen too. */
 export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): StatutoryPayment {
-  if (input.kind !== 'tds') throw new Error('Only salary TDS payments are recorded here')
+  if (input.kind === 'pt' && !input.state) throw new Error('Pick the state the professional tax is paid to')
+  if (input.kind !== 'pt' && input.state) throw new Error('Only professional tax is paid per state')
+  if (input.kind !== 'tds' && (input.bsrCode != null || input.challanNo != null)) throw new Error('A challan is registered for salary TDS only')
   if ((input.bsrCode == null) !== (input.challanNo == null)) throw new Error('Give both the BSR code and the challan serial, or neither')
+  if (input.kind !== 'tds') {
+    const key = `${input.kind}:${input.period}${input.state ? `:${input.state}` : ''}`
+    const left = oldDuesLeft(db, fyStartOfMonth(input.period), input.paidOn).some((d) => d.key === key)
+    if (!left) throw new Error(`No ${KIND_LABEL[input.kind]} is left to pay for ${input.period} — new pay runs deduct no PF, ESI or professional tax`)
+  }
   const bank = db.prepare(
     `WITH RECURSIVE cb(id) AS (SELECT id FROM groups WHERE name IN ('Bank Accounts', 'Cash-in-Hand', 'Bank OD A/c')
        UNION ALL SELECT g.id FROM groups g JOIN cb ON g.parent_id = cb.id)
@@ -247,9 +287,9 @@ export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): St
   if (!bank) throw new Error('Pay from a bank or cash ledger')
   const paymentType = db.prepare("SELECT id FROM voucher_types WHERE kind = 'payment' AND is_system = 1").get() as { id: number } | undefined
   if (!paymentType) throw new Error('Payment voucher type missing')
-  const label = `Salary TDS for ${input.period}`
+  const label = `${KIND_LABEL[input.kind]}${input.state ? ` (${input.state})` : ''} for ${input.period}`
   const created = db.transaction(() => {
-    const payable = ensureSalaryTdsPayable(db)
+    const payable = input.kind === 'tds' ? ensureSalaryTdsPayable(db) : ensureStatutoryLedger(db, input.kind)
     const v = saveVoucher(db, {
       voucherTypeId: paymentType.id, date: input.paidOn, number: undefined, partyLedgerId: null,
       narration: `${label} paid${input.reference ? ` — ${input.reference}` : ''}`,
@@ -262,9 +302,9 @@ export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): St
       inventory: [], billRefs: [], tds: null
     })
     const res = db.prepare(
-      'INSERT INTO statutory_payments (kind, period, state, amount_paise, payment_voucher_id, reference, paid_on) VALUES (?, ?, NULL, ?, ?, ?, ?)'
-    ).run('tds', input.period, input.amountPaise, v.id, input.reference, input.paidOn)
-    if (input.bsrCode && input.challanNo) {
+      'INSERT INTO statutory_payments (kind, period, state, amount_paise, payment_voucher_id, reference, paid_on) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(input.kind, input.period, input.state, input.amountPaise, v.id, input.reference, input.paidOn)
+    if (input.kind === 'tds' && input.bsrCode && input.challanNo) {
       challanFromPayment(db, { paymentVoucherId: v.id, bsrCode: input.bsrCode, challanNo: input.challanNo, autoAllocate: true })
     }
     return Number(res.lastInsertRowid)
@@ -277,8 +317,7 @@ export function recordStatutoryPayment(db: DB, input: StatutoryPaymentInput): St
 export function deleteStatutoryPayment(db: DB, id: number): void {
   const row = listStatutoryPayments(db).find((p) => p.id === id)
   if (!row) throw new Error('Payment not found')
-  // PF / ESI / PT were removed (audit A13b): an old payment of theirs stays as the books hold it.
-  if (row.kind !== 'tds') throw new Error('Only salary TDS payments can be removed here — move the payment entry to the bin instead')
+  // An old PF / ESI / PT payment may be removed too (as before audit A13b): its due opens again.
   db.transaction(() => {
     if (row.paymentVoucherId) {
       db.prepare('DELETE FROM tds_challans WHERE payment_voucher_id = ?').run(row.paymentVoucherId)

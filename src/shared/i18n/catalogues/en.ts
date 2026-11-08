@@ -1484,8 +1484,8 @@ export const en = {
   'simple.why.compare':
     '{when, select, month {This month’s result is} other {The result is}} {dir, select, up {{amount} better than} down {{amount} worse than} other {the same as}} {when, select, month {the same days last month} other {the period before}} ({from} to {to}){part, select, sales {, mostly because sales went {partDir, select, up {up} other {down}} by {partAmount}} costOfGoods {, mostly because what the goods cost went {partDir, select, up {up} other {down}} by {partAmount}} otherIncome {, mostly because other income went {partDir, select, up {up} other {down}} by {partAmount}} expenses {, mostly because running costs went {partDir, select, up {up} other {down}} by {partAmount}} other {}}.',
   'simple.why.deadline.tds': 'The TDS (tax deducted at source) you deduct in a month is paid to the government by the 7th of the next month, and by 30 April for March. The next date is {date}.',
-  'simple.why.deadline.pf': 'PF (provident fund) on your staff’s salaries for the month before is paid by {date}; the payroll screen shows how much.',
-  'simple.why.deadline.esi': 'ESI (employees’ state insurance) on your staff’s salaries for the month before is paid by {date}; the payroll screen shows how much.',
+  'simple.why.deadline.pf': 'This is the PF (provident fund) deducted in last month’s pay run; pay it on the EPFO portal by {date}, then mark it paid under Payroll.',
+  'simple.why.deadline.esi': 'This is the ESI (employees’ state insurance) deducted in last month’s pay run; pay it on the ESIC portal by {date}, then mark it paid under Payroll.',
   'simple.why.deadline.advanceTax': 'Income tax on this year’s profit is paid in parts during the year (advance tax). The next part is due {date}; your CA works out how much.',
   'simple.why.deadline.other': '{form} is due {date}.',
   'simple.why.cash.in': 'About {amount} should come in by {date}: {list}.',

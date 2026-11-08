@@ -2,7 +2,8 @@
 // (salary TDS, balanced), salary TDS on the TDS screen and in Form 24Q (not 26Q), dues and
 // payments, Form 16 data. Audit A13b removed PF / ESI / PT: a new run deducts none of them
 // whatever the employee's stored flags say, and an old book's PF / ESI / PT run still reads as
-// it was saved (its lines, its payable balances, its dues for the cash forecast).
+// it was saved (its lines, its payable balances, its dues for the cash forecast), and a due it left
+// outstanding can still be marked paid (owner, 8 Nov 2026) — no other PF / ESI / PT payment.
 import { describe, expect, it } from 'vitest'
 import { freshPartialDb, seededDb, TEST_INFO } from '../db/testdb'
 import { migrate } from '../db/migrate'
@@ -11,10 +12,11 @@ import type { DB } from '../db/connection'
 import type { EmployeeInputPayload } from '@shared/schemas'
 import { commitRun, deleteRun, getRun, listRuns, previewRun, saveEmployee, actualWorkings } from './payroll'
 import {
-  deleteStatutoryPayment, ensureStatutoryLedger, form16Data, form24qCsv, form24qData, getDeclarations, listStatutoryPayments, recordStatutoryPayment,
+  deleteStatutoryPayment, ensureStatutoryLedger, form16Data, form24qCsv, form24qData, getDeclarations, listStatutoryPayments, oldDuesLeft, payrollDeductionMonths, recordStatutoryPayment,
   setDeclarations, statutoryDues
 } from './payrollStatutory'
 import { findOrCreateLedger } from './masters'
+import { statutoryFlows } from './cashForecast'
 import { trialBalance } from './reports'
 import { form26qData, tdsDeducted, tdsLedgerSummary } from './tdsWorkbench'
 import { getVoucher, saveVoucher } from './vouchers'
@@ -157,8 +159,10 @@ describe('a pay run since audit A13b: salary TDS only, whatever the PF / ESI / P
     const salaries = (db.prepare("SELECT id FROM ledgers WHERE name = 'Salaries'").get() as { id: number }).id
     const pay = { kind: 'tds' as const, period: '2026-07', state: null, amountPaise: 100, paidOn: '2026-08-12', bankLedgerId: salaries, reference: null, bsrCode: null, challanNo: null }
     expect(() => recordStatutoryPayment(db, pay)).toThrow(/bank or cash/)
-    expect(() => recordStatutoryPayment(db, { ...pay, bankLedgerId: bank(db), bsrCode: '0510308' })).toThrow(/BSR code/)
-    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'pf' as never })).toThrow(/Only salary TDS/)
+    const hdfc = bank(db)
+    expect(() => recordStatutoryPayment(db, { ...pay, bankLedgerId: hdfc, bsrCode: '0510308' })).toThrow(/BSR code/)
+    // A PF payment in a book whose runs deducted no PF: nothing is left from before.
+    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'pf', bankLedgerId: hdfc })).toThrow(/No EPF is left/)
     expect(listStatutoryPayments(db)).toHaveLength(0)
   })
 
@@ -234,12 +238,65 @@ describe('an old book: a PF / ESI / PT run and a PF payment saved before audit A
     expect(dues.find((d) => d.key === 'pf:2026-06')).toMatchObject({ payablePaise: R(4_100), employeePaise: R(1_800), employerPaise: R(2_300), paidPaise: R(4_100), status: 'paid', dueDate: '2026-07-15' })
     expect(dues.find((d) => d.key === 'pt:2026-06:MH')).toMatchObject({ payablePaise: R(200), status: 'unpaid' })
     expect(listStatutoryPayments(db, 2026).map((p) => [p.kind, p.amountPaise])).toEqual([['pf', R(4_100)]])
-    // An old PF payment is not removed from the payroll screen any more (bin its entry instead).
-    expect(() => deleteStatutoryPayment(db, paymentId)).toThrow(/Only salary TDS/)
+    // Left from before = what is still outstanding: the June PT (₹200, MH: due 31 July).
+    expect(oldDuesLeft(db, 2026, '2026-07-20').map((d) => [d.key, d.outstandingPaise, d.dueDate])).toEqual([['pt:2026-06:MH', R(200), '2026-07-31']])
+    // An old PF payment can be removed again (as before audit A13b): the PF due opens again.
+    deleteStatutoryPayment(db, paymentId)
+    expect(statutoryDues(db, 2026, '2026-07-20').find((d) => d.key === 'pf:2026-06')).toMatchObject({ paidPaise: 0, outstandingPaise: R(4_100), status: 'overdue' })
+    expect(oldDuesLeft(db, 2026, '2026-07-20').map((d) => d.key)).toEqual(['pf:2026-06', 'pt:2026-06:MH'])
     // A new run in the same book adds no PF / PT.
     const july = commitRun(db, '2026-07', [])
     expect(july.lines[0]).toMatchObject({ gross: R(20_000), pfEmp: 0, pt: 0, net: R(20_000) })
     expect(statutoryDues(db, 2026, '2026-08-20').filter((d) => d.period === '2026-07')).toEqual([])
+  })
+
+  it('an old due left outstanding can be marked paid — and then the cash forecast no longer counts it', () => {
+    const { db } = oldBook()
+    const hdfc = (db.prepare("SELECT id FROM ledgers WHERE name = 'HDFC Current'").get() as { id: number }).id
+    const ptFlows = () => statutoryFlows(db, TEST_INFO, '2026-07-20').filter((f) => f.label.startsWith('PT'))
+    // Hand-worked: the June run deducted PT ₹200 (MH: due the last day of July), nothing paid →
+    // one ₹200 outflow on 31 July. The June PF (₹4,100) was paid on 10 July → no PF outflow.
+    expect(ptFlows().map((f) => [f.label, f.date, f.amount])).toEqual([['PT · 2026-06 (MH)', '2026-07-31', R(200)]])
+    expect(statutoryFlows(db, TEST_INFO, '2026-07-20').filter((f) => f.label.startsWith('PF'))).toEqual([])
+    const pay = { kind: 'pt' as const, period: '2026-06', state: 'MH', amountPaise: R(200), paidOn: '2026-07-25', bankLedgerId: hdfc, reference: 'MH PT June', bsrCode: null, challanNo: null }
+    const p = recordStatutoryPayment(db, pay)
+    expect(p).toMatchObject({ kind: 'pt', period: '2026-06', state: 'MH', amountPaise: R(200), paidOn: '2026-07-25', tdsChallanId: null })
+    // The payment voucher: Professional Tax Payable Dr 200 / HDFC Cr 200 → the PT payable is nil.
+    expect(linesOf(db, p.paymentVoucherId!)).toEqual(new Map([['Professional Tax Payable', { drCr: 'dr', amount: R(200) }], ['HDFC Current', { drCr: 'cr', amount: R(200) }]]))
+    expect(balanceByTag(db, 'pt')).toBe(0)
+    expect(statutoryDues(db, 2026, '2026-07-26').find((d) => d.key === 'pt:2026-06:MH')).toMatchObject({ paidPaise: R(200), outstandingPaise: 0, status: 'paid' })
+    expect(oldDuesLeft(db, 2026, '2026-07-26')).toEqual([])
+    expect(ptFlows()).toEqual([])
+    // Removing it opens the due again, ₹200 back in the forecast.
+    deleteStatutoryPayment(db, p.id)
+    expect(ptFlows().map((f) => f.amount)).toEqual([R(200)])
+  })
+
+  it('names the wage months a run deducted PF / ESI in (the compliance calendar reads them)', () => {
+    const { db, runId } = oldBook()
+    // June deducted PF (1,800 + 1,800) and no ESI; a new July run deducts neither.
+    commitRun(db, '2026-07', [])
+    expect(payrollDeductionMonths(db)).toEqual({ pf: ['2026-06'], esi: [] })
+    // A run whose entry is in the bin is not in the books.
+    const vId = (db.prepare('SELECT voucher_id AS v FROM payroll_runs WHERE id = ?').get(runId) as { v: number }).v
+    db.prepare("UPDATE vouchers SET deleted_at = datetime('now') WHERE id = ?").run(vId)
+    expect(payrollDeductionMonths(db)).toEqual({ pf: [], esi: [] })
+  })
+
+  it('refuses a PF / ESI / PT payment no old due is left for, before writing anything', () => {
+    const { db } = oldBook()
+    const hdfc = (db.prepare("SELECT id FROM ledgers WHERE name = 'HDFC Current'").get() as { id: number }).id
+    const vouchers = () => (db.prepare('SELECT COUNT(*) AS n FROM vouchers').get() as { n: number }).n
+    const before = vouchers()
+    const pay = { kind: 'pf' as const, period: '2026-06', state: null, amountPaise: R(100), paidOn: '2026-07-25', bankLedgerId: hdfc, reference: null, bsrCode: null, challanNo: null }
+    expect(() => recordStatutoryPayment(db, pay)).toThrow(/No EPF is left to pay for 2026-06/) // June PF paid in full
+    expect(() => recordStatutoryPayment(db, { ...pay, period: '2026-07' })).toThrow(/No EPF is left/) // no run
+    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'esi' })).toThrow(/No ESI is left/) // the run deducted no ESI
+    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'pt', state: 'KA' })).toThrow(/No Professional tax is left/) // the PT was MH
+    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'pt' })).toThrow(/Pick the state/)
+    expect(() => recordStatutoryPayment(db, { ...pay, kind: 'pt', state: 'MH', bsrCode: '0510308', challanNo: '1' })).toThrow(/salary TDS only/)
+    expect(vouchers()).toBe(before)
+    expect(listStatutoryPayments(db).map((p) => p.kind)).toEqual(['pf'])
   })
 })
 

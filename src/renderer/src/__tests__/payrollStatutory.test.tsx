@@ -96,6 +96,48 @@ describe('Salary TDS tab', () => {
     })
   })
 
+  it('shows no "Left from before" for books that never had an old PF / ESI / PT due', async () => {
+    renderScreen(<PayrollScreen />)
+    fireEvent.click(await screen.findByTestId('tab-payroll-tds'))
+    await waitFor(() => expect(bodyRows('payroll-dues')).toHaveLength(2))
+    expect(screen.queryByTestId('payroll-left-from-before')).toBeNull()
+    expect(screen.queryByText('Left from before')).toBeNull()
+  })
+
+  it('lists old PF / PT dues under "Left from before"; Record payment sends the kind, month and state without a challan', async () => {
+    handlers['payroll:dues'] = () => [
+      due({}),
+      due({ key: 'pf:2026-06', kind: 'pf', period: '2026-06', employeePaise: 1_800_00, employerPaise: 2_300_00, payablePaise: 4_100_00, paidPaise: 1_000_00, outstandingPaise: 3_100_00, dueDate: '2026-07-15', status: 'part' }),
+      due({ key: 'pt:2026-06:MH', kind: 'pt', period: '2026-06', state: 'MH', employeePaise: 200_00, payablePaise: 200_00, outstandingPaise: 200_00, dueDate: '2026-07-31', status: 'overdue' })
+    ]
+    handlers['payroll:payments:list'] = () => [
+      { id: 7, kind: 'pf', period: '2026-06', state: null, amountPaise: 1_000_00, paymentVoucherId: 70, voucherNumber: 'P-7', reference: null, paidOn: '2026-07-10', tdsChallanId: null }
+    ]
+    renderScreen(<PayrollScreen />)
+    fireEvent.click(await screen.findByTestId('tab-payroll-tds'))
+    await screen.findByTestId('payroll-left-from-before')
+    expect(screen.getByText('Left from before')).toBeTruthy()
+    // The TDS table and its tile keep the TDS rows only.
+    await waitFor(() => expect(bodyRows('payroll-dues')).toHaveLength(1))
+    expect(document.getElementById('payroll-due-tds-value')!.textContent).toContain('8,233.00')
+    expect(bodyRows('payroll-old-dues').map((r) => r.getAttribute('data-row-id'))).toEqual(['pf:2026-06', 'pt:2026-06:MH'])
+    expect(screen.getByTestId('due-status-pf:2026-06').textContent).toBe('Part paid')
+    expect(bodyRows('payroll-old-payments')).toHaveLength(1)
+    expect(bodyRows('payroll-payments')).toHaveLength(0)
+
+    fireEvent.click(screen.getByTestId('btn-due-pay-pt:2026-06:MH'))
+    await screen.findByTestId('input-due-amount')
+    expect(screen.queryByTestId('input-due-bsr')).toBeNull()
+    expect(screen.queryByTestId('input-due-challan')).toBeNull()
+    await waitFor(() => expect((screen.getByTestId('input-due-bank') as HTMLSelectElement).value).toBe('31'))
+    fireEvent.change(screen.getByTestId('input-due-reference'), { target: { value: 'MH PT June' } })
+    fireEvent.click(screen.getByTestId('btn-due-save'))
+    await waitFor(() => expect(calls('payroll:payments:record')).toHaveLength(1))
+    expect(calls('payroll:payments:record')[0]).toMatchObject({
+      kind: 'pt', period: '2026-06', state: 'MH', amountPaise: 200_00, bankLedgerId: 31, reference: 'MH PT June', bsrCode: null, challanNo: null
+    })
+  })
+
   it('the gratuity helper computes 15/26 × wages × years', async () => {
     renderScreen(<PayrollScreen />)
     fireEvent.click(await screen.findByTestId('tab-payroll-tds'))
