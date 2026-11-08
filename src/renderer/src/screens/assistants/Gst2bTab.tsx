@@ -64,7 +64,7 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPeriod])
   const period = month?.key ?? monthKey
-  useAiScreenContext('assistants', { tab: 'gst2b', period })
+  useAiScreenContext('checks', { tab: 'gst2b', period })
   const qc = useQueryClient()
   const toast = useToasts()
   const nav = useNav()

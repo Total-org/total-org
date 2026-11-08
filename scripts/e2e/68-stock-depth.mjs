@@ -238,10 +238,11 @@ await scenario('68-stock-depth', async (h) => {
   }
   await h.shot('06-stock-ageing')
 
-  // ---------- 5. negative stock (Stock reports → Exceptions) ----------
+  // ---------- 5. negative stock (Stock reports → Checks → Exceptions) ----------
   await sell(short, 3, 1000)
   await h.click('btn-stock-reports-negative')
-  await h.waitScreen('exceptions')
+  await h.waitScreen('checks')
+  await page.waitForSelector('[data-testid="tab-checks-exceptions"][aria-selected="true"]', { state: 'attached', timeout: 10000 })
   const toggle = '[data-testid="exceptions-toggle-negativeStock"]'
   await page.waitForSelector(toggle, { timeout: 10000 })
   if ((await page.getAttribute(toggle, 'aria-expanded')) !== 'true') await page.click(toggle)
@@ -260,7 +261,7 @@ await scenario('68-stock-depth', async (h) => {
   // Buy the 3 back: no longer negative.
   await buy(short, 3, 800)
   await h.goto('gateway')
-  await h.goto('exceptions')
+  await h.gotoChecks('exceptions')
   await page.waitForSelector(toggle, { timeout: 10000 })
   await page.waitForFunction(() => !document.body.innerText.includes('E2E Short'), null, { timeout: 10000 })
   const exc2 = await h.invoke('report:exceptions', { from: fyStart, to: fyEnd })

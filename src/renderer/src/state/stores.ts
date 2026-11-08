@@ -13,6 +13,7 @@ import { storedLanguage } from '../lib/i18n'
 import { hasUnsavedChanges } from '../lib/useUnsavedGuard'
 import { onLayerClose, topLayerId } from '../components/kit/layers'
 import { onSessionEnd } from '../lib/sessionEnd'
+import { canonicalScreen, type ChecksTab } from '../lib/checksScreen'
 
 // ---------- navigation ----------
 
@@ -133,6 +134,8 @@ export type Screen =
   | { name: 'profit-loss'; from?: string; to?: string }
   | { name: 'balance-sheet' }
   | { name: 'cash-flow' }
+  // A13c: Exceptions now lives on Analysis → Checks (tab 'exceptions'); the old name still opens
+  // it (lib/checksScreen.ts canonicalScreen, applied by every nav.go / replace).
   | { name: 'exceptions' }
   | { name: 'stock-summary' }
   | { name: 'stock-movements'; itemId?: number; godownId?: number }
@@ -178,6 +181,7 @@ export type Screen =
   | { name: 'item-demand' }
   | { name: 'trade-returns'; tab?: 'register' | 'item' | 'party' }
   | { name: 'unbilled-goods' }
+  // A13c: Stale documents now lives on Analysis → Checks (tab 'stale'); the old name still opens it.
   | { name: 'stale-documents' }
   // `ledgerId` / `asOn`: the account (and BRS date) to open with (WP 9.6's "see them").
   | { name: 'banking'; tab?: 'recon' | 'import' | 'rules' | 'cheques' | 'pdc' | 'bulk' | 'brs'; ledgerId?: number; asOn?: string }
@@ -187,8 +191,12 @@ export type Screen =
   | { name: 'tds' }
   | { name: 'tcs' }
   | { name: 'cost-centres' }
-  // WP 5.5: the assistants (close checklist, GST 2B mismatches, anomalies).
+  // WP 5.5: the assistants (close checklist, GST 2B mismatches, anomalies) — since A13c tabs of
+  // Checks; the old name still opens them (with its tab / period).
   | { name: 'assistants'; tab?: 'close' | 'gst2b' | 'anomalies'; period?: string }
+  // A13c (audit PROD-4): ONE Checks screen — month-end close, anomalies, exception reports, stale
+  // documents (orders on) and GST 2B mismatches (registered). `period` = the close / 2B month.
+  | { name: 'checks'; tab?: ChecksTab; period?: string }
   // WP 6.2: ratio analysis with monthly trends.
   | { name: 'ratios' }
   | { name: 'cash-forecast' }
@@ -244,7 +252,8 @@ export function unsavedQuestion(): { title: string; message: string; confirmLabe
 
 export const useNav = create<NavState>((set) => ({
   stack: [{ name: 'gateway' }],
-  go: (screen, opts) => {
+  go: (to, opts) => {
+    const screen = canonicalScreen(to)
     if (opts?.force) {
       set((s) => ({ stack: [...s.stack, screen] }))
       return
@@ -253,12 +262,13 @@ export const useNav = create<NavState>((set) => ({
       if (ok) set((s) => ({ stack: [...s.stack, screen] }))
     })
   },
-  tryGo: (screen) =>
+  tryGo: (to) =>
     confirmLeave().then((ok) => {
+      const screen = canonicalScreen(to)
       if (ok) set((s) => ({ stack: [...s.stack, screen] }))
       return ok
     }),
-  replace: (screen) => set((s) => ({ stack: [...s.stack.slice(0, -1), screen] })),
+  replace: (screen) => set((s) => ({ stack: [...s.stack.slice(0, -1), canonicalScreen(screen)] })),
   back: () => {
     void confirmLeave().then((ok) => {
       if (ok) set((s) => (s.stack.length > 1 ? { stack: s.stack.slice(0, -1) } : s))

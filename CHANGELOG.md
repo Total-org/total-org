@@ -62,6 +62,15 @@ fixed-asset tables, migration 026, `statutory_rates` / `statutory_payments`, mig
 audit entities stay; `cutFeaturesRead.dbtest.ts` proves an old book reads exactly as before and
 `fixedAssetsLegacy.dbtest.ts` keeps the old journals' guards tested.
 
+**The website is safer and says what it keeps** (#242, audit A6). The changelog page now shows
+release notes as plain text and links (only ordinary web links), so a note can no longer slip a
+script into the page. Every page sends a strict Content-Security-Policy and the usual security
+headers. The waitlist form says exactly what it keeps (your e-mail and when you joined), why (one
+e-mail when 1.0 is out), how long (the list is deleted within 30 days after that) and how to be
+removed (write to total@irminflow.com); a new Privacy page says it in full. The app's update
+check (`/api/latest`, `/api/download`, on both the new and the old address) answers exactly as
+before.
+
 **Bills to SEZ units and export buyers get the right GST** (#244, audit 2026-11 Phase 2). A bill to a
 customer marked "SEZ" in your own state used to add CGST + SGST; it now adds IGST, as the law says
 (IGST Act s.7(5)(b)). A bill to an SEZ unit or an export buyer marked "without payment" (under LUT or
@@ -101,6 +110,21 @@ no longer be deleted from its lock screen, and deleting it always asks for the p
 PIN now makes you wait longer each time (30 seconds, then 1, 5 and at most 15 minutes), and the lock screen says how long is left. The lock screen no longer flashes "No users found" while it reloads the list of people (#241). For
 developers: `company:open` / `company:forgetRemembered` take only a business on the list
 (`companySlugSchema`); the agent mirror is not written for a passphrase-locked business.
+
+**One Checks screen** (#245, A13c). Analysis → Checks brings together what you look at before closing a
+month: the month-end close checklist, anomalies (possible duplicates, unusual entries), the
+exception reports, stale quotations, orders, challans and GRNs (only while orders and challans are
+in use) and the GSTR-2B mismatches (for a business that is or was GST-registered) — one tab each, each with its
+own month or date. The sidebar's Assistants and Exceptions rows are one Checks row now, and Stale
+documents left the Orders & challans list. Links you had to the old screens (a close-checklist fix,
+Stock reports' negative stock button, Home's "Needs attention", an AI answer) open the right tab;
+saved table views and options carry over. *For accountants:* same checks, same figures, nothing
+recomputed. *For developers:* registry screen `checks` (`tab` close / anomalies / exceptions / stale /
+gst2b, `period`), `screens/checks/Checks.tsx`; `assistants` / `exceptions` / `stale-documents` stay in
+the Screen union and the registry (no sidebar row; their palette row, "open …" in the Ask panel and help links open the tab — `screen` = the Checks tab) and `lib/checksScreen.ts`
+`canonicalScreen` (run by nav.go / tryGo / replace) turns them into their tab; the AI's assistant
+sources and the close checklist's fixes name `checks`, `screenFor` still opens saved `assistants` /
+`exceptions` sources; DataTable view ids and ScreenOptions keys unchanged; e2e `h.gotoChecks(tab)`.
 
 **One way to make a sale in simple mode** (#240, A13a). Quick bill is folded into Make a bill: with
 stock on, Make a bill has a "Scan or type a product" box — scan a barcode or type a name and press

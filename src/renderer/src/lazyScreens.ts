@@ -73,8 +73,6 @@ const load_screens_BalanceSheet = () => import('./screens/BalanceSheet')
 export const BalanceSheetScreen = lazyScreen(load_screens_BalanceSheet, 'BalanceSheetScreen')
 const load_screens_CashFlow = () => import('./screens/CashFlow')
 export const CashFlowScreen = lazyScreen(load_screens_CashFlow, 'CashFlowScreen')
-const load_screens_Exceptions = () => import('./screens/Exceptions')
-export const ExceptionsScreen = lazyScreen(load_screens_Exceptions, 'ExceptionsScreen')
 const load_screens_StockSummary = () => import('./screens/StockSummary')
 export const StockSummaryScreen = lazyScreen(load_screens_StockSummary, 'StockSummaryScreen')
 const load_screens_Manufacture = () => import('./screens/Manufacture')
@@ -135,7 +133,6 @@ export const OrderBookScreen = lazyScreen(load_screens_TradeAnalysis, 'OrderBook
 const load_screens_TradeReturns = () => import('./screens/TradeReturns')
 export const TradeReturnsScreen = lazyScreen(load_screens_TradeReturns, 'TradeReturnsScreen')
 const load_screens_TradeUnbilled = () => import('./screens/TradeUnbilled')
-export const StaleDocumentsScreen = lazyScreen(load_screens_TradeUnbilled, 'StaleDocumentsScreen')
 export const UnbilledGoodsScreen = lazyScreen(load_screens_TradeUnbilled, 'UnbilledGoodsScreen')
 const load_simple_queue_ApprovalQueue = () => import('./simple/queue/ApprovalQueue')
 export const SimpleApprovalQueue = lazyScreen(load_simple_queue_ApprovalQueue, 'ApprovalQueue')
@@ -155,8 +152,8 @@ const load_screens_Tcs = () => import('./screens/Tcs')
 export const TcsScreen = lazyScreen(load_screens_Tcs, 'TcsScreen')
 const load_screens_CostCentres = () => import('./screens/CostCentres')
 export const CostCentresScreen = lazyScreen(load_screens_CostCentres, 'CostCentresScreen')
-const load_screens_assistants_Assistants = () => import('./screens/assistants/Assistants')
-export const AssistantsScreen = lazyScreen(load_screens_assistants_Assistants, 'AssistantsScreen')
+const load_screens_checks_Checks = () => import('./screens/checks/Checks')
+export const ChecksScreen = lazyScreen(load_screens_checks_Checks, 'ChecksScreen')
 const load_screens_Ratios = () => import('./screens/Ratios')
 export const RatiosScreen = lazyScreen(load_screens_Ratios, 'RatiosScreen')
 const load_screens_YearEnd = () => import('./screens/YearEnd')
@@ -214,7 +211,6 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'profit-loss': [ProfitLossScreen],
   'balance-sheet': [BalanceSheetScreen],
   'cash-flow': [CashFlowScreen],
-  'exceptions': [ExceptionsScreen],
   'stock-summary': [StockSummaryScreen],
   'manufacture': [ManufactureScreen],
   'counter-billing': [CounterBillingScreen],
@@ -251,7 +247,6 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'item-demand': [ItemDemandScreen],
   'trade-returns': [TradeReturnsScreen],
   'unbilled-goods': [UnbilledGoodsScreen],
-  'stale-documents': [StaleDocumentsScreen],
   'banking': [BankingScreen],
   'capture': [CaptureScreen],
   'ai-queue': [ApprovalQueueScreen],
@@ -259,7 +254,7 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'tds': [TdsScreen],
   'tcs': [TcsScreen],
   'cost-centres': [CostCentresScreen],
-  'assistants': [AssistantsScreen],
+  'checks': [ChecksScreen],
   'ratios': [RatiosScreen],
   'cash-forecast': [CashForecastScreen],
   'year-end': [YearEndScreen],

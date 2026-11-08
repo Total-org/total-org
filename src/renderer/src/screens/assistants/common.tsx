@@ -1,4 +1,4 @@
-// Shared bits of the Assistants tabs: "Run with AI" (the assistant panel, with the tab's tool
+// Shared bits of the assistant tabs of Checks (A13c): "Run with AI" (the assistant panel, with the tab's tool
 // pre-run by main so the conversation starts from its result), status badges and row links.
 import type { AiPreCall } from '@shared/ai'
 import type { CheckEffective } from '@shared/closeChecklist'
@@ -12,7 +12,7 @@ import { ItemLink, LedgerLink, VoucherLink } from '../../components/links'
 /** Ask the assistant `question` in a new conversation, with `preCall` run first. */
 export function runWithAi(question: string, preCall: AiPreCall, tab: string, params: Record<string, string | number> = {}): void {
   const { from, to } = useSession.getState()
-  useAssistantPanel.getState().ask(question, { screen: 'assistants', label: 'Assistants', from, to, params: { tab, ...params } }, preCall)
+  useAssistantPanel.getState().ask(question, { screen: 'checks', label: 'Checks', from, to, params: { tab, ...params } }, preCall)
 }
 
 /** The "Run with AI" button — rendered only while the assistant is on for this company. */

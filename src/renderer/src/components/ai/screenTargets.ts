@@ -6,7 +6,7 @@ import type { Screen } from '../../state/stores'
 const PLAIN: readonly string[] = [
   'company-info', 'trial-balance', 'profit-loss', 'balance-sheet', 'outstandings', 'stock-summary', 'gstr3b', 'tds',
   'manufacture-register', 'pending-challans', 'pending-grns', 'pending-sales-orders', 'pending-purchase-orders', 'banking',
-  'cash-forecast', 'unbilled-goods', 'exceptions', 'gstr1', 'receivables', 'payables'
+  'cash-forecast', 'unbilled-goods', 'gstr1', 'receivables', 'payables'
 ]
 
 export function screenFor(s: Extract<AiSource, { kind: 'screen' }>): Screen | null {
@@ -33,10 +33,15 @@ export function screenFor(s: Extract<AiSource, { kind: 'screen' }>): Screen | nu
       const range = typeof p.from === 'string' && typeof p.to === 'string' ? { from: p.from, to: p.to } : {}
       return { name: 'registers', ...(tab ? { tab } : {}), ...range }
     }
+    // A13c: the assistants, the exception reports and stale documents are tabs of Checks. Chat
+    // answers saved before still name 'assistants' / 'exceptions' — they open the same tab.
+    case 'checks':
     case 'assistants': {
-      const tab = p.tab === 'gst2b' || p.tab === 'anomalies' ? p.tab : 'close'
-      return { name: 'assistants', tab, ...(typeof p.period === 'string' ? { period: p.period } : {}) }
+      const tab = p.tab === 'gst2b' || p.tab === 'anomalies' || (s.screen === 'checks' && (p.tab === 'exceptions' || p.tab === 'stale')) ? p.tab : 'close'
+      return { name: 'checks', tab, ...(typeof p.period === 'string' ? { period: p.period } : {}) }
     }
+    case 'exceptions':
+      return { name: 'checks', tab: 'exceptions' }
     case 'settings':
       // WP 5.6: the `remember` tool links to Settings → AI (the Memory table).
       return { name: 'settings', tab: 'ai' }

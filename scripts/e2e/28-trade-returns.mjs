@@ -286,8 +286,8 @@ await scenario('28-trade-returns', async (h) => {
   await page.waitForSelector('[data-testid="rows-order-lead-time"] tr.dt-row', { timeout: 10000 })
   await both('12-fulfilment-lead-time')
 
-  // Stale documents: the quotation (valid until today) is stale as on the period end; close it.
-  await h.goto('stale-documents')
+  // Stale documents (Analysis → Checks since A13c): the quotation (valid until today) is stale as on the period end; close it.
+  await h.gotoChecks('stale')
   await page.waitForSelector('[data-testid="rows-stale-documents"] tr.dt-row', { timeout: 10000 })
   await both('13-stale-documents')
   const stale = await h.invoke('trade:staleDocuments', { asOn: FAR, orderAgeDays: 30, noteAgeDays: 30 })

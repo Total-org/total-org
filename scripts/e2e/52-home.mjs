@@ -188,7 +188,7 @@ await scenario('52-home', async (h) => {
     }
     const first = await page.getAttribute('[data-testid^="simple-attention-"]', 'data-testid')
     await h.click(first)
-    await page.waitForSelector('[data-screen="assistants"][data-loading="false"], [data-screen="outstandings"][data-loading="false"]', { state: 'attached', timeout: 15000 })
+    await page.waitForSelector('[data-screen="checks"][data-loading="false"], [data-screen="outstandings"][data-loading="false"]', { state: 'attached', timeout: 15000 })
     await backHome(h)
   } else {
     assertEq(await page.$('[data-testid="simple-home-attention"]'), null, 'no "Needs attention" card when nothing needs it')

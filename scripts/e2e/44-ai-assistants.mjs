@@ -44,12 +44,12 @@ await scenario('44-ai-assistants', async (h) => {
     await setTheme('light')
   }
   const tab = async (id) => {
-    await h.click(`tab-assistants-${id}`)
-    await h.waitScreen('assistants')
+    await h.click(`tab-checks-${id}`)
+    await h.waitScreen('checks')
   }
 
   // ---------- the month the close tab opens on (the previous month) ----------
-  await h.goto('assistants')
+  await h.goto('checks')
   await h.page.waitForSelector('[data-testid="rows-assistants-close"] tr[data-row-id="lock"]', { timeout: 15000 })
   const month = await h.page.$eval('[data-testid="input-assistants-close-month"]', (el) => el.value)
   const day = (d) => `${month}-${String(d).padStart(2, '0')}`
@@ -87,7 +87,7 @@ await scenario('44-ai-assistants', async (h) => {
 
   // ---------- AI off: the close checklist ----------
   await h.gotoAllEntries()
-  await h.goto('assistants')
+  await h.goto('checks')
   const status = (key) => h.page.$eval(`[data-testid="close-status-${key}"]`, (el) => el.textContent)
   await h.page.waitForSelector('[data-testid="close-status-suspense"]', { timeout: 15000 })
   assertEq(await status('suspense'), 'Action', 'a suspense balance must be cleared')
@@ -139,7 +139,7 @@ await scenario('44-ai-assistants', async (h) => {
   assertEq(after.rows.filter((r) => r.category === 'missing_in_books').length, 0, 'nothing missing in the books any more')
 
   // ---------- anomalies ----------
-  await h.goto('assistants')
+  await h.goto('checks')
   await tab('anomalies')
   await h.page.waitForSelector('[data-testid="rows-assistants-anomalies"] tr[data-kind="duplicate_party_amount"]', { timeout: 15000 })
   await bothThemes('05-anomalies')
@@ -151,7 +151,7 @@ await scenario('44-ai-assistants', async (h) => {
   // ---------- AI on: Run with AI ----------
   await h.enableAi()
   await h.goto('settings')
-  await h.goto('assistants')
+  await h.goto('checks')
   await h.page.waitForSelector('[data-testid="btn-assistants-close-ai"]', { timeout: 15000 })
   await h.click('btn-assistants-close-ai')
   await h.page.waitForSelector('[data-testid="ai-tool-chip"][data-tool="close_checklist"][data-status="ok"]', { timeout: 20000 })

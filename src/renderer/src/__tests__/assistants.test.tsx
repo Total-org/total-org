@@ -1,4 +1,4 @@
-// WP 5.5: the Assistants screen — the close checklist (statuses, expandable rows, mark done with a
+// WP 5.5: the assistants (tabs of Analysis → Checks since A13c) — the close checklist (statuses, expandable rows, mark done with a
 // note, viewers read only), the GST 2B tab (categories, "Draft the purchase" opens the voucher
 // editor on the draft) and anomalies (dismiss with a note). "Run with AI" shows only while the
 // assistant is on.
@@ -10,7 +10,7 @@ import { buildCloseChecklist, type CloseFacts } from '@shared/closeChecklist'
 import { reconcile2b } from '@shared/gst/recon2b'
 import { categoriseMismatches, summariseMismatches } from '@shared/gst/mismatch2b'
 import { DEFAULT_ASSISTANT_SETTINGS, type AnomalyReport, type Gst2bMismatchReport } from '@shared/assistants'
-import { AssistantsScreen } from '../screens/assistants/Assistants'
+import { ChecksScreen } from '../screens/checks/Checks'
 import { DialogHost } from '../components/dialogs'
 import { useNav, useSession } from '../state/stores'
 import { useExplain } from '../lib/explain'
@@ -49,7 +49,7 @@ beforeEach(() => {
     slug: 'test', from: '2026-04-01', to: '2027-03-31', user: null,
     info: { name: 'Acme', stateCode: '27', gstin: null, gstRegistrationType: 'regular', address: '', booksFrom: 2025, email: null, phone: null, pan: null, tan: null }
   })
-  useNav.setState({ stack: [{ name: 'assistants' }] })
+  useNav.setState({ stack: [{ name: 'checks' }] })
   useExplain.setState({ ready: false, handler: null })
   invoke.mockImplementation(async (channel: string, payload: unknown) => {
     switch (channel) {
@@ -83,7 +83,7 @@ function wrap(ui: React.ReactElement): void {
 
 describe('Month-end close', () => {
   it('lists every check with its status and progress; a row opens onto what was found; marks done with a note', async () => {
-    wrap(<AssistantsScreen tab="close" />)
+    wrap(<ChecksScreen tab="close" />)
     const rows = await screen.findByTestId('rows-assistants-close')
     await waitFor(() => expect(within(rows).getByTestId('close-status-negative_stock').textContent).toBe('Action'))
     expect(within(rows).getByTestId('close-status-bank_reconciliation').textContent).toBe('Review')
@@ -99,18 +99,18 @@ describe('Month-end close', () => {
   it('viewers see the checklist without the mark buttons; "Run with AI" pre-calls close_checklist', async () => {
     useSession.setState({ user: { id: 1, name: 'Vik', role: 'viewer' } as never })
     useExplain.setState({ ready: true, handler: () => {} })
-    wrap(<AssistantsScreen tab="close" />)
+    wrap(<ChecksScreen tab="close" />)
     const rows = await screen.findByTestId('rows-assistants-close')
     await waitFor(() => expect(within(rows).getByTestId('close-status-negative_stock')).toBeTruthy())
     expect(within(rows).queryByTestId('btn-assistants-close-done-negative_stock')).toBeNull()
     fireEvent.click(screen.getByTestId('btn-assistants-close-ai'))
-    expect(useAssistantPanel.getState().pending).toMatchObject({ preCall: { tool: 'close_checklist', input: { period: MONTH } }, context: { screen: 'assistants', params: { tab: 'close', period: MONTH } } })
+    expect(useAssistantPanel.getState().pending).toMatchObject({ preCall: { tool: 'close_checklist', input: { period: MONTH } }, context: { screen: 'checks', params: { tab: 'close', period: MONTH } } })
   })
 })
 
 describe('GST 2B mismatches', () => {
   it('shows the categories and drafts the missing purchase into the voucher editor', async () => {
-    wrap(<AssistantsScreen tab="gst2b" />)
+    wrap(<ChecksScreen tab="gst2b" />)
     const rows = await screen.findByTestId('rows-assistants-2b')
     await waitFor(() => expect(rows.textContent).toContain('A-2'))
     expect(screen.getByTestId('btn-assistants-2b-cat-missing_in_books').textContent).toContain('1')
@@ -122,7 +122,7 @@ describe('GST 2B mismatches', () => {
 
 describe('Anomalies', () => {
   it('lists findings with the reason and dismisses one with a note', async () => {
-    wrap(<AssistantsScreen tab="anomalies" />)
+    wrap(<ChecksScreen tab="anomalies" />)
     const rows = await screen.findByTestId('rows-assistants-anomalies')
     await waitFor(() => expect(rows.textContent).toContain('Payment 6'))
     expect(rows.textContent).toContain('1 days apart')
@@ -134,8 +134,12 @@ describe('Anomalies', () => {
 })
 
 describe('assistant links', () => {
-  it('assistant links open their tab', async () => {
+  it('assistant links open their tab of Checks — new sources and ones saved before A13c', async () => {
     const { screenFor } = await import('../components/ai/screenTargets')
-    expect(screenFor({ kind: 'screen', screen: 'assistants', label: 'x', params: { tab: 'gst2b', period: '2026-05' } })).toEqual({ name: 'assistants', tab: 'gst2b', period: '2026-05' })
+    expect(screenFor({ kind: 'screen', screen: 'checks', label: 'x', params: { tab: 'gst2b', period: '2026-05' } })).toEqual({ name: 'checks', tab: 'gst2b', period: '2026-05' })
+    expect(screenFor({ kind: 'screen', screen: 'assistants', label: 'x', params: { tab: 'gst2b', period: '2026-05' } })).toEqual({ name: 'checks', tab: 'gst2b', period: '2026-05' })
+    expect(screenFor({ kind: 'screen', screen: 'assistants', label: 'x', params: {} })).toEqual({ name: 'checks', tab: 'close' })
+    expect(screenFor({ kind: 'screen', screen: 'exceptions', label: 'x' })).toEqual({ name: 'checks', tab: 'exceptions' })
+    expect(screenFor({ kind: 'screen', screen: 'checks', label: 'x', params: { tab: 'stale' } })).toEqual({ name: 'checks', tab: 'stale' })
   })
 })

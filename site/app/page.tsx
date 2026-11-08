@@ -295,6 +295,7 @@ export default async function Home(): Promise<React.JSX.Element> {
           <Link href="/compare">Compare</Link>
           <Link href="/changelog">Changelog</Link>
           <a href={GITHUB}>GitHub</a>
+          <Link href="/privacy">Privacy</Link>
           <a href="mailto:total@irminflow.com">total@irminflow.com</a>
         </span>
       </footer>

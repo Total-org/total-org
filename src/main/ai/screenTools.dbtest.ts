@@ -153,6 +153,15 @@ describe('current_screen_data follows the screen context', () => {
     expect(none.ok && (none.data as Data).note).toMatch(/did not say which screen/)
     const unknown = await registry.run('current_screen_data', '{}', ctxFor(b, { screen: { screen: 'settings' } }))
     expect(unknown.ok && (unknown.data as Data).note).toMatch(/no data tool/)
+    // A13c: the assistant tabs of Checks return their assistant (as the old Assistants screen
+    // context still does); the Exceptions / Stale documents tabs have no data tool.
+    for (const screen of ['checks', 'assistants']) {
+      const close = await registry.run('current_screen_data', '{}', ctxFor(b, { screen: { screen, params: { tab: 'close', period: '2025-09' } } }))
+      expect(close.ok && (close.data as Data).note, screen).toBeUndefined()
+      expect(close.ok && (close.data as Data).screen).toBe(screen)
+    }
+    const exc = await registry.run('current_screen_data', '{}', ctxFor(b, { screen: { screen: 'checks', params: { tab: 'exceptions' } } }))
+    expect(exc.ok && (exc.data as Data).note).toMatch(/no data tool/)
   })
 })
 

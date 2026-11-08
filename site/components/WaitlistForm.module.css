@@ -53,6 +53,10 @@
   font-size: 13.5px;
   color: var(--muted);
 }
+.note a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
 .error {
   font-size: 14px;
   font-weight: 500;
