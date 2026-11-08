@@ -30,8 +30,6 @@ export interface Preset {
   units: readonly string[]
   /** The sale account a bill uses by default. */
   salesAccount: CategoryKey
-  /** The Home task button that leads (WP 8.6). */
-  homeTask: 'quickBill' | 'makeBill'
 }
 
 /** Every preset seeds these (plan §4.1): sales, purchases, the everyday costs, the owner,
@@ -49,27 +47,27 @@ export const GST_ACCOUNTS: readonly CategoryKey[] = [
 export const PRESETS: Record<BusinessType, Preset> = {
   retail: {
     id: 'retail', stockDefault: true, manufacturing: false,
-    extraAccounts: ['shop_expenses', 'packing'], units: ['Pcs', 'Kg'], salesAccount: 'sales', homeTask: 'quickBill'
+    extraAccounts: ['shop_expenses', 'packing'], units: ['Pcs', 'Kg'], salesAccount: 'sales'
   },
   trader: {
     id: 'trader', stockDefault: true, manufacturing: false,
-    extraAccounts: ['freight_inward', 'commission_paid'], units: ['Pcs', 'Kg'], salesAccount: 'sales', homeTask: 'makeBill'
+    extraAccounts: ['freight_inward', 'commission_paid'], units: ['Pcs', 'Kg'], salesAccount: 'sales'
   },
   services: {
     id: 'services', stockDefault: false, manufacturing: false,
-    extraAccounts: ['service_income', 'software', 'travel', 'professional_fees'], units: ['Nos'], salesAccount: 'service_income', homeTask: 'makeBill'
+    extraAccounts: ['service_income', 'software', 'travel', 'professional_fees'], units: ['Nos'], salesAccount: 'service_income'
   },
   manufacturer: {
     id: 'manufacturer', stockDefault: true, manufacturing: true,
-    extraAccounts: ['labour', 'wages_payable', 'factory_power', 'raw_material'], units: ['Pcs', 'Kg'], salesAccount: 'sales', homeTask: 'makeBill'
+    extraAccounts: ['labour', 'wages_payable', 'factory_power', 'raw_material'], units: ['Pcs', 'Kg'], salesAccount: 'sales'
   },
   restaurant: {
     id: 'restaurant', stockDefault: false, manufacturing: false,
-    extraAccounts: ['kitchen_supplies', 'gas', 'delivery_commission'], units: ['Plate', 'Nos'], salesAccount: 'sales', homeTask: 'quickBill'
+    extraAccounts: ['kitchen_supplies', 'gas', 'delivery_commission'], units: ['Plate', 'Nos'], salesAccount: 'sales'
   },
   other: {
     id: 'other', stockDefault: false, manufacturing: false,
-    extraAccounts: [], units: ['Nos'], salesAccount: 'sales', homeTask: 'makeBill'
+    extraAccounts: [], units: ['Nos'], salesAccount: 'sales'
   }
 }
 
