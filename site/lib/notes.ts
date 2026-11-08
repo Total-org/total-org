@@ -43,29 +43,44 @@ export function safeHref(raw: string): string | null {
 }
 
 /** Punctuation that ends a sentence rather than the URL ("see https://x.y/a." → no dot). */
-const TRAILING = /[.,;:!?*_]+$/
+const TRAILING = '.,;:!?*_'
 const URL_START = /https?:\/\//y
 /** Characters that never belong to a bare URL (quotes and brackets end it; parentheses are balanced below). */
 const URL_STOP = /[\s<>"'`[\]{}]/
 
-/** The bare URL starting at `i` (already known to start with http(s)://): up to a stop character or an unbalanced ")". */
-function bareUrlAt(src: string, i: number): string {
+/** A longer "URL" stays text: no real link is this long, and it bounds the work per address. */
+export const MAX_URL_LENGTH = 2000
+
+/**
+ * The bare URL starting at `i` (already known to start with http(s)://): up to a stop character or an
+ * unbalanced ")"; a "(" never closed is cut off with what follows it. ONE pass, at most MAX_URL_LENGTH
+ * characters: `{ url: null, length }` when it runs past that (the caller keeps those characters as
+ * text and moves past them, so hostile notes cost linear time — review of #242).
+ */
+function bareUrlAt(src: string, i: number): { url: string | null; length: number } {
+  const limit = Math.min(src.length, i + MAX_URL_LENGTH + 1)
   let j = i
   let depth = 0
-  while (j < src.length && !URL_STOP.test(src[j])) {
-    if (src[j] === '(') depth += 1
-    else if (src[j] === ')') {
+  // Where the outermost still-open "(" began (depth 0 → 1); -1 while every "(" is closed.
+  let openAt = -1
+  while (j < limit && !URL_STOP.test(src[j])) {
+    if (src[j] === '(') {
+      if (depth === 0) openAt = j
+      depth += 1
+    } else if (src[j] === ')') {
       if (depth === 0) break
       depth -= 1
+      if (depth === 0) openAt = -1
     }
     j += 1
   }
-  let url = src.slice(i, j).replace(TRAILING, '')
-  // A "(" left open after trimming (e.g. "x_(" ) is not part of the address.
-  while ((url.match(/\(/g)?.length ?? 0) > (url.match(/\)/g)?.length ?? 0)) url = url.slice(0, url.lastIndexOf('('))
-  return url.replace(TRAILING, '')
+  if (j - i > MAX_URL_LENGTH) return { url: null, length: j - i }
+  // TRAILING holds no parentheses, so trimming never changes which "(" is open. A plain loop, not a
+  // regex: `[…]+$` backtracks quadratically over long runs of punctuation.
+  let end = openAt >= 0 ? openAt : j
+  while (end > i && TRAILING.includes(src[end - 1])) end -= 1
+  return { url: src.slice(i, end), length: end - i }
 }
-
 
 function pushText(out: Inline[], v: string): void {
   if (!v) return
@@ -123,7 +138,12 @@ export function parseInline(src: string, links = true): Inline[] {
     } else if (ch === 'h' && links) {
       URL_START.lastIndex = i
       if (URL_START.test(src) && (i === 0 || !/[A-Za-z0-9]/.test(src[i - 1]))) {
-        const raw = bareUrlAt(src, i)
+        const { url: raw, length } = bareUrlAt(src, i)
+        if (raw === null) {
+          pushText(out, src.slice(i, i + length))
+          i += length
+          continue
+        }
         const href = safeHref(raw)
         if (href) {
           out.push({ t: 'link', href, c: [{ t: 'text', v: raw }] })

@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { parseInline, parseNotes, renderNotes, safeHref } from './notes.ts'
+import { MAX_URL_LENGTH, parseInline, parseNotes, renderNotes, safeHref } from './notes.ts'
 
 const html = (src: string): string => renderToStaticMarkup(renderNotes(src))
 
@@ -127,4 +127,35 @@ test('bare URLs keep balanced parentheses; a closing one that belongs to the sen
   assert.equal(html('See https://en.wikipedia.org/wiki/X_(y).'), `<p>See ${link('https://en.wikipedia.org/wiki/X_(y)')}.</p>`)
   assert.equal(html('(see https://irminflow.com/docs)'), `<p>(see ${link('https://irminflow.com/docs')})</p>`)
   assert.equal(html('https://a.example/x_( and more'), `<p>${link('https://a.example/x')}_( and more</p>`)
+})
+
+test('hostile notes render in linear time (125 000 characters, the GitHub body limit; review of #242)', () => {
+  const n = 125_000
+  const fill = (unit: string): string => unit.repeat(Math.ceil(n / unit.length)).slice(0, n)
+  const bodies = {
+    'url + ( run': 'https://a/' + '('.repeat(n),
+    'repeated url(': fill('https://a/('),
+    'url + () then (': 'https://a/' + '()'.repeat(n / 4) + '('.repeat(n / 2),
+    'punctuation runs': fill('https://a/' + '.'.repeat(1990) + 'x '),
+    'url + ( + .': fill('https://a/(.'),
+    brackets: '['.repeat(n),
+    'link starts': fill('[a]('),
+    stars: '**'.repeat(n / 2),
+    ticks: '`'.repeat(n),
+    underscores: fill(' _a'),
+    'list lines': fill('- https://a/(x) **b** `c`\n')
+  }
+  for (const [name, body] of Object.entries(bodies)) {
+    const t0 = performance.now()
+    renderToStaticMarkup(renderNotes(body))
+    const ms = performance.now() - t0
+    assert.ok(ms < 1500, `${name}: ${Math.round(ms)} ms`)
+  }
+})
+
+test('a "URL" longer than MAX_URL_LENGTH stays text', () => {
+  const long = 'https://a.example/' + 'x'.repeat(MAX_URL_LENGTH)
+  assert.equal(html(long), `<p>${long}</p>`)
+  const ok = 'https://a.example/' + 'x'.repeat(MAX_URL_LENGTH - 18)
+  assert.equal(hrefs(html(ok)).length, 1)
 })
