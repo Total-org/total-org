@@ -4,7 +4,8 @@
 // to decide whether a saved trading voucher can be shown as an invoice at all.
 
 import type { LineSource, Voucher, VoucherBillRef, VoucherKind } from '../domain'
-import { computeGst, supplyTypeFor, addBreakups, type GstBreakup, type SupplyType } from '../gst/calc'
+import { computeGst, addBreakups, type GstBreakup, type SupplyType } from '../gst/calc'
+import { billTaxClass, zeroRatedClass, zeroRatedKind, type PartyExportType, type ZeroRatedClass } from '../gst/zeroRated'
 import { roundToRupee } from '../money'
 import { chargesGstOn, type GstRegistrationFacts } from '../gst/registration'
 import type { TdsDeductionState } from './tds'
@@ -74,6 +75,12 @@ export interface InvoiceFormState {
    *  rounding per group, so the voucher saves back unchanged. Any change to a line, the date, the
    *  party, the account, the place of supply or the currency recomputes the whole bill per line. */
   legacyGroupTax?: string
+  /** Phase 2 (shared/gst/zeroRated.ts): a bill to a party flagged SEZ / export is taxed as a
+   *  zero-rated supply — IGST (s.7(5)(b) IGST Act), none at all without payment (s.16(3)). A bill
+   *  saved before that rule that does not round-trip under it gets this = the `taxInputsKey` of the
+   *  state as loaded (invoiceRepresentation), and while those inputs are unchanged the editor
+   *  computes it as before (the party's flag ignored), so it saves back exactly as saved. */
+  legacyZeroRated?: string
   /** PR #190: a simple return's tax and round off from the RUNNING total (intents.ts
    *  runningReturnTax — everything returned of the bill so far less what the earlier returns
    *  posted), so bill + returns net to zero to the paisa. Read back by invoiceRepresentation from a
@@ -165,7 +172,11 @@ export interface InvoiceContext extends GstRegistrationFacts {
   kind: VoucherKind
   companyStateCode: string
   items: ReadonlyMap<number, { gstRate: number | null; cessRate: number | null }>
-  ledgers: ReadonlyMap<number, { stateCode: string | null; gstRate: number | null; tdsPayableSectionId?: number | null; tcsPayableSectionId?: number | null }>
+  ledgers: ReadonlyMap<number, {
+    stateCode: string | null; gstRate: number | null; tdsPayableSectionId?: number | null; tcsPayableSectionId?: number | null
+    /** The party's SEZ / export flag (ledgers.export_type). Absent = treated as none (as before). */
+    exportType?: PartyExportType | null
+  }>
 }
 
 export interface InvoiceLineDetail {
@@ -185,6 +196,10 @@ export interface InvoiceLineDetail {
 
 export interface InvoiceComputed {
   supply: SupplyType
+  /** Phase 2: the zero-rated class applied (the party's SEZ / export flag), null = an ordinary supply. */
+  zeroRated: ZeroRatedClass | null
+  /** A zero-rated supply WITHOUT payment (bond / LUT): every line keeps its rate, no tax is charged. */
+  zeroTax: boolean
   /** WP 8.0: false = the company doesn't charge GST, every line is computed at 0% (no tax lines). */
   chargesGst: boolean
   fxActive: boolean
@@ -209,8 +224,14 @@ export function computeInvoice(state: InvoiceFormState, ctx: InvoiceContext): In
   const charges = invoiceChargesGst(state, ctx)
   const party = state.partyId != null ? ctx.ledgers.get(state.partyId) : undefined
   const account = state.accountId != null ? ctx.ledgers.get(state.accountId) : undefined
-  // Same precedence the GSTR builders use: explicit override → party state → company state.
-  const supply = supplyTypeFor(ctx.companyStateCode, state.posOverride ?? party?.stateCode ?? ctx.companyStateCode)
+  // Same precedence the GSTR builders use: explicit override → party state → company state; a
+  // zero-rated supply (the party flagged SEZ / export) is inter-state and, without payment,
+  // untaxed — shared/gst/zeroRated.ts, as gst.ts outwardSupplyClass reports it. A saved bill from
+  // before that rule keeps its own computation while unchanged (legacyZeroRated).
+  const legacyZr = state.legacyZeroRated != null && state.legacyZeroRated === taxInputsKey(state)
+  const { supply, zeroTax, zeroRated } = billTaxClass(
+    ctx.companyStateCode, ctx.kind, legacyZr ? (party ? { stateCode: party.stateCode } : undefined) : party, state.posOverride
+  )
   const fxRate = state.currencyCode && state.fxRateText.trim() ? Number(state.fxRateText) : null
   const fxActive = !!state.currencyCode && !!fxRate && Number.isFinite(fxRate) && fxRate > 0
 
@@ -243,19 +264,20 @@ export function computeInvoice(state: InvoiceFormState, ctx: InvoiceContext): In
   // Tax per line, as GSTR-1 / 3B (gst.ts extractOutwardDocs) and the e-invoice (NIC validates each
   // item's tax) compute it — except a saved group-rounded invoice left unedited (legacyGroupTax).
   const computed = state.legacyGroupTax != null && state.legacyGroupTax === taxInputsKey(state)
-    ? groupRoundedTax(detail, supply)
-    : addBreakups(detail.map((d) => computeGst(d.amount, d.rate, supply, d.cessRate)))
+    ? groupRoundedTax(detail, supply, zeroTax)
+    : addBreakups(detail.map((d) => (zeroTax ? computeGst(d.amount, 0, supply, 0) : computeGst(d.amount, d.rate, supply, d.cessRate))))
   // PR #190: a simple return's running-total tax / round off, while its inputs are unchanged.
   const fixed = state.fixedTax != null && state.fixedTax.key === fixedTaxKey(state) ? state.fixedTax : null
   const gst = fixed
     ? { taxable: computed.taxable, cgst: fixed.cgst, sgst: fixed.sgst, igst: fixed.igst, cess: fixed.cess, total: computed.taxable + fixed.cgst + fixed.sgst + fixed.igst + fixed.cess }
     : computed
   const rounded = fixed ? gst.total + fixed.roundDiff : roundToRupee(gst.total)
-  return { supply, chargesGst: charges, fxActive, fxRate: fxActive ? fxRate : null, detail, gst, rounded, roundDiff: rounded - gst.total }
+  return { supply, zeroRated, zeroTax, chargesGst: charges, fxActive, fxRate: fxActive ? fxRate : null, detail, gst, rounded, roundDiff: rounded - gst.total }
 }
 
 /** The tax as the editor computed it before per-line rounding: one computeGst per (rate, cess). */
-function groupRoundedTax(detail: InvoiceLineDetail[], supply: SupplyType): GstBreakup {
+function groupRoundedTax(detail: InvoiceLineDetail[], supply: SupplyType, zeroTax: boolean): GstBreakup {
+  if (zeroTax) return addBreakups(detail.map((d) => computeGst(d.amount, 0, supply, 0)))
   const buckets = new Map<string, { rate: number; cessRate: number; taxable: number }>()
   for (const d of detail) {
     const key = `${d.rate}|${d.cessRate}`
@@ -266,14 +288,19 @@ function groupRoundedTax(detail: InvoiceLineDetail[], supply: SupplyType): GstBr
   return addBreakups([...buckets.values()].map((b) => computeGst(b.taxable, b.rate, supply, b.cessRate)))
 }
 
-/** Everything the tax of an invoice depends on (legacyGroupTax compares it with the loaded form). */
+/** Everything the tax of an invoice depends on (legacyGroupTax / legacyZeroRated compare it with the
+ *  loaded form). Only the rows the computation uses — the editor's trailing blank row is no change
+ *  (review of #244; a saved bill loads without one, so its key is the same as before). */
 export function taxInputsKey(state: InvoiceFormState): string {
   return JSON.stringify([
     state.date, state.partyId, state.accountId, state.posOverride, state.currencyCode, state.fxRateText,
     !!state.legacyTax, !!state.taxedOriginal,
-    state.rows.map((r) => [r.itemId, r.qtyText, r.rate, r.discount])
+    state.rows.filter(computedRow).map((r) => [r.itemId, r.qtyText, r.rate, r.discount])
   ])
 }
+
+/** A row computeInvoice prices (item, rate and a positive quantity); any other row is skipped. */
+const computedRow = (r: InvoiceRowState): boolean => r.itemId != null && r.rate != null && (parseQtyText(r.qtyText) ?? 0) > 0
 
 /** What a `fixedTax` was set on (the tax inputs of the form): it applies only while they are unchanged. */
 export function fixedTaxKey(state: InvoiceFormState): string {
@@ -282,7 +309,7 @@ export function fixedTaxKey(state: InvoiceFormState): string {
     !!state.legacyTax, !!state.taxedOriginal,
     // Only the rows the computation uses (an editor's trailing blank row is not a change).
     state.rows
-      .filter((r) => r.itemId != null && r.rate != null && (parseQtyText(r.qtyText) ?? 0) > 0)
+      .filter(computedRow)
       .map((r) => [r.itemId, r.qtyText, r.rate, r.discount, r.source?.lineUid ?? null, r.source?.linkType ?? null])
   ])
 }
@@ -587,6 +614,19 @@ export function invoiceRepresentation(
   if (!loaded.ok) return loaded
   // WP 8.0: tax saved before the registration rule stays exactly as saved (legacyTax).
   const state = !chargesGstOn(ctx, v.date) && voucherCarriesGst(v, taxLedgers) ? { ...loaded.state, legacyTax: true } : loaded.state
+  const rep = representAs(v, state, ctx, taxLedgers)
+  if (rep.ok) return rep
+  // Phase 2: saved before a bill to an SEZ / export party was taxed as a zero-rated supply — it
+  // round-trips with the computation it was saved with (the party's flag ignored) while unchanged.
+  if (!zeroRatedKind(ctx.kind) || !zeroRatedClass(ctx.ledgers.get(loaded.state.partyId!)?.exportType)) return rep
+  const blind = representAs(v, { ...state, legacyZeroRated: taxInputsKey(state) }, ctx, taxLedgers)
+  return blind.ok ? blind : rep
+}
+
+/** The round-trip attempts for one starting state: as computed today, else per-group rounding
+ *  (legacyGroupTax), else a simple return's running-total tax (fixedTax). The first that rebuilds
+ *  the saved voucher exactly wins; none = the first attempt's reason. */
+function representAs(v: Voucher, state: InvoiceFormState, ctx: InvoiceContext, taxLedgers: TaxLedgerIds): Representation<InvoiceFormState> {
   const rep = confirmRoundTrip(v, state, buildInvoicePayload(state, ctx, v.voucherTypeId, taxLedgers))
   if (rep.ok) return rep
   // Saved before tax was rounded per line: it round-trips with its own (per-group) rounding.

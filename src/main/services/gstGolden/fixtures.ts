@@ -277,8 +277,7 @@ export const FIXTURES: GoldenFixture[] = [
     // Maharashtra → IGST 18% = 1,800, never CGST / SGST. Total 11,800. GSTR-1 6B: b2b inv_typ SEWP,
     // POS 27. 3B 3.1(b) 10,000 / 1,800. e-invoice SupTyp SEZWP.
     doc: { kind: 'sales', date: '2025-08-01', number: 'G401', party: 'sezMH', rows: [{ item: 'widget', qty: '10', rate: 1000 }] },
-    expect: { lines: [{ taxable: 10000, rate: 18, igst: 1800 }], roundOff: 0, total: 11800, gstr1: 'b2b', einvoice: true },
-    knownBug: { in: ['invoice'], reason: 'The invoice editor charges CGST + SGST to an SEZ unit in our own state (returns and e-invoice report IGST) — supplies to an SEZ are inter-state (s.7(5)(b) IGST Act)', appGives: { invoice: { lines: [{ taxable: 10000, rate: 18, cgst: 900, sgst: 900 }] } } }
+    expect: { lines: [{ taxable: 10000, rate: 18, igst: 1800 }], roundOff: 0, total: 11800, gstr1: 'b2b', einvoice: true }
   },
   {
     id: 'SEZ-02', title: 'SEZ with payment, unit in another state',
@@ -291,8 +290,7 @@ export const FIXTURES: GoldenFixture[] = [
     // 10 × 1,000 = 10,000 under LUT: no IGST. Total 10,000. b2b SEWOP rt 18 iamt 0; 3B 3.1(b) 10,000 / 0;
     // e-invoice SEZWOP, GstRt 18, IgstAmt 0.
     doc: { kind: 'sales', date: '2025-08-05', number: 'G403', party: 'sezDL', rows: [{ item: 'widget', qty: '10', rate: 1000 }] },
-    expect: { lines: [{ taxable: 10000, rate: 18 }], roundOff: 0, total: 10000, gstr1: 'b2b', einvoice: true },
-    knownBug: { in: ['invoice', 'gstr1', 'einvoice'], reason: 'The invoice editor charges IGST on a supply under LUT (without payment): the bill total includes 18% the returns / e-invoice do not report', appGives: { invoice: { lines: [{ taxable: 10000, rate: 18, igst: 1800 }], total: 11800 }, gstr1: { 'b2b.0.inv.0.val': 11800 }, einvoice: { 'ValDtls.RndOffAmt': 1800, 'ValDtls.TotInvVal': 11800 }, schema: { einvoice: ['ValDtls.RndOffAmt: Number must be less than or equal to 99.99', '/ValDtls/RndOffAmt must be <= 99.99 {"comparison":"<=","limit":99.99}'] } } }
+    expect: { lines: [{ taxable: 10000, rate: 18 }], roundOff: 0, total: 10000, gstr1: 'b2b', einvoice: true }
   },
   {
     id: 'EXP-01', title: 'Export with payment of IGST',
@@ -305,8 +303,7 @@ export const FIXTURES: GoldenFixture[] = [
     id: 'EXP-02', title: 'Export without payment (LUT)',
     // 20 × 750 = 15,000, no IGST under LUT; total 15,000. 6A WOPAY rt 18 iamt 0; 3B 3.1(b) 15,000 / 0.
     doc: { kind: 'sales', date: '2025-08-07', number: 'G405', party: 'expWOP', rows: [{ item: 'widget', qty: '20', rate: 750 }] },
-    expect: { lines: [{ taxable: 15000, rate: 18 }], roundOff: 0, total: 15000, gstr1: 'exp', einvoice: true },
-    knownBug: { in: ['invoice', 'gstr1', 'einvoice'], reason: 'The invoice editor charges IGST on a supply under LUT (without payment): the bill total includes 18% the returns / e-invoice do not report', appGives: { invoice: { lines: [{ taxable: 15000, rate: 18, igst: 2700 }], total: 17700 }, gstr1: { 'exp.0.inv.0.val': 17700 }, einvoice: { 'ValDtls.RndOffAmt': 2700, 'ValDtls.TotInvVal': 17700 }, schema: { einvoice: ['ValDtls.RndOffAmt: Number must be less than or equal to 99.99', '/ValDtls/RndOffAmt must be <= 99.99 {"comparison":"<=","limit":99.99}'] } } }
+    expect: { lines: [{ taxable: 15000, rate: 18 }], roundOff: 0, total: 15000, gstr1: 'exp', einvoice: true }
   },
   {
     id: 'EXP-03', title: 'Export with payment, cess paid too',

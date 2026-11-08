@@ -79,7 +79,7 @@ function invoiceContext(b: Books, kind: VoucherKind): InvoiceContext {
   return {
     kind, companyStateCode: b.info.stateCode, ...gstRegistrationOf(b.info),
     items: new Map(listStockItems(b.db).map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-    ledgers: new Map(listLedgers(b.db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate }]))
+    ledgers: new Map(listLedgers(b.db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }]))
   }
 }
 

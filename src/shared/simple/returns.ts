@@ -10,7 +10,8 @@
 
 import type { MessageKey, Translate } from '../i18n'
 import { roundToRupee } from '../money'
-import { addBreakups, computeGst, supplyTypeFor } from '../gst/calc'
+import { addBreakups, computeGst } from '../gst/calc'
+import { billTaxClass } from '../gst/zeroRated'
 import { chargesGstOn } from '../gst/registration'
 import { computeInvoice, emptyInvoiceState, type InvoiceContext, type InvoiceFormState } from '../voucherEdit'
 import { runningAmountRest, runningReturnTax, intentSentences, readQty, returnRow, returnTaxedOriginal, type BillRest, type IntentFacts, type IntentOriginalLine, type MoneyHow, type SimpleIntentInput } from './intents'
@@ -158,8 +159,11 @@ export function returnTotals(form: ReturnForm, bill: ReturnBill, ctx: ReturnCont
   if (bill.mode === 'amount') {
     if (form.amount == null || form.amount <= 0) return { taxable: 0, tax: 0, total: 0, rounding: 0, lineAmounts, charges }
     // The rate the intent will carry when 9.1 asks, else the bill's own (mapReturn's choice).
-    const rate = !charges ? 0 : returnAsks(form, bill, ctx).rate ? (form.gstRate ?? 0) : bill.carriesGst && bill.rates?.length === 1 ? bill.rates[0]! : 0
-    const supply = supplyTypeFor(ctx.invoice.companyStateCode, bill.partyStateCode ?? ctx.invoice.companyStateCode)
+    // Phase 2: mapReturn's tax class — a credit note to an SEZ / export customer is inter-state, and
+    // without payment carries no GST (shared/gst/zeroRated.ts).
+    const cls = billTaxClass(ctx.invoice.companyStateCode, noteKind(bill.side), { stateCode: bill.partyStateCode, exportType: ctx.invoice.ledgers.get(bill.partyId)?.exportType ?? null }, null)
+    const rate = !charges || cls.zeroTax ? 0 : returnAsks(form, bill, ctx).rate ? (form.gstRate ?? 0) : bill.carriesGst && bill.rates?.length === 1 ? bill.rates[0]! : 0
+    const supply = cls.supply
     // The running total's tax and round off; the return of all that is left takes what the bill
     // still holds (mapReturn's rule).
     const fixed = runningAmountRest(form.amount, rate, supply, bill, charges)

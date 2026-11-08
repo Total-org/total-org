@@ -215,11 +215,99 @@ describe('invoice mode state ⇄ payload', () => {
     // Narration / bill changes keep the saved rounding ...
     const renamed = built(buildInvoicePayload({ ...rep.state, narration: 'Changed' }, ctxFor('sales'), 1, TAX))
     expect(renamed.lines.find((l) => l.ledgerId === TAX.cgst)!.amount).toBe(2714)
+    // ... and so does the editor's trailing blank row (review of #244: InvoiceEntry adds one on load).
+    const blankRow = { itemId: null, qtyText: '', rate: null, discount: null, godownId: null, batchId: null }
+    expect(diffPayloads(built(buildInvoicePayload({ ...rep.state, rows: [...rep.state.rows, blankRow] }, ctxFor('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
     // ... a changed line recomputes the whole bill per line.
     const edited = { ...rep.state, rows: rep.state.rows.map((r, i) => (i === 2 ? { ...r, qtyText: '2' } : r)) }
     const c = computeInvoice(edited, ctxFor('sales'))
     expect([c.gst.taxable, c.gst.cgst]).toEqual([40200, 905 * 2 + 1809])
   })
+  // Phase 2 (shared/gst/zeroRated.ts): a bill to a party flagged SEZ / export is a zero-rated
+  // supply. Hand-worked on invoiceState()'s rows: widget 2.5 × 400.00 − 50.00 = 950.00 @ 18 %;
+  // gadget 1 × 99.99 @ 5 % + 1 % cess. Taxable 1,049.99.
+  describe('SEZ / export customers (IGST Act s.7(5)(b), s.16(3))', () => {
+    const SEZ_WP = 12 // SEZ unit in our own state (27), with payment
+    const SEZ_WOP = 13 // SEZ unit, 27, under LUT
+    const EXP_WP = 14 // foreign buyer (96), with payment
+    const EXP_WOP = 15 // foreign buyer, under LUT
+    const flagged = (kind: VoucherKind, exportTypes = true): InvoiceContext => ({
+      ...baseCtx,
+      kind,
+      ledgers: new Map([
+        ...baseCtx.ledgers,
+        [SEZ_WP, { stateCode: '27', gstRate: null, ...(exportTypes ? { exportType: 'sez_wp' as const } : {}) }],
+        [SEZ_WOP, { stateCode: '27', gstRate: null, ...(exportTypes ? { exportType: 'sez_wop' as const } : {}) }],
+        [EXP_WP, { stateCode: '96', gstRate: null, ...(exportTypes ? { exportType: 'exp_wp' as const } : {}) }],
+        [EXP_WOP, { stateCode: '96', gstRate: null, ...(exportTypes ? { exportType: 'exp_wop' as const } : {}) }]
+      ])
+    })
+    const heads = (c: ReturnType<typeof computeInvoice>) => [c.gst.taxable, c.gst.cgst, c.gst.sgst, c.gst.igst, c.gst.cess, c.rounded, c.roundDiff]
+
+    it('an SEZ unit in our own state is charged IGST, never CGST + SGST — even with a place-of-supply override of our state', () => {
+      // IGST 950.00 × 18 % = 171.00; 99.99 × 5 % = 4.9995 → 5.00; cess 0.9999 → 1.00.
+      // 1,049.99 + 176.00 + 1.00 = 1,226.99 → 1,227.00 (round off +0.01).
+      for (const posOverride of [null, '27']) {
+        const c = computeInvoice(invoiceState({ partyId: SEZ_WP, posOverride }), flagged('sales'))
+        expect(heads(c)).toEqual([104999, 0, 0, 17600, 100, 122700, 1])
+        expect([c.supply, c.zeroTax, c.zeroRated]).toEqual(['inter', false, { sez: true, withPayment: true }])
+      }
+    })
+    it('an export with payment is charged IGST (and cess)', () => {
+      expect(heads(computeInvoice(invoiceState({ partyId: EXP_WP }), flagged('sales')))).toEqual([104999, 0, 0, 17600, 100, 122700, 1])
+    })
+    it('without payment (LUT / bond) no tax at all: the lines keep their rates, the bill is the value', () => {
+      for (const party of [SEZ_WOP, EXP_WOP]) {
+        const c = computeInvoice(invoiceState({ partyId: party }), flagged('sales'))
+        // 1,049.99 → 1,050.00 (round off +0.01); rates 18 % and 5 % (+1 % cess) stay on the lines.
+        expect(heads(c)).toEqual([104999, 0, 0, 0, 0, 105000, 1])
+        expect(c.detail.map((d) => [d.rate, d.cessRate])).toEqual([[18, 0], [5, 1]])
+        expect(c.zeroTax).toBe(true)
+        const p = built(buildInvoicePayload(invoiceState({ partyId: party }), flagged('sales'), 1, TAX))
+        expect(p.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[party, 'dr', 105000], [SALES, 'cr', 104999], [TAX.roundOff, 'cr', 1]])
+      }
+    })
+    it('a credit note to such a customer follows the same class; a purchase-side document ignores the flag', () => {
+      expect(heads(computeInvoice(invoiceState({ partyId: SEZ_WOP }), flagged('credit_note')))).toEqual([104999, 0, 0, 0, 0, 105000, 1])
+      expect(heads(computeInvoice(invoiceState({ partyId: SEZ_WP }), flagged('credit_note')))).toEqual([104999, 0, 0, 17600, 100, 122700, 1])
+      for (const kind of ['purchase', 'debit_note'] as const) {
+        expect(heads(computeInvoice(invoiceState({ partyId: SEZ_WOP }), flagged(kind)))).toEqual(heads(computeInvoice(invoiceState({ partyId: SEZ_WOP }), flagged(kind, false))))
+      }
+      // Without the flag (or a context that doesn't carry it): the place of supply decides, as before.
+      expect(heads(computeInvoice(invoiceState({ partyId: SEZ_WP }), flagged('sales', false)))).toEqual(heads(computeInvoice(invoiceState(), ctxFor('sales'))))
+    })
+    it('a new bill under the rule round-trips without any legacy mark', () => {
+      for (const party of [SEZ_WP, SEZ_WOP, EXP_WP, EXP_WOP]) {
+        const v = stored(built(buildInvoicePayload(invoiceState({ partyId: party }), flagged('sales'), 1, TAX)))
+        const rep = invoiceRepresentation(v, flagged('sales'), TAX)
+        expect(rep).toMatchObject({ ok: true })
+        if (rep.ok) expect(rep.state.legacyZeroRated).toBeUndefined()
+      }
+    })
+    it('a bill saved before the rule opens and saves back exactly as saved; a changed line recomputes it', () => {
+      // Saved by the old editor: CGST + SGST to the SEZ unit in our state, IGST on the LUT supplies.
+      for (const party of [SEZ_WP, SEZ_WOP, EXP_WOP]) {
+        const v = stored(built(buildInvoicePayload(invoiceState({ partyId: party }), flagged('sales', false), 1, TAX)))
+        const rep = invoiceRepresentation(v, flagged('sales'), TAX)
+        expect(rep).toMatchObject({ ok: true })
+        if (!rep.ok) continue
+        expect(rep.state.legacyZeroRated).toBeDefined()
+        expect(diffPayloads(built(buildInvoicePayload(rep.state, flagged('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
+        // The editor opens it with a blank row at the end (InvoiceEntry): still saved back as saved (review of #244).
+        const withBlank = { ...rep.state, rows: [...rep.state.rows, { itemId: null, qtyText: '', rate: null, discount: null, godownId: null, batchId: null }] }
+        expect(diffPayloads(built(buildInvoicePayload(withBlank, flagged('sales'), 1, TAX)), voucherToPayload(v))).toEqual([])
+        // A narration / bill change keeps the saved tax ...
+        const renamed = built(buildInvoicePayload({ ...rep.state, narration: 'Changed' }, flagged('sales'), 1, TAX))
+        expect(renamed.lines.filter((l) => l.ledgerId !== SALES && l.ledgerId !== party)).toEqual(v.lines.filter((l) => l.ledgerId !== SALES && l.ledgerId !== party).map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount, costAllocations: [] })))
+        // ... a changed quantity recomputes the bill under the rule (widget 3 × 400 − 50 = 1,150.00).
+        const edited = { ...rep.state, rows: rep.state.rows.map((r, i) => (i === 0 ? { ...r, qtyText: '3' } : r)) }
+        const c = computeInvoice(edited, flagged('sales'))
+        // SEZ with payment: IGST 207.00 + 5.00, cess 1.00; LUT: no tax.
+        expect([c.gst.cgst, c.gst.igst, c.gst.cess]).toEqual(party === SEZ_WP ? [0, 21200, 100] : [0, 0, 0])
+      }
+    })
+  })
+
   it('a loaded invoice whose quantity is changed recomputes tax and total', () => {
     const v = stored(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
     const rep = invoiceRepresentation(v, ctxFor('sales'), TAX)

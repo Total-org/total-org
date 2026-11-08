@@ -19,7 +19,8 @@ import type { DB } from '../db/connection'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { CompanyInfo, SaveVoucherWarnings, Voucher, VoucherKind } from '@shared/domain'
 import { gstRegistrationOf } from '@shared/gst/registration'
-import { addBreakups, computeGst, supplyTypeFor, type GstBreakup } from '@shared/gst/calc'
+import { addBreakups, computeGst, type GstBreakup, type SupplyType } from '@shared/gst/calc'
+import { billTaxClass } from '@shared/gst/zeroRated'
 import { addDaysISO, fyOf, toDisplayDate } from '@shared/dates'
 import { AppError, ERROR_MAP, isAppError, isErrorCode, type ErrorIssue } from '@shared/errors'
 import { normalizeInvoiceNumber } from '@shared/gst/recon2b'
@@ -174,8 +175,16 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
   // The rates as the BILL posted them: the item rates only while they still give the tax the bill
   // carries (a rate changed since = unknown → the return asks / refuses), a ledger-line bill's own
   // rate only when computeGst at that rate gives its tax back exactly.
-  const partyState = ledgers.find((l) => l.id === v.partyLedgerId)?.stateCode ?? company.stateCode
-  const supply = supplyTypeFor(company.stateCode, v.posOverride ?? partyState)
+  // The supply as the bill POSTED it (IGST = inter, CGST / SGST = intra) — a bill to an SEZ unit in
+  // our own state is IGST since #244, one saved before is CGST + SGST; a bill without tax: the
+  // editor's rule for it (shared/gst/zeroRated.ts — an SEZ / export customer is inter-state).
+  const party = ledgers.find((l) => l.id === v.partyLedgerId)
+  const headOf = (id: number | null): number => (id == null ? 0 : v.lines.filter((l) => l.ledgerId === id && l.drCr === counter).reduce((x, l) => x + l.amount, 0))
+  const supply: SupplyType = headOf(tax.igst) > 0
+    ? 'inter'
+    : headOf(tax.cgst) + headOf(tax.sgst) > 0
+      ? 'intra'
+      : billTaxClass(company.stateCode, kind, { stateCode: party?.stateCode ?? null, exportType: party?.exportType ?? null }, v.posOverride).supply
   const stored = v.lines.filter((l) => l.ledgerId === tax.cgst || l.ledgerId === tax.sgst || l.ledgerId === tax.igst || l.ledgerId === tax.cess).reduce((s, l) => s + l.amount, 0)
   const taxOf = (g: { cgst: number; sgst: number; igst: number; cess: number }): number => g.cgst + g.sgst + g.igst + g.cess
   let rates: number[] | null
@@ -277,8 +286,10 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
       const t = voucherTaxLedgers(n, ledgers, taxSideOf(noteKind))
       const allowed = new Set([n.partyLedgerId, ...accountIds, t.cgst, t.sgst, t.igst, t.cess, t.roundOff].filter((x): x is number => x != null))
       const round = f.total - (f.taxable + f.cgst + f.sgst + f.igst + f.cess)
+      // The note's own supply as it posted it (a return of an older in-state SEZ bill is IGST since #244).
+      const noteSupply: SupplyType = f.igst > 0 ? 'inter' : f.cgst + f.sgst > 0 ? 'intra' : supply
       const fitsRate = (rates ?? []).some((r) => {
-        const g = computeGst(f.taxable, r, supply)
+        const g = computeGst(f.taxable, r, noteSupply)
         return Math.abs(g.cgst - f.cgst) <= 1 && Math.abs(g.sgst - f.sgst) <= 1 && Math.abs(g.igst - f.igst) <= 1 && (g.cgst > 0) === (f.cgst > 0) && (g.igst > 0) === (f.igst > 0)
       })
       if (n.inventory.length > 0 || !n.lines.every((l) => allowed.has(l.ledgerId)) || f.cess !== 0 || Math.abs(round) >= 100 || !fitsRate) attributable = false
@@ -339,8 +350,11 @@ export function loadIntentContext(db: DB, company: CompanyInfo, n: NormalIntent)
   const prices = new Map<number, { ratePaise: number; discountPaise: number }>()
   if ((n.kind === 'sale' || n.kind === 'purchase') && n.items) {
     const price = pricingLoader(db)
-    const partyState = (partyId != null ? ledgerMap.get(partyId)?.stateCode : null) ?? company.stateCode
-    const supply = supplyTypeFor(company.stateCode, partyState)
+    const partyRow = partyId != null ? ledgers.find((l) => l.id === partyId) : undefined
+    const supply = billTaxClass(
+      company.stateCode, n.kind === 'sale' ? 'sales' : 'purchase',
+      { stateCode: (partyId != null ? ledgerMap.get(partyId)?.stateCode : null) ?? null, exportType: partyRow?.exportType ?? null }, null
+    ).supply
     n.items.forEach((l, i) => {
       if (l.rate != null) return
       const p = price({ date: n.date, partyLedgerId: partyId, currency: 'INR', supply }, l.itemId, l.qtyMilli)
@@ -386,7 +400,7 @@ export function loadIntentContext(db: DB, company: CompanyInfo, n: NormalIntent)
       companyStateCode: company.stateCode,
       ...gstRegistrationOf(company),
       items: new Map(items.map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null }]))
+      ledgers: new Map(ledgers.map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, tdsPayableSectionId: l.tdsPayableSectionId, tcsPayableSectionId: l.tcsPayableSectionId ?? null, exportType: l.exportType ?? null }]))
     },
     ledgers: ledgerMap,
     items: new Map(items.map((i) => [i.id, { id: i.id, name: i.name }])),
