@@ -29,6 +29,21 @@ removed (write to total@irminflow.com); a new Privacy page says it in full. The 
 check (`/api/latest`, `/api/download`, on both the new and the old address) answers exactly as
 before.
 
+**Bills to SEZ units and export buyers get the right GST** (#244, audit 2026-11 Phase 2). A bill to a
+customer marked "SEZ" in your own state used to add CGST + SGST; it now adds IGST, as the law says
+(IGST Act s.7(5)(b)). A bill to an SEZ unit or an export buyer marked "without payment" (under LUT or
+bond) used to add IGST to the customer's bill; it now adds no GST (s.16(3)) — the bill, GSTR-1, GSTR-3B
+and the e-invoice now say the same. Bills you already saved are not changed: they open and save back
+exactly as saved until you change a line, the date or the customer. A "check with your CA" badge on
+the party's Export / SEZ type says what is not confirmed (who may still pay IGST on exports since
+October 2023).
+- For accountants: new bills only (sales invoices and credit notes, both modes, AI drafts); no report
+  reads anything new, so no figure of an existing book moves. Purchases, debit notes, quotations /
+  orders / challans and foreign buyers without the flag are unchanged.
+- For developers: `src/shared/gst/zeroRated.ts` (`billTaxClass`), `InvoiceContext.ledgers[].exportType`
+  (optional), `InvoiceFormState.legacyZeroRated`, `InvoiceComputed.zeroRated` / `zeroTax`; the invoice
+  editor now also keeps `legacyGroupTax` from the loaded bill. No migration.
+
 **"Who owes me" was wrong when a debit note or journal was ticked against a bill** (#233, audit A1).
 If you raised a debit note to a customer (or a journal adding freight, say) and ticked their invoice,
 Total took the note OFF the invoice instead of adding it, so what the customer owed was short by twice

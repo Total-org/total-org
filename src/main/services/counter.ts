@@ -168,11 +168,11 @@ function invoiceContext(db: DB, company: CompanyInfo, itemIds: number[], ledgerI
     items.set(id, { gstRate: r.gst_rate, cessRate: r.cess_rate })
   }
   const ledgers: InvoiceContext['ledgers'] = new Map()
-  const ledgerStmt = db.prepare('SELECT state_code, gst_rate FROM ledgers WHERE id = ?')
+  const ledgerStmt = db.prepare('SELECT state_code, gst_rate, export_type FROM ledgers WHERE id = ?')
   for (const id of ledgerIds) {
-    const r = ledgerStmt.get(id) as { state_code: string | null; gst_rate: number | null } | undefined
+    const r = ledgerStmt.get(id) as { state_code: string | null; gst_rate: number | null; export_type: 'sez_wp' | 'sez_wop' | 'exp_wp' | 'exp_wop' | null } | undefined
     if (!r) throw new Error('Ledger not found')
-    ;(ledgers as Map<number, { stateCode: string | null; gstRate: number | null }>).set(id, { stateCode: r.state_code, gstRate: r.gst_rate })
+    ;(ledgers as Map<number, { stateCode: string | null; gstRate: number | null; exportType: typeof r.export_type }>).set(id, { stateCode: r.state_code, gstRate: r.gst_rate, exportType: r.export_type })
   }
   return { kind: 'sales', companyStateCode: company.stateCode, ...gstRegistrationOf(company), items, ledgers }
 }

@@ -51,6 +51,7 @@ export const CA_PLACES = {
   'company.registration': 'Company details → GST registration',
   'company.state': 'Company details → state',
   'masters.hsnField': 'Masters → stock item → HSN / SAC code',
+  'masters.exportType': 'Masters → ledger → Export / SEZ type',
   'tds.screen': 'TDS screen header (rates, due dates, returns)',
   'tds.lateInterest': 'TDS → late-deduction interest',
   'tcs.screen': 'TCS screen header',
@@ -233,6 +234,13 @@ export const CA_POINTS = [
     covers: [{ list: 'GST_UNVERIFIED', id: 'posted-tax-rupee' }],
     questions: [32],
     places: ['simple.taxes.collected', 'gstr1.screen', 'gstr3b.outward']
+  },
+  {
+    id: 'zero-rated-with-payment',
+    rule: 'IGST Act s.16(3) and (4) (zero-rated supply on payment of IGST, from 1 October 2023)',
+    covers: [{ list: 'GST_UNVERIFIED', id: 'zero-rated-with-payment' }],
+    questions: [55],
+    places: ['masters.exportType']
   },
   {
     id: 'gstr3b-advances',

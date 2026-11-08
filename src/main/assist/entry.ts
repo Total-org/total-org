@@ -236,7 +236,7 @@ function invoiceCtx(db: DB, company: CompanyInfo): SellContext['invoice'] {
     companyStateCode: company.stateCode,
     ...gstRegistrationOf(company),
     items: new Map(listStockItems(db).map((i) => [i.id, { gstRate: i.gstRate, cessRate: i.cessRate }])),
-    ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate }]))
+    ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType ?? null }]))
   }
 }
 
