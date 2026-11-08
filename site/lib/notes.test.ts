@@ -113,3 +113,18 @@ test('unclosed markers stay literal', () => {
   assert.deepEqual(parseNotes('#### Deep'), [{ t: 'h', level: 4, c: [{ t: 'text', v: 'Deep' }] }])
   assert.deepEqual(parseNotes('# Not a heading we use'), [{ t: 'p', c: [{ t: 'text', v: '# Not a heading we use' }] }])
 })
+
+test('a URL inside a link label stays text (no <a> inside an <a>; review of #242)', () => {
+  assert.equal(
+    html('[see https://a.example/x](https://b.example/)'),
+    '<p><a href="https://b.example/" target="_blank" rel="noopener noreferrer">see https://a.example/x</a></p>'
+  )
+  assert.equal(html('**[x https://a.example](https://b.example/)**').match(/<a /g)?.length, 1)
+})
+
+test('bare URLs keep balanced parentheses; a closing one that belongs to the sentence stays out', () => {
+  const link = (u: string): string => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`
+  assert.equal(html('See https://en.wikipedia.org/wiki/X_(y).'), `<p>See ${link('https://en.wikipedia.org/wiki/X_(y)')}.</p>`)
+  assert.equal(html('(see https://irminflow.com/docs)'), `<p>(see ${link('https://irminflow.com/docs')})</p>`)
+  assert.equal(html('https://a.example/x_( and more'), `<p>${link('https://a.example/x')}_( and more</p>`)
+})

@@ -42,9 +42,30 @@ export function safeHref(raw: string): string | null {
   return url.href
 }
 
-const BARE_URL = /https?:\/\/[^\s<>"'`()[\]{}]+/y
 /** Punctuation that ends a sentence rather than the URL ("see https://x.y/a." → no dot). */
 const TRAILING = /[.,;:!?*_]+$/
+const URL_START = /https?:\/\//y
+/** Characters that never belong to a bare URL (quotes and brackets end it; parentheses are balanced below). */
+const URL_STOP = /[\s<>"'`[\]{}]/
+
+/** The bare URL starting at `i` (already known to start with http(s)://): up to a stop character or an unbalanced ")". */
+function bareUrlAt(src: string, i: number): string {
+  let j = i
+  let depth = 0
+  while (j < src.length && !URL_STOP.test(src[j])) {
+    if (src[j] === '(') depth += 1
+    else if (src[j] === ')') {
+      if (depth === 0) break
+      depth -= 1
+    }
+    j += 1
+  }
+  let url = src.slice(i, j).replace(TRAILING, '')
+  // A "(" left open after trimming (e.g. "x_(" ) is not part of the address.
+  while ((url.match(/\(/g)?.length ?? 0) > (url.match(/\)/g)?.length ?? 0)) url = url.slice(0, url.lastIndexOf('('))
+  return url.replace(TRAILING, '')
+}
+
 
 function pushText(out: Inline[], v: string): void {
   if (!v) return
@@ -53,8 +74,11 @@ function pushText(out: Inline[], v: string): void {
   else out.push({ t: 'text', v })
 }
 
-/** Inline Markdown → nodes. Unclosed markers stay literal text. */
-export function parseInline(src: string): Inline[] {
+/**
+ * Inline Markdown → nodes. Unclosed markers stay literal text. `links: false` inside a link's label,
+ * so a URL in the label stays text (an <a> inside an <a> is invalid HTML and breaks hydration).
+ */
+export function parseInline(src: string, links = true): Inline[] {
   const out: Inline[] = []
   let i = 0
   while (i < src.length) {
@@ -69,7 +93,7 @@ export function parseInline(src: string): Inline[] {
     } else if (ch === '*' && src[i + 1] === '*') {
       const end = src.indexOf('**', i + 2)
       if (end > i + 2) {
-        out.push({ t: 'strong', c: parseInline(src.slice(i + 2, end)) })
+        out.push({ t: 'strong', c: parseInline(src.slice(i + 2, end), links) })
         i = end + 2
         continue
       }
@@ -77,30 +101,29 @@ export function parseInline(src: string): Inline[] {
       // _italic_ only at a word start, so snake_case names stay as they are.
       const end = src.indexOf('_', i + 1)
       if (end > i + 1 && (end + 1 === src.length || /[\s).,;:!?]/.test(src[end + 1]))) {
-        out.push({ t: 'em', c: parseInline(src.slice(i + 1, end)) })
+        out.push({ t: 'em', c: parseInline(src.slice(i + 1, end), links) })
         i = end + 1
         continue
       }
-    } else if (ch === '[') {
+    } else if (ch === '[' && links) {
       const close = src.indexOf('](', i + 1)
       const end = close < 0 ? -1 : src.indexOf(')', close + 2)
       if (close > i + 1 && end > close + 2) {
         const label = src.slice(i + 1, close)
         const href = safeHref(src.slice(close + 2, end).trim())
         if (href && !label.includes('[')) {
-          out.push({ t: 'link', href, c: parseInline(label) })
+          out.push({ t: 'link', href, c: parseInline(label, false) })
         } else {
           // Not a link we will make: keep the words, drop the address.
-          for (const node of parseInline(label)) node.t === 'text' ? pushText(out, node.v) : out.push(node)
+          for (const node of parseInline(label, links)) node.t === 'text' ? pushText(out, node.v) : out.push(node)
         }
         i = end + 1
         continue
       }
-    } else if (ch === 'h') {
-      BARE_URL.lastIndex = i
-      const m = BARE_URL.exec(src)
-      if (m && (i === 0 || !/[A-Za-z0-9]/.test(src[i - 1]))) {
-        const raw = m[0].replace(TRAILING, '')
+    } else if (ch === 'h' && links) {
+      URL_START.lastIndex = i
+      if (URL_START.test(src) && (i === 0 || !/[A-Za-z0-9]/.test(src[i - 1]))) {
+        const raw = bareUrlAt(src, i)
         const href = safeHref(raw)
         if (href) {
           out.push({ t: 'link', href, c: [{ t: 'text', v: raw }] })

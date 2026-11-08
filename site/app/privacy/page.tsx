@@ -38,8 +38,8 @@ export default function PrivacyPage(): React.JSX.Element {
             to write to you once, when Total 1.0 is out. We never sell it, share it or use it for anything else.
           </p>
           <p>
-            The list is stored in an Upstash database, through Vercel, the company that hosts this website. They keep it for
-            us and do not use it themselves.
+            The list is stored in an Upstash database, through Vercel, the company that hosts this website. They store it for
+            us under their own terms.
           </p>
 
           <h2>How long we keep it</h2>
