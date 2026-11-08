@@ -65,7 +65,7 @@ export function ShareBill({
       } else if (via === 'whatsapp') {
         await api.invoice.share(voucherId, 'whatsapp')
         window.open(shareWhatsappLink(facts, text), '_blank', 'noopener')
-        setNote([t('simple.share.openedWhatsapp'), facts.whatsapp ? '' : t('simple.share.noPhone', { name: facts.partyName ?? '' })].filter(Boolean).join(' '))
+        setNote([t('simple.share.openedWhatsapp'), facts.whatsapp || !facts.partyName ? '' : t('simple.share.noPhone', { name: facts.partyName })].filter(Boolean).join(' '))
       } else if (via === 'email') {
         await api.invoice.share(voucherId, 'email')
         window.open(shareMailto(facts, shareSubject(facts, t), text), '_blank', 'noopener')

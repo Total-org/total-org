@@ -5,6 +5,7 @@ import { billAmount } from '@shared/simple/saveCard'
 import { AppError } from '@shared/errors'
 import { NOT_DELETED } from './vouchers'
 import { billDueOn, getUpiSettings } from './upiSettings'
+import { counterAccounts, WALK_IN_NAME } from './counter'
 
 // A10 (audit 2026-11 PROD-7): what the share buttons need to know about one bill. Read only.
 
@@ -25,6 +26,10 @@ export function billShareFacts(db: DB, company: CompanyInfo, voucherId: number, 
   const party = v.partyId != null
     ? (db.prepare('SELECT name, phone, whatsapp, email FROM ledgers WHERE id = ?').get(v.partyId) as { name: string; phone: string | null; whatsapp: string | null; email: string | null } | undefined)
     : undefined
+  // A walk-in sale ("Cash sale", the counter's account): the buyer is not that account — the
+  // message greets nobody by name and there is no number / address to send to.
+  const walkIn = party != null && (v.partyId === counterAccounts(db).walkInLedgerId || party.name === WALK_IN_NAME)
+  const contact = walkIn ? undefined : party
   const total = billAmount(lines, v.partyId)
   const sale = v.kind === 'sales'
   const due = sale ? billDueOn(db, v.partyId, v.id, total, today) : 0
@@ -35,9 +40,9 @@ export function billShareFacts(db: DB, company: CompanyInfo, voucherId: number, 
     shareable: SHAREABLE_KINDS.has(v.kind),
     number: v.number,
     date: v.date,
-    partyName: party?.name ?? null,
-    whatsapp: party?.whatsapp?.trim() || party?.phone?.trim() || null,
-    email: party?.email?.trim() || null,
+    partyName: contact?.name ?? null,
+    whatsapp: contact?.whatsapp?.trim() || contact?.phone?.trim() || null,
+    email: contact?.email?.trim() || null,
     totalPaise: total,
     duePaise: due,
     upiId,

@@ -31,10 +31,13 @@ function setup() {
   const cgst = createLedger(db, { name: 'CGST', groupId: groupId('Duties & Taxes'), taxType: 'cgst' }).id
   const sgst = createLedger(db, { name: 'SGST', groupId: groupId('Duties & Taxes'), taxType: 'sgst' }).id
   const bank = createLedger(db, { name: 'HDFC Bank', groupId: groupId('Bank Accounts') }).id
-  const post = (kind: string, date: string, partyId: number | null, lines: { ledgerId: number; drCr: DrCr; amount: number }[]) =>
+  const post = (
+    kind: string, date: string, partyId: number | null, lines: { ledgerId: number; drCr: DrCr; amount: number }[],
+    billRefs: { kind: 'new' | 'against'; name: string; amount: number; dueDate: string | null }[] = []
+  ) =>
     saveVoucher(db, {
       voucherTypeId: vtId(kind), date, partyLedgerId: partyId, reference: null, narration: null,
-      lines: lines.map((l) => ({ ...l, costAllocations: [] })), inventory: [], billRefs: [], tds: null
+      lines: lines.map((l) => ({ ...l, costAllocations: [] })), inventory: [], billRefs, tds: null
     }).id
   // ₹1,00,000 + 9% + 9% = ₹1,18,000.
   const bill = post('sales', '2026-07-05', buyer, [
@@ -47,7 +50,7 @@ function setup() {
     { ledgerId: bank, drCr: 'dr', amount },
     { ledgerId: buyer, drCr: 'cr', amount }
   ])
-  return { db, bill, buyer, sales, cgst, sgst, receive, post }
+  return { db, bill, buyer, sales, cgst, sgst, bank, receive, post }
 }
 
 describe('UPI ID setting (meta upi, audited as a company update)', () => {
@@ -97,6 +100,22 @@ describe('the UPI pay QR on a print', () => {
     expect(html).toContain('data-upi-qr')
     expect(html).toContain('to pay ₹68,000.00 to sharma@ybl')
   })
+  it('review #1: an invoice that opens two bills asks for both — ₹400 + ₹600 = ₹1,000', () => {
+    const { db, buyer, sales, post } = setup()
+    setUpiSettings(db, { upiId: 'sharma@ybl' })
+    const two = post('sales', '2026-08-01', buyer, [{ ledgerId: buyer, drCr: 'dr', amount: 100000 }, { ledgerId: sales, drCr: 'cr', amount: 100000 }], [
+      { kind: 'new', name: 'A', amount: 40000, dueDate: '2026-08-15' },
+      { kind: 'new', name: 'B', amount: 60000, dueDate: '2026-09-15' }
+    ])
+    expect(pt.loadPrintDocument(db, INFO, two)).toMatchObject({ upi: { amountPaise: 100000 } })
+    expect(billShareFacts(db, INFO, two, TODAY).duePaise).toBe(100000)
+  })
+  it('review #4: a sale to a non-customer account (Cash) gets no QR', () => {
+    const { db, sales, bank, post } = setup()
+    setUpiSettings(db, { upiId: 'sharma@ybl' })
+    const toBank = post('sales', '2026-08-01', bank, [{ ledgerId: bank, drCr: 'dr', amount: 50000 }, { ledgerId: sales, drCr: 'cr', amount: 50000 }])
+    expect('upi' in pt.loadPrintDocument(db, INFO, toBank)).toBe(false)
+  })
   it('paid in full → no QR; a credit note → never', () => {
     const { db, bill, buyer, sales, cgst, sgst, receive, post } = setup()
     setUpiSettings(db, { upiId: 'sharma@ybl' })
@@ -113,6 +132,13 @@ describe('the UPI pay QR on a print', () => {
 })
 
 describe('share facts', () => {
+  it('review #2: a walk-in sale ("Cash sale") greets nobody by name and has no contact', () => {
+    const { db, sales, post } = setup()
+    const groupId = (db.prepare("SELECT id FROM groups WHERE name = 'Sundry Debtors'").get() as { id: number }).id
+    const walkIn = createLedger(db, { name: 'Cash sale', groupId, phone: '9000000000' }).id
+    const v = post('sales', '2026-08-01', walkIn, [{ ledgerId: walkIn, drCr: 'dr', amount: 10000 }, { ledgerId: sales, drCr: 'cr', amount: 10000 }])
+    expect(billShareFacts(db, INFO, v, TODAY)).toMatchObject({ partyName: null, whatsapp: null, email: null })
+  })
   it('a sales bill: contact, total, due, UPI ID; a receipt is not shareable', () => {
     const { db, bill, receive } = setup()
     setUpiSettings(db, { upiId: 'sharma@ybl' })

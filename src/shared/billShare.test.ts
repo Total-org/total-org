@@ -14,17 +14,17 @@ const en = translator('en')
 describe('share message (A10)', () => {
   it('a part-paid bill: total, what is still due, the UPI ID', () => {
     expect(shareMessage(F, en)).toBe(
-      'Hello Ramesh, here is bill 12 dated 1 Oct 2026 for ₹1,180.00. ₹680.00 is still due. You can pay by UPI to sharma@ybl. The bill is attached as a PDF. — Sharma Stores'
+      'Hello Ramesh, here is bill 12 dated 1 Oct 2026 for ₹1,180.00. ₹680.00 is still due. You can pay by UPI to sharma@ybl. I am sending the bill as a PDF. — Sharma Stores'
     )
   })
   it('nothing due → no due / UPI line; unpaid → no "still due" (the total is the due)', () => {
-    expect(shareMessage({ ...F, duePaise: 0, upiId: null }, en)).toBe('Hello Ramesh, here is bill 12 dated 1 Oct 2026 for ₹1,180.00. The bill is attached as a PDF. — Sharma Stores')
+    expect(shareMessage({ ...F, duePaise: 0, upiId: null }, en)).toBe('Hello Ramesh, here is bill 12 dated 1 Oct 2026 for ₹1,180.00. I am sending the bill as a PDF. — Sharma Stores')
     expect(shareMessage({ ...F, duePaise: 118000 }, en)).not.toContain('still due')
     expect(shareMessage({ ...F, duePaise: 118000 }, en)).toContain('sharma@ybl')
   })
   it('a return note and a walk-in', () => {
     expect(shareMessage({ ...F, kind: 'credit_note', duePaise: 0, upiId: null, partyName: null }, en)).toBe(
-      'Hello, here is return note 12 dated 1 Oct 2026 for ₹1,180.00. The bill is attached as a PDF. — Sharma Stores'
+      'Hello, here is return note 12 dated 1 Oct 2026 for ₹1,180.00. I am sending the return note as a PDF. — Sharma Stores'
     )
     expect(shareSubject({ ...F, kind: 'credit_note' }, en)).toBe('Return note 12 from Sharma Stores')
   })

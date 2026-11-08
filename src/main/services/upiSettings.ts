@@ -4,6 +4,7 @@ import { normalizeUpiSettings, upiPayLink, upiSettingsSchema, type UpiSettings }
 import type { PrintUpiInfo } from '@shared/print/render'
 import { writeAudit } from './audit'
 import { partyAllocation } from './analysis'
+import { partyGroupIdsBySide } from './masters'
 
 // A10 (audit 2026-11 PROD-8): the business's UPI ID (company meta `upi`) and the pay QR it puts
 // on a sales invoice's print. Kept apart from config.ts (which printTemplates.ts is imported by).
@@ -40,13 +41,17 @@ export function setUpiSettings(db: DB, input: unknown): UpiSettings {
   return after
 }
 
-/** What is still due on the sales bill `voucherId` as on `today` — its own row in the party's
- *  Outstandings allocation (by voucher id), never more than the bill's total. 0 for a bill with
- *  no party (a counter sale) or one paid / returned in full. */
+/** What is still due on the sales bill `voucherId` as on `today` — its rows in the party's
+ *  Outstandings allocation (by voucher id; an invoice that opens several bills — instalments, a
+ *  Tally import — has one row each, all added up), never more than the bill's total. 0 for a bill
+ *  with no party (a counter sale), a party that is not a customer (a sale to the Cash account) or
+ *  one paid / returned in full. */
 export function billDueOn(db: DB, partyId: number | null, voucherId: number, totalPaise: number, today: string): number {
   if (partyId == null) return 0
-  const open = partyAllocation(db, partyId, today).bills.find((b) => b.voucherId === voucherId)
-  return Math.max(0, Math.min(open?.pending ?? 0, totalPaise))
+  const group = db.prepare('SELECT group_id AS g FROM ledgers WHERE id = ?').get(partyId) as { g: number } | undefined
+  if (!group || !partyGroupIdsBySide(db, 'debtor').has(group.g)) return 0
+  const pending = partyAllocation(db, partyId, today).bills.reduce((s, b) => (b.voucherId === voucherId ? s + b.pending : s), 0)
+  return Math.max(0, Math.min(pending, totalPaise))
 }
 
 /** The pay QR for a sales bill, or null (no UPI ID set, or nothing due). */

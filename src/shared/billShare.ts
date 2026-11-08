@@ -51,7 +51,7 @@ export function shareMessage(f: BillShareFacts, t: Translate): string {
     note ? t('simple.share.noteBody', vars) : t('simple.share.body', vars),
     !note && f.duePaise > 0 && f.duePaise < f.totalPaise ? t('simple.share.stillDue', vars) : '',
     !note && f.duePaise > 0 && f.upiId ? t('simple.share.upi', vars) : '',
-    t('simple.share.attached'),
+    note ? t('simple.share.noteAttached') : t('simple.share.attached'),
     t('simple.share.sign', vars)
   ].filter(Boolean).join(' ')
 }
