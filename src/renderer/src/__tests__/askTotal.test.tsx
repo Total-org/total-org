@@ -1,6 +1,6 @@
 // WP 10.1 — Ask Total in the panel: the simple-mode default while the AI assistant is off (and
 // with it on, the first stop — what Total can't answer goes to the model, which says so);
-// accountant mode keeps the AI panel; figures render as chips that open their screen; "Which …?"
+// Phase 3b part 3: one panel in both modes (Ask first, To approve tab); figures render as chips that open their screen; "Which …?"
 // re-asks with the pick; an entry request opens its simple flow pre-filled with the draft; the
 // Home box asks in the panel.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,10 +12,13 @@ import type { AssistAnswer } from '@shared/assist'
 import { AssistantPanel, useAssistantPanel } from '../components/ai/AssistantPanel'
 import { useAskTotal } from '../simple/AskTotal'
 import { askScreen } from '../simple/askTargets'
+import { fullPlace } from '../simple/AskTotal'
 import { useNav, useSession } from '../state/stores'
 
 const invoke = vi.fn()
 let aiReady = false
+/** An AI set up but not ready (key / switch on, a blocker) — null = plain off or ready. */
+let blocker: { keyPresent: boolean; enabled: boolean; text: string } | null = null
 const answers = new Map<string, AssistAnswer>()
 
 const base = (over: Partial<AssistAnswer>): AssistAnswer => ({ intent: 'owed', answeredBy: 'total', sentences: [], figures: [], links: [], understood: true, ...over })
@@ -29,15 +32,16 @@ const OWES = base({
 function settings(): AiSettingsView {
   return {
     settings: {
-      enabled: aiReady, noticeAcceptedAt: aiReady ? '2025-08-01T10:00:00.000Z' : null, noticeAcceptedBy: null, noticeVersion: 1, defaultModel: 'm', fastModel: 'f',
+      enabled: aiReady || !!blocker?.enabled, noticeAcceptedAt: aiReady ? '2025-08-01T10:00:00.000Z' : null, noticeAcceptedBy: null, noticeVersion: 1, defaultModel: 'm', fastModel: 'f',
       privacy: { maskIds: true, pseudonymiseParties: false }, prices: {}, maxSteps: 8, useMemory: true
     },
-    keyPresent: aiReady, keyHint: null, secureStorageAvailable: true, mock: false, ready: aiReady, blocker: aiReady ? null : 'The assistant is off'
+    keyPresent: aiReady || !!blocker?.keyPresent, keyHint: null, secureStorageAvailable: true, mock: false, ready: aiReady, blocker: aiReady ? null : (blocker?.text ?? 'The assistant is off')
   } as AiSettingsView
 }
 
 beforeEach(() => {
   aiReady = false
+  blocker = null
   answers.clear()
   answers.set('who owes me', OWES)
   invoke.mockReset()
@@ -46,11 +50,13 @@ beforeEach(() => {
       case 'ai:settings:get': return { ok: true, data: settings() }
       case 'ai:threads': return { ok: true, data: [] }
       case 'ai:drafts': return { ok: true, data: [] }
+      case 'ai:queue': return { ok: true, data: { proposals: [], plans: [], waiting: 0 } }
       case 'assist:ask': {
         const p = payload as { text: string; picks?: { party?: number } }
         const key = p.picks?.party ? `${p.text}#${p.picks.party}` : p.text
         return { ok: true, data: answers.get(key) ?? base({ intent: 'unknown', understood: false, sentences: ['I can’t answer that yet. Try one of these:'], suggestions: ['Who owes me money?'] }) }
       }
+      case 'simple:intentForm': return { ok: true, data: { kind: 'money_out', entries: [{ role: 'payment', kind: 'payment', amount: 50000, form: 'accounting', state: {} }], missing: [], addedOnSave: [] } }
       case 'assist:plan': return { ok: true, data: { planId: 3, count: 2, existing: false } }
       case 'assist:draft': return { ok: true, data: { draftId: 41, prefill: { screen: 'simple-money-out', who: 'expense', payee: 9, amount: 50000, how: 'cash', note: 'tea' } } }
       case 'ai:send': return { ok: true, data: { threadId: 3, runId: 'r', userMessage: { id: 1, threadId: 3, role: 'user', content: (payload as { text: string }).text, status: 'ok', toolCalls: [], toolCallId: null, toolName: null, toolInput: null, toolOutput: null, toolOk: null, truncated: false, sources: [], figures: [], model: null, costMicroUsd: null, inputTokens: null, outputTokens: null, draftId: null, context: null, memoryIds: [], createdAt: '2025-08-14T10:00:00Z' } } }
@@ -61,7 +67,7 @@ beforeEach(() => {
   window.total = { platform: 'test', invoke, onAiEvent: () => () => undefined }
   useSession.setState({ user: null, from: '2025-04-01', to: '2026-03-31', workingDate: '2025-10-14', ui: { mode: 'simple' } } as never)
   useNav.setState({ stack: [{ name: 'gateway' }] })
-  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask' })
+  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false, owner: null })
   useAskTotal.setState({ pending: null, turns: [], owner: null })
 })
 
@@ -88,11 +94,75 @@ describe('Ask Total — which panel', () => {
     expect(screen.getByTestId('ask-empty').textContent).toContain('Ask about your business')
   })
 
-  it('accountant mode keeps the AI panel', async () => {
+  it('Phase 3b part 3: ONE panel in accountant mode too — Ask Total first; the AI conversation one click away while it is ready; To approve is a tab', async () => {
     useSession.setState({ ui: { mode: 'accountant' } } as never)
     wrap(<AssistantPanel />)
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+    expect(screen.queryByTestId('ai-panel')).toBeNull()
+    // AI off: no way to the model.
+    expect(screen.queryByTestId('btn-ask-ai')).toBeNull()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-queue'))
+    expect(await screen.findByTestId('ask-queue-panel')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-ask'))
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+  })
+
+  it('accountant mode: an entry offer opens the FULL editor pre-filled (simple:intentForm hand-off), a task\'s plan the accountant queue, places their full screens', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    answers.set(
+      'paid 500 for tea in cash',
+      base({
+        intent: 'entry',
+        sentences: ['Nothing is saved yet.'],
+        entry: { kind: 'money_out', prefill: { screen: 'simple-money-out', who: 'expense', payee: 9, amount: 50000, how: 'cash', note: 'tea' }, intent: { kind: 'money_out', date: '2025-10-14', amount: 50000, from: { how: 'cash' }, payeeId: 9 } as never, sentences: [], missing: null, canDraft: true }
+      })
+    )
+    answers.set('remind everyone 30 days late', base({ intent: 'task', sentences: ['x'], task: { preview: { task: 'remind_late', params: { minDays: 30 }, totalCount: 1, totalAmount: 1, count: 1, amount: 1, waiting: 0, unread: 0, existingPlanId: null }, canPlan: true } }))
+    answers.set('open bank', base({ intent: 'open', sentences: ['Opening Bank.'], open: { screen: 'simple-bank' } }))
+    wrap(<AssistantPanel />)
+    await askIt('paid 500 for tea in cash')
+    fireEvent.click(await screen.findByTestId('ask-open-entry'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'voucher-entry', handoff: { kind: 'money_out', from: 'simple-money-out' } }))
+    expect(invoke.mock.calls.filter(([c]) => c === 'assist:draft')).toHaveLength(0)
+    await askIt('remind everyone 30 days late')
+    fireEvent.click(await screen.findByTestId('ask-prepare-plan'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'ai-queue' }))
+    await askIt('open bank')
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'banking' }))
+  })
+
+  it('fullPlace: a simple place in the full app — bills / entries their voucher, Features, TDS / TCS, the counterpart only where it applies', () => {
+    expect(fullPlace({ name: 'simple-sales', billId: 12 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 12 })
+    expect(fullPlace({ name: 'simple-purchases', billId: 13 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 13 })
+    expect(fullPlace({ name: 'simple-money', entryId: 14 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 14 })
+    expect(fullPlace({ name: 'simple-features' }, 'regular')).toEqual({ name: 'settings', tab: 'features' })
+    expect(fullPlace({ name: 'simple-taxes', withholding: 'tds' }, 'unregistered')).toEqual({ name: 'tds' })
+    expect(fullPlace({ name: 'simple-taxes' }, 'regular')).toEqual({ name: 'gstr3b' })
+    // An unregistered business has no GST return to open: Home, never GSTR-3B.
+    expect(fullPlace({ name: 'simple-taxes' }, 'unregistered')).toEqual({ name: 'gateway' })
+    expect(fullPlace({ name: 'simple-bank', bankId: 3 }, 'regular')).toMatchObject({ name: 'banking', ledgerId: 3 })
+    // A full-app screen stays as it is.
+    expect(fullPlace({ name: 'profit-loss' }, 'regular')).toEqual({ name: 'profit-loss' })
+  })
+
+  it('accountant mode, AI set up but not ready: the panel says why and links Settings → AI', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    blocker = { keyPresent: true, enabled: true, text: 'Pick a model' }
+    wrap(<AssistantPanel />)
+    const note = await screen.findByTestId('ai-off-banner')
+    expect(note.textContent).toContain('Pick a model')
+    fireEvent.click(screen.getByTestId('btn-ai-open-settings'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'settings', tab: 'ai' }))
+  })
+
+  it('accountant mode with AI on: "Ask the AI helper instead" opens the accountant AI conversation, which goes back to Ask', async () => {
+    aiReady = true
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
     expect(await screen.findByTestId('ai-panel')).toBeTruthy()
-    expect(screen.queryByTestId('ask-panel')).toBeNull()
+    fireEvent.click(screen.getByTestId('btn-back-ask-total'))
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
   })
 
   it('simple mode with AI on: Total answers first; what it can’t answer goes to the model, which says so', async () => {
@@ -122,7 +192,7 @@ describe('Ask Total — which panel', () => {
 
   it('closing the panel after an escalation: it opens on Ask Total again (Total answers first)', async () => {
     aiReady = true
-    useAssistantPanel.setState({ open: true, simpleView: 'ai' })
+    useAssistantPanel.setState({ open: true, simpleView: 'ai', escalated: true })
     wrap(<AssistantPanel />)
     expect(await screen.findByTestId('ai-escalated')).toBeTruthy()
     act(() => useAssistantPanel.getState().setOpen(false))

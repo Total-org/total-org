@@ -31,6 +31,13 @@ credit notes never get a QR. *For developers:* `invoice:share` / `invoice:shareF
 `upi:set` (company meta `upi`, no migration), `AiSettings.usdRateMicro`; the UPI link follows NPCI's
 linking spec 1.6 (UNVERIFIED points in `shared/upi.ts`).
 
+**One place to ask** (#231, Phase 3b part 3). ⌘J now opens the same "Ask" panel in both modes. Total
+answers from your books first (no AI key needed); when the AI helper is on, it answers what Total
+can't, or anything you send it with "Ask the AI helper instead". A second tab, "To approve", shows
+everything waiting for your approval with its count, an "Add bills" button (when the AI helper is
+on) and a link to the full list. In the full app the panel used to open straight on the AI
+conversation; it now opens on Ask, one click away from it.
+
 **Ask for a task, approve the plan** (#229, Phase 3b part 2). Ask Total (no AI key needed) or the AI
 helper now understands two tasks: "remind everyone 30 days late" and "book October's bills". It says
 who and how much, and "Prepare them" puts them together as one group in Things to approve: one
@@ -133,6 +140,31 @@ the list gets a note on its draft. For developers: `src/shared/gst/hsnMaster/` (
 1.5 MB chunk, never in a startup bundle — `hsnLazy.test.ts`), GST_UNVERIFIED `hsn-master-list` /
 `hsn-digits`.
 
+- **Short amounts in lakh and crore only** (#237; audit UX-20, owner 7 Nov). Plain words: the
+  Gateway's tiles, ageing bars, compliance card and chart axes no longer mix "₹67.3K" with "₹3L".
+  Under one lakh the whole rupees show (₹67,282); from a lakh it is lakh / crore (₹3L, ₹1.2Cr).
+  Only how short amounts are written changed — no figure.
+- **Money in / out: the amount in the Save bar** (#235; audit UX-16, owner 7 Nov). Plain words:
+  Money in, Money out and Move money now show the amount beside Save in the bar at the bottom, the
+  way Make a bill and Record a purchase show their total — so what you are about to save is always
+  in view.
+- **People: the credit chip says who holds the credit** (#234; audit UX-13, owner 7 Nov). Plain
+  words: on the People list the green chip used to say "₹X credit" for both a customer and a
+  supplier, which meant opposite things. It now says "They have ₹X credit" for a customer and "You
+  have ₹X credit" for a supplier (Hindi and Hinglish too) — the same credit an advance, a kept
+  return or a credit opening leaves.
+- **Pickers don't pop open over the form** (#232; audit UX-7, owner 7 Nov). Plain words: when a
+  screen opens with the cursor already in a picker (the customer on Make a bill, the party or
+  ledger on a voucher), its list no longer covers the next fields. Typing, ↓ or a click opens it;
+  ↓ also moves down a row as it always did, so ↓ then Enter picks the same row as before. One
+  difference: Enter as the very first key now opens the list instead of picking its first row.
+  Pickers you open on purpose (Pay a supplier's search, the Counter's customer box) still show
+  their list at once. Also: the approval queue's "Open →" on Home is the ink-and-amber link of the
+  new look.
+- **Accountant sidebar: the top items stay in view** (#230; audit UX-11, owner 7 Nov). Plain
+  words: Gateway, Voucher entry, Manufacture, Counter and Masters no longer scroll away when GST or
+  System is open on a smaller window — only the sections below them scroll. Also: the AI panel's
+  last blue link is now the ink-and-amber link of the new look.
 - **New look, part 3 — the screens** (#227; UI overhaul). Plain words: the remaining screens
   follow the new look. Labels and column heads everywhere are in normal case (no more ALL CAPS),
   links are dark text with an amber underline instead of blue (help articles, "Learn how", register

@@ -337,7 +337,9 @@ describe('review fixes', () => {
     fireEvent.click(first)
     const search = await screen.findByTestId('picker-category-search')
     expect(search.getAttribute('placeholder')).toBe('Search your suppliers')
-    fireEvent.focus(search)
+    // The search the user just asked for opens with its list (openOnArrival) — no extra focus needed.
+    expect(document.activeElement).toBe(search)
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBeGreaterThan(0))
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([expect.stringContaining('Sharma Traders')])
   })
 

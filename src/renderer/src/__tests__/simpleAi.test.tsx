@@ -85,6 +85,11 @@ beforeEach(() => {
       case 'ai:usage': return { ok: true, data: usage }
       case 'fx:rates': return { ok: true, data: rates }
       case 'ai:threads': return { ok: true, data: [] }
+      case 'ai:queue': return { ok: true, data: { proposals: [], plans: [], waiting: 0 } }
+      case 'ai:thread': return { ok: true, data: { thread: { id: 9, title: 'x' }, running: false, messages: [
+        msg({ id: 50, role: 'user', content: 'Anything unusual?' }),
+        msg({ id: 60, content: 'Sales were ₹1,00,000.00.', model: 'gpt-5', inputTokens: 1500, outputTokens: 60, costMicroUsd: 20_000, figures: [{ text: '₹1,00,000.00', paise: 10_000_000, sourced: true, tool: 'profit_and_loss', source: { kind: 'screen', screen: 'profit-loss', label: 'Profit & loss' } }] })
+      ] } }
       case 'ai:drafts': return { ok: true, data: [] }
       case 'ai:draft:get': return { ok: true, data: drafts[(payload as { id: number }).id] }
       case 'ai:memory:list': return { ok: true, data: { entries: [], suggestions: [] } }
@@ -96,7 +101,7 @@ beforeEach(() => {
   window.total = { platform: 'test', invoke, onAiEvent: (l: (e: unknown) => void) => { listener = l; return () => { listener = null } } }
   useSession.setState({ user: { id: 1, name: 'Owner', role: 'owner' }, from: '2026-04-01', to: '2027-03-31', workingDate: '2026-10-14', ui: { mode: 'simple' } } as never)
   useNav.setState({ stack: [{ name: 'gateway' }] })
-  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask' })
+  useAssistantPanel.setState({ open: true, pending: null, simpleView: 'ask', aiThreadId: null, tab: 'ask', escalated: false, owner: null })
 })
 
 afterEach(() => {
@@ -322,7 +327,8 @@ async function escalate(question: string): Promise<void> {
   view = READY()
   wrap(<AssistantPanel />)
   await waitFor(() => expect(calls('ai:settings:get').length).toBeGreaterThan(0))
-  act(() => useAssistantPanel.getState().ask(question))
+  // What Ask Total's "could not answer" hand-over calls (Phase 3b part 3: marks it escalated).
+  act(() => useAssistantPanel.getState().escalate(question))
   await waitFor(() => expect(calls('ai:send').length).toBe(1))
   await waitFor(() => expect(listener).not.toBeNull())
 }
@@ -416,10 +422,11 @@ describe('the AI panel in plain words (simple mode)', () => {
     expect(err.querySelector('details')!.textContent).toContain('The AI service said: Could not reach the provider (network error).')
   })
 
-  it('accountant mode keeps the accountant panel as it was (tokens, model, tool chips, context strip)', async () => {
+  it('accountant mode: the AI conversation (reached from Ask) keeps the accountant panel as it was (tokens, model, tool chips, context strip)', async () => {
     useSession.setState({ ui: { mode: 'accountant' } } as never)
     view = READY()
     wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
     expect(await screen.findByTestId('ai-panel')).toBeTruthy()
     expect(screen.queryByTestId('ai-panel-plain')).toBeNull()
     expect(screen.getByTestId('ai-context')).toBeTruthy()
@@ -430,6 +437,51 @@ describe('the AI panel in plain words (simple mode)', () => {
     expect((await screen.findByTestId('ai-cost')).textContent).toContain('tokens')
     expect(screen.getByTestId('ai-tool-chip-profit_and_loss')).toBeTruthy()
     expect(screen.queryByTestId('ai-plain-answer')).toBeNull()
+    // Opened directly (not handed over by Total): no "Total could not answer it" note (review of #231).
+    expect(screen.queryByTestId('ai-escalated')).toBeNull()
+    // A trip to To approve and back keeps the conversation (reloaded by its id); the keyboard lands
+    // on the selected tab, never on the page.
+    fireEvent.click(screen.getByTestId('tab-ai-queue-queue'))
+    expect(await screen.findByTestId('ask-queue-panel')).toBeTruthy()
+    await waitFor(() => expect(document.activeElement?.getAttribute('data-testid')).toBe('tab-ai-queue-queue'))
+    fireEvent.click(screen.getByTestId('tab-ai-queue-ask'))
+    expect(await screen.findByTestId('ai-panel')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('ai-panel').textContent).toContain('Sales were ₹1,00,000.00.'))
+    expect(invoke.mock.calls.some(([c, p]) => c === 'ai:thread' && (p as { id: number }).id === 9)).toBe(true)
+    // Back on Ask the conversation's own box takes it (still inside the panel, never the page).
+    await waitFor(() => expect(screen.getByTestId('ai-panel').contains(document.activeElement)).toBe(true))
+  })
+
+  it('another user (a lock / sign-out / company switch unmounts the panel open) never gets the kept conversation', async () => {
+    useSession.setState({ ui: { mode: 'accountant' } } as never)
+    view = READY()
+    wrap(<AssistantPanel />)
+    fireEvent.click(await screen.findByTestId('btn-ask-ai'))
+    fireEvent.change(await screen.findByTestId('ai-input'), { target: { value: 'sales?' } })
+    fireEvent.click(screen.getByTestId('btn-ai-send'))
+    await waitFor(() => expect(listener).not.toBeNull())
+    answerTurn()
+    await waitFor(() => expect(useAssistantPanel.getState().aiThreadId).toBe(9))
+    cleanup()
+    act(() => useSession.setState({ user: { id: 77, name: 'Clerk', role: 'accountant' } } as never))
+    const before = invoke.mock.calls.filter(([c]) => c === 'ai:thread').length
+    wrap(<AssistantPanel />)
+    expect(await screen.findByTestId('ask-panel')).toBeTruthy()
+    await waitFor(() => expect(useAssistantPanel.getState().aiThreadId).toBeNull())
+    expect(invoke.mock.calls.filter(([c]) => c === 'ai:thread').length).toBe(before)
+    act(() => useSession.setState({ user: null } as never))
+  })
+
+  it('simple mode: the plain conversation also survives a trip to To approve; the escalation note shows only when Total handed it over', async () => {
+    await escalate('Anything unusual?')
+    expect(await screen.findByTestId('ai-escalated')).toBeTruthy()
+    answerTurn()
+    expect(await screen.findByTestId('ai-plain-answer')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-queue'))
+    expect(await screen.findByTestId('ask-queue-panel')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('tab-ai-queue-ask'))
+    expect(await screen.findByTestId('ai-panel-plain')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('ai-panel-plain').textContent).toContain('Sales were ₹1,00,000.00.'))
   })
 })
 

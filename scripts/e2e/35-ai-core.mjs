@@ -70,13 +70,17 @@ await scenario('35-ai-core', async (h) => {
     }
   })
 
-  // ---------- off by default: the panel says so and sends nothing ----------
+  // ---------- off by default: the ONE Ask panel answers from the books; no way to a model ----------
+  // Phase 3b part 3: ⌘J opens Ask (Total answers first) in accountant mode too; while the AI is
+  // off there is no "Ask the AI helper instead" and nothing can be sent.
   await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"] [data-testid="ai-off-banner"]', { timeout: 10000 })
-  assert(await h.page.$eval('[data-testid="ai-input"]', (el) => el.disabled), 'the question box is disabled while AI is off')
+  await h.page.waitForSelector('[data-testid="ask-panel"]', { timeout: 10000 })
+  assertEq(await h.page.$('[data-testid="btn-ask-ai"]'), null, 'no way to the AI while it is off')
+  assertEq(await h.page.$('[data-testid="ai-panel"]'), null, 'no AI conversation while off')
   await bothThemes('01-panel-off')
-  await h.click('btn-ai-open-settings')
-  await h.waitScreen('settings')
+  await h.click('btn-assistant')
+  await h.goto('settings')
+  await h.click('tab-settings-ai')
   await h.page.waitForSelector('[data-testid="settings-ai"]', { timeout: 10000 })
   assertEq((await h.invoke('ai:outbound')).length, 0, 'nothing was sent while off')
 
@@ -105,8 +109,7 @@ await scenario('35-ai-core', async (h) => {
   await bothThemes('03-settings-on')
 
   // ---------- ask: sales in July → tool chip + sourced answer ----------
-  await h.click('btn-assistant')
-  await h.page.waitForSelector('[data-testid="ai-panel"]', { timeout: 10000 })
+  await h.openAiChat()
   await h.fill('ai-input', 'What were sales in July?')
   await h.page.press('[data-testid="ai-input"]', 'Enter')
   await h.page.waitForSelector('[data-testid="ai-tool-chip"][data-tool="profit_and_loss"][data-status="ok"]', { timeout: 20000 })

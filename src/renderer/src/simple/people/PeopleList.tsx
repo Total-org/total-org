@@ -105,7 +105,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
         {
           // UI overhaul (audit UX-13): room for a late chip ("₹2,33,920.00 late · 23 days") without clipping.
           id: 'status', header: t('simple.people.col.status'), kind: 'text', groupable: false, filterable: false, minWidth: 190, // i18n-technical
-          value: (r) => [r.late > 0 ? t('simple.people.chip.late', { amount: money(r.late) }) : '', r.ahead > 0 ? t('simple.people.chip.ahead', { amount: money(r.ahead) }) : '', r.onHold ? t('simple.people.chip.hold') : ''].filter(Boolean).join(', '),
+          value: (r) => [r.late > 0 ? t('simple.people.chip.late', { amount: money(r.late) }) : '', r.ahead > 0 ? t('simple.people.chip.ahead', { side: r.side, amount: money(r.ahead) }) : '', r.onHold ? t('simple.people.chip.hold') : ''].filter(Boolean).join(', '),
           cell: (r) => (
             <span>
               {r.late > 0 && (
@@ -115,7 +115,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
               )}
               {r.ahead > 0 && (
                 <Pill tone="success" testId="person-chip-ahead" data={String(r.ahead)}>
-                  {t('simple.people.chip.ahead', { amount: money(r.ahead) })}
+                  {t('simple.people.chip.ahead', { side: r.side, amount: money(r.ahead) })}
                 </Pill>
               )}
               {r.onHold && (

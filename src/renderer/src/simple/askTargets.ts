@@ -40,7 +40,7 @@ export function askScreen(t: AssistTarget | undefined | null): Screen | null {
       return { name: 'simple-reports', ...(report && REPORTS.includes(report) ? { report: report as 'doing' } : {}) } // i18n-technical
     }
     case 'simple-taxes':
-      return { name: 'simple-taxes', ...(str(p.period) ? { period: str(p.period)! } : {}) } // i18n-technical
+      return { name: 'simple-taxes', ...(str(p.period) ? { period: str(p.period)! } : {}), ...(p.withholding === 'tds' || p.withholding === 'tcs' ? { withholding: p.withholding } : {}) } // i18n-technical
     case 'simple-section': {
       const section = str(p.section)
       return section && (SIMPLE_SECTION_IDS as readonly string[]).includes(section) ? { name: 'simple-section', section: section as SimpleSectionId } : null // i18n-technical

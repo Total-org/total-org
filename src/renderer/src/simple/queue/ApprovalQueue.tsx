@@ -6,6 +6,9 @@ import { formatPaise } from '@shared/money'
 import { toMonthLabel, toPlainDate } from '@shared/dates'
 import { daysBetweenIso } from '@shared/receivables/interest'
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { captureApi } from '../../lib/captureClient'
+import { useAiAffordances } from '../../lib/explain'
 import type { MessageKey } from '@shared/i18n'
 import { mapError, type CaughtError } from '@shared/errors'
 import { approvableTogether, groupProposals, oneClick, type QueueOrigin, type QueueProposal, type QueueWhat } from '@shared/aiQueue'
@@ -51,6 +54,8 @@ const CAPTURE: Record<string, MessageKey> = {
 
 type T = ReturnType<typeof useT>
 const DISCARDED: MessageKey = 'simple.queue.discarded' // i18n-technical
+const SUCCESS = 'success' as const // i18n-technical
+const ERROR = 'error' as const // i18n-technical
 const REMINDED: MessageKey = 'simple.queue.reminded' // i18n-technical
 const WHATSAPP = 'whatsapp' as const // i18n-technical
 const COPIED = 'copied' as const // i18n-technical
@@ -184,7 +189,8 @@ function Card({ p, actions, canSave, canWrite, onDone }: { p: QueueProposal; act
   )
 }
 
-export function ApprovalQueue(): React.JSX.Element {
+/** The queue's groups and cards — the page below and the Ask panel's "To approve" tab. */
+export function QueueGroups({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const t = useT()
   const toast = useToasts()
   const canSave = useCanSave()
@@ -204,19 +210,18 @@ export function ApprovalQueue(): React.JSX.Element {
     if (done === out.length) toast.push('success', t('simple.queue.approved'))
     else toast.push('warning', t('simple.queue.approvedSome', { done, count: out.length }))
   }
-
   return (
-    <Page data-testid="simple-approvals">
-      <header className="mb-4 space-y-1">
-        <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.queue.title')}</h1>
-        <p className="text-body text-muted">{t('simple.queue.intro')}</p>
-      </header>
-      {isLoading && <SkeletonRows rows={4} />}
-      {data && proposals.length === 0 && <EmptyTeach
+    <>
+      {isLoading && <SkeletonRows rows={compact ? 2 : 4} />}
+      {data && proposals.length === 0 && (compact ? (
+        <p className="text-hint text-muted" data-testid="ask-queue-empty">{t('simple.queue.empty')}</p>
+      ) : (
+        <EmptyTeach
           testId="simple-approvals-empty"
           purpose={t('simple.queue.emptyBody')}
           help="getting-started" // i18n-technical
-        />}
+        />
+      ))}
       {groupProposals(proposals).map((g) => {
         const together = g.items.filter((p) => approvableTogether(p) && (p.type === 'memory' ? canWrite : canSave))
         return (
@@ -241,6 +246,52 @@ export function ApprovalQueue(): React.JSX.Element {
           </Panel>
         )
       })}
+    </>
+  )
+}
+
+/** "Add bills" — the Capture screen's file picker (main opens it; nothing is read or sent until
+ *  the cost is agreed on the Capture screen). The added bills wait in the queue as "bills to read". */
+export function AddBillsButton(): React.JSX.Element | null {
+  const t = useT()
+  const toast = useToasts()
+  const canWrite = useCanWrite()
+  const queryClient = useQueryClient()
+  // Reading a bill needs the AI helper: the button shows only while it is ready (as Buy's "Snap a bill").
+  const aiReady = useAiAffordances()
+  if (!canWrite || !aiReady) return null
+  return (
+    <Button
+      size="sm"
+      data-testid="queue-add-bills"
+      onClick={() =>
+        void captureApi
+          .pick()
+          .then((r) => {
+            if (r.added.length) toast.push(SUCCESS, t('simple.queue.billsAdded', { count: r.added.length }))
+            for (const x of r.refused.slice(0, 3)) toast.push(ERROR, x)
+            return queryClient.invalidateQueries()
+          })
+          .catch((e: unknown) => toast.push(ERROR, (e as Error).message))
+      }
+    >
+      {t('simple.queue.addBills')}
+    </Button>
+  )
+}
+
+export function ApprovalQueue(): React.JSX.Element {
+  const t = useT()
+  return (
+    <Page data-testid="simple-approvals">
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <span className="space-y-1">
+          <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{t('simple.queue.title')}</h1>
+          <p className="text-body text-muted">{t('simple.queue.intro')}</p>
+        </span>
+        <AddBillsButton />
+      </header>
+      <QueueGroups />
     </Page>
   )
 }

@@ -9,6 +9,7 @@
 // context lines sit behind "Details". The accountant panel (components/ai/AssistantPanel.tsx) is
 // untouched.
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatMicroUsd, type AiContext, type AiDraftDto, type AiEvent, type AiMessageDto, type AiPreCall } from '@shared/ai'
 import { screenContextLines } from '@shared/aiExplain'
@@ -16,7 +17,7 @@ import { classifyAiError, draftOffer, draftSentence, figuresFromSentence, turnCo
 import { todayISO } from '@shared/dates'
 import type { VoucherKind } from '@shared/domain'
 import { aiApi, onAiEvent } from '../../lib/aiClient'
-import { applyAiEvent, emptyPanel, turnCost, type AiPanelState } from '../../lib/aiThread'
+import { applyAiEvent, emptyPanel, loadThread, turnCost, type AiPanelState } from '../../lib/aiThread'
 import { cfApi } from '../../lib/cashFinanceClient'
 import { useT } from '../../lib/i18n'
 import { useNav, useSession, useToasts, type Screen } from '../../state/stores'
@@ -29,10 +30,11 @@ const MEMORY_KEY = ['aiMemory'] // i18n-technical
 const DRAFTS_KEY = 'aiDrafts' // i18n-technical
 const DRAFT_KEY = 'aiDraft' // i18n-technical
 
-type Action = { type: 'event'; event: AiEvent } | { type: 'reset' } | { type: 'awaiting' } | { type: 'error'; error: string | null }
+type Action = { type: 'event'; event: AiEvent } | { type: 'reset' } | { type: 'awaiting' } | { type: 'error'; error: string | null } | { type: 'load'; state: AiPanelState }
 
 function reducer(state: AiPanelState, a: Action): AiPanelState {
   if (a.type === 'event') return applyAiEvent(state, a.event)
+  if (a.type === 'load') return a.state
   if (a.type === 'reset') return emptyPanel()
   if (a.type === 'awaiting') return { ...state, awaitingThread: true, error: null }
   return { ...state, error: a.error, awaitingThread: false }
@@ -63,6 +65,10 @@ function PlainProblem({ message, testId }: { message: string; testId: string }):
 export function SimpleAiDrawer({
   onClose,
   onBack,
+  tabs,
+  escalated = true,
+  keptThreadId = null,
+  onThread,
   width,
   onResize,
   context,
@@ -72,6 +78,14 @@ export function SimpleAiDrawer({
   onClose: () => void
   /** Back to Ask Total. */
   onBack: () => void
+  /** Phase 3b part 3: the ONE panel's Ask / To approve tabs. */
+  tabs?: ReactNode
+  /** Phase 3b part 3: Ask Total handed this question over (it could not answer) — only then the
+   *  "Total could not answer it" note. */
+  escalated?: boolean
+  /** The conversation to load back on mount (a tab switch), and where its id is kept. */
+  keptThreadId?: number | null
+  onThread?: (id: number | null) => void
   width: number
   onResize: (w: number) => void
   /** The current screen's context (sent with each question, as in the accountant panel). */
@@ -87,6 +101,20 @@ export function SimpleAiDrawer({
   const rate = usdRateOn(rates, todayISO(), view?.settings.usdRateMicro)
   const ready = !!view?.ready
   const [state, dispatch] = useReducer(reducer, emptyPanel())
+  useEffect(() => {
+    if (keptThreadId == null) return
+    void aiApi
+      .thread(keptThreadId)
+      .then((th) => dispatch({ type: 'load', state: loadThread(keptThreadId, th.messages, th.running) })) // i18n-technical
+      .catch(() => onThread?.(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
+  const mounted = useRef(false)
+  useEffect(() => {
+    // The first run is the empty start — the kept id stays until the conversation loads back.
+    if (mounted.current) onThread?.(state.threadId)
+    mounted.current = true
+  }, [state.threadId, onThread])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -184,6 +212,8 @@ export function SimpleAiDrawer({
   )
 
   const header = (
+    <div className="flex flex-col gap-2">
+    {tabs}
     <div className="flex items-center gap-2">
       <Button size="sm" variant="ghost" onClick={onBack} data-testid="btn-back-ask-total">
         {t('assist.panel.back')}
@@ -192,6 +222,7 @@ export function SimpleAiDrawer({
       <Button size="sm" variant="ghost" onClick={() => dispatch({ type: 'reset' }) /* i18n-technical */} disabled={state.running || sending} data-testid="ai-plain-new">
         {t('simple.ai.panel.new')}
       </Button>
+    </div>
     </div>
   )
 
@@ -204,7 +235,7 @@ export function SimpleAiDrawer({
   return (
     <DockedDrawer title={t('simple.ai.panel.title')} subtitle={t('simple.ai.panel.sub')} onClose={onClose} width={width} onResize={onResize} testId="ai-panel-plain" header={header} footer={footer}>
       <div className="flex flex-col gap-3" aria-live="polite" data-testid="ai-plain-messages">
-        <Banner tone="info" testId="ai-escalated">{t('assist.panel.aiAnswered')}</Banner>
+        {escalated && <Banner tone="info" testId="ai-escalated">{t('assist.panel.aiAnswered')}</Banner>}
         {view && <PlainSent context={context} privacy={view.settings.privacy} useMemory={view.settings.useMemory} />}
         {view && !ready && (
           <Banner

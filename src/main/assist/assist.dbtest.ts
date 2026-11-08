@@ -557,7 +557,8 @@ describe('Ask Total: bills in two years, TDS and payroll (an unregistered busine
       expect(a.intent, q).toBe('withholding')
       expect(paise(a), q).toEqual([30000, 130000, 100000])
       expect(a.figures.every((f) => f.sourced && f.source?.kind === 'screen'), q).toBe(true)
-      expect(a.links[0]!.target, q).toEqual({ screen: 'simple-taxes' })
+      // Phase 3b part 3: the link names which (the full app opens the TDS screen; the simple one Taxes).
+      expect(a.links[0]!.target, q).toEqual({ screen: 'simple-taxes', params: { withholding: 'tds' } })
     }
     // TCS is still off.
     expect((await ask('how much TCS')).sentences[0]).toContain('not switched on')

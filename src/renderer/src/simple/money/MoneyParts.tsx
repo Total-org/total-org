@@ -76,6 +76,7 @@ export function Card({ title, children, testId }: { title: string; children: Rea
  * with no field of its own, and the Save bar.
  */
 export function MoneyFooter({
+  amount,
   preview,
   previewing,
   ready,
@@ -86,6 +87,8 @@ export function MoneyFooter({
   onSave,
   onStartAgain
 }: {
+  /** The amount on the form (paise) — shown in the Save bar like Make a bill's total (audit UX-16). */
+  amount: number | null
   preview: SimplePreview | null
   previewing: boolean
   ready: boolean
@@ -119,6 +122,9 @@ export function MoneyFooter({
         </div>
       )}
       <SaveBar
+        // Only an amount that can be saved: a typed -500 is refused under the field, never shown here.
+        total={formatPaise(amount != null && amount > 0 ? amount : 0, { symbol: true })}
+        totalTestId="money-total-bar"
         preview={preview ? preview.sentences.map((s, i) => <p key={i}>{s}</p>) : ready && previewing ? <p className="text-muted">{t('simple.money.checking')}</p> : null}
         previewTestId="money-preview"
         shortcuts={t('simple.money.shortcuts')}
