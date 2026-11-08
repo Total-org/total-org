@@ -7,7 +7,7 @@
 // Stale documents: quotations past their validity, orders past their expected date (or old with
 // none), challans / GRNs pending too long. Stale quotations can be closed in bulk; any row can be
 // closed (short-closed) from its ⋯ menu.
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toDisplayDate } from '@shared/dates'
 import { formatPaise } from '@shared/money'
@@ -135,7 +135,9 @@ const STALE_COLUMNS = defineColumns<StaleDocRow>([
   { id: 'value', header: 'Pending value', kind: 'money', value: (r) => r.pendingValue, width: 130, aggregate: 'sum' }
 ])
 
-export function StaleDocumentsScreen(): React.JSX.Element {
+/** Analysis → Checks → Stale documents (A13c; its own screen under Orders before): `tabs` = the
+ *  Checks tab bar for the page header. Saved views / options (`stale-documents`) carry over. */
+export function StaleDocumentsTab({ tabs }: { tabs?: ReactNode }): React.JSX.Element {
   const { to } = useSession()
   const toast = useToasts()
   const qc = useQueryClient()
@@ -192,10 +194,13 @@ export function StaleDocumentsScreen(): React.JSX.Element {
   }
 
   return (
-    <Page width="wide">
+    <>
       <PageHeader
-        title="Stale documents"
+        title="Checks"
+        screen="stale-documents"
         period={periodLabel}
+        subtitle="Quotations past their validity, orders past their expected date, challans and GRNs pending too long."
+        tabs={tabs}
         actions={
           canWrite && expired.length > 0 ? (
             <Button variant="primary" data-testid="btn-close-stale-quotations" onClick={() => void closeQuotations(pickedIds.length > 0 ? pickedIds : undefined)}>
@@ -282,6 +287,6 @@ export function StaleDocumentsScreen(): React.JSX.Element {
         />
       </Panel>
       <p className="mt-2 text-hint text-muted">Tick expired quotations to close only those · ⋯ to close one · click a row for its linked documents.</p>
-    </Page>
+    </>
   )
 }

@@ -1,20 +1,15 @@
-// Analysis → Assistants (WP 5.5): the month-end close checklist, GSTR-2B mismatch resolution,
-// anomaly and duplicate detection. Every tab is computed by
-// main (services/assistants.ts) and works with AI off; when the assistant is on, "Run with AI"
-// opens the chat panel with the same assistant tool already run, so the answer starts from it.
-import { Page, PageHeader, TabBar } from '../../components/ui'
-import { useNav } from '../../state/stores'
+// The WP 5.5 assistants — the month-end close checklist, GSTR-2B mismatch resolution, anomaly and
+// duplicate detection — as tabs of Analysis → Checks (A13c; their own Assistants screen before).
+// Every tab is computed by main (services/assistants.ts) and works with AI off; when the
+// assistant is on, "Run with AI" opens the chat panel with the same assistant tool already run,
+// so the answer starts from it.
+import type { ReactNode } from 'react'
+import { PageHeader } from '../../components/ui'
 import { CloseTab } from './CloseTab'
 import { Gst2bTab } from './Gst2bTab'
 import { AnomaliesTab } from './AnomaliesTab'
 
 export type AssistantTab = 'close' | 'gst2b' | 'anomalies'
-
-const TABS: { id: AssistantTab; label: string }[] = [
-  { id: 'close', label: 'Month-end close' },
-  { id: 'gst2b', label: 'GST 2B mismatches' },
-  { id: 'anomalies', label: 'Anomalies' }
-]
 
 const SUBTITLE: Record<AssistantTab, string> = {
   close: 'Everything to clear before the month is closed — computed from the books, with the screen that fixes each item.',
@@ -22,18 +17,14 @@ const SUBTITLE: Record<AssistantTab, string> = {
   anomalies: 'Possible duplicates and unusual entries, with the reason each was flagged.'
 }
 
-export function AssistantsScreen({ tab = 'close', period }: { tab?: AssistantTab; period?: string }): React.JSX.Element {
-  const nav = useNav()
+/** One assistant tab of Checks, with the page header (`tabs` = the Checks tab bar). */
+export function AssistantsTab({ tab = 'close', period, tabs }: { tab?: AssistantTab; period?: string; tabs?: ReactNode }): React.JSX.Element {
   return (
-    <Page width="wide">
-      <PageHeader
-        title="Assistants"
-        subtitle={SUBTITLE[tab]}
-        tabs={<TabBar screen="assistants" label="Assistants" tabs={TABS} active={tab} onSelect={(t) => nav.replace({ name: 'assistants', tab: t, ...(period ? { period } : {}) })} />}
-      />
+    <>
+      <PageHeader title="Checks" subtitle={SUBTITLE[tab]} tabs={tabs} />
       {tab === 'close' && <CloseTab initialPeriod={period} />}
       {tab === 'gst2b' && <Gst2bTab initialPeriod={period} />}
       {tab === 'anomalies' && <AnomaliesTab />}
-    </Page>
+    </>
   )
 }

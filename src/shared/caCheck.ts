@@ -44,7 +44,7 @@ export const CA_PLACES = {
   'itc04.screen': 'ITC-04 screen',
   'itcReversal.screen': 'ITC reversal screen',
   'ims.tab': 'GSTR-2B → IMS tab',
-  'gst2b.tab': 'Assistants → GSTR-2B tab',
+  'gst2b.tab': 'Checks → GST 2B mismatches tab',
   'edocs.list': 'e-Invoice / e-way bill list',
   'edocs.details': 'e-Invoice details (cancel and extend)',
   'company.einvoiceProfile': 'Company details → e-invoicing',

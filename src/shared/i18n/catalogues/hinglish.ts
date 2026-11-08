@@ -321,7 +321,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.home.attentionSeeAll': 'Saare {count} dekhein',
   'simple.home.attentionOpen': 'Dekhein',
   'simple.home.attentionLoading': 'Aapki entries check kar rahe hain…',
-  'simple.home.attentionCapped': 'Itne bade business mein Home par ajeeb entries check nahi hoti — unhein check karne ke liye full app mein “Assistants” kholein.',
+  'simple.home.attentionCapped': 'Itne bade business mein Home par ajeeb entries check nahi hoti — unhein check karne ke liye full app mein “Checks” kholein.',
   'simple.home.deadlinesTitle': 'Aane wali dates',
   'simple.home.deadline.tds': 'Aapka kaata hua TDS (source par kaata gaya tax) jama karein — {date} tak',
   'simple.home.deadline.pf': 'Aapke staff ka PF (provident fund) — {date} tak',

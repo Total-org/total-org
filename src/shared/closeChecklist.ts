@@ -404,7 +404,7 @@ export const CLOSE_CHECK_DEFS: Record<CloseCheckKey, Def> = {
   narration: {
     title: 'Every voucher has a narration',
     area: 'Books',
-    fix: { screen: 'exceptions', label: 'Open exceptions' },
+    fix: { screen: 'checks', label: 'Open exceptions', params: { tab: 'exceptions' } },
     help: 'A narration says why an entry was made — auditors ask for it.',
     build: (f) => {
       const rows = vrows(f.blankNarration, 'no narration')
@@ -414,7 +414,7 @@ export const CLOSE_CHECK_DEFS: Record<CloseCheckKey, Def> = {
   rounding: {
     title: 'Vouchers balance; round-off is small',
     area: 'Books',
-    fix: { screen: 'exceptions', label: 'Open exceptions' },
+    fix: { screen: 'checks', label: 'Open exceptions', params: { tab: 'exceptions' } },
     help: 'Every voucher must balance; a round-off line above ₹1 usually hides a wrong rate or amount.',
     build: (f) => {
       const rows = [...vrows(f.unbalanced, 'debits and credits differ'), ...vrows(f.roundOff, 'round-off above ₹1')]

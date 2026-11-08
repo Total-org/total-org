@@ -1,8 +1,10 @@
-import { useState } from 'react'
+// Analysis → Checks → Exceptions (A13c; the Exceptions screen before): the exception reports for
+// the working period. Saved views (`exceptions-<section>`) and options (`exceptions`) carry over.
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/client'
 import { useNav, useSession } from '../state/stores'
-import { DrawerSection, EmptyState, Page, PageHeader, Panel, SkeletonRows } from '../components/ui'
+import { DrawerSection, EmptyState, PageHeader, Panel, SkeletonRows } from '../components/ui'
 import { OptionToggle, OptionsPeriod, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
 import { toDisplayDate } from '@shared/dates'
@@ -82,7 +84,8 @@ function SectionPanel({ section, periodLabel, expandAll }: { section: ExceptionS
   )
 }
 
-export function ExceptionsScreen(): React.JSX.Element {
+/** The Exceptions tab of Checks: `tabs` = the Checks tab bar for the page header. */
+export function ExceptionsTab({ tabs }: { tabs?: ReactNode }): React.JSX.Element {
   const { from, to } = useSession()
   const { data, isLoading } = useQuery({ queryKey: ['exceptions', from, to], queryFn: () => api.reports.exceptions(from, to) })
   const total = data?.sections.reduce((s, x) => s + x.count, 0) ?? 0
@@ -91,11 +94,13 @@ export function ExceptionsScreen(): React.JSX.Element {
   const periodLabel = `${toDisplayDate(from)} → ${toDisplayDate(to)}`
 
   return (
-    <Page>
+    <>
       <PageHeader
-        title="Exception reports"
+        title="Checks"
+        screen="exceptions"
         period={periodLabel}
-        subtitle={data ? (total === 0 ? 'all clean' : `${total} to review`) : undefined}
+        subtitle={`Exception reports for the period${data ? (total === 0 ? ' — all clean' : ` — ${total} to review`) : ''}`}
+        tabs={tabs}
         options={{
           onReset: opts.reset,
           content: (
@@ -128,6 +133,6 @@ export function ExceptionsScreen(): React.JSX.Element {
       {sections.map((s) => (
         <SectionPanel key={`${s.key}-${opts.options.expandAll}`} section={s} expandAll={opts.options.expandAll} periodLabel={`${toDisplayDate(from)} to ${toDisplayDate(to)}`} />
       ))}
-    </Page>
+    </>
   )
 }

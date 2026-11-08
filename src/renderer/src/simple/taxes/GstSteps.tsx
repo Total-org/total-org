@@ -16,8 +16,8 @@ import { FiledForm } from './FiledForm'
 import { PortalSend } from './PortalSend'
 
 type Regular = Extract<SimpleTaxes, { kind: 'regular' }>
-const closeScreen = (period: string): { name: 'assistants'; tab: 'close'; period: string } => ({ name: 'assistants', tab: 'close', period }) // i18n-technical
-const gst2bScreen = (period: string): { name: 'assistants'; tab: 'gst2b'; period: string } => ({ name: 'assistants', tab: 'gst2b', period }) // i18n-technical
+const closeScreen = (period: string): { name: 'checks'; tab: 'close'; period: string } => ({ name: 'checks', tab: 'close', period }) // i18n-technical
+const gst2bScreen = (period: string): { name: 'checks'; tab: 'gst2b'; period: string } => ({ name: 'checks', tab: 'gst2b', period }) // i18n-technical
 const IMPORT_2B = { name: 'gstr2b' } as const // i18n-technical
 const GSTR1 = { name: 'gstr1' } as const // i18n-technical
 const FORMS: readonly GstForm[] = ['gstr1', 'gstr3b']

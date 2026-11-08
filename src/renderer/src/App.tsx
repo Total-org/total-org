@@ -45,7 +45,6 @@ import {
   ProfitLossScreen,
   BalanceSheetScreen,
   CashFlowScreen,
-  ExceptionsScreen,
   StockSummaryScreen,
   ManufactureScreen,
   CounterBillingScreen,
@@ -78,7 +77,6 @@ import {
   ItemDemandScreen,
   OrderBookScreen,
   TradeReturnsScreen,
-  StaleDocumentsScreen,
   UnbilledGoodsScreen,
   CaptureScreen,
   ApprovalQueueScreen,
@@ -89,7 +87,7 @@ import {
   TdsScreen,
   TcsScreen,
   CostCentresScreen,
-  AssistantsScreen,
+  ChecksScreen,
   RatiosScreen,
   YearEndScreen,
   Settings,
@@ -268,7 +266,6 @@ export default function App(): React.JSX.Element {
           {screen.name === 'profit-loss' && <ProfitLossScreen from={screen.from} to={screen.to} />}
           {screen.name === 'balance-sheet' && <BalanceSheetScreen />}
           {screen.name === 'cash-flow' && <CashFlowScreen />}
-          {screen.name === 'exceptions' && <ExceptionsScreen />}
           {screen.name === 'stock-summary' && <StockSummaryScreen />}
           {screen.name === 'manufacture' && (
             <ManufactureScreen
@@ -333,7 +330,6 @@ export default function App(): React.JSX.Element {
           {screen.name === 'item-demand' && <ItemDemandScreen />}
           {screen.name === 'trade-returns' && <TradeReturnsScreen key={screen.tab ?? 'register'} tab={screen.tab} />}
           {screen.name === 'unbilled-goods' && <UnbilledGoodsScreen />}
-          {screen.name === 'stale-documents' && <StaleDocumentsScreen />}
           {screen.name === 'banking' && <BankingScreen key={`${screen.tab ?? 'recon'}:${screen.ledgerId ?? ''}:${screen.asOn ?? ''}`} tab={screen.tab} ledgerId={screen.ledgerId} asOn={screen.asOn} />}
           {screen.name === 'capture' && <CaptureScreen />}
           {screen.name === 'ai-queue' && <ApprovalQueueScreen />}
@@ -341,7 +337,7 @@ export default function App(): React.JSX.Element {
           {screen.name === 'tds' && <TdsScreen />}
           {screen.name === 'tcs' && <TcsScreen />}
           {screen.name === 'cost-centres' && <CostCentresScreen />}
-          {screen.name === 'assistants' && <AssistantsScreen key={screen.tab ?? 'close'} tab={screen.tab} period={screen.period} />}
+          {screen.name === 'checks' && <ChecksScreen key={screen.tab ?? 'close'} tab={screen.tab} period={screen.period} />}
           {screen.name === 'ratios' && <RatiosScreen />}
           {screen.name === 'cash-forecast' && <CashForecastScreen />}
           {screen.name === 'year-end' && <YearEndScreen />}
