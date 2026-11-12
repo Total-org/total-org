@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Updates are checked as genuine before they are offered** (#NNN, audit A4). Every release now
+**Updates are checked as genuine before they are offered** (#251, audit A4). Every release now
 carries a signed list of its files (`total-manifest.json`, Ed25519). Total offers a new version only
 when that list verifies against the key built into the app, installs a downloaded update only when
 the file matches it, and a manual download opens that exact installer on GitHub. The updater opens
