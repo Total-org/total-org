@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**A warning when several lines share one guessed GST rate** (#PR, WP 2d). On a bill typed as amounts,
+**A warning when several lines share one guessed GST rate** (#265, WP 2d). On a bill typed as amounts,
 a sales line whose account has no GST rate takes its rate from the GST the bill posts. When several
 such lines share one bill, they all get one rate. If they were really at different rates (say 5 % and
 18 %), the split by rate in GSTR-1 is wrong, even when the blend happens to land on a standard rate
