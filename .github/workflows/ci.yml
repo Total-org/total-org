@@ -144,7 +144,7 @@ jobs:
   # Full UI E2E suite (scripts/e2e/*.mjs via npm run e2e) against the built app. Push-to-main
   # only — it's the slowest job; PRs get the smoke plus an e2e subset in smoke-mac above.
   e2e-mac:
-    if: github.event_name == 'push' || github.head_ref == 'health/a11-part3' # TEMP (A11 part 3): one full e2e run on this PR; reverted before merge
+    if: github.event_name == 'push'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
