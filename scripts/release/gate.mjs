@@ -4,6 +4,7 @@
 //
 //   preflight <out.json>                     commits since the last tag, CI on HEAD, blockers, version
 //   compare <old.json> <new.json> <preflight.json> <out.json>   the upgrade test's verdict
+//   matrix <dir> <out.md> <tag…>              Phase 6: the upgrade matrix table (<dir>/<tag>/{old,upgrade}.json)
 //   decide <preflight.json> <upgrade.json|-> <out.json>         the slot's verdict + run summary
 //   issue <decision.json> [released|failed]   open / update / close the "Scheduled release skipped" issue
 //   bump <version> <date>                     package.json + lock + CHANGELOG (no commit)
@@ -23,6 +24,7 @@ import {
   moveUnreleased,
   changelogSection,
   compareOutputs,
+  upgradeMatrixTable,
   figuresVerdict,
   blockerVerdict,
   missingAssets,
@@ -147,7 +149,8 @@ const healthProblems = (slug, c, expectedMigrations) => {
 function compare(oldFile, newFile, preflightFile, outFile) {
   const old = readJson(oldFile)
   const neu = readJson(newFile)
-  const pre = readJson(preflightFile)
+  // '-' = no batch to approve from (the Phase 6 upgrade matrix): every difference is reported.
+  const pre = preflightFile === '-' ? { prs: [] } : readJson(preflightFile)
   const health = []
   const differences = []
   const added = []
@@ -169,7 +172,7 @@ function compare(oldFile, newFile, preflightFile, outFile) {
     { name: 'figures on upgraded books', ...figures }
   ]
   const reportCount = Object.values(old.companies).reduce((n, c) => n + Object.keys(c.figures).length, 0)
-  const result = { ok: checks.every((c) => c.ok), checks, reportCount, differences: differences.slice(0, 200), differenceCount: differences.length, added: added.slice(0, 200), addedCount: added.length }
+  const result = { ok: checks.every((c) => c.ok), checks, reportCount, migrationsAfter: neu.migrations, differences: differences.slice(0, 200), differenceCount: differences.length, added: added.slice(0, 200), addedCount: added.length }
   writeJson(outFile, result)
   for (const c of checks) process.stdout.write(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}: ${c.reason}\n`)
   setOutput('ok', result.ok)
@@ -300,8 +303,15 @@ async function verify(version) {
   if (problems.length) process.exit(1)
 }
 
+function matrix(dir, outFile, ...tags) {
+  const read = (tag, name) => (existsSync(`${dir}/${tag}/${name}`) ? readJson(`${dir}/${tag}/${name}`) : null)
+  const table = upgradeMatrixTable(tags.map((tag) => ({ tag, old: read(tag, 'old.json'), upgrade: read(tag, 'upgrade.json') })))
+  writeFileSync(outFile, `${table}\n`)
+  summary(`### Upgrade matrix — older releases' books opened by HEAD\n\n${table}`)
+}
+
 const [cmd, ...args] = process.argv.slice(2)
-const commands = { preflight, compare, decide, issue, bump, notes, verify }
+const commands = { preflight, compare, matrix, decide, issue, bump, notes, verify }
 if (!commands[cmd]) {
   console.error(`usage: gate.mjs <${Object.keys(commands).join('|')}> …`)
   process.exit(2)

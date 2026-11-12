@@ -189,3 +189,42 @@ export function missingAssets(version, names) {
   ]
   return want.filter((w) => !names.some(w.test)).map((w) => w.what)
 }
+
+/**
+ * Phase 6 upgrade matrix (.github/workflows/upgrade-matrix.yml): one markdown table over every
+ * release's upgrade test. `rows`: [{ tag, old: old.json | null, upgrade: upgrade.json | null }]
+ * (null = that release's job did not get so far). Differences are counted per company and report
+ * kind (the figure key before its first ':'), so the owner sees WHERE a figure moved.
+ */
+export function upgradeMatrixTable(rows) {
+  const lines = [
+    '| Release | Books | Migrations (old → HEAD) | Health | Reports compared | Figures that differ | Where |',
+    '|---|---|---|---|---|---|---|'
+  ]
+  for (const { tag, old, upgrade } of rows) {
+    if (!old || !upgrade) {
+      lines.push(`| ${tag} | — | — | did not finish (see the job log) | — | — | — |`)
+      continue
+    }
+    const companies = Object.entries(old.companies)
+    const health = upgrade.checks.find((c) => c.name.startsWith('migrations'))
+    const where = new Map()
+    for (const d of upgrade.differences) {
+      const [slug, rest = ''] = d.path.split('/')
+      const key = `${slug} ${rest.split(':')[0].split('.')[0]}`
+      where.set(key, (where.get(key) ?? 0) + 1)
+    }
+    const capped = upgrade.differences.length < upgrade.differenceCount ? ' (first 200 per company listed)' : ''
+    const cells = [
+        tag,
+        companies.map(([slug]) => slug).join(', '),
+        `${companies.map(([, c]) => c.migrations).join(' / ')} → ${upgrade.migrationsAfter ?? '?'}`,
+        health?.ok ? 'clean' : `**${health?.reason ?? 'unknown'}**`,
+        String(upgrade.reportCount),
+        upgrade.differenceCount ? `**${upgrade.differenceCount}**${capped}` : '0',
+        [...where].map(([k, n]) => `${k} ×${n}`).join('; ') || '—'
+    ]
+    lines.push(`| ${cells.join(' | ')} |`)
+  }
+  return lines.join('\n')
+}

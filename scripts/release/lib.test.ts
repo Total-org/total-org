@@ -13,7 +13,8 @@ import {
   blockerVerdict,
   missingAssets,
   lastReleaseVerdict,
-  REQUIRED_CI_JOBS
+  REQUIRED_CI_JOBS,
+  upgradeMatrixTable
 } from './lib.mjs'
 
 const ok = (name: string) => ({ name, status: 'completed', conclusion: 'success' })
@@ -172,5 +173,29 @@ describe('release assets', () => {
     const names = ['Total-0.12.1-arm64.dmg', 'Total-0.12.1-arm64-mac.zip', 'latest-mac.yml']
     expect(missingAssets('0.12.1', names)).toEqual(['Windows installer', 'latest.yml'])
     expect(missingAssets('0.12.1', [...names, 'Total-Setup-0.12.1.exe', 'latest.yml'])).toEqual([])
+  })
+})
+
+describe('the Phase 6 upgrade matrix table', () => {
+  const old = { migrations: 40, companies: { 'demo-traders': { migrations: 40, figures: {} } } }
+  const clean = { checks: [{ name: 'migrations + backup restore check', ok: true, reason: 'clean' }], reportCount: 30, migrationsAfter: 62, differences: [], differenceCount: 0 }
+  it('a clean release reads clean with no differences', () => {
+    const t = upgradeMatrixTable([{ tag: 'v0.10.0', old, upgrade: clean }])
+    expect(t.split('\n')[2]).toBe('| v0.10.0 | demo-traders | 40 → 62 | clean | 30 | 0 | — |')
+  })
+  it('differences are counted per company and report kind; a job that did not finish says so', () => {
+    const upgrade = {
+      ...clean,
+      checks: [{ name: 'migrations + backup restore check', ok: false, reason: 'demo-traders: the audit chain does not verify' }],
+      differences: [
+        { path: 'demo-traders/outstandings:receivable:2027-03-31.parties[0].bills[0].overdueDays', old: 3, new: 40 },
+        { path: 'demo-traders/outstandings:receivable:2027-03-31.parties[1].pending', old: 1, new: 2 },
+        { path: 'demo-traders/gstr1:042026.b2cs[0].txval', old: 1, new: 2 }
+      ],
+      differenceCount: 3
+    }
+    const rows = upgradeMatrixTable([{ tag: 'v0.11.0', old, upgrade }, { tag: 'v0.12.0', old: null, upgrade: null }]).split('\n')
+    expect(rows[2]).toBe('| v0.11.0 | demo-traders | 40 → 62 | **demo-traders: the audit chain does not verify** | 30 | **3** | demo-traders outstandings ×2; demo-traders gstr1 ×1 |')
+    expect(rows[3]).toBe('| v0.12.0 | — | — | did not finish (see the job log) | — | — | — |')
   })
 })

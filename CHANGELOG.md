@@ -20,6 +20,10 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**For developers: an upgrade matrix for 1.0** (Phase 6 prep). A manual workflow (Actions → Upgrade
+matrix) makes books with 0.10.0, 0.11.0, 0.12.0 and 0.12.1, opens them with the current code and
+lists every report figure that differs, in one table. Nothing in the app changes.
+
 **A warning for advances on goods** (#259, WP 2d). A regular business pays GST on goods when it
 invoices, not when the customer pays in advance (Notification 66/2017-Central Tax). The GSTR-1
 checks now warn when an advance in Table 11A comes from a customer you sell goods to, going by the
