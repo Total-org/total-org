@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Total opens faster, and Home no longer jumps** (#NNN, Phase 5 speed). On a big business
+**Total opens faster, and Home no longer jumps** (#253, Phase 5 speed). On a big business
 (100,000 entries) Home is on screen and usable about 0.5 s sooner (launch → Home shown 1.47 →
 0.93 s; every figure in 3.05 → 2.60 s in the full app, 2.90 → 2.45 s in simple mode). Opening a
 business no longer waits for a page-by-page copy of its books — the automatic backup taken on open

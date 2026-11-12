@@ -358,7 +358,7 @@ article carries `data-loading` and the "shown in English" note waits), and `useH
 346.3 kB → 329.9 kB); new chunks `hiFiles-*.js` 56.0 kB and `hinglishFiles-*.js` 15.0 kB.
 Measured 17 Oct 2026, `npm run build` on main at #145 then on the branch.
 
-### Phase 5: launch under 2 s, skeletons, no layout shift (PR #NNN)
+### Phase 5: launch under 2 s, skeletons, no layout shift (PR #253)
 
 Measured 12 Nov 2026 on the 100k seed, built app, laptop load average 2–3; before = origin/main
 (5bfab013) built the same way in a scratch worktree, before / after alternated, 3 pairs per mode.
