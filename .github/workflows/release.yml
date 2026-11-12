@@ -47,6 +47,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary + electron-builder's tools from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov). A re-run of a tag cut before the action existed
+      # skips it and downloads as before.
+      - if: hashFiles('.github/actions/electron-binary/action.yml') != ''
+        uses: ./.github/actions/electron-binary
+        with:
+          packaging: 'true'
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -117,6 +125,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The Electron binary + electron-builder's tools from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov). A re-run of a tag cut before the action existed
+      # skips it and downloads as before.
+      - if: hashFiles('.github/actions/electron-binary/action.yml') != ''
+        uses: ./.github/actions/electron-binary
+        with:
+          packaging: 'true'
 
       - name: Run tests
         run: npm test

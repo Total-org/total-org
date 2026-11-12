@@ -32,6 +32,11 @@ scripts/        e2e/NN-*.mjs — Playwright _electron E2E scenarios (npm run e2e
 .github/        ci.yml — tests on every push/PR (Linux unit+DB, mac smoke, mac e2e on push,
                 Windows unit+DB+build); release.yml — builds & publishes DMG/ZIP/EXE on v* tags
                 (or when called); scheduled-release.yml — gated patch release every 12 h.
+                actions/electron-binary — every job that runs Electron uses it right after
+                `npm ci` (Electron 45 downloads its binary lazily, from GitHub releases): restores
+                @electron/get's default cache folder (+ electron-builder's with `packaging: 'true'`)
+                keyed by OS + arch + the lockfile's exact versions, then runs Electron's installer
+                once (log "Cache hit" / "Cache miss"). A new Electron job adds it too.
 ```
 
 ## Commands
