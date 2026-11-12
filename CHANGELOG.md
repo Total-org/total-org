@@ -30,6 +30,10 @@ and reverses it in 4(B)(1), as it already did for a supplier marked "blocked". B
 your books are not marked and read exactly as before. *For developers*: migration "itc blocked"
 (`vouchers.itc_blocked`); voucher payload `itcBlocked` (absent = keep).
 
+**For developers: an upgrade matrix for 1.0** (#262, Phase 6 prep). A manual workflow (Actions → Upgrade
+matrix) makes books with 0.10.0, 0.11.0, 0.12.0 and 0.12.1, opens them with the current code and
+lists every report figure that differs, in one table. Nothing in the app changes.
+
 **MSME: the 45 / 15 days run from the day you accepted the goods** (#261, WP 2d). Under the MSMED Act
 (s.15, with s.2(b)'s Explanation), the time to pay a micro or small supplier runs from the day the goods
 were delivered or the services rendered, or from the day the supplier removed a written objection

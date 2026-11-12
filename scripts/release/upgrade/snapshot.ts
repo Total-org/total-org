@@ -4,7 +4,15 @@
 // signatures in both (createDemoCompany, perfSeed, readCompanyInfo, trialBalance, profitAndLoss,
 // balanceSheet, outstandingsWithAdvances, stockSummary, gstr1, gstr3b, verifyAudit, verifyBackupFile).
 // If a later refactor renames one, the bundle fails and the gate SKIPS with that error — it never
-// passes on a check it could not make.
+// passes on a check it could not make. Phase 6 runs it from older releases too (0.10.0, 0.11.0 —
+// .github/workflows/upgrade-matrix.yml) — ONLY with UPGRADE_ALLOW_FALLBACKS=1, which the scheduled
+// gate never sets: run-snapshot.mjs then hands a release that predates a module on its OPTIONAL list
+// an empty stand-in, and the code below falls back — no clock shift (the run must then be on
+// UPGRADE_TODAY itself), no Perf Traders (Demo Traders only), `outstandings` wrapped as `{ parties }`
+// where `outstandingsWithAdvances` is missing (HEAD's extra fields are then "added", never
+// differences). Without the flag a missing name throws (the gate skips with that error, as a failed
+// bundle did); with it, `dump` lists every fallback it took in `fallbacks` and `gate.mjs compare`
+// refuses a gate verdict on books that carry any. `check` (HEAD only) always needs the restore check.
 //
 //   seed  <dataDir>             create Demo Traders + Perf Traders (UPGRADE_VOUCHERS vouchers) — old tree only
 //   dump  <dataDir> <out.json>  every company's figures, without migrating (old tree, same version)
@@ -12,30 +20,64 @@
 //
 // Env: TOTAL_DATA_DIR is set to <dataDir>; UPGRADE_TODAY (YYYY-MM-DD) is the as-on date of every
 // figure and the day the demo is dated by (installE2eClock), identical for both runs.
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { installE2eClock } from '@shared/e2eClock'
+import * as e2eClock from '@shared/e2eClock'
 import { openCompanyDb, closeCompanyDb, type DB } from '@main/db/connection'
 import { readCompanyInfo } from '@main/db/seed'
 import { MIGRATIONS } from '@main/db/migrations'
 import { readRegistry } from '@main/registry'
 import { companyDbPath, ensureDataTree } from '@main/paths'
 import { createDemoCompany } from '@main/services/demo'
-import { perfSeed } from '@main/perf/cli'
-import { PERF_TODAY } from '@main/perf/seedLarge'
+import * as perfCli from '@main/perf/cli'
+import * as seedLarge from '@main/perf/seedLarge'
 import { trialBalance, profitAndLoss, balanceSheet } from '@main/services/reports'
-import { outstandingsWithAdvances } from '@main/services/analysis'
+import * as analysis from '@main/services/analysis'
 import { stockSummary } from '@main/services/stockAnalysis'
 import { gstr1, gstr3b } from '@main/services/gst'
 import { verifyAudit } from '@main/services/audit'
-import { verifyBackupFile } from '@main/services/backupVerify'
+import * as backupVerify from '@main/services/backupVerify'
+
+/** An export the tree may not have (see the header); undefined when it doesn't. */
+const ALLOW_FALLBACKS = process.env.UPGRADE_ALLOW_FALLBACKS === '1'
+/** Every fallback this run took (written by `dump` — never silent). */
+const fallbacks: string[] = []
+const required = (mod: object, name: string): any => {
+  const v = (mod as Record<string, unknown>)[name]
+  if (v === undefined) throw new Error(`snapshot: this tree has no export ${name}`)
+  return v
+}
+/** `name` from `mod`; when the tree lacks it: undefined + a recorded fallback (`because`) with
+ *  UPGRADE_ALLOW_FALLBACKS=1, else the run fails. */
+const optional = (mod: object, name: string, because: string): any => {
+  const v = (mod as Record<string, unknown>)[name]
+  if (v !== undefined) return v
+  if (!ALLOW_FALLBACKS) throw new Error(`snapshot: this tree has no export ${name} (UPGRADE_ALLOW_FALLBACKS=1 is only for the upgrade matrix)`)
+  if (!fallbacks.includes(because)) fallbacks.push(because)
+  return undefined
+}
+
+const localToday = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const [command, dataDir, outFile] = process.argv.slice(2)
 const TODAY = process.env.UPGRADE_TODAY ?? ''
 if (!/^\d{4}-\d{2}-\d{2}$/.test(TODAY)) throw new Error('UPGRADE_TODAY=YYYY-MM-DD is required')
 if (!dataDir) throw new Error('usage: snapshot <seed|dump|check> <dataDir> [out.json]')
 process.env.TOTAL_DATA_DIR = dataDir
-installE2eClock(TODAY)
+const installE2eClock = optional(e2eClock, 'installE2eClock', `no clock shift (run on ${TODAY} itself)`)
+if (installE2eClock) installE2eClock(TODAY)
+else if (TODAY !== localToday()) throw new Error(`this release cannot shift its clock: run it on ${TODAY} or set UPGRADE_TODAY=${localToday()}`)
+const PERF_TODAY: string | undefined = optional(seedLarge, 'PERF_TODAY', 'no Perf Traders seeder')
+
+/** Outstandings on one side as the release computes them (0.10 has only `outstandings`). */
+function outstandingsOf(db: DB, side: 'receivable' | 'payable', asOn: string): unknown {
+  const withAdvances = optional(analysis, 'outstandingsWithAdvances', 'Outstandings without advances (outstandings as { parties })')
+  if (withAdvances) return withAdvances(db, side, asOn)
+  return { parties: required(analysis, 'outstandings')(db, side, asOn) }
+}
 
 /** JSON-safe, deterministic: Maps → objects, BigInts → strings, per-run line uids dropped. */
 function plain(value: unknown): unknown {
@@ -69,7 +111,7 @@ const months = (from: string, to: string): Array<{ from: string; to: string; per
 }
 
 /** The as-on day per company: Perf Traders is generated as on PERF_TODAY, everything else today. */
-const asOnFor = (slug: string): string => (slug === 'perf-traders' ? PERF_TODAY : TODAY)
+const asOnFor = (slug: string): string => (slug === 'perf-traders' && PERF_TODAY ? PERF_TODAY : TODAY)
 
 /** Every figure the owner named: TB, P&L, BS, Outstandings (both sides), stock summary per FY end
  *  (or as-on day), GSTR-1 / GSTR-3B for every month of the books up to the as-on day. */
@@ -84,8 +126,8 @@ function figures(db: DB, today: string): Record<string, unknown> {
     out[`pnl:${from}:${to}`] = profitAndLoss(db, from, to, { comparePrior: true })
     out[`bs:${to}`] = balanceSheet(db, booksFrom, to, true)
     out[`stock:${to}`] = stockSummary(db, to)
-    out[`outstandings:receivable:${to}`] = outstandingsWithAdvances(db, 'receivable', to)
-    out[`outstandings:payable:${to}`] = outstandingsWithAdvances(db, 'payable', to)
+    out[`outstandings:receivable:${to}`] = outstandingsOf(db, 'receivable', to)
+    out[`outstandings:payable:${to}`] = outstandingsOf(db, 'payable', to)
     for (const m of months(from, to)) {
       out[`gstr1:${m.period}`] = gstr1(db, info, m.from, m.to, m.period)
       out[`gstr3b:${m.period}`] = gstr3b(db, info, m.from, m.to, m.period)
@@ -104,7 +146,11 @@ function companies(): Array<{ slug: string; name: string }> {
 function seed(): void {
   ensureDataTree()
   const vouchers = Number(process.env.UPGRADE_VOUCHERS ?? 3000)
-  perfSeed({ vouchers, out: dataDir, log: (s) => process.stderr.write(`${s}\n`) })
+  const perfSeed = optional(perfCli, 'perfSeed', 'no Perf Traders seeder')
+  if (perfSeed) perfSeed({ vouchers, out: dataDir, log: (s: string) => process.stderr.write(`${s}\n`) })
+  else process.stderr.write('this release has no Perf Traders seeder: Demo Traders only\n')
+  // `dump` runs in another process: hand it the seed's fallbacks.
+  writeFileSync(join(dataDir, 'upgrade-fallbacks.json'), JSON.stringify(fallbacks))
   createDemoCompany()
   process.stderr.write(`seeded: ${companies().map((c) => c.slug).join(', ')}\n`)
 }
@@ -119,7 +165,9 @@ function dump(): void {
       closeCompanyDb(db)
     }
   }
-  writeFileSync(outFile, JSON.stringify({ migrations: MIGRATIONS.length, companies: result }, null, 1))
+  const seeded = join(dataDir, 'upgrade-fallbacks.json')
+  const all = [...new Set([...(existsSync(seeded) ? (JSON.parse(readFileSync(seeded, 'utf8')) as string[]) : []), ...fallbacks])]
+  writeFileSync(outFile, JSON.stringify({ migrations: MIGRATIONS.length, fallbacks: all, companies: result }, null, 1))
 }
 
 function check(): void {
@@ -133,7 +181,7 @@ function check(): void {
     // audit chain, company row, Σ Dr = Σ Cr (services/backupVerify.ts — the app's own check).
     const oldCopy = join(scratch, `${c.slug}.old.db`)
     copyFileSync(path, oldCopy)
-    const restore = verifyBackupFile(oldCopy, { asOn: asOnFor(c.slug), scratchRoot: scratch })
+    const restore = required(backupVerify, 'verifyBackupFile')(oldCopy, { asOn: asOnFor(c.slug), scratchRoot: scratch })
     // Then open the books in place, as the app does on launch (migrates them).
     const db = openCompanyDb(c.slug)
     try {
@@ -152,7 +200,7 @@ function check(): void {
       closeCompanyDb(db)
     }
   }
-  writeFileSync(outFile, JSON.stringify({ migrations: MIGRATIONS.length, companies: result }, null, 1))
+  writeFileSync(outFile, JSON.stringify({ migrations: MIGRATIONS.length, fallbacks, companies: result }, null, 1))
 }
 
 if (command === 'seed') seed()
