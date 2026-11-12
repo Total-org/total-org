@@ -11,8 +11,11 @@ on:
     branches: [main]
 
 jobs:
+  # Every job has a timeout (audit A11 / HEALTH-7: the default is 6 h, so a hung Electron or
+  # vitest run used to hold a runner all that time). Roughly 3x each job's usual length.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -88,6 +91,7 @@ jobs:
 
   smoke-mac:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +115,17 @@ jobs:
           TOTAL_DATA_DIR: ${{ runner.temp }}/total-data
           SMOKE_OUT: ${{ runner.temp }}/smoke
 
+      # A11 / HEALTH-7: a small, fast e2e subset on PRs, on the build above (no second macOS
+      # job — macOS runners are scarce): onboarding, an accountant voucher's whole life, GST
+      # returns, the setup wizard, simple Make a bill and Money in / out (~1 min). The full suite
+      # still runs on push to main (e2e-mac below) and gates every scheduled release.
+      - name: E2E subset (PRs)
+        if: github.event_name == 'pull_request'
+        run: node scripts/run-e2e.mjs 01 03 06 48 53 55
+        env:
+          SMOKE_OUT: ${{ runner.temp }}/smoke/e2e
+          TZ: Asia/Kolkata
+
       - name: Upload smoke screenshots
         # Diagnostics only: kept for failures, short-lived, and never allowed to fail the job
         # (a full artifact storage quota once turned a passing smoke run red).
@@ -123,10 +138,11 @@ jobs:
           retention-days: 7
 
   # Full UI E2E suite (scripts/e2e/*.mjs via npm run e2e) against the built app. Push-to-main
-  # only — it's the slowest job, and PRs already get the smoke-mac coverage above.
+  # only — it's the slowest job; PRs get the smoke plus an e2e subset in smoke-mac above.
   e2e-mac:
     if: github.event_name == 'push'
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 

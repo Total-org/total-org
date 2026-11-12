@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { sqlStrings } from './sqlStrings.testutil'
 
 const DIR = __dirname
 /** WP 5.6: the AI code reads the books too (memory statistics, drafting) — scanned as 'ai/<path>'. */
@@ -68,59 +69,6 @@ const ALLOW: { file: string; contains: string; reason: string }[] = [
   { file: 'simpleReturns.ts', contains: 'SELECT DISTINCT voucher_id AS id FROM inventory_lines', reason: 'WP 9.5: does the bill have item lines (its returnable items, wherever the goods moved) — shape, not stock' },
   { file: 'counter.ts', contains: 'FROM inventory_lines il JOIN stock_items si ON si.id = il.stock_item_id JOIN units u ON u.id = si.unit_id', reason: "day-end items = the counter invoices' items" }
 ]
-
-/** Every string / template literal in a TS source (comments skipped; a template's nested
- *  templates are part of it). */
-export function sqlStrings(src: string): string[] {
-  const out: string[] = []
-  let i = 0
-  const readTemplate = (): string => {
-    const start = i
-    i++ // opening backtick
-    while (i < src.length) {
-      const c = src[i]!
-      if (c === '\\') i += 2
-      else if (c === '`') {
-        i++
-        return src.slice(start, i)
-      } else if (c === '$' && src[i + 1] === '{') {
-        i += 2
-        let depth = 1
-        while (i < src.length && depth > 0) {
-          const d = src[i]!
-          if (d === '`') readTemplate()
-          else if (d === "'" || d === '"') readQuoted()
-          else {
-            if (d === '{') depth++
-            else if (d === '}') depth--
-            i++
-          }
-        }
-      } else i++
-    }
-    return src.slice(start)
-  }
-  const readQuoted = (): string => {
-    const q = src[i]!
-    const start = i
-    i++
-    while (i < src.length && src[i] !== q && src[i] !== '\n') i += src[i] === '\\' ? 2 : 1
-    i++
-    return src.slice(start, i)
-  }
-  while (i < src.length) {
-    const c = src[i]!
-    if (c === '/' && src[i + 1] === '/') {
-      while (i < src.length && src[i] !== '\n') i++
-    } else if (c === '/' && src[i + 1] === '*') {
-      const end = src.indexOf('*/', i + 2)
-      i = end === -1 ? src.length : end + 2
-    } else if (c === '`') out.push(readTemplate())
-    else if (c === "'" || c === '"') out.push(readQuoted())
-    else i++
-  }
-  return out
-}
 
 const isSource = (f: string): boolean => f.endsWith('.ts') && !/\.(test|dbtest|testutil|perf\.dbtest)\.ts$/.test(f) && !f.endsWith('.testutil.ts')
 const aiFiles = (readdirSync(AI_DIR, { recursive: true }) as string[]).filter(isSource).map((f) => `ai/${f.split('\\').join('/')}`)
