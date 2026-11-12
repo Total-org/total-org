@@ -548,7 +548,7 @@ describe('the remembered choice', () => {
   it('the editor banner says what is filled in, the payment left out and accounts not set up yet', () => {
     render(withClient(<HandoffBanner handoff={{ from: 'simple-sell', kind: 'sale', entry: BILL, others: [{ role: 'payment', kind: 'receipt', amount: 50_000 }], missing: ['Cash sale'] }} />))
     expect(screen.getByTestId('handoff-banner').textContent).toContain('Your answers are filled in')
-    expect(screen.getByTestId('handoff-other').textContent).toBe('The ₹500.00 you got now is not part of this form. After you save, add it under Money in.')
+    expect(screen.getByTestId('handoff-other').textContent).toBe('The ₹500.00 you got now is not part of this form. After you save, Total opens it as the next step.')
     expect(screen.getByTestId('handoff-missing').textContent).toBe('Not set up yet: Cash sale. Pick or create it here.')
     cleanup()
     render(withClient(<HandoffBanner handoff={{ from: 'simple-sell', kind: 'sale', entry: BILL, others: [], missing: [], addedOnSave: ['Cash sale'] }} />))

@@ -40,12 +40,16 @@ export function PhysicalStockEntry({
   typeId,
   voucherId,
   voucher,
-  initial
+  initial,
+  onHandoffState
 }: {
   typeId: number
   voucherId?: number
   voucher?: Voucher
   initial?: PhysicalFormState
+  /** Phase 5 hand-off: told the form as it stands (a number only once typed), so "Back to simple"
+   *  can carry the changes back into Count your stock (lib/handoff.ts). */
+  onHandoffState?: (state: PhysicalFormState) => void
 }): React.JSX.Element {
   const isEdit = voucherId != null
   const { workingDate, setWorkingDate } = useSession()
@@ -84,6 +88,9 @@ export function PhysicalStockEntry({
     }),
     [base, date, isEdit, alterNumber, numberField.forPayload, rows, narration]
   )
+  useEffect(() => {
+    onHandoffState?.({ ...formState, number: numberField.touched ? formState.number : '' })
+  }, [onHandoffState, formState, numberField.touched])
 
   const alterationDirty = useAlterationDirty(voucher, isEdit ? buildPhysicalPayload(formState, { voucherTypeId: typeId, itemName }) : null)
   useUnsavedGuard(!saved && (isEdit ? alterationDirty : rows.some((r) => r.itemId != null) || narration.trim() !== ''))

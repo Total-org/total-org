@@ -74,7 +74,8 @@ export function InvoiceEntry({
   voucher,
   initial,
   pending,
-  onHandoffState
+  onHandoffState,
+  onHandoffSaved
 }: {
   typeId: number
   kind: VoucherKind
@@ -89,6 +90,9 @@ export function InvoiceEntry({
   /** WP 9.10 hand-off: told the form as it stands (a number only once typed), so "Back to simple"
    *  can carry the changes back (lib/handoff.ts). */
   onHandoffState?: (state: InvoiceFormState, pending: HandoffPendingRefs) => void
+  /** Phase 5 hand-off: told the id of a NEW entry once it is saved (the second step offers the money
+   *  paid / received now — components/HandoffBanner.tsx). */
+  onHandoffSaved?: (id: number) => void
 }): React.JSX.Element {
   const isEdit = voucherId != null
   const { info, workingDate, setWorkingDate, user } = useSession()
@@ -487,6 +491,7 @@ export function InvoiceEntry({
         ...(onHold && overrideReason ? { creditHoldOverride: { reason: overrideReason } } : {}),
         ...(aiDraftId ? { aiDraftId } : {})
       })
+      onHandoffSaved?.(result.id)
       if (invoiceKindTakesTds(kind)) await tdsDeduction.afterSave(result.id)
       if (features.tcs && invoiceKindTakesTcs(kind)) await tcsCollection.afterSave(result.id)
       // WP 8.5: a new entry in a simple-mode company gets the save card instead of the toast.

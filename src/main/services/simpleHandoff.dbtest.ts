@@ -23,7 +23,7 @@ import {
   buildAccountingPayload, buildInvoicePayload, buildPhysicalPayload, derivePartyId, taxLedgerIdsFrom, taxSideOf,
   type AccountingFormState, type InvoiceFormState
 } from '@shared/voucherEdit'
-import type { HandoffCreate, HandoffEntry } from '@shared/simple/handoff'
+import { followUpIntent, type HandoffCreate, type HandoffEntry } from '@shared/simple/handoff'
 import { createLedger, createStockItem, listGroups, listLedgers, listStockItems } from './masters'
 import { getVoucher, nextVoucherNumber, saveVoucher } from './vouchers'
 import { intentForm, postIntent } from './simplePost'
@@ -33,6 +33,8 @@ import { buyIntentFrom, emptyBuyForm, purchaseIntentFrom, type BuyForm } from '@
 import { emptyMoneyInForm, moneyInIntentFrom, type MoneyInForm } from '@shared/simple/money'
 import { emptyReturnForm, type ReturnForm } from '@shared/simple/returns'
 import type { CarryFlow, CarryForms } from '@shared/simple/carryBack'
+import { countIntentFrom, type CountForm, type MakeForm } from '@shared/simple/stock'
+import type { ManufactureFormState, PhysicalFormState } from '@shared/voucherEdit'
 import { moneyBills } from './simpleMoney'
 import { setBom } from './bom'
 import { ensureWalkIn } from './counter'
@@ -444,6 +446,113 @@ describe('simple:carryBack — the unsaved editor\'s changes back into the simpl
   })
 })
 
+describe('Phase 5 — the two-step hand-off: the money paid now after the bill is saved', () => {
+  /** Step 1: the bill saved in its editor; step 2: the follow-up the banner opens (followUpIntent →
+   *  simple:intentForm, no trace) saved in ITS editor — together = what simple:post saves. */
+  function twoStepsAsPosted(i: Record<string, unknown>, partyName: string): void {
+    const sent = intent(i)
+    const hf = intentForm(db, INFO, sent, TODAY)
+    expect(hf.entries).toHaveLength(2)
+    const viaEditors = rehearse(db, () => {
+      const billId = editorSave(hf.entries[0]!)
+      const bill = getVoucher(db, billId)!
+      const partyId = bill.partyLedgerId ?? L(partyName)
+      const next = followUpIntent(
+        { kind: hf.kind, intent: sent as never, others: hf.entries.slice(1).map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })) },
+        { voucherId: billId, date: bill.date, partyId, openBills: moneyBills(db, partyId, bill.date) }
+      )
+      if (!next) throw new Error('no second step')
+      const before = trace()
+      const step2 = intentForm(db, INFO, intent(next), TODAY)
+      expect(trace()).toEqual(before)
+      expect(step2.entries).toHaveLength(1)
+      return [rows(billId), rows(editorSave(step2.entries[0]!))]
+    })
+    const out = post(i)
+    expect(out.voucherIds.map((id) => rows(id))).toEqual(viaEditors)
+  }
+
+  it('a sale part paid by UPI: the receipt against the saved bill for what was paid', () => {
+    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '2', rate: '500' }], payment: { how: 'upi', amount: '500' } }, 'Ramesh')
+  })
+
+  it('a just-an-amount sale paid in full in cash', () => {
+    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '2000', gstRate: 18 }, payment: { how: 'cash' } }, 'Ramesh')
+  })
+
+  it('a purchase with the supplier bill number, paid in full from the bank', () => {
+    twoStepsAsPosted({ kind: 'purchase', supplierId: L('Bharat Steel'), billNo: 'BS/77', items: [{ itemId: I('Flour'), qty: '10', rate: '40' }], payment: { how: 'bank', reference: 'UTR123' } }, 'Bharat Steel')
+  })
+
+  it('a purchase return refunded by bank: the money in from the supplier', () => {
+    const bill = post({ kind: 'purchase', supplierId: L('Bharat Steel'), billNo: 'BS/55', amount: { amount: '1000', accountId: L('Purchases') }, payment: { how: 'bank' } })
+    twoStepsAsPosted({ kind: 'return_purchase', billId: bill.voucherIds[0]!, amount: { amount: '100' }, refund: { how: 'bank' } }, 'Bharat Steel')
+  })
+
+  it('nothing is offered once the saved bill is settled another way', () => {
+    const sent = intent({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '1000', gstRate: 0 }, payment: { how: 'cash' } })
+    const hf = intentForm(db, INFO, sent, TODAY)
+    rehearse(db, () => {
+      const billId = editorSave(hf.entries[0]!)
+      post({ kind: 'money_in', customerId: L('Ramesh'), amount: '1000', into: { how: 'cash' } })
+      const next = followUpIntent(
+        { kind: hf.kind, intent: sent as never, others: hf.entries.slice(1).map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })) },
+        { voucherId: billId, date: TODAY, partyId: L('Ramesh'), openBills: moneyBills(db, L('Ramesh'), TODAY) }
+      )
+      expect(next).toBeNull()
+    })
+  })
+})
+
+describe('Phase 5 — Count your stock / Made goods carried back from the full editor', () => {
+  it('a count: another quantity and a never-stocked product with what one cost, posted = what the editor saves', () => {
+    const base: CountForm = { date: TODAY, counted: { [I('Widget')]: '95' } }
+    const onHand = new Map([[I('Widget'), 100_000], [I('Flour'), 100_000], [I('Bread'), 0]])
+    const sent = intent(countIntentFrom(base, onHand))
+    const original = intentForm(db, INFO, sent, TODAY).entries[0]!
+    const s = original.state as PhysicalFormState
+    const current = { ...original, state: { ...s, rows: [{ ...s.rows[0]!, qtyText: '90' }, { itemId: I('Bread'), qtyText: '5', godownId: null, batchId: null, ratePaise: 2000 }] } } as HandoffEntry
+    const before = trace()
+    const r = carryBackForm(db, INFO, { flow: 'simple-stock-count', intent: sent, original, current, base }, TODAY)
+    expect(trace()).toEqual(before)
+    if (!r.ok) throw new Error(`refused: ${r.reason}`)
+    expect(r.dropped).toEqual([])
+    expect(r.form).toEqual({ date: TODAY, counted: { [I('Widget')]: '90', [I('Bread')]: '5' }, costs: { [I('Bread')]: '20.00' } })
+    const viaEditor = rehearse(db, () => rows(editorSave(current)))
+    const out = post(countIntentFrom(r.form as CountForm, onHand))
+    expect(rows(out.voucherIds[0]!)).toEqual(viaEditor)
+  })
+
+  it('a count straight back is the same form; a note / godown is named; a product counted twice is refused', () => {
+    const base: CountForm = { date: TODAY, counted: { [I('Widget')]: '95.0' } }
+    const sent = intent(countIntentFrom(base))
+    const original = intentForm(db, INFO, sent, TODAY).entries[0]!
+    expect(carryBackForm(db, INFO, { flow: 'simple-stock-count', intent: sent, original, current: original, base }, TODAY)).toEqual({ ok: true, form: base, dropped: [] })
+    const s = original.state as PhysicalFormState
+    const noted = { ...original, state: { ...s, narration: 'Counted by Ravi', rows: [{ ...s.rows[0]!, godownId: 1 }] } } as HandoffEntry
+    expect(carryBackForm(db, INFO, { flow: 'simple-stock-count', intent: sent, original, current: noted, base }, TODAY)).toMatchObject({ ok: true, dropped: ['godowns', 'note'] })
+    const twice = { ...original, state: { ...s, rows: [s.rows[0]!, { ...s.rows[0]!, qtyText: '3' }] } } as HandoffEntry
+    expect(carryBackForm(db, INFO, { flow: 'simple-stock-count', intent: sent, original, current: twice, base }, TODAY)).toEqual({ ok: false, reason: 'lines' })
+  })
+
+  it('made goods: quantity, price and labour (already recorded) come back; materials typed by hand are refused', () => {
+    setBom(db, { itemId: I('Bread'), lines: [{ componentId: I('Flour'), qtyMilliPerUnit: 500 }] })
+    const base: MakeForm = { date: TODAY, itemId: I('Bread'), qtyText: '10', price: 5000, labour: null, labourRecorded: null }
+    const sent = intent({ kind: 'make_goods', date: TODAY, itemId: I('Bread'), qty: '10', price: 5000 })
+    const original = intentForm(db, INFO, sent, TODAY).entries[0]!
+    const s = original.state as ManufactureFormState
+    expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: original, base }, TODAY)).toEqual({ ok: true, form: base, dropped: [] })
+    const edited = { ...original, state: { ...s, qtyText: '12', saleRatePaise: 5500, labourPaise: 30_000, labourPosted: false } } as HandoffEntry
+    const before = trace()
+    expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: edited, base }, TODAY)).toEqual({
+      ok: true, dropped: [], form: { date: TODAY, itemId: I('Bread'), qtyText: '12', price: 5500, labour: 30_000, labourRecorded: true }
+    })
+    expect(trace()).toEqual(before)
+    const byHand = { ...original, state: { ...s, bomVersionId: null, rows: [{ itemId: I('Flour'), qtyText: '7', godownId: null }] } } as HandoffEntry
+    expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: byHand, base }, TODAY)).toEqual({ ok: false, reason: 'lines' })
+  })
+})
+
 describe('simple:handoffTarget — what "Back to simple" needs', () => {
   it('a voucher in the books with its kind; a note with its original bill; a binned voucher has none', () => {
     const sale = post({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '4', rate: '500' }] })
@@ -496,7 +605,9 @@ describe('simple:handoffTarget — what "Back to simple" needs', () => {
     const changed = { ...e, state: { ...e.state, rows: (e.state as AccountingFormState).rows.map((r) => ({ ...r, amount: 7000 })) } }
     const base = { date: '2025-08-14', amount: 5000, fromId: cash.id, toId: till.id, reference: '', note: '' }
     expect(await ok('simple:carryBack', { flow: 'simple-move-money', intent: moveIntent, original: e, current: changed, base, today: '2025-08-14' })).toEqual({ ok: true, form: { ...base, amount: 7000 }, dropped: [] })
-    expect(await call('simple:carryBack', { flow: 'simple-stock-count', intent: moveIntent, original: e, current: changed, base })).toMatchObject({ ok: false })
+    expect(await call('simple:carryBack', { flow: 'simple-stock', intent: moveIntent, original: e, current: changed, base })).toMatchObject({ ok: false })
+    // Phase 5: Count your stock carries back too — never from another editor's entry.
+    expect(await ok('simple:carryBack', { flow: 'simple-stock-count', intent: moveIntent, original: e, current: changed, base })).toEqual({ ok: false, reason: 'form' })
     expect(await call('simple:handoffTarget', { voucherId: 'x' })).toMatchObject({ ok: false })
     expect((await ok<unknown[]>('report:dayBook', { from: '2025-04-01', to: '2026-03-31' })).length).toBe(0)
   })

@@ -64,7 +64,8 @@ export function AccountingEntry({
   initial,
   fallbackReason,
   pending,
-  onHandoffState
+  onHandoffState,
+  onHandoffSaved
 }: {
   typeId: number
   kind: VoucherKind
@@ -80,6 +81,9 @@ export function AccountingEntry({
   /** WP 9.10 hand-off: told the form as it stands (a number only once typed), so "Back to simple"
    *  can carry the changes back (lib/handoff.ts). */
   onHandoffState?: (state: AccountingFormState, pending: HandoffPendingRefs) => void
+  /** Phase 5 hand-off: told the id of a NEW entry once it is saved (the second step offers the money
+   *  paid / received now — components/HandoffBanner.tsx). */
+  onHandoffSaved?: (id: number) => void
 }): React.JSX.Element {
   const t = useT()
   const createPending = useHandoffLedgers()
@@ -483,6 +487,7 @@ export function AccountingEntry({
         if (!proceed) return
       }
       const saved = await api.vouchers.save(input, voucherId, !voucherId && draft?.aiDraftId ? { aiDraftId: draft.aiDraftId } : undefined)
+      onHandoffSaved?.(saved.id)
       await tdsDeduction.afterSave(saved.id)
       if (features.tcs && kind === 'receipt') await tcsCollection.afterSave(saved.id)
       // WP 8.5: a new entry in a simple-mode company gets the save card instead of the toast.

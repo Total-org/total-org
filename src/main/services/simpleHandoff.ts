@@ -151,6 +151,10 @@ function remapForm(db: DB, company: CompanyInfo, flow: CarryFlow, form: CarryFor
       intent = returnIntentFrom(f, bill, { invoice: ctx.invoice }, none)
       break
     }
+    // Phase 5: compared with the entry the hand-off opened (no money / bill choices to re-derive).
+    case 'simple-stock-count':
+    case 'simple-made-goods':
+      return null
   }
   return intentForm(db, company, { ...billOnly(intent), clientId: 'accountant-view-carry-back' }, today).entries[0] ?? null
 }

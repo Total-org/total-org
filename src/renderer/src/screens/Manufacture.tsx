@@ -139,7 +139,8 @@ export function ManufactureForm({
   initialJobWork = false,
   prefill,
   aiDraftId,
-  handedOff = false
+  handedOff = false,
+  onHandoffState
 }: {
   typeId: number
   voucherId?: number
@@ -155,6 +156,9 @@ export function ManufactureForm({
   /** WP 9.10: `initial` is a simple form's answers (a NEW voucher) — kept like an AI draft's
    *  (its price, recipe version and rows), nothing to consume. */
   handedOff?: boolean
+  /** Phase 5 hand-off: told the form as it stands (a number only once typed), so "Back to simple"
+   *  can carry the changes back into Made goods (lib/handoff.ts). */
+  onHandoffState?: (state: ManufactureFormState) => void
 }): React.JSX.Element {
   const isEdit = voucherId != null
   const prefilled = aiDraftId != null || handedOff
@@ -246,6 +250,9 @@ export function ManufactureForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [date, isEdit, alterNumber, numberField.forPayload, godownId, narration, finishedItemId, qty, saleRate, labour, labourPosted, creditId, rows, bpRows, versionId, exploded, jobWork, explosionKey]
   )
+  useEffect(() => {
+    onHandoffState?.({ ...state, number: numberField.touched ? state.number : '' })
+  }, [onHandoffState, state, numberField.touched])
 
   // ---------- engine prices as of the voucher date ----------
   const previewLines = useMemo(

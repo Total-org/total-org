@@ -163,3 +163,48 @@ describe('a handed-off stock count (review)', () => {
     expect(savedIdFor(useNav.getState().stack.at(-1)!)).toBe(99)
   })
 })
+
+describe('Phase 5: the two-step hand-off (a payment made now)', () => {
+  it('after the bill saves, "one more step" opens the receipt editor pre-filled against that bill', async () => {
+    ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' })]
+    const intentForms: unknown[] = []
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) => {
+      if (channel === 'voucher:get') return { ok: true, data: { id: 99, date: '2026-10-14', number: '1', partyLedgerId: 40 } }
+      if (channel === 'simple:money:bills') return { ok: true, data: [{ name: '1', date: '2026-10-14', pending: 30_000, voucherId: 99, dueDate: null, overdueDays: 0 }] }
+      if (channel === 'simple:intentForm') {
+        intentForms.push((payload as { intent: unknown }).intent)
+        return { ok: true, data: { kind: 'money_in', missing: [], entries: [{ role: 'money', kind: 'receipt', voucherTypeId: 2, form: 'accounting', amount: 10_000, state: { date: '2026-10-14', number: '', rows: [], narration: '', instrumentNo: '', billRefs: [], advanceReceipt: false, optional: false, tds: null, original: null } }] } }
+      }
+      return base(channel, payload)
+    })
+    const handoff: SimpleHandoff = {
+      from: 'simple-sell', kind: 'sale', missing: [],
+      intent: { clientId: 'accountant-view-handoff', kind: 'sale', customerId: 40, items: [{ itemId: 100, qty: '3', rate: '100' }], payment: { how: 'upi', amount: '100' } },
+      others: [{ role: 'payment', kind: 'receipt', amount: 10_000 }],
+      entry: {
+        role: 'bill', kind: 'sales', voucherTypeId: 1, form: 'invoice', amount: 30_000,
+        state: { ...emptyInvoiceState('2026-10-14'), partyId: 40, accountId: 20, rows: [{ itemId: 100, qtyText: '3', rate: 10_000, discount: null, godownId: null, batchId: null }] }
+      }
+    }
+    renderHandoff(handoff)
+    expect((await screen.findByTestId('handoff-other', undefined, { timeout: 3000 })).textContent).toContain('next step')
+    expect(screen.queryByTestId('handoff-next')).toBeNull()
+    await waitFor(() => expect((screen.getAllByTestId('input-line-qty')[0] as HTMLInputElement).value).toBe('3'))
+    await act(async () => fireEvent.click(screen.getByTestId('btn-save-voucher')))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    // The filled-in banner gives way to the second step.
+    await screen.findByTestId('handoff-next')
+    expect(screen.queryByTestId('handoff-banner')).toBeNull()
+    await act(async () => fireEvent.click(screen.getByTestId('btn-handoff-next')))
+    await waitFor(() => expect(intentForms).toHaveLength(1))
+    expect(intentForms[0]).toEqual({
+      clientId: 'accountant-view-handoff', kind: 'money_in', date: '2026-10-14', amount: 10_000, into: { how: 'upi' }, customerId: 40,
+      bills: [{ name: '1', amount: 10_000, billId: 99 }]
+    })
+    // In place of the (now blank) bill editor: the receipt editor, as the bill's second step.
+    const top = useNav.getState().stack
+    expect(top).toHaveLength(3)
+    expect(top.at(-1)).toMatchObject({ name: 'voucher-entry', handoff: { from: 'simple-money-in', kind: 'money_in', afterBill: '1', others: [] } })
+  })
+})
