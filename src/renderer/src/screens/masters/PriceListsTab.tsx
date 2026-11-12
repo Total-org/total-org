@@ -135,7 +135,7 @@ export function PriceListsTab(): React.JSX.Element {
       }
     }))
     return [...BASE_COLUMNS, ...levelCols]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: rebuilt only when the levels or the date change (behaviour kept, A11)
   }, [levels, date])
 
   const importCsv = async (): Promise<void> => {

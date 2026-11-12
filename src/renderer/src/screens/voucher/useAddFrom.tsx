@@ -129,7 +129,7 @@ export function useAddFrom(opts: {
     convertFrom.current = null
     const picks = convertPicks(openLines, { tradeDocId: docId })
     if (picks.length > 0) insert(picks)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the open lines arrive only
   }, [openLines, openLinesAt])
 
   const hotkey = opts.hotkey ?? true

@@ -76,7 +76,7 @@ export function SlotChart({
   const values = series.flatMap((s) => s.values.filter((v): v is number => v != null))
   const { ticks, domain } = useMemo(
     () => niceTicks(values.length ? Math.min(...values) : 0, values.length ? Math.max(...values) : 0, 4, includeZero),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- values.join stands for the values' content
     [values.join(','), includeZero]
   )
   const plot = { x0: PAD.left, x1: Math.max(PAD.left + 10, width - PAD.right), y0: PAD.top, y1: height - PAD.bottom }

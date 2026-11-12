@@ -231,7 +231,7 @@ export function AiHelper(): React.JSX.Element {
   const noticeText = (k: MessageKey): string =>
     k === 'simple.ai.notice.full2' && provider.preset !== 'openai' ? t('simple.ai.notice.full2Service', { service }) : t(k) // i18n-technical: keys in NOTICE_FULL
   const typedOk = aiModelIdSchema.safeParse(typedModel).success
-  const useTyped = async (): Promise<void> => {
+  const saveTyped = async (): Promise<void> => {
     if (!typedOk) return
     await save({ defaultModel: typedModel.trim(), fastModel: typedModel.trim() })
     setCheck((c) => (c ? { ...c, picked: typedModel.trim() } : c))
@@ -347,7 +347,7 @@ export function AiHelper(): React.JSX.Element {
                       <TextInput className="num" value={typedModel} disabled={busy !== null} onChange={(e) => setTypedModel(e.target.value)} data-testid="simple-ai-model-input" />
                     </Field>
                   </div>
-                  <Button disabled={busy !== null || !typedOk} onClick={() => void useTyped()} data-testid="simple-ai-model-save">
+                  <Button disabled={busy !== null || !typedOk} onClick={() => void saveTyped()} data-testid="simple-ai-model-save">
                     {t('simple.ai.model.save')}
                   </Button>
                 </div>

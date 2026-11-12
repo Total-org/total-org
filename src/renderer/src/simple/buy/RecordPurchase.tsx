@@ -132,7 +132,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   // Stock switched off while the form is open: no products (the item picker never shows).
   useEffect(() => {
     if (!stockOn && form.mode === 'items') setForm((f) => ({ ...f, mode: 'amount', lines: [] })) // i18n-technical
-  }, [stockOn, form.mode])
+  }, [stockOn, form.mode, setForm])
 
   const ctx: BuyContext | null = useMemo(
     () =>
@@ -203,7 +203,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
       )
     }, 350)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, savedIds])
 
   // ---------- save ----------

@@ -60,6 +60,6 @@ export function useToastClearance(
       owners.get(name)?.delete(key)
       apply(name)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps is the caller's own dependency list
   }, [enabled, name, watchParent, ...deps])
 }

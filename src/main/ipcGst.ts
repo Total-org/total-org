@@ -210,7 +210,7 @@ export function registerGstIpc(handle: IpcHandle, { requireCompany }: IpcContext
     const c = requireCompany()
     const path = await gstRcm.selfInvoicePdf(c.db, c.info, c.slug, voucherId)
     auditExport(c.db, 'self_invoice_pdf', { voucherId, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   }, 'viewer')
   handle('gst:selfInvoiceSeriesGet', () => gstRcm.getSelfInvoiceSeries(requireCompany().db), 'viewer')

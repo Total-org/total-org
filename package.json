@@ -19,6 +19,7 @@
     "smoke": "node scripts/smoke-ci.mjs",
     "e2e": "node scripts/run-e2e.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "lint": "node --max-old-space-size=6144 node_modules/eslint/bin/eslint.js .",
     "postinstall": "electron-builder install-app-deps",
     "build:mac": "electron-vite build && electron-builder --mac"
   },
@@ -51,12 +52,15 @@
     "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
     "electron-vite": "^4.0.0",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "^30.0.1",
     "playwright-core": "^1.62.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
+    "typescript-eslint": "8.72.1",
     "vitest": "^5.1.0",
     "zustand": "^5.0.0"
   },

@@ -115,7 +115,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   // Stock switched off while the form is open: amount only (the item picker never shows).
   useEffect(() => {
     if (!stockOn && form.mode === 'items') setForm((f) => ({ ...f, mode: 'amount', lines: [] })) // i18n-technical
-  }, [stockOn, form.mode])
+  }, [stockOn, form.mode, setForm])
 
   const facts = useMemo(() => (info ? gstRegistrationOf(info) : null), [info])
   const ctx: SellContext | null = useMemo(
@@ -205,7 +205,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     return () => {
       stale = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- priceSig stands for the lines' prices
   }, [priceSig, form.customerId, form.date, form.ratesIncludeGst, supplyState])
 
   // ---------- the plain preview line (simple:preview, rehearsed — nothing saved) ----------
@@ -230,7 +230,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       )
     }, 350)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, ready, savedIds])
 
   // ---------- save ----------

@@ -132,6 +132,7 @@ export function PhysicalStockEntry({
     } finally {
       setSaving(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
   }, [saving, rows, formState, typeId, itemName, toast, voucherId, isEdit, setWorkingDate, date, queryClient, leave, numberField.reset])
 
   useEffect(() => {

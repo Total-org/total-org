@@ -58,6 +58,7 @@ export function lazyScreen<M, K extends keyof M>(load: () => Promise<M>, name: K
           useChunkLoading.getState().dec()
         }
       }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads the chunk once per mount; `loaded` is its result
     }, [])
 
     // Runs after the screen's own effects (children first): its queries have started.

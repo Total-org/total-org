@@ -516,6 +516,7 @@ export function AccountingEntry({
     } finally {
       setSaving(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
   }, [saving, buildPayload, date, typeId, voucherId, toast, setWorkingDate, queryClient, leave, numberField.reset, tdsDeduction.reset, tdsDeduction.afterSave, tcsCollection.reset, tcsCollection.afterSave, features.tcs, kind, draft?.aiDraftId, formErrors, errorShell, saveCard, rows, createPending])
   useEffect(() => {
     if (!resave.current || saving || rows.some((r) => r.ledgerId != null && !ledgers.some((l) => l.id === r.ledgerId))) return

@@ -37,6 +37,7 @@ export function useFormErrors<F extends string>(form: Record<F, unknown>, shell:
   const shellRef = useRef(shell)
   shellRef.current = shell
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs after every render on purpose (drops errors whose field changed); sets state only when one did
   useEffect(() => {
     const stale = (Object.keys(errors) as F[]).filter((f) => !Object.is(form[f], snap.current[f]))
     if (stale.length === 0) return

@@ -87,7 +87,7 @@ export function registerTradeIpc(handle: IpcHandle, { requireCompany }: IpcConte
     const c = requireCompany()
     const path = await printTemplates.tradeDocPdf(c.db, c.info, c.slug, id)
     auditExport(c.db, 'trade_doc_pdf', { tradeDocId: id, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
   handle('tradeDocs:previewHtml', (p) => {

@@ -55,6 +55,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
   const saving = poster.status === 'posting'
   const { data: setup } = useQuery({ queryKey: ['simpleMadeSetup', form.date], queryFn: () => api.simpleStock.madeSetup(form.date), enabled: features.manufacturing }) // i18n-technical
   const { data: stock } = useQuery({ queryKey: ['simpleStock', form.date], queryFn: () => api.simpleStock.list(form.date), enabled: features.manufacturing }) // i18n-technical
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while setup has not loaded; the memo then recomputes an empty list
   const products = setup?.products ?? []
   const picked = products.find((p) => p.itemId === form.itemId) ?? null
   const onHand = useMemo(() => new Map((stock?.rows ?? []).map((r) => [r.itemId, r])), [stock])
@@ -63,7 +64,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
   const priceTouched = useRef(false)
   useEffect(() => {
     if (!priceTouched.current && picked) setForm((f) => (f.price === picked.suggestedPrice ? f : { ...f, price: picked.suggestedPrice }))
-  }, [picked])
+  }, [picked, setForm])
 
   // The labour prefill: the recipe's labour per one × how many (until the labour is typed).
   const labourTouched = useRef(form.labour != null) // a kept form's typed labour stays
@@ -73,7 +74,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
     const q = parseCountText(form.qtyText)
     const next = q != null && q > 0 ? recipeLabour(perUnitLabour, q) : null
     setForm((f) => (f.labour === next ? f : { ...f, labour: next }))
-  }, [perUnitLabour, form.qtyText])
+  }, [perUnitLabour, form.qtyText, setForm])
 
   const errors = useFormErrors<MakeField>(
     { date: form.date, item: form.itemId, qty: form.qtyText, price: form.price, labour: form.labour, labourRecorded: form.labourRecorded },
@@ -120,7 +121,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
       )
     }, 350)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, saved])
 
   const place = (err: unknown): void => {

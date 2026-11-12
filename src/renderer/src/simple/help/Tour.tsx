@@ -77,6 +77,7 @@ function TourStepView({ step, onEnd }: { step: number; onEnd: () => void }): Rea
   const last = step === TOUR_STEPS.length - 1
   // The card's real height (a long sentence, a larger text size) decides above / below.
   const [cardH, setCardH] = useState(170)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- measures after every render on purpose; sets state only when the height changed
   useLayoutEffect(() => {
     const h = cardRef.current?.offsetHeight
     if (h && h !== cardH) setCardH(h)

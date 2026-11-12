@@ -286,7 +286,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
   const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply the linked period once the month list has it; setMonthKey is the month hook's setter
   }, [initialMonth, months])
   const { info } = useSession()
   const nav = useNav()
@@ -573,7 +573,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
   const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply the linked period once the month list has it; setMonthKey is the month hook's setter
   }, [initialMonth, months])
   const { info } = useSession()
   const toast = useToasts()
