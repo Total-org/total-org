@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+- **Switch company with ⌘O** (A8 part 2). Plain words: in the full app, ⌘O opens a small list of
+  your other businesses — the one you opened last first — that you can filter by typing a name,
+  GSTIN or state; Enter opens it. The company list screen also puts the business opened last first,
+  gets a filter box once there are more than five, and no longer makes "Set up your business" its
+  main button when businesses already exist. Nothing about the books changes.
+
 - **Accountant defaults a CA would otherwise change every time** (A8 part 1). Plain words: in the
   full app a sales bill's party list now starts with your customers (the ones you billed last on
   top), then cash and bank, then suppliers — a purchase starts with suppliers — and never offers a

@@ -12,6 +12,8 @@ import type { MessageKey } from './en'
 
 export const hi: Partial<Record<MessageKey, string>> = {
   'common.appName': 'Total',
+  'common.companies.filter': 'कारोबार खोजें — नाम, GSTIN या राज्य',
+  'common.companies.noMatch': 'कोई कारोबार नहीं मिला।',
   'common.save': 'सेव करें',
   'common.saveShortcut': 'सेव करें ⌘↵',
   'common.cancel': 'रद्द करें',
