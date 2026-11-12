@@ -18,6 +18,8 @@
 export const en = {
   // ---------- common ----------
   'common.appName': 'Total',
+  'common.companies.filter': 'Find a business — name, GSTIN or state',
+  'common.companies.noMatch': 'No business matches.',
   'common.save': 'Save',
   'common.saveShortcut': 'Save ⌘↵',
   'common.cancel': 'Cancel',

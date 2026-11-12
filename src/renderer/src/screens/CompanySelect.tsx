@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { UiSettings } from '@shared/simple/uiMode'
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, IpcError, type IntegrityResult } from '../lib/client'
 import { PassphrasePrompt } from '../simple/PassphrasePrompt'
 import { useNav, useSession, useToasts } from '../state/stores'
-import { Button, Field, Modal, ScrollList, Select, TextInput, useKeyNav } from '../components/ui'
+import { Button, Field, Modal, ScrollList, Select, TextInput, inputCls, useKeyNav } from '../components/ui'
 import { SupportLink } from '../components/SupportLink'
 import { TotalLogo } from '../components/TotalLogo'
 import { GST_STATES, GST_STATE_LIST } from '@shared/gst/states'
@@ -18,6 +18,7 @@ import { markTourPending } from '../help/tour'
 import { useT } from '../lib/i18n'
 import { dataFolder } from '../lib/platform'
 import { errorEntry } from '@shared/errors'
+import { filterCompanies, orderCompanies, useCompanySwitch } from '../lib/companySwitch'
 
 export function CompanySelect(): React.JSX.Element {
   const queryClient = useQueryClient()
@@ -38,8 +39,11 @@ export function CompanySelect(): React.JSX.Element {
     integrity: IntegrityResult
   } | null>(null)
 
-  const companies = registry?.companies ?? []
-  const showWizard = wizard || (registry != null && companies.length === 0 && !creating && !importing)
+  // Audit A8 / UX-12: the last opened first; a filter once the list is long.
+  const allCompanies = useMemo(() => orderCompanies(registry?.companies ?? []), [registry])
+  const [filter, setFilter] = useState('')
+  const companies = useMemo(() => filterCompanies(allCompanies, filter, (c) => GST_STATES[c.stateCode] ?? ''), [allCompanies, filter])
+  const showWizard = wizard || (registry != null && allCompanies.length === 0 && !creating && !importing)
 
   // WP 7.2: a business locked with a passphrase asks for it before it opens.
   const [askPassphrase, setAskPassphrase] = useState<{ slug: string; name: string; notice?: string } | null>(null)
@@ -70,7 +74,7 @@ export function CompanySelect(): React.JSX.Element {
     } catch (err) {
       if (err instanceof IpcError && (err.code === 'passphrase_required' || err.code === 'remembered_key_stale')) {
         const notice = err.code === 'remembered_key_stale' ? t('errors.security.rememberedStale') : undefined
-        setAskPassphrase({ slug, name: companies.find((c) => c.slug === slug)?.name ?? slug, notice })
+        setAskPassphrase({ slug, name: allCompanies.find((c) => c.slug === slug)?.name ?? slug, notice })
         void queryClient.invalidateQueries({ queryKey: ['company-remembered'] })
         return
       }
@@ -106,6 +110,19 @@ export function CompanySelect(): React.JSX.Element {
     if (opts.tally) nav.go({ name: 'import-tally' })
   }
 
+  // Audit A8 / UX-12: a company picked in the ⌘O switcher opens here, through this screen's own
+  // path (passphrase, integrity check …), as if clicked.
+  // Runs when the list is known AND when a pick arrives — the switch leaves its slug after the
+  // company has closed (this screen may already be up), so it never depends on the cache being
+  // emptied in between (review of #250).
+  const pendingSlug = useCompanySwitch((s) => s.pendingSlug)
+  useEffect(() => {
+    if (!registry || !pendingSlug) return
+    const slug = useCompanySwitch.getState().take()
+    if (slug && registry.companies.some((c) => c.slug === slug)) void open(slug)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open() is this screen's own, recreated each render
+  }, [registry, pendingSlug])
+
   const { active, setActive } = useKeyNav(companies.length, (i) => {
     const c = companies[i]
     if (c) void open(c.slug)
@@ -132,7 +149,7 @@ export function CompanySelect(): React.JSX.Element {
               setWizard(false)
               setImporting(true)
             }}
-            onCancel={companies.length > 0 ? () => setWizard(false) : undefined}
+            onCancel={allCompanies.length > 0 ? () => setWizard(false) : undefined}
             sampleLoading={demoLoading}
           />
         </div>
@@ -144,9 +161,39 @@ export function CompanySelect(): React.JSX.Element {
           Your books, on this computer, nowhere else · {dataFolder}
         </p>
 
+        {allCompanies.length > 5 && (
+          <input
+            className={`${inputCls} mb-2`}
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value)
+              setActive(0)
+            }}
+            onKeyDown={(e) => {
+              // The list's own keys skip text boxes: ↑↓ / Enter here drive it too.
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                setActive(Math.max(0, Math.min(companies.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1))))
+              } else if (e.key === 'Enter' && companies[active]) {
+                e.preventDefault()
+                void open(companies[active]!.slug)
+              }
+            }}
+            placeholder={t('common.companies.filter')}
+            aria-label={t('common.companies.filter')}
+            data-testid="input-company-filter"
+            // A long list: type to find straight away (↑↓ / Enter work from here).
+            autoFocus
+          />
+        )}
         <div className="overflow-hidden rounded-xl border border-line bg-panel">
           <ScrollList maxH="50vh">
-          {companies.length === 0 && (
+          {allCompanies.length > 0 && companies.length === 0 && (
+            <p className="px-6 py-6 text-center text-body text-muted" data-testid="company-filter-none">
+              {t('common.companies.noMatch')}
+            </p>
+          )}
+          {allCompanies.length === 0 && (
             <p className="px-6 py-10 text-center text-body text-muted">
               No companies yet. Create your first — books open in seconds.
             </p>
@@ -203,7 +250,9 @@ export function CompanySelect(): React.JSX.Element {
         </div>
 
         <div className="mt-4 flex justify-center gap-2">
-          <Button variant="primary" data-testid="btn-company-setup" onClick={() => setWizard(true)}>
+          {/* Audit A8 / UX-12: with businesses here, opening one is the main thing — the wizard is
+              one choice among the others (first run shows the wizard itself). */}
+          <Button variant={allCompanies.length > 0 ? 'default' : 'primary'} data-testid="btn-company-setup" onClick={() => setWizard(true)}>
             {t('simple.setup.title')}
           </Button>
           <Button variant="ghost" data-testid="btn-company-demo" disabled={demoLoading} onClick={() => void createDemo('simple')}>

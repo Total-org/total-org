@@ -99,6 +99,9 @@ import {
 } from './lazyScreens'
 import { HomePrefetch } from './components/HomePrefetch'
 import { useScreenView } from './lib/mode'
+import { switcherMayOpen, useCompanySwitch } from './lib/companySwitch'
+import { layerCount } from './components/kit/layers'
+import { CompanySwitcher } from './components/CompanySwitcher'
 import { useAlwaysFullRedirect } from './lib/handoff'
 import { FOCUS_SEARCH_EVENT } from './lib/searchEvents'
 import { CommandPalette } from './components/CommandPalette'
@@ -144,6 +147,21 @@ export default function App(): React.JSX.Element {
         useAssistantPanel.getState().toggle()
         return
       }
+      // Audit A8 / UX-12: ⌘O — switch company (the full app; an open, unlocked company).
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        const sw = useCompanySwitch.getState()
+        // ⌘O again closes it; otherwise only where switcherMayOpen allows (no dialog open …).
+        if (sw.open) {
+          e.preventDefault()
+          sw.setOpen(false)
+          return
+        }
+        const st = useSession.getState()
+        if (!switcherMayOpen({ slug: st.slug, locked: st.locked, integrityWarning: !!integrityWarning, simpleScreen: simpleView, layers: layerCount() + (paletteOpen ? 1 : 0) })) return
+        e.preventDefault()
+        sw.setOpen(true)
+        return
+      }
       // WP 10.3: ⌘/ (anywhere) and ? (no box focused) — the help panel on this screen's article,
       // in a simple company; the full app keeps ? for its shortcut reference (below).
       if (!integrityWarning && handleHelpKey(e)) return
@@ -174,7 +192,7 @@ export default function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paletteOpen, nav, integrityWarning])
+  }, [paletteOpen, nav, integrityWarning, simpleView])
 
   // Fresh data whenever the visible screen changes — scoped to that screen's query-key
   // families (see the registry) instead of nuking the whole cache on every navigation.
@@ -348,6 +366,7 @@ export default function App(): React.JSX.Element {
       </Shell>
       <HomePrefetch simple={simpleView} />
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      <CompanySwitcher />
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       <DrillHost />
       <LinkedDocsHost />

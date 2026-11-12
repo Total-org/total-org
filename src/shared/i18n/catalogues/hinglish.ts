@@ -7,6 +7,8 @@ import type { MessageKey } from './en'
 
 export const hinglish: Partial<Record<MessageKey, string>> = {
   'common.appName': 'Total',
+  'common.companies.filter': 'Business dhoondhein — naam, GSTIN ya state',
+  'common.companies.noMatch': 'Koi business nahi mila.',
   'common.save': 'Save karein',
   'common.saveShortcut': 'Save karein ⌘↵',
   'common.cancel': 'Cancel karein',
