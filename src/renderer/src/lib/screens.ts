@@ -115,7 +115,9 @@ export const SCREENS: ScreenDef[] = [
     title: 'Gateway',
     screen: { name: 'gateway' },
     navSection: 'top',
-    invalidates: ['dashboard']
+    // Audit A7: the simple Home's own queries (['simple', 'home' | 'homeAttention', …]) too — a
+    // bill saved a moment before was not on Home until the 5 s staleness ran out.
+    invalidates: ['dashboard', 'simple']
   },
   {
     name: 'voucher-entry',
