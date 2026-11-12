@@ -61,7 +61,7 @@ only https pages of the site or of Total's GitHub releases. New encrypted backup
 a stronger passphrase key (scrypt N = 2^17); older ones still open. A new `.totalbak` opens only in
 this version of Total or later — update Total on the other computer first.
 
-**Under the hood: code-health checks, part 4** (#PRNUM, audit A11). Nothing changes for users. Unused
+**Under the hood: code-health checks, part 4** (#260, audit A11). Nothing changes for users. Unused
 code is gone (an old report-columns button, an unused GST summary, 16 unused phrases in each
 language, an unused package), the forex maths only the old-books tests still need moved out of the
 app, and 25 private copies of "add days" / "days between" now use the one in `dates.ts`.
