@@ -1744,6 +1744,7 @@ export const en = {
   'simple.updates.checkNow': 'Check now',
   'simple.updates.checking': 'Checking…',
   'simple.updates.upToDate': 'You have the latest version ({version}).',
+  'simple.updates.unverified': 'Total {version} was found, but it could not be checked as a genuine release, so it is not offered. Try again later.',
   'simple.updates.failed': 'Couldn\'t check for updates. Check your internet connection.',
   'simple.updates.dev': 'This copy runs from source, so there is nothing to update.',
   'simple.updates.ownerOnly': 'Only the owner can change this.',

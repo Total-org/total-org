@@ -280,7 +280,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/release
+          # src/main: releaseKeys.json, the pinned key the signed manifest is checked against (A4).
+          sparse-checkout: |
+            scripts/release
+            src/main
       - uses: actions/setup-node@v4
         with:
           node-version: 22

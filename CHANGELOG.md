@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Updates are checked as genuine before they are offered** (#251, audit A4). Every release now
+carries a signed list of its files (`total-manifest.json`, Ed25519). Total offers a new version only
+when that list verifies against the key built into the app, installs a downloaded update only when
+the file matches it, and a manual download opens that exact installer on GitHub. The updater opens
+only https pages of the site or of Total's GitHub releases. New encrypted backups (`.totalbak`) use
+a stronger passphrase key (scrypt N = 2^17); older ones still open. A new `.totalbak` opens only in
+this version of Total or later — update Total on the other computer first.
+
 **Under the hood: `ipc.ts` split by area** (#252, audit A12). Nothing changes for users. The
 3,756-line `src/main/ipc.ts` keeps the company lifecycle, backups, sign-in and security; every other
 area's channels now live in their own `src/main/ipc<Area>.ts` (simple flows, vouchers, masters, trade,

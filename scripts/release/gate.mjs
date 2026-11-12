@@ -29,6 +29,7 @@ import {
   lastReleaseVerdict,
   BLOCKER_LABEL
 } from './lib.mjs'
+import { MANIFEST_ASSET, checkManifest } from './manifest.mjs'
 
 const REPO = process.env.GITHUB_REPOSITORY ?? 'Total-org/total-org'
 // Both hosts: the canonical one, and the old one every app built before 8 Nov 2026 still asks.
@@ -267,6 +268,18 @@ async function verify(version) {
   if (latest.draft) problems.push('the release is a draft')
   const missing = missingAssets(version, (latest.assets ?? []).map((a) => a.name))
   if (missing.length) problems.push(`missing assets: ${missing.join(', ')}`)
+  // Audit A4: the signed manifest the app checks before offering this version.
+  const manifest = (latest.assets ?? []).find((a) => a.name === MANIFEST_ASSET)
+  if (!manifest) problems.push(`missing the signed ${MANIFEST_ASSET} (the app will not offer this version)`)
+  else {
+    try {
+      const res = await fetch(manifest.browser_download_url, { headers: { 'user-agent': 'total-release-check' } })
+      const check = res.ok ? checkManifest(await res.text(), version) : { ok: false, reason: `HTTP ${res.status}` }
+      if (!check.ok) problems.push(`${MANIFEST_ASSET}: ${check.reason}`)
+    } catch (err) {
+      problems.push(`${MANIFEST_ASSET}: ${err.message}`)
+    }
+  }
   // The site caches the GitHub lookup for 5 minutes (site/lib/release.ts revalidate: 300).
   for (const url of SITE_LATEST) {
     let site = null
@@ -283,7 +296,7 @@ async function verify(version) {
     }
     if (site !== version) problems.push(`${url} reports ${site}, not ${version}`)
   }
-  summary(problems.length ? `### Release check FAILED\n\n${problems.map((p) => `- ${p}`).join('\n')}` : `### Release check passed\n\nv${version}: /releases/latest has every asset; ${SITE_LATEST.join(' and ')} report ${version}.`)
+  summary(problems.length ? `### Release check FAILED\n\n${problems.map((p) => `- ${p}`).join('\n')}` : `### Release check passed\n\nv${version}: /releases/latest has every asset and a verified ${MANIFEST_ASSET}; ${SITE_LATEST.join(' and ')} report ${version}.`)
   if (problems.length) process.exit(1)
 }
 

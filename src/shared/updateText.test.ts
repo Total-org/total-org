@@ -1,18 +1,11 @@
 // WP 7.3 — the updater's words and links on macOS vs Windows.
 import { describe, expect, it } from 'vitest'
-import { dataFolderLabel, downloadUrlFor, updateCheckDisabled } from './updateText'
+import { dataFolderLabel, updateCheckDisabled } from './updateText'
 
 describe('updateText', () => {
   it('names the data folder the way each platform writes it', () => {
     expect(dataFolderLabel('darwin')).toBe('~/Documents/total')
     expect(dataFolderLabel('win32')).toBe('Documents\\total')
-  })
-  it('asks /api/download for this platform’s installer, leaving other URLs alone', () => {
-    expect(downloadUrlFor('https://irminflow.com/api/download', 'win32')).toBe('https://irminflow.com/api/download?platform=win')
-    expect(downloadUrlFor('https://irminflow.com/api/download', 'darwin')).toBe('https://irminflow.com/api/download?platform=mac')
-    expect(downloadUrlFor('https://irminflow.com/api/download?platform=mac', 'win32')).toBe('https://irminflow.com/api/download?platform=mac')
-    expect(downloadUrlFor('https://github.com/Total-org/total-org/releases/tag/v1', 'win32')).toBe('https://github.com/Total-org/total-org/releases/tag/v1')
-    expect(downloadUrlFor('https://irminflow.com/api/download', 'linux')).toBe('https://irminflow.com/api/download')
   })
   it('scripted runs turn the startup check off', () => {
     expect(updateCheckDisabled({ TOTAL_NO_UPDATE_CHECK: '1' })).toBe(true)

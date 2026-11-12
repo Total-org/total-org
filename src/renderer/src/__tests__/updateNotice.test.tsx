@@ -10,7 +10,7 @@ import { UpdateNotice, resetUpdateNoticeSession } from '../simple/UpdateNotice'
 import { UpdatesSetting } from '../simple/UpdatesSetting'
 import { AboutSection } from '../screens/settings/AboutSection'
 import { LANGUAGE_KEY } from '../lib/i18n'
-import { useSession } from '../state/stores'
+import { useSession, useToasts } from '../state/stores'
 import { CATALOGUES } from '@shared/i18n'
 import { DialogHost } from '../components/dialogs'
 
@@ -150,6 +150,19 @@ describe('Check for updates automatically', () => {
     await waitFor(() => expect((screen.getByTestId('chk-update-auto') as HTMLInputElement).checked).toBe(false))
     fireEvent.click(screen.getByTestId('btn-update-check'))
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('app:checkUpdates', undefined))
+  })
+
+  it('a newer version whose release manifest does not verify is said plainly, never offered (audit A4)', async () => {
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) =>
+      channel === 'app:checkUpdates' ? { ok: true, data: { status: 'unverified', current: '0.12.0', latest: '0.13.0' } } : base(channel, payload as never)
+    )
+    render(wrap(<UpdatesSetting />))
+    const btn = await screen.findByTestId('btn-update-check')
+    await waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(btn)
+    const want = CATALOGUES.en['simple.updates.unverified']!.replace('{version}', '0.13.0')
+    await waitFor(() => expect(useToasts.getState().toasts.some((t) => t.text === want && t.kind === 'error')).toBe(true))
   })
 
   it('simple settings: a non-owner sees it read-only', async () => {
