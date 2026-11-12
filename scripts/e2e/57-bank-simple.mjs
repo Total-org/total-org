@@ -16,6 +16,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { scenario, assert, assertEq, fixedToday, relativeDate } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURE = path.resolve(here, '../../src/shared/bankFormats/fixtures/hdfc-style.csv')
@@ -46,7 +47,7 @@ await scenario('57-bank-simple', async (h) => {
         await h.click('btn-theme')
         await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
       }
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP96_SHOTS
       if (dir) {

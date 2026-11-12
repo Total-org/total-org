@@ -7,6 +7,7 @@
 // lands on the default price level; in a regular company the product dialog offers the cited GST
 // slabs and requires one. Light and dark screenshots of each dialog.
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('50-quick-create', async (h) => {
   const page = h.page
@@ -28,16 +29,16 @@ await scenario('50-quick-create', async (h) => {
     if ((await page.evaluate(() => document.documentElement.dataset.theme)) === want) return
     await h.click('btn-theme')
     await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
-    await page.waitForTimeout(400)
+    await waitForSettled(page)
   }
   // The theme button sits behind an open dialog; switch through the same store the button sets.
   const both = async (name) => {
-    await page.waitForTimeout(300)
+    await waitForSettled(page)
     for (const want of ['light', 'dark']) {
       await page.evaluate((w) => {
         document.documentElement.dataset.theme = w
       }, want)
-      await page.waitForTimeout(350)
+      await waitForSettled(page)
       await h.shot(`${name}-${want}`)
     }
     await page.evaluate(() => {
@@ -48,7 +49,7 @@ await scenario('50-quick-create', async (h) => {
     const input = page.locator(`[data-testid="${testId}"]`).first()
     await input.click()
     await input.fill(text)
-    await page.waitForTimeout(150)
+    await h.frames()
     return input
   }
 
@@ -68,7 +69,7 @@ await scenario('50-quick-create', async (h) => {
   await page.waitForSelector('[data-testid="picker-party-create"]', { timeout: 5000 })
   assert((await page.textContent('[data-testid="picker-party-create"]')).includes('Create “Anita Stores”…'), 'the plain "Create …" row')
   await party.press('Enter')
-  await page.waitForTimeout(300)
+  await h.ipcDrained()
   assertEq(await page.$('[data-testid="dialog-new-account"]'), null, 'Enter opened no create dialog')
   assertEq(await ledgerCount(), before, 'Enter created nothing')
 

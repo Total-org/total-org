@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('34-cash-finance', async (h) => {
   await h.createCompanyUI('Cash Finance Co')
@@ -12,7 +13,7 @@ await scenario('34-cash-finance', async (h) => {
   const extraShots = process.env.WP44_SHOTS
   const shot = async (name) => {
     await page.mouse.move(0, 0)
-    await page.waitForTimeout(250)
+    await waitForSettled(page)
     await h.shot(name)
     if (extraShots) {
       fs.mkdirSync(extraShots, { recursive: true })
@@ -23,7 +24,7 @@ await scenario('34-cash-finance', async (h) => {
     const now = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
     if (now !== theme) await h.click('btn-theme')
     await page.waitForFunction((t) => (document.documentElement.dataset.theme ?? 'light') === t, theme)
-    await page.waitForTimeout(400)
+    await waitForSettled(page)
   }
   const today = await page.evaluate(() => {
     const d = new Date()

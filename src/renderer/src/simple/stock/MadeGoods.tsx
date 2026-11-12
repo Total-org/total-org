@@ -19,6 +19,9 @@ import { useCanSave, ViewerNote } from '../ViewerNote'
 import { useAccountantView, useKeptForm } from '../../lib/handoff'
 import { AccountantViewButton } from '../AccountantViewButton'
 
+/** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
+const NONE: never[] = []
+
 const F = { date: 'date', item: 'item', qty: 'qty', price: 'price', labour: 'labour', labourRecorded: 'labourRecorded' } as const satisfies Record<MakeField, MakeField> // i18n-technical: form field paths
 const FEATURES_SCREEN = { name: 'simple-features' } as const // i18n-technical
 const MANUFACTURE_SCREEN = { name: 'manufacture' } as const // i18n-technical
@@ -52,8 +55,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
   const saving = poster.status === 'posting'
   const { data: setup } = useQuery({ queryKey: ['simpleMadeSetup', form.date], queryFn: () => api.simpleStock.madeSetup(form.date), enabled: features.manufacturing }) // i18n-technical
   const { data: stock } = useQuery({ queryKey: ['simpleStock', form.date], queryFn: () => api.simpleStock.list(form.date), enabled: features.manufacturing }) // i18n-technical
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while setup has not loaded; the memo then recomputes an empty list
-  const products = setup?.products ?? []
+  const products = setup?.products ?? NONE
   const picked = products.find((p) => p.itemId === form.itemId) ?? null
   const onHand = useMemo(() => new Map((stock?.rows ?? []).map((r) => [r.itemId, r])), [stock])
 

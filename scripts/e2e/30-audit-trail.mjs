@@ -10,6 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('30-audit-trail', async (h) => {
   await h.createCompanyUI('Audit Trail Co')
@@ -19,7 +20,7 @@ await scenario('30-audit-trail', async (h) => {
   const extraShots = process.env.WP38_SHOTS
   const shot = async (name) => {
     await h.page.mouse.move(0, 0)
-    await h.page.waitForTimeout(250)
+    await waitForSettled(h.page)
     await h.shot(name)
     if (extraShots) {
       fs.mkdirSync(extraShots, { recursive: true })
@@ -30,7 +31,7 @@ await scenario('30-audit-trail', async (h) => {
     const now = await h.page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
     if (now !== theme) await h.page.evaluate(() => document.querySelector('[data-testid="btn-theme"]').click())
     await h.page.waitForFunction((t) => (document.documentElement.dataset.theme ?? 'light') === t, theme)
-    await h.page.waitForTimeout(400)
+    await waitForSettled(h.page)
   }
   const bothThemes = async (name) => {
     await setTheme('light')

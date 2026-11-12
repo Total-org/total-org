@@ -62,7 +62,7 @@ const DASH = {
 const MSME = { asOn: today, dueThisWeek: 1250000, dueThisWeekBills: 2, overdue: 0, overdueBills: 0 }
 const PROMISED = { count: 1, amount: 500000, overdueCount: 0, weekFrom: today, weekTo: today }
 
-function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures> } = {}): void {
+function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures> } = {}): QueryClient {
   invoke.mockImplementation(async (channel: string) => {
     switch (channel) {
       // Launch to Home: the Gateway's four reads come as ONE dashboard:all, each part a section.
@@ -92,6 +92,7 @@ function setup(opts: { series?: DashboardSeries | { fail: string }; features?: P
       <Gateway />
     </QueryClientProvider>
   )
+  return client
 }
 
 beforeEach(() => {
@@ -147,6 +148,24 @@ describe('Gateway dashboard', () => {
     expect(go).toHaveBeenLastCalledWith({ name: 'voucher-entry', kindHint: 'credit_note' })
     fireEvent.keyDown(window, { key: 'm' })
     expect(go).toHaveBeenLastCalledWith({ name: 'masters' })
+  })
+
+  it('Alt+F7 follows Manufacture being turned on while the Gateway is open (A11: the handler listed no manufacturing dep)', async () => {
+    const opts = { features: { manufacturing: false } as Partial<CompanyFeatures> }
+    const client = setup(opts)
+    await waitFor(() => screen.getByTestId('tile-cash'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('config:features:get', undefined))
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['features'] })
+    })
+    opts.features = { manufacturing: true }
+    await act(async () => {
+      await client.invalidateQueries()
+      await client.refetchQueries()
+    })
+    go.mockClear()
+    fireEvent.keyDown(window, { key: 'F7', altKey: true })
+    expect(go).toHaveBeenCalledWith({ name: 'manufacture' })
   })
 
   it('Alt+F7 opens Manufacture only while manufacturing is on (WP 8.3: setup can turn it off)', async () => {

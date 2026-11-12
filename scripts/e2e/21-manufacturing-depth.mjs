@@ -8,6 +8,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, OPTION, localToday, relativeDate } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('21-manufacturing-depth', async (h) => {
   await h.createCompanyUI('Depth Works')
@@ -22,7 +23,7 @@ await scenario('21-manufacturing-depth', async (h) => {
       const now = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
       // A JS click: a modal's scrim may cover the header button.
       if (now !== theme) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(150)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${theme}.png`) })
     }
     const now = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')

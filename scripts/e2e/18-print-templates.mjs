@@ -4,6 +4,7 @@
 // and check the next invoice PDF uses it. Screenshots of the designer in both themes.
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
 import * as fs from 'node:fs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 /** Header texts of the preview iframe's line-item table. */
 const previewHeaders = (h) =>
@@ -40,7 +41,7 @@ await scenario('18-print-templates', async (h) => {
     null,
     { timeout: 15000 }
   )
-  await h.page.waitForTimeout(400) // iframe load + measure
+  await h.page.waitForFunction(() => (document.querySelector('[data-testid="settings-tpl-preview"] iframe')?.contentDocument?.querySelectorAll('table.items thead th').length ?? 0) > 0, null, { timeout: 15000 })
   assertEq(JSON.stringify(await previewHeaders(h)), JSON.stringify(['#', 'Description', 'HSN', 'Qty', 'Rate', 'GST', 'Amount']), 'Classic preview starts with the legacy columns')
   await h.shot('01-designer-light')
 
@@ -96,7 +97,8 @@ await scenario('18-print-templates', async (h) => {
 
   // Dark theme: the chrome changes, the paper stays white.
   await h.click('btn-theme')
-  await h.page.waitForTimeout(400)
+  await h.page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', null, { timeout: 5000 })
+  await waitForSettled(h.page)
   const paperBg = await h.page.evaluate(() => {
     const inner = document.querySelector('[data-testid="print-paper"] > div')
     return inner ? getComputedStyle(inner).backgroundColor : null

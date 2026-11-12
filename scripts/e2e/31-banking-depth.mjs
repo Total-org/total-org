@@ -12,7 +12,8 @@
 // Set WP41_SHOTS=/tmp/wp41 to also copy the screenshots there.
 import fs from 'node:fs'
 import path from 'node:path'
-import { scenario, assert, assertEq, OPTION, localToday, relativeDate } from '../lib/harness.mjs'
+import { scenario, assert, assertEq, OPTION, localToday, relativeDate, until } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('31-banking-depth', async (h) => {
   await h.createDemoCompany()
@@ -21,7 +22,7 @@ await scenario('31-banking-depth', async (h) => {
   const extraShots = process.env.WP41_SHOTS
   const shot = async (name) => {
     await h.page.mouse.move(0, 0)
-    await h.page.waitForTimeout(300)
+    await waitForSettled(h.page)
     await h.shot(name)
     if (extraShots) {
       fs.mkdirSync(extraShots, { recursive: true })
@@ -32,7 +33,7 @@ await scenario('31-banking-depth', async (h) => {
     const now = await h.page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
     if (now !== theme) await h.page.evaluate(() => document.querySelector('[data-testid="btn-theme"]').click())
     await h.page.waitForFunction((t) => (document.documentElement.dataset.theme ?? 'light') === t, theme)
-    await h.page.waitForTimeout(350)
+    await waitForSettled(h.page)
   }
   const bothThemes = async (name) => {
     await setTheme('light')
@@ -165,17 +166,16 @@ await scenario('31-banking-depth', async (h) => {
   await h.click('btn-voucher-print-cheque')
   // The editor reloads the voucher (now carrying the cheque number) before the toast shows.
   await h.page.waitForFunction(() => document.body.textContent.includes('Cheque 000101:'), null, { timeout: 30000 })
-  let reg = []
-  for (let i = 0; i < 60 && reg.length === 0; i++) {
-    await h.page.waitForTimeout(500)
-    reg = await h.invoke('cheques:register', { bankLedgerId: hdfc.id, includeAvailable: false })
-  }
+  const reg = await until(async () => {
+    const r = await h.invoke('cheques:register', { bankLedgerId: hdfc.id, includeAvailable: false })
+    return r.length ? r : null
+  }, { what: 'the cheque register row' })
   assertEq(JSON.stringify(reg.map((r) => [r.number, r.status, r.voucherId])), JSON.stringify([['000101', 'cleared', payment.id]]), 'cheque 000101 issued to the payment (cleared: already reconciled)')
   const pv = await h.invoke('voucher:get', { id: payment.id })
   assertEq(pv.instrumentNo, '000101', 'the voucher carries the cheque number')
   const exportsDir = path.join(h.dataDir, 'companies', 'demo-traders', 'exports')
   const chequePdfs = () => (fs.existsSync(exportsDir) ? fs.readdirSync(exportsDir).filter((f) => f.startsWith('cheque-')) : [])
-  for (let i = 0; i < 60 && chequePdfs().length === 0; i++) await h.page.waitForTimeout(500)
+  await until(() => chequePdfs().length > 0, { what: 'the cheque PDF' })
   const pdfs = chequePdfs()
   assert(pdfs.length >= 1, 'the cheque PDF was written')
   await h.goto('banking')

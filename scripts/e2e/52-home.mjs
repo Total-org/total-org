@@ -11,6 +11,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 const attached = (h, sel, timeout = 15000) => h.page.waitForSelector(sel, { state: 'attached', timeout })
 
@@ -217,7 +218,7 @@ await scenario('52-home', async (h) => {
 
   await h.click('simple-why-profit')
   await attached(h, '[data-testid="simple-why-profit-sentence"]')
-  await page.waitForTimeout(300)
+  await waitForSettled(page)
   await shoot(h, '04-home-why-profit-light')
   await page.keyboard.press('Escape')
 
@@ -225,7 +226,7 @@ await scenario('52-home', async (h) => {
   await h.click('btn-theme')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await h.waitIdle()
-  await page.waitForTimeout(400) // let the theme transition settle before the capture
+  await waitForSettled(page)
   await shoot(h, '03-home-demo-dark')
   await h.click('simple-why-profit')
   await attached(h, '[data-testid="simple-why-profit-sentence"]')
@@ -256,7 +257,7 @@ await scenario('52-home', async (h) => {
   assertEq(await page.getAttribute('[data-testid="help-article"]', 'data-article'), 'getting-started', '? opens the help on Home’s article')
   assertEq(await textOf(h, '[data-testid="help-article-title"]'), 'Getting started', 'the article’s title')
   await h.waitIdle()
-  await page.waitForTimeout(400) // the panel slides in
+  await waitForSettled(page)
   await shoot(h, '06-help-home-light')
   await h.fill('help-search', 'bank statement')
   await attached(h, '[data-testid="help-hit"][data-article="bank-statement"]')
@@ -280,7 +281,7 @@ await scenario('52-home', async (h) => {
   await attached(h, '[data-testid="help-article"][data-article="make-a-bill"]')
   await h.click('btn-theme')
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
-  await page.waitForTimeout(400)
+  await waitForSettled(page)
   await shoot(h, '08-sales-empty-help-dark')
   await h.click('btn-theme')
   await page.waitForFunction(() => document.documentElement.dataset.theme !== 'dark')

@@ -15,6 +15,10 @@
 //                   [data-testid="nav-<name>"], then wait for
 //                   [data-screen="<name>"][data-loading="false"].
 //   waitIdle()      Wait for the current [data-screen] to report data-loading="false".
+//   frames()        Two animation frames — React rendered what a key / click did ("nothing happened").
+//   ipcDrained()    Every IPC call sent before has been answered and rendered.
+//   until(fn)       (export) Poll a Node-side condition with a deadline. No fixed sleeps anywhere
+//                   (scripts/lib/noSleeps.test.ts); waitForSettled (a11y.mjs) before a screenshot.
 //   shot(name)      Screenshot into the scenario's out dir.
 //   stubDialogs()   Patch dialog.show*Dialog/showMessageBox + shell.showItemInFolder/openPath
 //                   in the MAIN process so no native chrome ever blocks a run.
@@ -203,6 +207,21 @@ export class Harness {
   /** Wait until the current screen marker reports data-loading="false". */
   async waitIdle(timeout = 15000) {
     await this.page.waitForSelector('[data-screen][data-loading="false"]', { state: 'attached', timeout })
+  }
+
+  /** A11 / HEALTH-7 — condition waits that replaced fixed sleeps (with a11y.mjs waitForSettled —
+   *  nothing loading, no running animation — and until() below). Two animation frames: React has rendered what a synchronous event (a key, a click) did —
+   *  for a check that NOTHING happened. */
+  async frames() {
+    await this.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+  }
+
+  /** Every IPC call the renderer sent before this one has been answered (main handles them in
+   *  order), and what they changed has rendered — for a check that an async refusal / override
+   *  did NOT happen. */
+  async ipcDrained() {
+    await this.page.evaluate(() => window.total.invoke('app:info'))
+    await this.frames()
   }
 
   /** Wait until a SPECIFIC screen is visible and idle. */
@@ -467,6 +486,18 @@ export class Harness {
  *  which a bare `[role="option"]` wait would also match while a typed name has no match yet. */
 export const OPTION = '[role="option"]:not([data-create])'
 export const PICKER_OPTION = `[role="listbox"] ${OPTION}`
+
+/** Poll a Node-side condition (an IPC read, a file on disk, a stubbed shell call) until it holds —
+ *  a condition wait with a deadline, never a fixed sleep. Returns the truthy value. */
+export async function until(fn, { timeout = 30000, interval = 100, what = 'condition' } = {}) {
+  const end = Date.now() + timeout
+  for (;;) {
+    const v = await fn()
+    if (v) return v
+    if (Date.now() > end) throw new Error(`until: ${what} did not hold within ${timeout} ms`)
+    await new Promise((r) => setTimeout(r, interval))
+  }
+}
 
 export function assert(cond, msg) {
   if (!cond) throw new Error(`assertion failed: ${msg}`)

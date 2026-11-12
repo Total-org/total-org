@@ -5,6 +5,7 @@
 import { scenario } from '../lib/harness.mjs'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 const SHOTS = '/tmp/wp61'
 
@@ -18,10 +19,10 @@ await scenario('37-ratios', async (h) => {
   const bothThemes = async (name) => {
     await shot(`${name}-light`)
     await h.click('btn-theme')
-    await h.page.waitForTimeout(250)
+    await waitForSettled(h.page)
     await shot(`${name}-dark`)
     await h.click('btn-theme')
-    await h.page.waitForTimeout(150)
+    await waitForSettled(h.page)
   }
 
   // ---------------- ratios + comparative statements

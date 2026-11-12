@@ -16,6 +16,9 @@ import { LedgerLink } from '../components/links'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 import { CaCheck } from '../components/CaCheck'
 
+/** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
+const NONE: never[] = []
+
 type DocTypeFilter = 'all' | 'INV' | 'CRN' | 'DBN' | 'CHL'
 
 const DOC_TYPE_FILTERS: { value: DocTypeFilter; label: string }[] = [
@@ -254,8 +257,7 @@ function EdocsDocuments(): React.JSX.Element {
   const [detailsFor, setDetailsFor] = useState<number | null>(null)
   const [gatewayFor, setGatewayFor] = useState<{ voucherId: number; number: string } | null>(null)
   const [docTypeFilter, setDocTypeFilter] = useState<DocTypeFilter>('all')
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
-  const allRows = data ?? []
+  const allRows = data ?? NONE
   const rows = useMemo(
     () => (docTypeFilter === 'all' ? allRows : allRows.filter((r) => r.docType === docTypeFilter)),
     [allRows, docTypeFilter]

@@ -11,6 +11,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { createHash } from 'node:crypto'
 import { scenario, assert, assertEq, localToday } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('38-bulk-attachments', async (h) => {
   await h.createCompanyUI('Bulk Files Co')
@@ -23,7 +24,7 @@ await scenario('38-bulk-attachments', async (h) => {
     if (!shotsDir) return
     for (const want of ['light', 'dark']) {
       if ((await theme()) !== want) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(250)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${want}.png`) })
     }
     if ((await theme()) !== 'light') await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
@@ -149,7 +150,7 @@ await scenario('38-bulk-attachments', async (h) => {
   await page.waitForSelector(`[data-testid="rows-attachments"] tr[data-sha="${sha}"]`)
   await both('06-attachments-after-restore')
   await page.click(`[data-testid="rows-attachments"] tr[data-sha="${sha}"] [data-testid="btn-attachment-open"]`)
-  await page.waitForTimeout(300)
+  await h.ipcDrained()
   assert(!(await page.textContent('body')).includes("Couldn't open"), 'opens (hash-checked copy handed to the viewer)')
   await h.click('btn-attachments-done')
 
