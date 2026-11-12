@@ -165,8 +165,10 @@ export interface MsmeFormRow {
   voucherId: number | null
   number: string
   supplierRef: string | null
-  /** Date of acceptance (bill date). */
+  /** The bill date. */
   date: string
+  /** The day of acceptance (WP 2d: recorded, else the bill date) — the CSV's "Date of acceptance". */
+  acceptedOn: string
   amount: number
   /** Outstanding at the half-year end. */
   pending: number

@@ -81,6 +81,5 @@ export const msmeAcceptanceSetSchema = z.strictObject({
   voucherId: id,
   acceptedOn: isoDate.nullable(),
   basis: z.enum(['delivered', 'objection_removed']).default('delivered'),
-  note: z.string().trim().max(200).default(''),
-  today: isoDate.optional()
+  note: z.string().trim().max(200).default('')
 })

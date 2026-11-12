@@ -128,6 +128,7 @@ export const en = {
   'common.caCheck.point.tcsRules': 'Some TCS rates (tour packages, parking, toll, mining) and whether GST is in the TCS base were read in copies, not the Act.',
   'common.caCheck.point.payrollSalaryTds': 'Salary TDS is rounded to the nearest rupee, and the Form 16 Part B rows follow the 1962 rules. Not confirmed.',
   'common.caCheck.point.msme43bh': 'Bills of a trader supplier are left out of the s.43B(h) list — a reading of an office memo. Changes by the Finance Act 2026 were not read.',
+  'common.caCheck.point.msmeAcceptanceCoverage': 'Whether an MSME bill is covered is judged on the day of supply (the delivery day you record, else the bill date), not on the day an objection was removed — a reading, not checked in the law or a judgment.',
   'common.caCheck.point.msmeForm1Udyam': 'The MSME Form 1 layout and how a Udyam number is read (state, then district) come from copies, not the official text.',
   'common.caCheck.point.forecastDates': 'The tax due dates in the forecast (GST, TDS) were written from summaries, and a small supplier’s bills move to their s.15 date as Total reads the rule. Check them.',
   'common.caCheck.point.auditRetention': 'How long the edit log must be kept, and what it must show, was not re-read in the law’s exact words.',

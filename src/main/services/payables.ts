@@ -29,7 +29,7 @@ import { bankRateInputSchema, msmeAcceptanceSetSchema, paymentRunSchema, type Pa
 import { outstandings, openBills, partyBillEvents } from './analysis'
 import { settlementTimeline } from '@shared/payables/settlements'
 import { descendantIdsByName, partyGroupIdsBySide } from './masters'
-import { saveVoucher, IN_BOOKS, NOT_DELETED } from './vouchers'
+import { getLockDate, saveVoucher, IN_BOOKS, NOT_DELETED } from './vouchers'
 import { ledgerStatement } from './reports'
 import { tdsSuggestion } from './tds'
 import { getFeatures } from './config'
@@ -133,6 +133,17 @@ export function msmeAcceptances(db: DB, voucherIds: readonly (number | null)[]):
 const acceptedOnOf = (acc: Map<number, MsmeAcceptance>, b: { voucherId: number | null; date: string }): string =>
   (b.voucherId != null ? acc.get(b.voucherId)?.acceptedOn : undefined) ?? b.date
 
+/** The day the supply was made, for whether the supplier was covered (registered) then: a recorded
+ *  delivery day, else the bill date — a removed objection is later than the supply (review of
+ *  #261; the reading is a CA point, `msme-acceptance-coverage`). */
+export const supplyDayOf = (acc: Map<number, MsmeAcceptance>, b: { voucherId: number | null; date: string }): string => {
+  const a = b.voucherId != null ? acc.get(b.voucherId) : undefined
+  return a?.basis === 'delivered' ? a.acceptedOn : b.date
+}
+
+/** How far a recorded day may be from the bill date (a slip in the year is refused). */
+const ACCEPTANCE_MAX_GAP_DAYS = 365
+
 /**
  * Record (or clear) a bill's day of acceptance. MSMED Act 2006 s.2(b) Explanation: "the day of
  * acceptance" means (a) "the day of the actual delivery of goods or the rendering of services", or
@@ -144,18 +155,23 @@ const acceptedOnOf = (acc: Map<number, MsmeAcceptance>, b: { voucherId: number |
  * MSME-registered supplier can carry one; the day can't be after today. Audited
  * (`msme_acceptance`); the same answer writes nothing.
  */
-export function setMsmeAcceptance(db: DB, raw: unknown): MsmeAcceptance | null {
+export function setMsmeAcceptance(db: DB, raw: unknown, today: string = todayISO()): MsmeAcceptance | null {
   const input = msmeAcceptanceSetSchema.parse(raw)
-  const today = input.today ?? todayISO()
   const voucher = db
-    .prepare(`SELECT v.id FROM vouchers v WHERE v.id = ? AND ${IN_BOOKS}`)
-    .get(input.voucherId) as { id: number } | undefined
+    .prepare(`SELECT v.id, v.date FROM vouchers v WHERE v.id = ? AND ${IN_BOOKS}`)
+    .get(input.voucherId) as { id: number; date: string } | undefined
   if (!voucher) throw new Error('That bill is not in the books')
+  // A bill inside the locked period keeps its figures (s.43B(h), Form 1 and the year-end check of a
+  // closed / filed period would move otherwise).
+  const lock = getLockDate(db)
+  if (lock && voucher.date <= lock) throw new Error(`The books are locked up to ${lock} — this bill's MSME dates can't change`)
   const supplier = db
     .prepare(`SELECT 1 FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? AND vl.dr_cr = 'cr' AND l.msme_registered = 1`)
     .get(input.voucherId)
   if (!supplier) throw new Error('Only a bill from an MSME-registered supplier has a day of acceptance')
   if (input.acceptedOn != null && input.acceptedOn > today) throw new Error('The day of acceptance cannot be after today')
+  if (input.acceptedOn != null && Math.abs(daysBetween(voucher.date, input.acceptedOn)) > ACCEPTANCE_MAX_GAP_DAYS)
+    throw new Error(`The day of acceptance must be within ${ACCEPTANCE_MAX_GAP_DAYS} days of the bill date (${voucher.date})`)
   const before = msmeAcceptances(db, [input.voucherId]).get(input.voucherId) ?? null
   const after: MsmeAcceptance | null = input.acceptedOn == null ? null : { voucherId: input.voucherId, acceptedOn: input.acceptedOn, basis: input.basis, note: input.note }
   if (JSON.stringify(before) === JSON.stringify(after)) return after
@@ -251,7 +267,7 @@ export function payablesPlan(db: DB, asOn: string): PayablesPlan {
     const f = facts.get(p.ledgerId)
     for (const b of p.bills) {
       const acceptedOn = acceptedOnOf(acc, b)
-      const s15 = coveredOn(f, acceptedOn) ? s15Deadline(acceptedOn, f!.msme!.agreedCreditDays) : null
+      const s15 = coveredOn(f, supplyDayOf(acc, b)) ? s15Deadline(acceptedOn, f!.msme!.agreedCreditDays) : null
       const payBy = payByDate(b.date, b.dueDate, s15?.payBy ?? null)
       const interest = s15 && asOn >= s15.interestFrom ? s16Interest(b.pending, s15.interestFrom, asOn, rates).interestPaise : 0
       rows.push({
@@ -652,7 +668,7 @@ function disallowanceForFy(db: DB, suppliers: SupplierRow[], fyStartYear: number
         continue
       }
       const acceptedOn = acceptedOnOf(acc, b)
-      if (!coveredOn(s, acceptedOn)) continue
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
       const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       let pendingAtPayBy: number | null = null
       if (s15.payBy > fy.to && s15.payBy < today) {
@@ -698,7 +714,7 @@ export function msmeReport(
     const acc = msmeAcceptances(db, open.map((b) => b.voucherId))
     for (const b of open) {
       const acceptedOn = acceptedOnOf(acc, b)
-      if (!coveredOn(s, acceptedOn)) continue
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
       const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       const { bucket, daysLate } = msmeAgeBucket(s15.payBy, asOn)
       const i = s16Interest(b.pending, s15.interestFrom, asOn, rates)
@@ -725,14 +741,14 @@ export function msmeReport(
     const acc = msmeAcceptances(db, open.map((b) => b.voucherId))
     for (const b of open) {
       const acceptedOn = acceptedOnOf(acc, b)
-      if (!coveredOn(s, acceptedOn)) continue
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
       const days = daysBetween(acceptedOn, period.to)
       if (days <= FORM_MSME1_DAYS) continue
       const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       formRows.push({
         ledgerId: s.id, partyName: s.name, pan: s.pan, udyamNo: s.msme!.udyamNo, category: s.msme!.category!,
         voucherId: b.voucherId, number: b.number, supplierRef: b.voucherId != null ? (formRefs.get(b.voucherId) ?? null) : null,
-        date: b.date, amount: b.amount, pending: b.pending, dueFrom: s15.interestFrom, days
+        date: b.date, acceptedOn, amount: b.amount, pending: b.pending, dueFrom: s15.interestFrom, days
       })
     }
   }
@@ -786,7 +802,7 @@ function form1Supplier(
   const all = settlementTimeline(events, to, creditDays, from)
   const acc = msmeAcceptances(db, all.map((x) => x.billVoucherId))
   const acceptedOf = (x: { billVoucherId: number | null; billDate: string }): string => acceptedOnOf(acc, { voucherId: x.billVoucherId, date: x.billDate })
-  const timeline = all.filter((x) => x.date >= from && x.date <= to && coveredOn(s, acceptedOf(x)))
+  const timeline = all.filter((x) => x.date >= from && x.date <= to && coveredOn(s, supplyDayOf(acc, { voucherId: x.billVoucherId, date: x.billDate })))
   const kinds = new Map<number, string>()
   const ids = [...new Set(timeline.map((x) => x.byVoucherId).filter((v): v is number => v != null))]
   for (let i = 0; i < ids.length; i += 500) {
@@ -817,7 +833,7 @@ function form1Supplier(
   const openAcc = msmeAcceptances(db, open.map((b) => b.voucherId))
   for (const b of open) {
     const acceptedOn = acceptedOnOf(openAcc, b)
-    if (!coveredOn(s, acceptedOn)) continue
+    if (!coveredOn(s, supplyDayOf(openAcc, b))) continue
     if (daysBetween(acceptedOn, to) > FORM_MSME1_DAYS) out.outstandingOver45 += b.pending
     else out.outstandingUpTo45 += b.pending
   }
@@ -842,7 +858,7 @@ export function msmeForm1Csv(db: DB, opts: { asOn: string; formPeriodDate?: stri
     'Invoice amount', 'Amount due', 'Date from which due', 'Days outstanding', 'Reason for delay'
   ]
   const rows = r.form1.rows.map((x) => [
-    r.form1.period.label, x.partyName, x.pan ?? '', x.udyamNo ?? '', x.category, x.supplierRef ?? x.number, x.number, x.date,
+    r.form1.period.label, x.partyName, x.pan ?? '', x.udyamNo ?? '', x.category, x.supplierRef ?? x.number, x.number, x.acceptedOn,
     plainRupees(x.amount), plainRupees(x.pending), x.dueFrom, String(x.days), ''
   ])
   const csv = `${rowsToCsv(formHeader, formRows)}\r\n${rowsToCsv(header, rows).replace(/^\uFEFF/, '')}`
