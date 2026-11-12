@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**A short user guide and an architecture page** (Phase 6 prep). `docs/guide/` explains Total in
+**A short user guide and an architecture page** (#267, Phase 6 prep). `docs/guide/` explains Total in
 plain words for both ways of using it (simple screens and the full app); `docs/architecture.md`
 is a one-page map of how it is built.
 
