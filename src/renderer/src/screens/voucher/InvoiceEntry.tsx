@@ -18,7 +18,7 @@ import { partyRoleOf } from '@shared/chartOfAccounts'
 import { useNav, useSession, useToasts, type VoucherDraft } from '../../state/stores'
 import { AmountInput, Banner, Button, DateInput, Field, FieldError, isAnyModalOpen, Kbd, Money, Panel, Select, TextInput, inputCls, useFormErrors } from '../../components/ui'
 import { SaveCard } from '../../simple/SaveCard'
-import { LedgerPicker, useGroups, useLedgers, useStockItems, useTaxLedgers } from '../../components/pickers'
+import { LedgerPicker, PartyPicker, useGroups, useLedgers, useStockItems, useTaxLedgers } from '../../components/pickers'
 import { LedgerFormModal } from '../../components/LedgerFormModal'
 import { useFeatures } from '../../lib/useFeatures'
 import { confirmDialog, promptDialog } from '../../lib/dialogs'
@@ -243,6 +243,8 @@ export function InvoiceEntry({
     noteBillRefs.some((r) => (openBillsForNote ?? []).some((b) => b.number === r.name && chargesGstOn(info!, b.date)))
   // An unregistered business files no GST: no e-way / place-of-supply fields on its bills.
   const unregisteredNow = registrationOn(info!, date) === 'unregistered'
+  // The e-way bill's dispatch fields (a sales invoice of a GST-charging date) — in GST details.
+  const showEway = isSalesSide && kind === 'sales' && !unregisteredNow
 
   // Everything the shared invoice math needs, from the same masters the pickers show.
   const ctx: InvoiceContext = useMemo(
@@ -699,7 +701,8 @@ export function InvoiceEntry({
         </Field>
         <Field label={isSalesSide ? 'Party (buyer)' : 'Party (supplier)'} name="party" error={formErrors.get('party')}>
           <div className="flex items-center gap-1.5">
-            <LedgerPicker
+            <PartyPicker
+              side={isSalesSide ? 'sales' : 'purchase'}
               autoFocus={!isEdit && draft?.fromTradeDocId == null && draft?.fromVoucherIds == null && draft?.aiDraftId == null}
               value={partyId}
               onPick={(id) => {
@@ -842,19 +845,6 @@ export function InvoiceEntry({
           <Field label="Narration">
             <TextInput value={narration} onChange={(e) => setNarration(e.target.value)} placeholder={NARRATION_PLACEHOLDER[kind] ?? 'Optional'} data-testid="input-invoice-narration" />
           </Field>
-          {isSalesSide && kind === 'sales' && !unregisteredNow && (
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              <Field label="Vehicle no.">
-                <TextInput value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} placeholder="Vehicle number" className="num" />
-              </Field>
-              <Field label="Transporter ID">
-                <TextInput value={transporterId} onChange={(e) => setTransporterId(e.target.value.toUpperCase())} placeholder="For e-way bill" className="num" />
-              </Field>
-              <Field label="Distance km">
-                <TextInput value={distanceKm} onChange={(e) => setDistanceKm(e.target.value)} placeholder="0" className="num text-right" />
-              </Field>
-            </div>
-          )}
           {goodsOnChallan && (
             <p className="mt-2 text-hint text-muted" data-testid="invoice-goods-on-challan">
               Goods moved on the challan — its e-way bill covered the movement; no second one is needed.
@@ -976,12 +966,17 @@ export function InvoiceEntry({
           onClick={() => setGstOpen((v) => !v)}
         >
           <span className="inline-block w-3 text-micro">{gstOpen ? '▾' : '▸'}</span>
-          {unregisteredNow ? 'More options' : 'GST details'}
+          {unregisteredNow ? 'More options' : showEway ? 'GST and dispatch details' : 'GST details'}
           {(posOverride || optionalVoucher) && (
             <span className="normal-case text-muted">
               {' '}
               ·{posOverride ? ` POS ${posOverride} — ${GST_STATES[posOverride] ?? ''}` : ''}
               {optionalVoucher ? ' optional (memorandum)' : ''}
+            </span>
+          )}
+          {showEway && (vehicleNo || transporterId || distanceKm) && !gstOpen && (
+            <span className="normal-case text-muted" data-testid="invoice-eway-summary">
+              {' '}· e-way {[vehicleNo, transporterId, distanceKm ? `${distanceKm} km` : ''].filter(Boolean).join(' · ')}
             </span>
           )}
         </button>
@@ -1015,6 +1010,21 @@ export function InvoiceEntry({
               />
               Optional (memorandum) voucher — never counts toward the books or returns
             </label>
+            {/* Audit A8 / UX-18: the e-way dispatch fields sit here, off the keyboard path from
+                the items to Save (they used to follow the narration). Saved exactly as before. */}
+            {showEway && (
+              <>
+                <Field label="Vehicle no.">
+                  <TextInput value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} placeholder="Vehicle number" className="num" />
+                </Field>
+                <Field label="Transporter ID">
+                  <TextInput value={transporterId} onChange={(e) => setTransporterId(e.target.value.toUpperCase())} placeholder="For e-way bill" className="num" />
+                </Field>
+                <Field label="Distance km">
+                  <TextInput value={distanceKm} onChange={(e) => setDistanceKm(e.target.value)} placeholder="0" className="num text-right" />
+                </Field>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1129,24 +1139,26 @@ export function InvoiceEntry({
 
       <div className="mt-5 flex justify-between">
         <div>{isEdit && <Button variant="danger" onClick={() => void remove()}>Delete voucher</Button>}</div>
-        <div className="flex gap-2">
-          {isEdit && voucherId && (kind === 'sales' || kind === 'credit_note') && (
-            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
-          )}
-          {isEdit && (
-            <Button data-testid="btn-voucher-transport" onClick={() => setShowTransport(true)}>
-              Transport / e-way details…
-            </Button>
-          )}
-          <Button onClick={() => nav.back()}>Cancel</Button>
+        {/* Audit A8 / UX-18: Save comes first in the tab order (row-reverse keeps the look:
+            … Cancel · Save + invoice PDF · Save). */}
+        <div className="flex flex-row-reverse gap-2">
+          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={saving} onClick={() => void save()}>
+            {isEdit ? 'Save changes' : 'Save voucher'} ⌘↵
+          </PostButton>
           {kind === 'sales' && (
             <Button disabled={saving} onClick={() => void save(true)}>
               Save + invoice PDF
             </Button>
           )}
-          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={saving} onClick={() => void save()}>
-            {isEdit ? 'Save changes' : 'Save voucher'} ⌘↵
-          </PostButton>
+          <Button onClick={() => nav.back()}>Cancel</Button>
+          {isEdit && (
+            <Button data-testid="btn-voucher-transport" onClick={() => setShowTransport(true)}>
+              Transport / e-way details…
+            </Button>
+          )}
+          {isEdit && voucherId && (kind === 'sales' || kind === 'credit_note') && (
+            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
+          )}
         </div>
       </div>
 

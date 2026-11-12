@@ -74,6 +74,33 @@ function annualGstDeadlines(db: DB, today: string): { form: string; title: strin
 /** `notBefore` (WP 10.8, simple Home / Taxes only): the first day GST applies to these books — a
  *  return period that ended before it is never the one shown; the running period so far is. */
 export function dashGst(db: DB, company: CompanyInfo, today: string, notBefore?: string): DashGst | null {
+  const p = gstDuePeriod(db, company, today, notBefore)
+  if (!p) return null
+  const f = gst3bFigures(db, company, p.from, p.to, p.period)
+  return {
+    ...p,
+    liability: f.outwardTax + f.rcmTax,
+    outwardTax: f.outwardTax,
+    rcmTax: f.rcmTax,
+    itc: f.itc,
+    payable: f.payable,
+    annual: annualGstDeadlines(db, today)
+  }
+}
+
+/** The return period `dashGst` shows (the one the Compliance card names) without its figures —
+ *  audit A8 / UX-4: the GSTR-1 / GSTR-3B / GSTR-2B screens open on it. Null unless regular. */
+export interface GstDuePeriod {
+  period: string
+  from: string
+  to: string
+  quarterly: boolean
+  soFar: boolean
+  gstr1Due: string | null
+  gstr3bDue: string | null
+}
+
+export function gstDuePeriod(db: DB, company: CompanyInfo, today: string, notBefore?: string): GstDuePeriod | null {
   if (company.gstRegistrationType !== 'regular') return null
   // WP 8.3: GSTR-1 follows the filing frequency (QRMP: the 13th after the quarter).
   const filing = getGstProfile(db).filing
@@ -121,23 +148,7 @@ export function dashGst(db: DB, company: CompanyInfo, today: string, notBefore?:
     gstr3bDue = gstr3bDueDate(last, filing, company.stateCode).date
     if (filedHere.gstr1 || !gstr1Due) gstr1Due = gstr1DueDate(last, filing)
   }
-  const period = monthOf(to)
-  const f = gst3bFigures(db, company, from, to, period)
-  return {
-    period,
-    from,
-    to,
-    quarterly: filing === 'quarterly',
-    soFar,
-    gstr1Due,
-    gstr3bDue,
-    liability: f.outwardTax + f.rcmTax,
-    outwardTax: f.outwardTax,
-    rcmTax: f.rcmTax,
-    itc: f.itc,
-    payable: f.payable,
-    annual: annualGstDeadlines(db, today)
-  }
+  return { period: monthOf(to), from, to, quarterly: filing === 'quarterly', soFar, gstr1Due, gstr3bDue }
 }
 
 /** meta `gstFiled` (the Taxes screen's "I've filed" marks, shared/simple/taxes.ts) as stored —

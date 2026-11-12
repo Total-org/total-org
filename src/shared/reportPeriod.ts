@@ -164,3 +164,11 @@ export function periodKeysBetween(from: string, to: string, dim: PeriodDimension
   }
   return keys
 }
+
+/** Audit A8 / UX-10: the date an accountant report stops at by default — today while the working
+ *  period contains it (a CA reading the trial balance on 7 Nov wants it as on 7 Nov, not the
+ *  31 March still ahead), else the period's end (a past or future year is read whole). Only the
+ *  default changes: the figures as on any date are what they always were. */
+export function reportEndOn(periodFrom: string, periodTo: string, today: string): string {
+  return periodFrom <= today && today < periodTo ? today : periodTo
+}

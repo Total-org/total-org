@@ -3,6 +3,7 @@ import { pickTaxLedger, type TaxSide } from '@shared/voucherEdit'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Group, Ledger, StockItem } from '@shared/domain'
 import { createScanDetector } from '@shared/barcode'
+import { partyPickerLedgers, type PartySide } from '@shared/voucherEdit/partyList'
 import { api } from '../lib/client'
 import { inputCls } from './ui'
 import { useFieldAria, useInField } from './kit/Field'
@@ -348,6 +349,50 @@ export function LedgerPicker({
       placeholder={placeholder}
       autoFocus={autoFocus}
       openOnArrival={openOnArrival}
+      onCreate={onCreateRequest}
+      className={className}
+      testId={testId}
+    />
+  )
+}
+
+/** Audit A8 / UX-3: a bill's party picker — this side's parties first (customers on a sale,
+ *  suppliers on a purchase), the ones used most recently on top, then cash / bank, the other side
+ *  and other balance-sheet ledgers; never a tax, income or expense ledger (shared/voucherEdit/
+ *  partyList.ts). The ledger already picked always stays in the list. */
+export function PartyPicker({
+  side,
+  value,
+  onPick,
+  placeholder,
+  autoFocus,
+  onCreateRequest,
+  className,
+  testId = 'picker-party'
+}: {
+  side: PartySide
+  value: number | null
+  onPick: (id: number | null) => void
+  placeholder: string
+  autoFocus?: boolean
+  onCreateRequest?: (name: string) => void
+  className?: string
+  testId?: string
+}): React.JSX.Element {
+  const ledgers = useLedgers()
+  const groups = useGroups()
+  const { data: recent } = useQuery({ queryKey: ['recentParties', side], queryFn: () => api.vouchers.recentParties(side), staleTime: 30_000 })
+  const options = useMemo(() => {
+    const groupMap = new Map(groups.map((g) => [g.id, g]))
+    return partyPickerLedgers(ledgers, groups, side, recent ?? [], value).map((l) => ({ id: l.id, label: l.name, sub: groupMap.get(l.groupId)?.name }))
+  }, [ledgers, groups, side, recent, value])
+  return (
+    <TypeAhead
+      options={options}
+      value={value}
+      onPick={onPick}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
       onCreate={onCreateRequest}
       className={className}
       testId={testId}

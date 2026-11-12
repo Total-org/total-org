@@ -1068,6 +1068,8 @@ export const api = {
     list: (from: string, to: string, voucherTypeId?: number) =>
       call<VoucherListRow[]>('voucher:list', { from, to, voucherTypeId }),
     get: (id: number) => call<Voucher | null>('voucher:get', { id }),
+    /** Audit A8 / UX-3: party ids used most recently on a side, newest first (the party picker's order). */
+    recentParties: (side: 'sales' | 'purchase') => call<number[]>('voucher:recentParties', { side }),
     /** `creditHoldOverride` (WP 4.2): an owner's reason for invoicing a party on credit hold.
      *  `aiDraftId` (WP 5.1): the voucher was reviewed from an AI draft — main marks it consumed. */
     save: (data: VoucherInputParsed, id?: number, opts?: { creditHoldOverride?: { reason: string }; aiDraftId?: number }) =>
@@ -1119,6 +1121,8 @@ export const api = {
   gst: {
     gstr1: (from: string, to: string, period: string) => call<Gstr1Result>('gst:gstr1', { from, to, period }),
     gstr3b: (from: string, to: string, period: string) => call<Gstr3bView>('gst:gstr3b', { from, to, period }),
+    /** Audit A8 / UX-4: the return period due next ('YYYY-MM', the Compliance card's); null unless regular. */
+    duePeriod: () => call<{ period: string; from: string; to: string; quarterly: boolean; soFar: boolean } | null>('gst:duePeriod'),
     exportGstr1: (from: string, to: string, period: string) =>
       call<{ jsonPath: string; csvPath: string }>('gst:exportGstr1', { from, to, period }),
     exportGstr3b: (from: string, to: string, period: string) =>

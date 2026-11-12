@@ -934,25 +934,26 @@ export function AccountingEntry({
 
       <div className="mt-5 flex justify-between">
         <div>{voucherId && <Button variant="danger" onClick={() => void remove()}>Delete voucher</Button>}</div>
-        <div className="flex gap-2">
-          {voucherId && kind === 'payment' && bankCrLine && (
-            <>
-              <Button data-testid="btn-voucher-print-cheque" onClick={() => void printCheque()}>Print cheque</Button>
-              <Button onClick={() => void printAdvice()}>Payment advice</Button>
-            </>
-          )}
-          {voucherId && (kind === 'sales' || kind === 'credit_note') && (
-            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
-          )}
+        {/* Audit A8 / UX-18: Save first in the tab order; row-reverse keeps the look. */}
+        <div className="flex flex-row-reverse gap-2">
+          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={!balanced || saving} onClick={() => void save()}>
+            {voucherId ? 'Save changes' : 'Save voucher'} ⌘↵
+          </PostButton>
+          <Button onClick={() => nav.back()}>Cancel</Button>
           {voucherId && TRADING_KINDS.includes(kind) && (
             <Button data-testid="btn-voucher-transport" onClick={() => setShowTransport(true)}>
               Transport / e-way details…
             </Button>
           )}
-          <Button onClick={() => nav.back()}>Cancel</Button>
-          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={!balanced || saving} onClick={() => void save()}>
-            {voucherId ? 'Save changes' : 'Save voucher'} ⌘↵
-          </PostButton>
+          {voucherId && (kind === 'sales' || kind === 'credit_note') && (
+            <ShareBill voucherId={voucherId} plain={saveCard.simple} testId="btn-voucher-share" />
+          )}
+          {voucherId && kind === 'payment' && bankCrLine && (
+            <>
+              <Button onClick={() => void printAdvice()}>Payment advice</Button>
+              <Button data-testid="btn-voucher-print-cheque" onClick={() => void printCheque()}>Print cheque</Button>
+            </>
+          )}
         </div>
       </div>
 
