@@ -48,9 +48,12 @@ export function goodsAdvanceMessage(parties: readonly AdvanceParty[]): string {
   const names = parties.map((p) => p.partyName)
   const shown = names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ')
   const n = parties.reduce((s, p) => s + p.voucherIds.length, 0)
+  // Review of #259: no remedy is prescribed. The customer's GST rate is read live for every month's
+  // 11A AND 11B, so clearing it would move months already filed — that is said, for the CA to weigh.
   return (
     `${n} advance${n === 1 ? '' : 's'} in Table 11A ${n === 1 ? 'is' : 'are'} from customers you sell goods to (${shown}). ` +
     'GST on goods is due when you invoice, not on an advance (Notification 66/2017-Central Tax, s.12(2)(a) CGST Act); ' +
-    'only advances for services are taxed on receipt. If these advances are for goods, clear the GST rate on the customer’s account so they leave Table 11A.'
+    'only advances for services are taxed on receipt. Check these with your CA before changing anything: the GST rate on a ' +
+    'customer’s account puts ALL their advances in Table 11A and 11B, in every month — clearing it changes months already filed.'
   )
 }

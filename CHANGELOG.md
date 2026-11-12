@@ -24,8 +24,9 @@ Things to know about the version numbers:
 invoices, not when the customer pays in advance (Notification 66/2017-Central Tax). The GSTR-1
 checks now warn when an advance in Table 11A comes from a customer you sell goods to, going by the
 HSN codes on that customer's earlier bills, or on your own bills if they have none yet. The warning
-names the receipts. *For accountants*: Table 11A / 11B and GSTR-3B are unchanged. Taking an advance
-out of 11A is still done by clearing the GST rate on the customer's account.
+names the receipts. *For accountants*: Table 11A / 11B and GSTR-3B are unchanged. The warning also
+says that clearing the customer's GST rate would take all of their advances out of 11A and 11B in
+every month, including months already filed, so check with your CA first.
 
 **The same keys in both modes, and approvals and the GST portal everywhere** (#258, Phase 5 polish).
 ⌘↵ (Ctrl+Enter on Windows) now saves in every dialog (it presses the dialog's main button) and on

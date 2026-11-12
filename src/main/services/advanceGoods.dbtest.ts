@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { extractAdvances, goodsAdvanceIssue, gstValidate } from './gst'
 import { seededDb, TEST_INFO } from '../db/testdb'
-import { createLedger } from './masters'
+import { createLedger, createStockItem, listUnits, updateStockItem } from './masters'
 import { saveVoucher, deleteVoucher } from './vouchers'
 import type { DrCr } from '@shared/domain'
 
@@ -40,7 +40,7 @@ function setup() {
       { ledgerId: cash, drCr: 'dr', amount: 118000 },
       { ledgerId: party, drCr: 'cr', amount: 118000 }
     ], ref)
-  return { db, goodsSales, serviceSales, customer, sale, advance }
+  return { db, L, groupId, vtId, cgst, sgst, goodsSales, serviceSales, customer, sale, advance }
 }
 
 describe('advances for goods (WP 2d, N. 66/2017-CT)', () => {
@@ -56,6 +56,7 @@ describe('advances for goods (WP 2d, N. 66/2017-CT)', () => {
     const issue = goodsAdvanceIssue(s.db, TEST_INFO, FROM, TO)
     expect(issue).toMatchObject({ code: 'advance_goods', severity: 'warning', voucherIds: [a1.id] })
     expect(issue!.message).toMatch(/^1 advance in Table 11A is from customers you sell goods to \(Goods Buyer\)/)
+    expect(issue!.message).toContain('clearing it changes months already filed')
     expect(gstValidate(s.db, TEST_INFO, FROM, TO).filter((i) => i.code === 'advance_goods')).toEqual([issue])
 
     // Both advances stay in 11A exactly as before: 2 × ₹1,18,000 → taxable 2 × ₹1,00,000, tax 2 × ₹18,000 (rule 35).
@@ -90,5 +91,51 @@ describe('advances for goods (WP 2d, N. 66/2017-CT)', () => {
 
     deleteVoucher(s.db, a.id)
     expect(goodsAdvanceIssue(s.db, TEST_INFO, FROM, TO)).toBeNull()
+  })
+
+  it('a 0 % customer is not warned (its advance carries no tax)', () => {
+    const s = setup()
+    const zero = s.L({ name: 'Zero Buyer', groupId: s.groupId('Sundry Debtors'), stateCode: '27', gstRate: 0 })
+    s.sale(zero, s.goodsSales)
+    s.advance(zero, 'ADV-0')
+    expect(goodsAdvanceIssue(s.db, TEST_INFO, FROM, TO)).toBeNull()
+  })
+
+  it('the registration in force at the period end decides (WP 8.0)', () => {
+    const s = setup()
+    const buyer = s.customer('Goods Buyer')
+    s.sale(buyer, s.goodsSales)
+    s.advance(buyer, 'ADV-R')
+    // Regular only from 1 Aug 2026 — composition in July: nothing to say for July.
+    const movedLater = { ...TEST_INFO, gstRegistrationSince: '2026-08-01', gstPreviousRegistrationType: 'composition' as const }
+    expect(goodsAdvanceIssue(s.db, movedLater, FROM, TO)).toBeNull()
+    // Composition today, regular until 1 Aug 2026: July is a regular month.
+    const movedAway = { ...TEST_INFO, gstRegistrationType: 'composition' as const, gstRegistrationSince: '2026-08-01', gstPreviousRegistrationType: 'regular' as const }
+    expect(goodsAdvanceIssue(s.db, movedAway, FROM, TO)).not.toBeNull()
+  })
+
+  it('an item-mode sale counts by the HSN the bill was saved with, not a later master change', () => {
+    const s = setup()
+    const buyer = s.customer('Item Buyer')
+    const plainSales = s.L({ name: 'Sales', groupId: s.groupId('Sales Accounts') })
+    const unitId = listUnits(s.db)[0]!.id
+    const base = { name: 'Laptop', groupId: null, unitId, hsn: '8471', gstRate: 18, cessRate: null, openingQtyMilli: 5000, openingValue: 400000, barcode: null, reorderLevelMilli: null }
+    const laptop = createStockItem(s.db, base)
+    saveVoucher(s.db, {
+      voucherTypeId: s.vtId('sales'), date: '2026-06-12', partyLedgerId: buyer,
+      lines: [
+        { ledgerId: buyer, drCr: 'dr', amount: 118000, costAllocations: [] },
+        { ledgerId: plainSales, drCr: 'cr', amount: 100000, costAllocations: [] },
+        { ledgerId: s.cgst, drCr: 'cr', amount: 9000, costAllocations: [] },
+        { ledgerId: s.sgst, drCr: 'cr', amount: 9000, costAllocations: [] }
+      ],
+      inventory: [{ stockItemId: laptop.id, godownId: null, qtyMilli: 1000, ratePaise: 100000, amount: 100000, direction: 'out' }],
+      billRefs: [], tds: null
+    })
+    const a = s.advance(buyer, 'ADV-I')
+    expect(goodsAdvanceIssue(s.db, TEST_INFO, FROM, TO)?.voucherIds).toEqual([a.id])
+    // The master is re-coded to a SAC afterwards: the bill keeps the goods HSN it was saved with.
+    updateStockItem(s.db, laptop.id, { ...base, hsn: '998314' })
+    expect(goodsAdvanceIssue(s.db, TEST_INFO, FROM, TO)?.voucherIds).toEqual([a.id])
   })
 })
