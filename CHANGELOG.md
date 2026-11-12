@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Updates are checked as genuine before they are offered** (#251, audit A4). Every release now
+carries a signed list of its files (`total-manifest.json`, Ed25519). Total offers a new version only
+when that list verifies against the key built into the app, installs a downloaded update only when
+the file matches it, and a manual download opens that exact installer on GitHub. The updater opens
+only https pages of the site or of Total's GitHub releases. New encrypted backups (`.totalbak`) use
+a stronger passphrase key (scrypt N = 2^17); older ones still open. A new `.totalbak` opens only in
+this version of Total or later — update Total on the other computer first.
+
 **The first ten minutes** (#248, audit A7). "Try with sample data" now opens a sample shop that
 makes sense: its day-one cash, bank, stock and old bills are entered, every product has a selling
 price, stock never goes below zero (restocks come before the sales that need them, so goods sold

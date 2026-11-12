@@ -46,6 +46,7 @@ export function UpdatesSetting(): React.JSX.Element {
       if (r.status === 'dev') toast.push('info', t('simple.updates.dev'))
       else if (r.status === 'up-to-date') toast.push('success', t('simple.updates.upToDate', { version: r.current }))
       else if (r.status === 'available') toast.push('info', t('simple.updates.available', { version: (r.latest ?? '').replace(/^v/, '') }))
+      else if (r.status === 'unverified') toast.push('error', t('simple.updates.unverified', { version: (r.latest ?? '').replace(/^v/, '') }))
       else toast.push('error', t('simple.updates.failed'))
     } catch (err) {
       toast.push('error', (err as Error).message)

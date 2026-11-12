@@ -32,7 +32,7 @@ import { embedAttachments, restoreAttachmentFiles, restoreAttachmentFilesAt, typ
 import { listBackupsIn, restoreCompanyDb, rollbackRestore, snapshotSync, backupStamp, runWeeklyIntegrityCheckAsync, type BackupInfo } from './db/backup'
 import { checkIntegrity, checkIntegrityAsync, QUICK_CHECK_TIMED_OUT } from './db/integrity'
 import { stopAllChecks, stopChecks, stopChecksUnder } from './db/checkHost'
-import { encryptFile, decryptFile } from './db/crypt'
+import { encryptFile, decryptFile, NewerBackupFormatError } from './db/crypt'
 import { readCompanyInfo, seedCompany, writeCompanyInfo } from './db/seed'
 import { readRegistry, removeCompany, touchLastOpened, upsertCompany } from './registry'
 import { companyAttachmentsDir, companyBackupAttachmentsDir, companyBackupsDir, companyDbPath, companyDir, companyExportsDir, dataRoot, ensureCompanyTree, slugify } from './paths'
@@ -1609,7 +1609,8 @@ export function registerIpc(): void {
     const tempDbPath = join(tempDir, 'restored.db')
     try {
       await decryptFile(picked.filePaths[0], tempDbPath, passphrase)
-    } catch {
+    } catch (err) {
+      if (err instanceof NewerBackupFormatError) throw err
       throw new Error('Wrong passphrase or corrupted file')
     }
 

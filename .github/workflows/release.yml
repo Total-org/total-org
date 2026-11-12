@@ -16,6 +16,11 @@ on:
         description: The v* tag to build and publish (already pushed)
         required: true
         type: string
+    secrets:
+      # Audit A4: the Ed25519 key that signs total-manifest.json (scheduled-release passes it with
+      # `secrets: inherit`; without it the signing step fails and the release stays a draft).
+      RELEASE_MANIFEST_KEY:
+        required: false
   # Re-run a release whose build failed after its tag was pushed (Actions → Release → Run workflow).
   workflow_dispatch:
     inputs:
@@ -80,7 +85,7 @@ jobs:
         # electron-builder's parallel asset uploads race to CREATE the release and can end up
         # with two releases on one tag (observed on v0.3.0) — pre-creating makes it only upload.
         # Created as a DRAFT and published only after the Windows files are up (last step of
-        # release-win), so /releases/latest never points at a release without its assets.
+        # sign-and-publish, after release-win), so /releases/latest never points at a release without its assets.
         # Notes = the version's CHANGELOG section when the tree has the script (scheduled releases).
         run: |
           if [ -f scripts/release/gate.mjs ]; then node scripts/release/gate.mjs notes "${TAG#v}" > "$RUNNER_TEMP/notes.md"; else echo "Release notes to follow." > "$RUNNER_TEMP/notes.md"; fi
@@ -183,8 +188,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Audit A4 (SEC-5): the app offers a version only when this release's total-manifest.json
+  # (SHA-256 + SHA-512 of every asset, Ed25519-signed with the RELEASE_MANIFEST_KEY secret) verifies
+  # against the key pinned in src/main/releaseKeys.json. Signed in a job of its own (review of #251):
+  # no `npm ci`, no tests, no electron-builder ran on this runner, so no third-party package code
+  # shares a machine with the key; it signs the files as GitHub now holds them, checks them back, and
+  # only then publishes. No key = the release stays a draft (apps from A4 on would never take an
+  # unsigned one). The checkout is the workflow's own ref (main for a scheduled / dispatched run) so a
+  # re-run of an older tag is signed too; a tag pushed from a tree without the script skips signing.
+  sign-and-publish:
+    needs: release-win
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/release
+            src/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sign the release manifest
+        if: hashFiles('scripts/release/manifest.mjs') != ''
+        run: |
+          dir="$RUNNER_TEMP/release-assets"
+          rm -rf "$dir" && mkdir -p "$dir"
+          gh release download "${TAG}" --dir "$dir" --repo "${GITHUB_REPOSITORY}"
+          rm -f "$dir/total-manifest.json"
+          node scripts/release/manifest.mjs sign "$dir" "${TAG#v}" "$RUNNER_TEMP/total-manifest.json"
+          node scripts/release/manifest.mjs check "$RUNNER_TEMP/total-manifest.json" "${TAG#v}" "$dir"
+          gh release upload "${TAG}" "$RUNNER_TEMP/total-manifest.json" --clobber --repo "${GITHUB_REPOSITORY}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_MANIFEST_KEY: ${{ secrets.RELEASE_MANIFEST_KEY }}
+
       - name: Publish the release (never left as a draft)
-        shell: bash
         run: gh release edit "${TAG}" --draft=false --latest --repo "${GITHUB_REPOSITORY}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

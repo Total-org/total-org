@@ -5,6 +5,7 @@ import { isOwnerOrNoUsers } from '../../lib/roles'
 import { useSession, useToasts, type Toast } from '../../state/stores'
 import { Button, DateInput, Field, Modal, Panel, SectionTitle } from '../../components/ui'
 import { toDisplayDate, todayISO } from '@shared/dates'
+import type { UpdateCheckResult } from '@shared/updates'
 import { TotalLogo } from '../../components/TotalLogo'
 import { dataFolder } from '../../lib/platform'
 import { DataFolderSetting } from '../../simple/DataFolderSetting'
@@ -13,7 +14,7 @@ import { confirmDialog } from '../../lib/dialogs'
 
 const PLATFORM_LABELS: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }
 
-function statusToast(r: { status: 'dev' | 'available' | 'up-to-date' | 'error'; current: string; latest?: string }): {
+function statusToast(r: UpdateCheckResult): {
   kind: Toast['kind']
   text: string
 } {
@@ -24,6 +25,8 @@ function statusToast(r: { status: 'dev' | 'available' | 'up-to-date' | 'error'; 
       return { kind: 'success', text: `You're on the latest version (${r.current})` }
     case 'available':
       return { kind: 'info', text: `Total ${(r.latest ?? '').replace(/^v/, '')} is available — see the update notice` }
+    case 'unverified':
+      return { kind: 'error', text: `Total ${(r.latest ?? '').replace(/^v/, '')} was found but could not be checked as a genuine release, so it is not offered` }
     case 'error':
       return { kind: 'error', text: "Couldn't check for updates — check your internet connection" }
   }
