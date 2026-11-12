@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+- **CI gets Electron from its own cache** (#247). Plain words: nothing in the app changes. For
+  developers: every CI / release job that runs Electron restores the Electron download (and, where it
+  packages, electron-builder's tools) from the GitHub Actions cache, keyed by OS and the exact
+  versions in package-lock.json, and installs the binary once right after `npm ci`
+  (`.github/actions/electron-binary`) — GitHub's release downloads answering 502 / 504 (8 Nov) no
+  longer fail `test` / `build-win`, and parallel test workers no longer race to download it.
+
 ## [0.12.1] - 2026-11-09
 
 **Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (#243, A13b).
