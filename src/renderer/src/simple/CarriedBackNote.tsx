@@ -23,7 +23,9 @@ const DROPPED_TEXT: Record<CarryDropped, MessageKey> = {
   serials: 'simple.handoff.dropped.serials',
   cheque: 'simple.handoff.dropped.cheque',
   rounding: 'simple.handoff.dropped.rounding',
-  links: 'simple.handoff.dropped.links'
+  links: 'simple.handoff.dropped.links',
+  note: 'simple.handoff.dropped.note',
+  labourAccount: 'simple.handoff.dropped.labourAccount'
 }
 
 /**

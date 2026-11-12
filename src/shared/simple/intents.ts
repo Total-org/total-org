@@ -1049,6 +1049,26 @@ export function refundRefs(credits: readonly { name: string; amount: number }[],
   return refs
 }
 
+/** A refund against the named credits only (each at most what it still holds; together exactly
+ *  the amount). Phase 5: the hand-off's second step names the note it follows. */
+function namedRefundRefs(credits: readonly { name: string; amount: number }[], named: readonly NBill[], amount: number): VoucherBillRef[] {
+  const refs: VoucherBillRef[] = []
+  let left = amount
+  named.forEach((x, i) => {
+    const c = credits.find((k) => k.name === x.name && k.amount > 0)
+    if (!c) return fail('simple_bill_unknown', `There is no open credit “${x.name}”`, `bills.${i}`, { bill: x.name })
+    if (refs.some((r) => r.name === x.name)) return fail('simple_bill_unknown', `${x.name} is named twice`, `bills.${i}`, { bill: x.name })
+    const take = x.amount ?? Math.min(c.amount, left)
+    if (take > c.amount) return fail('simple_bill_over', `Only ${formatPaise(c.amount, { symbol: true })} is held on ${c.name}`, `bills.${i}`, { bill: c.name, amount: formatPaise(c.amount, { symbol: true }) })
+    refs.push({ kind: 'against', name: c.name, amount: take, dueDate: null })
+    left -= take
+  })
+  const sum = amount - left
+  if (sum > amount) fail('simple_bills_exceed', `The credits (${formatPaise(sum, { symbol: true })}) are more than the amount`, 'amount', { amount: formatPaise(sum, { symbol: true }) })
+  if (sum < amount) fail('simple_bills_short', `The credits (${formatPaise(sum, { symbol: true })}) are less than the amount`, 'bills', { amount: formatPaise(sum, { symbol: true }) })
+  return refs
+}
+
 const NOT_SOURCE: readonly IntentLedgerClass[] = ['cash', 'bank', 'debtor', 'creditor', 'tax']
 const OTHER_SIDE: IntentLedgerClass[] = ['income', 'expense', 'other']
 
@@ -1075,7 +1095,10 @@ function mapMoney(n: Extract<NormalIntent, { kind: 'money_in' | 'money_out' }>, 
       if (into) fail('simple_refund_no_credit', `${other.name} owes you nothing back — record it as other money in`, 'party', { name: other.name })
       fail('simple_customer_no_credit', `${other.name} holds no credit with you — there is nothing to pay back`, 'party', { name: other.name })
     }
-    billRefs = n.onAccount ? [] : refundRefs(ctx.openCredits?.get(other.id) ?? [], n.amount)
+    const credits = ctx.openCredits?.get(other.id) ?? []
+    // Phase 5: named credits (the hand-off's second step names the return note's own credit) —
+    // exactly those; omitted = oldest first, as before.
+    billRefs = n.onAccount ? [] : n.bills ? namedRefundRefs(credits, n.bills, n.amount) : refundRefs(credits, n.amount)
     facts.settled = billRefs.map((r) => ({ name: r.name, amount: r.amount }))
     facts.partyName = other.name
     facts.side = into ? 'supplier' : 'customer'

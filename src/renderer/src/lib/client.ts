@@ -736,7 +736,7 @@ export const api = {
     /** WP 9.10: the editors' own form state for an unsaved intent (the Accountant-view hand-off; nothing saved). */
     intentForm: (intent: SimpleIntentInput, today?: string) => call<IntentFormResult>('simple:intentForm', { intent, ...(today ? { today } : {}) }),
     /** WP 9.10: what a voucher (kind, a note's original bill) / a ledger (a customer or supplier?) is — for "Back to simple". */
-    handoffTarget: (q: { voucherId?: number; ledgerId?: number }) => call<HandoffFacts>('simple:handoffTarget', q),
+    handoffTarget: (q: { voucherId?: number; ledgerId?: number; open?: boolean }) => call<HandoffFacts>('simple:handoffTarget', q),
     carryBack: <F extends CarryFlow>(req: { flow: F; intent: SimpleIntentInput; original: HandoffEntry; current: HandoffEntry; base: CarryForms[F] }, today?: string) =>
       call<CarryResult<F>>('simple:carryBack', { ...req, ...(today ? { today } : {}) }),
     /** WP 9.2: Make a bill's choices — customers, cash / bank accounts and their defaults. */
