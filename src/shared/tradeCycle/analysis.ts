@@ -1,11 +1,10 @@
 // Trade-cycle report arithmetic (WP 2.5d) — pure, shared by the services and their tests.
 
 import type { OrderBookRow, OrderBookSummaryRow } from './types'
+import { daysBetweenISO } from '../dates'
 
-/** Whole days from `from` to `to` (ISO dates). */
-export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
-}
+/** Whole days from `from` to `to` (ISO dates) — dates.ts's (HEALTH-2). */
+export const daysBetween = daysBetweenISO
 
 /** part ÷ whole as a percentage to one decimal; null when whole is 0. */
 export function pct(part: number, whole: number): number | null {

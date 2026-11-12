@@ -30,6 +30,7 @@ import { companyExportsDir } from '../paths'
 // vouchers ⇄ tds import cycle is harmless.)
 import { IN_BOOKS, NOT_DELETED } from './vouchers'
 import { writeAudit } from './audit'
+import { addDaysISO as addDays } from '@shared/dates'
 
 // ---------------------------------------------------------------------------------------------
 // Sections
@@ -123,12 +124,6 @@ export function saveSection(db: DB, raw: TdsSectionInput, kind: WithholdingKind 
     writeAudit(db, 'tdsSection', created.id, 'create', null, created)
     return created
   })()
-}
-
-function addDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
 }
 
 // ---------------------------------------------------------------------------------------------

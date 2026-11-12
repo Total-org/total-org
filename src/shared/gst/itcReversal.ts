@@ -15,6 +15,7 @@
  * not derivable offline; it is entered by hand in 4(B)(2).
  */
 import { RULE37_RULES, RULE42_RULES } from './sources'
+import { addDaysISO as addDays, daysBetweenISO as daysBetween } from '../dates'
 
 export interface Heads {
   igst: number
@@ -166,18 +167,12 @@ export function rule43(goods: CapitalGood[], periodKey: string, E: number, F: nu
 
 // ---------- rule 37 ----------
 
-const addDays = (iso: string, days: number): string => {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
 const nextMonthKey = (key: string): string => {
   const [y, m] = key.split('-').map(Number) as [number, number]
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
 }
 /** The 3B due date (20th of the next month, rule 61) for the period 'YYYY-MM'. */
 export const gstr3bDueDate = (periodKey: string): string => `${nextMonthKey(periodKey)}-20`
-const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 
 /** A purchase bill and its payments, for rule 37. */
 export interface Rule37Bill {

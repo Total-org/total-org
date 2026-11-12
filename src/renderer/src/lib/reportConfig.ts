@@ -18,7 +18,7 @@ export interface ReportColumn {
  *   const { visible, toggle } = useReportConfig('my-report', COLUMNS)
  *   ...
  *   {visible.debit && <th>Debit</th>}   // and the matching <td> in the body
- *   <ReportConfigButton columns={COLUMNS} visible={visible} toggle={toggle} />
+ *   (the column toggles: DataTable's column chooser — new screens use DataTable)
  */
 export function useReportConfig(
   reportKey: string,

@@ -1,7 +1,7 @@
 // Small helpers shared by the WP 4.4 services (loans, forex, forecast).
 import type { DB } from '../db/connection'
 import type { VoucherKind } from '@shared/domain'
-import { fyFromStartYear, fyOf } from '@shared/dates'
+import { addDaysISO, fyFromStartYear, fyOf } from '@shared/dates'
 import { cashBankGroupIds, descendantIdsByName } from './masters'
 import { getLockDate, NOT_DELETED } from './vouchers'
 import { readCompanyInfo } from '../db/seed'
@@ -59,8 +59,5 @@ export function groupIdsByName(db: DB, names: string[]): Set<number> {
   return descendantIdsByName(db, names)
 }
 
-export const addDays = (date: string, delta: number): string => {
-  const dt = new Date(date + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
-}
+/** `delta` days after `date` — dates.ts's (HEALTH-2). */
+export const addDays = addDaysISO

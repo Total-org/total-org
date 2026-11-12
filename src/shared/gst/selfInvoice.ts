@@ -5,6 +5,7 @@
  * for the financial year).
  */
 import { SELF_INVOICE_RULES } from './sources'
+import { addDaysISO as addDays, daysBetweenISO as daysBetween } from '../dates'
 
 export type SelfInvoiceStatus = 'generated' | 'generated_late' | 'due' | 'overdue' | 'cancelled'
 
@@ -35,13 +36,6 @@ export interface SelfInvoiceRow {
   /** Days left to the due date (negative = overdue); null when generated or no due date. */
   daysLeft: number | null
 }
-
-const addDays = (iso: string, n: number): string => {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
-const daysBetween = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 
 /** "SI/26-27/0007": prefix + FY short label + 4-digit serial. Throws past rule 46(b)'s 16 chars. */
 export function selfInvoiceNumber(prefix: string, fyLabel: string, seq: number): string {

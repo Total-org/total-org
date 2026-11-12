@@ -175,6 +175,12 @@ export function addDaysISO(date: string, days: number): string {
   return dt.toISOString().slice(0, 10)
 }
 
+/** Whole days from `from` to `to` (ISO dates, UTC; negative when `to` is earlier). The one
+ *  definition the private copies used to repeat (audit A11 / HEALTH-2). */
+export function daysBetweenISO(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+}
+
 function lastDayOfMonthISO(y: number, m: number): string {
   const d = new Date(Date.UTC(y, m, 0)).getUTCDate()
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`

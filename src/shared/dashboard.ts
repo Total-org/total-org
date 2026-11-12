@@ -5,6 +5,8 @@
  * matching report uses (registers, P&L, outstandings, trial balance, GSTR-3B, TDS, stock).
  */
 
+import { addDaysISO } from './dates'
+
 /** One dashboard card's data, or why it could not be computed — a failing section never blanks
  *  the others (each is computed inside its own try/catch on the main side). */
 export type DashSection<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -223,11 +225,8 @@ export function monthEnd(ym: string): string {
   return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
 }
 
-export function addDays(date: string, delta: number): string {
-  const dt = new Date(date + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
-}
+/** `delta` days after `date` (HEALTH-2: the one definition lives in dates.ts). */
+export const addDays = addDaysISO
 
 /** Monday of the week containing `date`. */
 export function weekStart(date: string): string {

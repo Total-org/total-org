@@ -25,6 +25,7 @@ import { onboardingScreen } from '../../lib/onboarding'
 import { PromisedChip } from './PromisedChip'
 import { TasksDueChip } from './TasksDueChip'
 import { MsmeDueLine } from './MsmeDueLine'
+import { daysBetweenISO } from '@shared/dates'
 
 const stackRowCls =
   'flex w-full cursor-pointer flex-col gap-1 border-b border-line/40 px-4 py-2 text-left hover:bg-panel2 focus-visible:bg-panel2 focus-visible:outline-none'
@@ -32,7 +33,7 @@ const rowCls =
   'flex w-full cursor-pointer items-center gap-3 border-b border-line/40 px-4 py-[5px] text-left last:border-b-0 hover:bg-panel2 focus-visible:bg-panel2 focus-visible:outline-none'
 
 export function daysUntil(date: string, today: string): number {
-  return Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86_400_000)
+  return daysBetweenISO(today, date)
 }
 
 /** "in 5 days" / "tomorrow" / "today". */

@@ -10,6 +10,7 @@
  */
 import { formatPaise } from './money'
 import type { OutstandingBill } from './reports'
+import { addDaysISO as addDays } from './dates'
 
 export interface BillRef {
   /** 'new' opens a named bill — or, on a settling (negative) event, a named credit (an advance, a
@@ -39,12 +40,6 @@ export interface AllocateBillsResult {
   /** Data problems surfaced instead of silently absorbed (v0.3 #66): currently, 'against'
    *  references naming a bill that isn't open. */
   warnings: string[]
-}
-
-function addDays(date: string, days: number): string {
-  const dt = new Date(`${date}T00:00:00Z`)
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 function daysBetween(fromDate: string, toDate: string): number {

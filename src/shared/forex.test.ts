@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { allocateFifo, fcFromInr, foldExposure, formatFc, inrFromFc, microToRateText, openForeignBills, parseRateMicro, rateToMicro, revalue, settleBills, type FxLine } from './forex'
+import { fcFromInr, formatFc, inrFromFc, microToRateText, openForeignBills, rateToMicro, revalue } from './forex'
+import { allocateFifo, foldExposure, parseRateMicro, settleBills, type FxLine } from './forexWriters.testutil'
 
 const line = (p: Partial<FxLine> & Pick<FxLine, 'amount'>): FxLine => ({
   date: '2026-04-10', voucherId: 1, currency: null, rateMicro: null, fcOverride: null, revaluation: false, ...p

@@ -1,6 +1,7 @@
 // WP 6.4 — notes and tasks on a party (party_notes, migration 036). Party-level; a note about one
 // bill stays a bill follow-up (bill_followups, WP 4.2). Pure: schemas, row type, due buckets.
 import { z } from 'zod'
+import { addDaysISO as addDays } from './dates'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
 
@@ -42,12 +43,6 @@ export interface PartyNote {
 }
 
 export type TaskDueBucket = 'overdue' | 'today' | 'week' | 'later' | 'none' | 'done'
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
 
 /** Which bucket an open task falls into on `today` (week = the next 7 days after today). */
 export function taskBucket(n: Pick<PartyNote, 'kind' | 'dueDate' | 'doneAt'>, today: string): TaskDueBucket {

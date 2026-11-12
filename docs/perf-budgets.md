@@ -48,7 +48,7 @@ noisy by ±20 %; the A/B tables below interleave before / after runs on copies o
 
 | Operation | Service (as the screen calls it) | 100k | 500k |
 |---|---|---:|---:|
-| Trial balance, P&L, Balance sheet, Day book, Ledger statement, Outstandings, Stock summary (valuation pass), GSTR-1, GSTR-3B | `reports.*`, `analysis.outstandings`, `stockAnalysis.stockSummary`, `gst.gstr1 / gstr3b` | 1 s | 3 s |
+| Trial balance, P&L, Balance sheet, All entries (the former Day book), Ledger statement, Outstandings, Stock summary (valuation pass), GSTR-1, GSTR-3B | `reports.*`, `analysis.outstandings`, `stockAnalysis.stockSummary`, `gst.gstr1 / gstr3b` | 1 s | 3 s |
 | Gateway (accountant Home): `report:dashboardSeries`, `report:dashboard` | `dashboard.dashboardSeries`, `reports.dashboard` | 1 s each | 3 s each |
 | Gateway in one round trip: `dashboard:all` (series + dashboard + MSME due + promised; what the Gateway calls since PR #131) | `dashboard.dashboardAll` | 2 s | 6 s |
 | simple:home (one round trip) | `simpleHome` | **600 ms** | 3 s |
@@ -112,7 +112,7 @@ the same harness; `after` = this branch). Median of 3 after a cold call, best ro
 | Trial balance (as on today) | 208 | 151 | 214 | 1000 |
 | Profit & loss (FY to date) | 395 | 216 | 261 | 1000 |
 | Balance sheet (as on today) | 748 | 485 | 512 | 1000 |
-| Day book (this month) | 269 | 219 | 249 | 1000 |
+| All entries register (this month) | 269 | 219 | 249 | 1000 |
 | Ledger statement (busiest bank, FY) | 29 | 25 | 29 | 1000 |
 | Ledger statement (busiest party, FY) | 0 | 0 | 0 | 1000 |
 | Outstandings (receivable) | 225 | 196 | 211 | 1000 |
@@ -153,7 +153,7 @@ ANALYZE on every open), 25 ms after.
 | Trial balance (as on today) | 2596 | 789 | 803 | 3000 |
 | Profit & loss (FY to date) | 11883 | 11592 | 6579 | 3000 |
 | Balance sheet (as on today) | 20363 | 17220 | 13496 | 3000 |
-| Day book (this month) | 2274 | 2308 | 1625 | 3000 |
+| All entries register (this month) | 2274 | 2308 | 1625 | 3000 |
 | Ledger statement (busiest bank, FY) | 249 | 180 | 145 | 3000 |
 | Ledger statement (busiest party, FY) | 1 | 1 | 1 | 3000 |
 | Outstandings (receivable) | 4073 | 1846 | 2692 | 3000 |
@@ -179,7 +179,7 @@ ANALYZE on every open), 25 ms after.
 | Company open: integrity check | 21832 | 19552 | 33598 | 3000 |
 | Backup (online snapshot + verify) | 26012 | 25745 | 44524 | 10000 |
 
-Within budget at 500k: TB, Day book, ledger statements, Outstandings, GSTR-1 / 3B, Gateway
+Within budget at 500k: TB, All entries, ledger statements, Outstandings, GSTR-1 / 3B, Gateway
 `report:dashboard`, voucher list, every search (600 ms) and both saves. Over it on this machine:
 P&L / Balance sheet / Stock summary / Gateway series / Home / Home attention / Reports / Taxes /
 People / Sales list — each runs the valuation pass (~660k stock lines) or both Outstandings sides,

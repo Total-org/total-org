@@ -711,34 +711,6 @@ export function bookedItcByVoucher(
   return [...byVoucher.values()]
 }
 
-/** Net booked ITC for the period (legacy shape — the on-screen "Eligible ITC" row). */
-export function inwardSummary(db: DB, from: string, to: string): InwardSummary {
-  // Kept for the 2B reconciliation summary; excludes outward debit notes like itcBreakdown.
-  const outwardDbn = outwardDebitNoteIds(db, from, to)
-  const rows = db
-    .prepare(
-      `SELECT v.id AS voucherId, vt.kind, l.tax_type AS taxType,
-              SUM(CASE
-                    WHEN vt.kind = 'purchase' AND vl.dr_cr = 'dr' THEN vl.amount
-                    WHEN vt.kind = 'debit_note' AND vl.dr_cr = 'cr' THEN -vl.amount
-                    ELSE 0
-                  END) AS amount
-       FROM voucher_lines vl
-       JOIN vouchers v ON v.id = vl.voucher_id
-       JOIN voucher_types vt ON vt.id = v.voucher_type_id
-       JOIN ledgers l ON l.id = vl.ledger_id
-       WHERE l.tax_type IS NOT NULL AND vt.kind IN ('purchase', 'debit_note') AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
-       GROUP BY v.id, l.tax_type`
-    )
-    .all(from, to) as { voucherId: number; kind: string; taxType: 'cgst' | 'sgst' | 'igst' | 'cess'; amount: number }[]
-  const s: InwardSummary = { ...ZERO }
-  for (const r of rows) {
-    if (r.kind === 'debit_note' && outwardDbn.has(r.voucherId)) continue
-    s[r.taxType] += r.amount
-  }
-  return s
-}
-
 // ---------- extras: advances, document series, turnover ----------
 
 /**

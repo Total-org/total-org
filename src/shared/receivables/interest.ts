@@ -5,15 +5,10 @@
  * (audit A13b). Old books keep their interest debit notes as ordinary vouchers — nothing
  * recomputes them, so only the date helpers remain.
  */
-const DAY_MS = 86_400_000
+import { addDaysISO, daysBetweenISO } from '../dates'
 
-export function addDaysIso(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
+/** `days` after `date` — dates.ts's (HEALTH-2). */
+export const addDaysIso = addDaysISO
 
-/** Whole days from `from` to `to` (to − from); negative when `to` is earlier. */
-export function daysBetweenIso(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS)
-}
+/** Whole days from `from` to `to` (to − from); negative when `to` is earlier — dates.ts's (HEALTH-2). */
+export const daysBetweenIso = daysBetweenISO

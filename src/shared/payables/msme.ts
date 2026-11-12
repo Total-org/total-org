@@ -5,6 +5,7 @@
  * hard-coded here. Every rule cites its text next to the code that applies it; the source list
  * with dates and the UNVERIFIED items is `MSME_SOURCES` in ./msmeSources.ts.
  */
+import { addDaysISO, daysBetweenISO } from '../dates'
 
 // ---------------------------------------------------------------------------------------------
 // Supplier classification
@@ -55,15 +56,9 @@ export function isValidUdyam(raw: string): boolean {
 // Date helpers (UTC, ISO 'YYYY-MM-DD')
 // ---------------------------------------------------------------------------------------------
 
-export function addDays(date: string, days: number): string {
-  const dt = new Date(`${date}T00:00:00Z`)
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
-}
-
-export function daysBetween(fromDate: string, toDate: string): number {
-  return Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000)
-}
+/** HEALTH-2: the one definition lives in dates.ts; these names stay for their callers. */
+export const addDays = addDaysISO
+export const daysBetween = daysBetweenISO
 
 /** Same day-of-month `n` months later, clamped to the month's last day (31 Jan + 1 = 28/29 Feb). */
 export function addMonthsClamped(date: string, n: number): string {

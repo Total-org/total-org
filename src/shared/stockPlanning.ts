@@ -4,6 +4,7 @@
  */
 import { code128Svg } from './code128'
 import type { SerialStatus } from './serials'
+import { daysBetweenISO } from './dates'
 
 // ---------- report row shapes (main → renderer) ----------
 
@@ -136,7 +137,7 @@ export function monthsOfCover(closingMilli: number, avgMonthlyMilli: number): nu
 
 /** Whole days from `asOn` to `expiry` (negative = already expired). */
 export function daysToExpiry(expiry: string, asOn: string): number {
-  return Math.round((Date.parse(expiry + 'T00:00:00Z') - Date.parse(asOn + 'T00:00:00Z')) / 86_400_000)
+  return daysBetweenISO(asOn, expiry)
 }
 
 /** Expiry report filter: expired, or expiring within `days` of `asOn` (inclusive). */

@@ -15,6 +15,7 @@ import { z } from 'zod'
 import type { ProfitAndLoss, StatementNode } from '../reports'
 import type { OutstandingParty } from '../reports'
 import { lateDays } from './late'
+import { addDaysISO as addDays, daysBetweenISO as daysBetween } from '../dates'
 
 // ---------------------------------------------------------------- periods
 
@@ -34,11 +35,6 @@ export const doingQuerySchema = z
 export type DoingQuery = z.infer<typeof doingQuerySchema>
 
 const pad2 = (n: number): string => String(n).padStart(2, '0')
-function addDays(date: string, delta: number): string {
-  const dt = new Date(`${date}T00:00:00Z`)
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
-}
 function addMonths(ym: string, delta: number): string {
   const [y, m] = ym.split('-').map(Number) as [number, number]
   const idx = y * 12 + (m - 1) + delta
@@ -59,7 +55,6 @@ const fyStart = (date: string): string => {
   const [y, m] = date.split('-').map(Number) as [number, number]
   return `${m >= 4 ? y : y - 1}-04-01`
 }
-const daysBetween = (from: string, to: string): number => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
 
 export interface ReportSpan {
   from: string

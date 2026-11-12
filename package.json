@@ -37,7 +37,6 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@electron/fuses": "^1.8.0",
     "@tailwindcss/vite": "^4.1.0",
