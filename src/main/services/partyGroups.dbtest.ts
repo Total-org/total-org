@@ -188,21 +188,33 @@ describe('parties under imported group names (Trade Receivables / Trade Payables
     imported.db.prepare('UPDATE vouchers SET snap_tax_facts = NULL, snap_party_gstin = NULL, snap_party_state = NULL, snap_party_export_type = NULL, snap_party_rcm = NULL').run()
     imported.db.prepare('UPDATE voucher_lines SET snap_gst_rate = NULL, snap_cess_rate = NULL, snap_hsn = NULL').run()
     expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
-    // Saving it again records the side, moves it — and says so.
+    // Re-saving that old note keeps the rule it was filed under (owner, 4 Nov: no filed month moves):
+    // no side is first recorded on a note saved before WP 2d.
     const v = getVoucher(imported.db, i)!
     const again = saveVoucher(imported.db, { ...voucherToPayload(v) }, i)
-    expect(again.warnings?.taxFactsChanged).toEqual([expect.stringContaining('this debit note moves from the purchase returns (input tax credit) to GSTR-1 as an outward note')])
-    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
+    expect(again.warnings?.taxFactsChanged).toBeUndefined()
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
+    expect(readTaxFacts(imported.db, i)!.party).not.toHaveProperty('side')
     // The seeded twin's note is outward either way: recording its side moves nothing and says nothing.
     seeded.db.prepare('UPDATE vouchers SET snap_tax_facts = NULL, snap_party_side = NULL').run()
     expect(saveVoucher(seeded.db, { ...voucherToPayload(getVoucher(seeded.db, s)!) }, s).warnings?.taxFactsChanged).toBeUndefined()
+    // A note saved since WP 2d re-records its side on a re-save: its customer moved to a supplier
+    // group → it moves to the purchase returns, and says so.
+    const fresh = saveVoucher(imported.db, { ...voucherToPayload(getVoucher(imported.db, i)!), number: undefined }).id
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(fresh)).toBe(true)
+    imported.db.prepare('UPDATE ledgers SET group_id = (SELECT id FROM groups WHERE name = ?) WHERE id = ?').run('Sundry Creditors', imported.L('Ramesh'))
+    const moved = saveVoucher(imported.db, { ...voucherToPayload(getVoucher(imported.db, fresh)!) }, fresh)
+    expect(moved.warnings?.taxFactsChanged).toEqual([expect.stringContaining('this debit note moves from GSTR-1 (outward notes) to the purchase returns')])
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(fresh)).toBe(false)
     // An import / undo restores the side exactly (writeTaxFacts), and an image without one clears it.
-    const facts = readTaxFacts(imported.db, i)!
+    imported.db.prepare('UPDATE ledgers SET group_id = (SELECT id FROM groups WHERE name = ?) WHERE id = ?').run('Trade Receivables', imported.L('Ramesh'))
+    saveVoucher(imported.db, { ...voucherToPayload(getVoucher(imported.db, fresh)!) }, fresh)
+    const facts = readTaxFacts(imported.db, fresh)!
     expect(facts.party.side).toBe('debtor')
-    writeTaxFacts(imported.db, i, taxFactsFrom(JSON.parse(JSON.stringify({ ...facts, party: { ...facts.party, side: undefined } }))))
-    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
-    writeTaxFacts(imported.db, i, taxFactsFrom(JSON.parse(JSON.stringify(facts))))
-    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
+    writeTaxFacts(imported.db, fresh, taxFactsFrom(JSON.parse(JSON.stringify({ ...facts, party: { ...facts.party, side: undefined } }))))
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(fresh)).toBe(false)
+    writeTaxFacts(imported.db, fresh, taxFactsFrom(JSON.parse(JSON.stringify(facts))))
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(fresh)).toBe(true)
   })
 
   it('GST rule 37 (ITC reversal, GSTR-3B) keeps main\'s side: a purchase from a "Trade Receivables" party is an open bill there', () => {

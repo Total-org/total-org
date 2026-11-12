@@ -117,7 +117,9 @@ const SNAPSHOT_SQL = [
 const snapshotStmts = new WeakMap<DB, { run(id: number): unknown }[]>()
 
 /** Copy today's master facts onto a voucher just written by saveVoucher (inside its transaction). */
-export function snapshotTaxFacts(db: DB, voucherId: number): void {
+/** `recordSide` (WP 2d, review of #266): false keeps the voucher's stored debit-note side as it is —
+ *  a note saved before WP 2d has none and keeps the old rule (no filed month moves on a re-save). */
+export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?: boolean } = {}): void {
   if (!hasTaxSnapshots(db)) return
   let stmts = snapshotStmts.get(db)
   if (!stmts) {
@@ -125,7 +127,13 @@ export function snapshotTaxFacts(db: DB, voucherId: number): void {
     snapshotStmts.set(db, stmts)
   }
   for (const s of stmts) s.run(voucherId)
-  if (hasPartySideSnapshot(db)) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(debitNoteSide(db, voucherId), voucherId)
+  if (hasPartySideSnapshot(db) && opts.recordSide !== false) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(debitNoteSide(db, voucherId), voucherId)
+}
+
+/** WP 2d: does this voucher already carry a recorded debit-note side (a note saved since WP 2d)? */
+export function hasRecordedSide(db: DB, voucherId: number): boolean {
+  if (!hasPartySideSnapshot(db)) return false
+  return (db.prepare('SELECT snap_party_side IS NOT NULL AS s FROM vouchers WHERE id = ?').get(voucherId) as { s: number } | undefined)?.s === 1
 }
 
 type Stmt = { get(...p: unknown[]): unknown; all(...p: unknown[]): unknown[] }

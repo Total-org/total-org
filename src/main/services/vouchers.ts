@@ -17,7 +17,7 @@ import { getFeatures } from './config'
 import { openSalesOrderValue } from './tradeDocs'
 import { writeAudit } from './audit'
 import { outwardDebitNoteIds } from './gst'
-import { readTaxFacts, snapshotTaxFacts, TAX_FACT_KINDS, taxFactsDiff, writeTaxFacts, type VoucherTaxFacts } from './taxFacts'
+import { hasRecordedSide, readTaxFacts, snapshotTaxFacts, TAX_FACT_KINDS, taxFactsDiff, writeTaxFacts, type VoucherTaxFacts } from './taxFacts'
 import { assertCashFinanceVoucherEditable, binCashFinancePartners, cashFinanceRestorePlan, restoreCashFinancePartners } from './cashFinanceGuards'
 import { ensureTdsPayableLedger, PENDING_PAYABLE_LEDGER, PENDING_TCS_PAYABLE_LEDGER, prepareVoucherTds, prepareVoucherWithholding } from './tds'
 import { parseLineSerials, rebuildItemSerials, syncVoucherSerials } from './serials'
@@ -940,7 +940,10 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
     // class) are frozen as the masters give them now — or restored exactly by an import / undo.
     if (hooks.taxFacts !== undefined) writeTaxFacts(db, voucherId, hooks.taxFacts)
     else if (hooks.historicImport) writeTaxFacts(db, voucherId, null)
-    else snapshotTaxFacts(db, voucherId)
+    // WP 2d (review of #266): a debit note's party side is recorded on a NEW voucher, or re-recorded
+    // on one that already has it (saved since WP 2d) — never first recorded on an older note, so
+    // re-saving a note of a filed month keeps the rule it was filed under (owner, 4 Nov).
+    else snapshotTaxFacts(db, voucherId, { recordSide: !existingId || sideRecorded })
 
     hooks.withinTransaction?.(voucherId)
 
@@ -1040,7 +1043,9 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   // WP 2d (review of #266): a debit note's place in the returns — outward (GSTR-1) or a purchase
   // return — before an alteration, to say so if the save moves it (a side recorded for the first
   // time on a note saved before, with or without a tax-fact snapshot).
-  const outwardBefore = existingId && before && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
+  const beforeKind = before ? getVoucherType(db, before.voucherTypeId).kind : null
+  const outwardBefore = existingId && before && beforeKind === 'debit_note' && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
+  const sideRecorded = existingId ? hasRecordedSide(db, existingId) : false
   const voucherId = run()
   const after = getVoucher(db, voucherId)!
   // The audit row carries the tax-fact snapshot beside the voucher (only when there is one).
@@ -1058,8 +1063,8 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
     const outwardAfter = outwardDebitNoteIds(db, after.date, after.date).has(voucherId)
     if (outwardAfter !== outwardBefore) {
       const moved = outwardAfter
-        ? 'moves from the purchase returns (input tax credit) to GSTR-1 as an outward note — its party is now read as a customer'
-        : 'moves from GSTR-1 (outward notes) to the purchase returns (input tax credit) — its party is now read as a supplier'
+        ? 'moves from the purchase returns (input tax credit) to GSTR-1 (now read as an outward note)'
+        : 'moves from GSTR-1 (outward notes) to the purchase returns (now read as a purchase return, input tax credit)'
       warnings.taxFactsChanged = [...(warnings.taxFactsChanged ?? []), `${after.number}: this debit note ${moved}`]
     }
   }

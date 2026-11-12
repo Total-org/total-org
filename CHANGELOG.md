@@ -24,7 +24,7 @@ Things to know about the version numbers:
 filed under a group such as "Trade Receivables", with no sales line on it, was read as a purchase
 return. From now on a debit note records which side its party is on when you save it, and GSTR-1
 takes it as an outward note. *For accountants*: debit notes already in your books are read exactly
-as before, so no filed month moves. Saving an old note again records its side, and when that moves the note between the returns, Total says so (also in a bulk edit).
+as before, so no filed month moves, even if you edit them. When an edit does move a debit note between GSTR-1 and the purchase returns, Total says so (also in a bulk edit).
 *For developers*: migration "debit-note party side" (`vouchers.snap_party_side`).
 
 **A warning when several lines share one guessed GST rate** (#265, WP 2d). On a bill typed as amounts,
