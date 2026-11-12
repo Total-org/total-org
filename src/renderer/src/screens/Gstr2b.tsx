@@ -11,7 +11,7 @@ import { DataTable, defineColumns, type TableColumn } from '../components/table'
 import { normalizeGstin, type Recon2bBucket, type Recon2bMatchedBy, type Recon2bPair, type Recon2bTolerances } from '@shared/gst/recon2b'
 import { useLedgers } from '../components/pickers'
 import { ImsTab } from './gst/ImsTab'
-import { MonthBar, NoMonths, OPEN_ON_CHOICES, useMonth, type OpenOn } from './GstReturns'
+import { MonthBar, NoMonths, OPEN_ON_CHOICES, OPEN_ON_VALUES, useMonth, type OpenOn } from './GstReturns'
 import { LedgerLink, VoucherLink } from '../components/links'
 
 const BUCKETS: { key: Recon2bBucket; label: string }[] = [
@@ -242,8 +242,8 @@ function ToleranceOptions(): React.JSX.Element {
 const BUCKET_LABEL = (b: Recon2bBucket): string => BUCKETS.find((x) => x.key === b)?.label ?? b
 
 export function Gstr2bScreen(): React.JSX.Element {
-  const opts = useScreenOptions('gstr2b', { openOn: 'current' as OpenOn }, { openOn: ['current', 'previous'] })
-  const { months, month, monthKey, setMonthKey } = useMonth(opts.options.openOn)
+  const opts = useScreenOptions('gstr2b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
   const nav = useNav()
   const toast = useToasts()
   const [imported, setImported] = useState<Imported | null>(null)
@@ -326,7 +326,7 @@ export function Gstr2bScreen(): React.JSX.Element {
     return (
       <Page width="wide">
         <PageHeader title="GSTR-2B · Reconciliation" />
-        <NoMonths />
+        <NoMonths pending={pending} />
       </Page>
     )
   }

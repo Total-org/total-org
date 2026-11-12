@@ -16,7 +16,7 @@ import { toDisplayDate } from '@shared/dates'
 import { api } from '../../lib/client'
 import { useNav, useSession, useToasts } from '../../state/stores'
 import { Banner, Button, DateInput, Field, isAnyModalOpen, Kbd, Money, Panel, Segmented, TextInput } from '../../components/ui'
-import { LedgerPicker, useLedgers, useStockItems } from '../../components/pickers'
+import { PartyPicker, useLedgers, useStockItems } from '../../components/pickers'
 import { VoucherLink } from '../../components/links'
 import { confirmDialog, promptDialog } from '../../lib/dialogs'
 import { useUnsavedGuard } from '../../lib/useUnsavedGuard'
@@ -290,7 +290,8 @@ export function StockNoteEntry({
           <DateInput value={date} context={workingDate} onChange={setDate} />
         </Field>
         <Field label={outward ? 'Consignee (party)' : 'Supplier (party)'}>
-          <LedgerPicker
+          <PartyPicker
+            side={outward ? 'sales' : 'purchase'}
             autoFocus={!isEdit && draft?.fromTradeDocId == null && draft?.aiDraftId == null}
             value={partyId}
             onPick={setPartyId}

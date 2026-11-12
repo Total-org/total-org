@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, fyQuarterOf, periodKey, periodKeysBetween, periodLabel, previousPeriod, previousYear, relativePeriod } from './reportPeriod'
+import { addMonths, fyQuarterOf, periodKey, periodKeysBetween, periodLabel, previousPeriod, previousYear, relativePeriod, reportEndOn } from './reportPeriod'
 import { questionPeriod } from './questionPeriod'
 import { variance } from './ratios'
 
@@ -61,5 +61,17 @@ describe('questionPeriod (the period a plain question names)', () => {
   })
   it('nothing said = null', () => {
     expect(questionPeriod('profit', W)).toBeNull()
+  })
+})
+
+describe('reportEndOn (audit A8 / UX-10)', () => {
+  it('stops at today inside the working period', () => {
+    expect(reportEndOn('2026-04-01', '2027-03-31', '2026-11-07')).toBe('2026-11-07')
+    expect(reportEndOn('2026-04-01', '2027-03-31', '2026-04-01')).toBe('2026-04-01')
+  })
+  it('reads a past or future period whole, and the last day is the period end itself', () => {
+    expect(reportEndOn('2025-04-01', '2026-03-31', '2026-11-07')).toBe('2026-03-31')
+    expect(reportEndOn('2027-04-01', '2028-03-31', '2026-11-07')).toBe('2028-03-31')
+    expect(reportEndOn('2026-04-01', '2027-03-31', '2027-03-31')).toBe('2027-03-31')
   })
 })

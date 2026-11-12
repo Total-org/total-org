@@ -75,10 +75,13 @@ export function MonthBar({
   )
 }
 
-/** Which month a return screen opens on (a screen option): this month, or the previous one —
- *  the month usually being filed. */
-export type OpenOn = 'current' | 'previous'
+/** Which month a return screen opens on (a screen option): the month being filed — the period
+ *  whose return is next due, as the Compliance card names it (audit A8 / UX-4, the default) —,
+ *  this month, or the previous one. */
+export type OpenOn = 'due' | 'current' | 'previous'
+export const OPEN_ON_VALUES: readonly OpenOn[] = ['due', 'current', 'previous']
 export const OPEN_ON_CHOICES: { value: OpenOn; label: string }[] = [
+  { value: 'due', label: 'The month being filed' },
   { value: 'current', label: 'This month' },
   { value: 'previous', label: 'Previous month' }
 ]
@@ -88,29 +91,51 @@ function previousMonthKey(key: string): string {
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
 }
 
-export function useDefaultMonth(months: MonthChoice[], openOn: OpenOn = 'current'): [string, (k: string) => void] {
+/** The list's month for `target`: itself, else the nearest end of the list (a target before the
+ *  period = its first month, after it = its last); undefined for an empty list. */
+export function nearestMonthKey(months: readonly MonthChoice[], target: string): string | undefined {
+  if (months.some((m) => m.key === target)) return target
+  const first = months[0]?.key
+  if (first != null && target < first) return first
+  return months[months.length - 1]?.key
+}
+
+/** `dueMonth` ('YYYY-MM', `gst:duePeriod`) is the target for `openOn: 'due'`; absent / null (not
+ *  a regular registration) = this month. */
+export function useDefaultMonth(months: MonthChoice[], openOn: OpenOn = 'current', dueMonth?: string | null): [string, (k: string) => void] {
   const today = todayISO().slice(0, 7)
-  const current = openOn === 'previous' ? previousMonthKey(today) : today
-  const fallback = months.find((m) => m.key === current)?.key ?? months[months.length - 1]?.key ?? current
-  const [key, setKey] = useState(fallback)
-  return [months.some((m) => m.key === key) ? key : fallback, setKey]
+  const target = openOn === 'previous' ? previousMonthKey(today) : openOn === 'due' ? (dueMonth ?? today) : today
+  const fallback = nearestMonthKey(months, target) ?? target
+  const [key, setKey] = useState<string | null>(null)
+  return [key != null && months.some((m) => m.key === key) ? key : fallback, setKey]
 }
 
 /** Selected month resolved against the list — null when the period yields no months at all
- *  (item 77 pattern: never `months.find(...)!`). */
+ *  (item 77 pattern: never `months.find(...)!`), and while `pending` (the due period of
+ *  `openOn: 'due'` is still being read, so no return is computed for a month about to change). */
 export function useMonth(openOn: OpenOn = 'current'): {
   months: MonthChoice[]
   month: MonthChoice | null
   monthKey: string
   setMonthKey: (k: string) => void
+  pending: boolean
 } {
   const months = useMonths()
-  const [monthKey, setMonthKey] = useDefaultMonth(months, openOn)
-  const month = months.find((m) => m.key === monthKey) ?? months[0] ?? null
-  return { months, month, monthKey, setMonthKey }
+  const due = useQuery({ queryKey: ['gstDuePeriod'], queryFn: api.gst.duePeriod, enabled: openOn === 'due', staleTime: 60_000 })
+  const pending = openOn === 'due' && due.isPending && !due.isError
+  const [monthKey, setMonthKey] = useDefaultMonth(months, openOn, due.data?.period)
+  const month = pending ? null : (months.find((m) => m.key === monthKey) ?? months[0] ?? null)
+  return { months, month, monthKey, setMonthKey, pending }
 }
 
-export function NoMonths(): React.JSX.Element {
+export function NoMonths({ pending = false }: { pending?: boolean } = {}): React.JSX.Element {
+  if (pending) {
+    return (
+      <Panel>
+        <SkeletonRows />
+      </Panel>
+    )
+  }
   return (
     <Panel>
       <EmptyState
@@ -239,8 +264,8 @@ function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: Ope
  *  period, as GSTR-3B is. Without it: unchanged. */
 export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
   const features = useFeatures()
-  const opts = useScreenOptions('gstr1', { openOn: 'current' as OpenOn }, { openOn: ['current', 'previous'] })
-  const { months, month, monthKey, setMonthKey } = useMonth(opts.options.openOn)
+  const opts = useScreenOptions('gstr1', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,7 +317,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
     return (
       <Page>
         <PageHeader title="GSTR-1 · Outward supplies" />
-        <NoMonths />
+        <NoMonths pending={pending} />
       </Page>
     )
   }
@@ -526,8 +551,8 @@ function ManualAdjustments({ period }: { period: string }): React.JSX.Element {
 
 /** `initialMonth` (WP 8.6, 'YYYY-MM'): opened from the simple Home's GST tile on its period. */
 export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
-  const opts = useScreenOptions('gstr3b', { openOn: 'current' as OpenOn }, { openOn: ['current', 'previous'] })
-  const { months, month, monthKey, setMonthKey } = useMonth(opts.options.openOn)
+  const opts = useScreenOptions('gstr3b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -590,7 +615,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     return (
       <Page>
         <PageHeader title="GSTR-3B · Summary return" />
-        <NoMonths />
+        <NoMonths pending={pending} />
       </Page>
     )
   }

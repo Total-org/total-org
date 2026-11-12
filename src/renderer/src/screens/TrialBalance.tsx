@@ -3,8 +3,9 @@ import { api } from '../lib/client'
 import { useNav, useSession } from '../state/stores'
 import { Page, PageHeader, Panel } from '../components/ui'
 import { OptionToggle, OptionsPeriod, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
-import { DataTable, defineColumns } from '../components/table'
-import { toDisplayDate } from '@shared/dates'
+import { DataTable, defineColumns, useTableView } from '../components/table'
+import { toDisplayDate, todayISO } from '@shared/dates'
+import { reportEndOn } from '@shared/reportPeriod'
 import type { TrialBalanceRow } from '@shared/reports'
 import { LedgerLink } from '../components/links'
 import { PROFIT_HIDDEN_MESSAGE } from '@shared/profitRedaction'
@@ -39,12 +40,20 @@ const isLedgerRow = (r: TrialBalanceRow): boolean => r.ledgerId > 0
 /** `asOn` / `ledgerIds` (WP 8.6): opened from the simple Home's Cash and bank tile — the balances
  *  of those accounts as on that date (the tile's figures); without them, the usual screen. */
 export function TrialBalanceScreen({ asOn, ledgerIds }: { asOn?: string; ledgerIds?: number[] } = {}): React.JSX.Element {
-  const { to: periodTo } = useSession()
-  const to = asOn ?? periodTo
+  const { from: periodFrom, to: periodTo } = useSession()
+  const opts = useScreenOptions('trial-balance', { hideZeroClosing: false, upToToday: true })
+  // Audit A8 / UX-10: as on today while the working period contains it (an option reads the
+  // period end, entries dated after today included). An asked date (simple Home) is kept.
+  const end = opts.options.upToToday ? reportEndOn(periodFrom, periodTo, todayISO()) : periodTo
+  const to = asOn ?? end
+  const cutAtToday = asOn == null && to !== periodTo
   const only = ledgerIds ? new Set(ledgerIds) : null
+  // Audit A8 / UX-10: "Group-wise" in the header groups the ledgers by their group (subtotals per
+  // group) — the table's own Group by, one click away and remembered with the table's view.
+  const view = useTableView<TrialBalanceRow>('trial-balance', TRIAL_BALANCE_COLUMNS, { legacyReportKey: 'trial-balance', legacyIdMap: LEGACY_IDS })
+  const grouped = view.view.groupBy === 'group'
   const nav = useNav()
   const { data, isLoading } = useQuery({ queryKey: ['trialBalance', to], queryFn: () => api.reports.trialBalance(to) })
-  const opts = useScreenOptions('trial-balance', { hideZeroClosing: false })
   // The service already drops ledgers with no balance and no movement; this also hides ledgers
   // that moved in the period but closed at zero. Totals are unaffected (those rows add 0).
   const rows = (data?.rows ?? []).filter((r) => (!only || only.has(r.ledgerId)) && (!opts.options.hideZeroClosing || r.debit !== 0 || r.credit !== 0))
@@ -56,11 +65,31 @@ export function TrialBalanceScreen({ asOn, ledgerIds }: { asOn?: string; ledgerI
       <PageHeader
         title={only ? 'Trial balance · cash and bank' : 'Trial balance'}
         period={periodLabel}
+        controls={
+          only ? undefined : (
+            <label className="flex items-center gap-1.5 text-small text-muted">
+              <input
+                type="checkbox"
+                checked={grouped}
+                onChange={(e) => view.setView((v) => ({ ...v, groupBy: e.target.checked ? 'group' : null }))}
+                data-testid="input-trial-balance-grouped"
+              />
+              Group-wise
+            </label>
+          )
+        }
         options={{
           onReset: opts.reset,
           content: (
             <>
-              <OptionsPeriod asOn />
+              <OptionsPeriod asOn asOnDate={to} />
+              <OptionToggle
+                label="Stop at today"
+                hint="Off: as on the period end — entries dated after today are included."
+                checked={opts.options.upToToday}
+                onChange={(v) => opts.set('upToToday', v)}
+                testId="input-trial-balance-up-to-today"
+              />
               <OptionToggle
                 label="Hide ledgers that closed at zero"
                 hint="Ledgers with entries in the period but no closing balance."
@@ -81,6 +110,11 @@ export function TrialBalanceScreen({ asOn, ledgerIds }: { asOn?: string; ledgerI
           {PROFIT_HIDDEN_MESSAGE} — income and expense accounts and the totals are left out of this trial balance.
         </p>
       ) : null}
+      {cutAtToday && (
+        <p role="note" className="mb-3 text-detail text-muted" data-testid="trial-balance-up-to-today">
+          As on today — entries dated after today are not included (Options → Stop at today).
+        </p>
+      )}
       <Panel>
         <DataTable
           viewId="trial-balance"
@@ -90,6 +124,7 @@ export function TrialBalanceScreen({ asOn, ledgerIds }: { asOn?: string; ledgerI
           ariaLabel="Trial balance"
           columns={TRIAL_BALANCE_COLUMNS}
           rows={rows}
+          controller={view}
           rowKey={(r) => r.ledgerId}
           rowAttrs={(r) => ({ 'data-row-id': r.ledgerId })}
           loading={isLoading}

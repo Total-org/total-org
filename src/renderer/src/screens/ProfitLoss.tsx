@@ -8,7 +8,8 @@ import { ComparativeStatement } from '../components/ComparativeStatement'
 import { StatementTree } from '../components/StatementTree'
 import { csvReport, flattenNodes, printReport } from '../lib/reportExport'
 import type { ReportColumn as PdfColumn, ReportRow as PdfRow } from '../lib/client'
-import { toDisplayDate } from '@shared/dates'
+import { toDisplayDate, todayISO } from '@shared/dates'
+import { reportEndOn } from '@shared/reportPeriod'
 import { formatPaise } from '@shared/money'
 
 const EXPORT_COLUMNS: PdfColumn[] = [
@@ -24,13 +25,15 @@ export function ProfitLossScreen({ from: askedFrom, to: askedTo }: { from?: stri
   // for the exact dates of the figure it explains; they seed the range instead (the session
   // period is left alone, and a later change of it still applies). Without them: unchanged.
   const [from, setFrom] = useState(askedFrom && askedTo ? askedFrom : sessionFrom)
-  const [to, setTo] = useState(askedFrom && askedTo ? askedTo : sessionTo)
+  // Audit A8 / UX-10: the range stops at today while the period holds it (the on-screen date
+  // changes it; a past / future period is read whole).
+  const [to, setTo] = useState(askedFrom && askedTo ? askedTo : reportEndOn(sessionFrom, sessionTo, todayISO()))
   const seededFor = useRef(askedFrom && askedTo ? `${sessionFrom}|${sessionTo}` : null)
   useEffect(() => {
     if (seededFor.current === `${sessionFrom}|${sessionTo}`) return
     seededFor.current = null
     setFrom(sessionFrom)
-    setTo(sessionTo)
+    setTo(reportEndOn(sessionFrom, sessionTo, todayISO()))
   }, [sessionFrom, sessionTo])
   // keepPreviousData: editing the on-screen dates changes the query key — keep the previous
   // figures rendered (with a subtle hint) instead of unmounting the screen into "Loading…",
@@ -90,6 +93,7 @@ export function ProfitLossScreen({ from: askedFrom, to: askedTo }: { from?: stri
               →
             </span>
             <DateInput value={to} context={to} onChange={setTo} className="w-28" testId="input-pnl-to" ariaLabel="To date" />
+            <CompareToggle checked={opts.options.comparative} onChange={(v) => opts.set('comparative', v)} />
           </div>
         }
         secondary={
@@ -204,6 +208,17 @@ export function ComparativeOptions({
         testId="input-statement-comparative"
       />
     </DrawerSection>
+  )
+}
+
+/** Audit A8 / UX-10: the comparative switch in the header too (the drawer's stays), so a CA sees
+ *  last year beside this one without opening Options. */
+export function CompareToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }): React.JSX.Element {
+  return (
+    <label className="ml-1 flex items-center gap-1.5 text-small text-muted">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid="input-statement-compare" />
+      Compare periods
+    </label>
   )
 }
 

@@ -21,7 +21,7 @@ import {
   Banner, Button, DateInput, Field, isAnyModalOpen, Kbd, Money, Page, PageHeader, Panel, Select, SkeletonRows, Textarea, TextInput
 } from '../components/ui'
 import { MenuButton } from '../components/kit/Menu'
-import { LedgerPicker, useLedgers, useStockItems } from '../components/pickers'
+import { PartyPicker, useLedgers, useStockItems } from '../components/pickers'
 import { LinkedDocsButton } from '../components/LinkedDocs'
 import { AttachmentsButton } from '../components/attachments/Attachments'
 import { DocLink } from '../components/links'
@@ -345,7 +345,8 @@ function TradeDocForm({
               <DateInput value={date} context={workingDate} onChange={setDate} />
             </Field>
             <Field label={sales ? 'Customer (party)' : 'Supplier (party)'}>
-              <LedgerPicker
+              <PartyPicker
+                side={sales ? 'sales' : 'purchase'}
                 autoFocus={!isEdit && !draft && !aiDraft}
                 value={partyId}
                 onPick={setPartyId}

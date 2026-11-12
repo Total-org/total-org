@@ -161,6 +161,8 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'gstProfile:set': a('company'),
   // Review follow-up: the e-invoicing switch (meta `einvoicing`) — a pure read (unset = the books'
   // history, never stored on a read); only einvoicing:set writes it, audited.
+  'voucher:recentParties': r('reads which parties were used last (the party picker\'s order)'),
+  'gst:duePeriod': r('reads which return period is due next (the GST screens\' default month)'),
   'gst:einvoicing': r('reads the e-invoicing switch (unset = the books\' history)'),
   'einvoicing:set': a('company'),
   // To-do §4: the business profile's e-invoice applicability + the switch — a pure read.

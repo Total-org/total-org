@@ -240,6 +240,32 @@ export function getVoucher(db: DB, id: number): Voucher | null {
  * running sequence across FYs). Either way, binned (soft-deleted) vouchers still count toward the
  * max — same as before this task, deliberately: a deleted number must never be reissued.
  */
+/** Audit A8 / UX-3: the parties used most recently on one side — sales / credit notes / delivery
+ *  challans (`sales`) or purchases / debit notes / GRNs (`purchase`) — newest first, binned
+ *  vouchers left out. Walks the newest vouchers by id only (stops after `scan` rows), so a 500k
+ *  book answers as fast as a small one; it only orders the party picker. */
+export const RECENT_PARTY_KINDS = {
+  sales: ['sales', 'credit_note', 'delivery_note'],
+  purchase: ['purchase', 'debit_note', 'receipt_note']
+} as const
+
+export function recentParties(db: DB, side: 'sales' | 'purchase', limit = 10, scan = 500): number[] {
+  const kinds = RECENT_PARTY_KINDS[side]
+  const rows = db
+    .prepare(
+      `SELECT v.party_ledger_id AS id FROM vouchers v JOIN voucher_types t ON t.id = v.voucher_type_id
+        WHERE ${NOT_DELETED} AND v.party_ledger_id IS NOT NULL AND t.kind IN (${kinds.map(() => '?').join(',')})
+        ORDER BY v.id DESC LIMIT ?`
+    )
+    .all(...kinds, scan) as { id: number }[]
+  const out: number[] = []
+  for (const r of rows) {
+    if (!out.includes(r.id)) out.push(r.id)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export function nextVoucherNumber(db: DB, voucherTypeId: number, date: string, excludeVoucherId?: number): string {
   // The series arithmetic lives in numbering.ts (shared with order / quotation series, WP 2.5a).
   return nextSeriesNumber(db, {

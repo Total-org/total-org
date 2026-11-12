@@ -172,7 +172,7 @@ import * as simpleStock from './services/simpleStock'
 import * as simpleReports from './services/simpleReports'
 import * as simpleTaxes from './services/simpleTaxes'
 import { doingQuerySchema, owedQuerySchema } from '@shared/simple/reports'
-import { gstFiledInputSchema, quarterExportMonths, taxesQuerySchema } from '@shared/simple/taxes'
+import { gstFiledInputSchema, gstStartsOn, quarterExportMonths, taxesQuerySchema } from '@shared/simple/taxes'
 import { simpleIntentSchema } from '@shared/simple/intents'
 import { CARRY_FLOWS } from '@shared/simple/carryBack'
 import { peopleListSchema, personRemindedSchema, personUpdateSchema, personViewSchema } from '@shared/simple/people'
@@ -1998,6 +1998,11 @@ export function registerIpc(): void {
     return vouchers.listVouchers(requireCompany().db, from, to, voucherTypeId)
   }, 'viewer')
   handle('voucher:get', (p) => vouchers.getVoucher(requireCompany().db, idSchema.parse(p).id), 'viewer')
+  // Audit A8 / UX-3: the party picker's "used recently" order (ids, newest first; reads only).
+  handle('voucher:recentParties', (p) => {
+    const { side } = z.object({ side: z.enum(['sales', 'purchase']) }).strict().parse(p)
+    return vouchers.recentParties(requireCompany().db, side)
+  }, 'viewer')
   // The voucher save a person makes (editors, and Phase 3b's approval queue): `build` runs inside
   // the save's transaction when a draft is settled (the queue builds the draft's payload there, so
   // a GST ledger the editor would create on first use is rolled back with a refused save).
@@ -2212,6 +2217,12 @@ export function registerIpc(): void {
     const { from, to, period } = gstPeriodInput.parse(p)
     const c = requireCompany()
     return gst.gstr1(c.db, c.info, from, to, period)
+  }, 'viewer')
+  // Audit A8 / UX-4: the return period the GST screens open on — dashGst's (the Compliance card's,
+  // the simple Taxes default), from the day GST starts in these books. Null unless regular.
+  handle('gst:duePeriod', () => {
+    const c = requireCompany()
+    return dashboard.gstDuePeriod(c.db, c.info, todayISO(), gstStartsOn(c.info.booksBeginDate, c.info.gstRegistrationSince))
   }, 'viewer')
   handle('gst:gstr3b', (p) => {
     const { from, to, period } = gstPeriodInput.parse(p)

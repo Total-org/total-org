@@ -4,12 +4,13 @@ import { api } from '../lib/client'
 import { useSession, useToasts } from '../state/stores'
 import { Banner, Button, DateInput, Money, Page, PageHeader, Panel } from '../components/ui'
 import { HeaderExport, OptionsExport, useScreenOptions } from '../components/ScreenOptions'
-import { ComparativeOptions, ReportSkeleton, StatementOptions } from './ProfitLoss'
+import { CompareToggle, ComparativeOptions, ReportSkeleton, StatementOptions } from './ProfitLoss'
 import { ComparativeStatement } from '../components/ComparativeStatement'
 import { StatementTree } from '../components/StatementTree'
 import { csvReport, flattenNodes, printReport } from '../lib/reportExport'
 import type { ReportColumn as PdfColumn, ReportRow as PdfRow } from '../lib/client'
-import { toDisplayDate } from '@shared/dates'
+import { toDisplayDate, todayISO } from '@shared/dates'
+import { reportEndOn } from '@shared/reportPeriod'
 import { formatPaise } from '@shared/money'
 
 const EXPORT_COLUMNS: PdfColumn[] = [
@@ -22,8 +23,9 @@ export function BalanceSheetScreen(): React.JSX.Element {
   const toast = useToasts()
   // Local, on-screen as-on date (user ask): seeded from the header period, editable here
   // without touching the global session period other screens read.
-  const [asOn, setAsOn] = useState(sessionTo)
-  useEffect(() => setAsOn(sessionTo), [sessionTo])
+  // Audit A8 / UX-10: as on today while the period holds it, else the period end.
+  const [asOn, setAsOn] = useState(() => reportEndOn(sessionFrom, sessionTo, todayISO()))
+  useEffect(() => setAsOn(reportEndOn(sessionFrom, sessionTo, todayISO())), [sessionFrom, sessionTo])
   // keepPreviousData: editing the on-screen as-on date changes the query key — keep the previous
   // figures rendered (with a subtle hint) instead of unmounting the screen into "Loading…",
   // which would drop focus from the very DateInput being edited.
@@ -64,6 +66,7 @@ export function BalanceSheetScreen(): React.JSX.Element {
             )}
             <span className="text-small text-muted">as on</span>
             <DateInput value={asOn} context={asOn} onChange={setAsOn} className="w-28" testId="input-bs-ason" ariaLabel="As on date" />
+            <CompareToggle checked={opts.options.comparative} onChange={(v) => opts.set('comparative', v)} />
           </div>
         }
         secondary={
