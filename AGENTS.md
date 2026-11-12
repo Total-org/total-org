@@ -10,7 +10,7 @@ Fully offline accounting app for Indian businesses — shop owners (simple mode)
 
 - Layers: `src/shared/` = pure engine (no Electron, no DB), `src/main/` = SQLite + services + Zod-validated IPC, `src/renderer/` = React UI calling `window.total.invoke` only through `src/renderer/src/lib/client.ts`.
 - Money = integer paise; quantity = integer thousandths. No floats on amounts, ever.
-- Reports are always computed from `voucher_lines` at query time; never store derived balances. Queries on vouchers filter binned rows (`NOT_DELETED`).
+- Reports are always computed from `voucher_lines` at query time; never store derived balances. Queries on vouchers filter binned rows (`NOT_DELETED`; `notDeletedLint.test.ts` checks it).
 - Every write is audited (`writeAudit`; new channels mapped in `src/main/auditCoverage.ts`). New schema = append a migration last in `src/main/db/migrations.ts`.
 - Simple-mode text goes through `t()` (en / hi / hinglish) and avoids the banned accounting words.
 - Tests: `npm test` (pure engine — never import the SQLite driver), `npm run test:db` (`*.dbtest.ts`), `npm run test:renderer`, `npm run typecheck`; UI flows via `npm run build` then `node scripts/run-e2e.mjs NN` (scratch `TOTAL_DATA_DIR`, never `~/Documents/total`; unset `ELECTRON_RUN_AS_NODE`).
