@@ -62,7 +62,7 @@ function warnIfSyncedFolder(): void {
   if (marker && !syncWarningShown) {
     syncWarningShown = true
     log('warn', 'sync-folder-detected', { marker })
-    dialog.showMessageBox({
+    void dialog.showMessageBox({
       type: 'warning',
       title: 'Cloud sync folder detected',
       message: 'Total’s data folder appears to be inside a cloud-sync folder.',
@@ -77,7 +77,7 @@ function warnIfSyncedFolder(): void {
     if (existsSync(iCloudDesktopDocs)) {
       iCloudDesktopWarningShown = true
       log('warn', 'icloud-desktop-documents-sync-detected', {})
-      dialog.showMessageBox({
+      void dialog.showMessageBox({
         type: 'info',
         title: 'iCloud Desktop & Documents sync is on',
         message: 'macOS is syncing your Documents folder to iCloud.',
@@ -100,7 +100,7 @@ function warnIfMovedFolderMissing(): void {
   if (!choice.problem && choice.source !== 'env' && existsSync(join(choice.path, MOVED_NOTE))) {
     log('warn', 'data-root-is-old-copy', {})
     if (SUPPRESS_SYNC_WARNINGS) return
-    dialog.showMessageBox({
+    void dialog.showMessageBox({
       type: 'warning',
       title: 'These may be old books',
       message: `Total is opening ${choice.path}, which is the old copy left behind when your books were moved to another folder.`,
@@ -113,7 +113,7 @@ function warnIfMovedFolderMissing(): void {
   if (!problem) return
   log('warn', 'data-root-pointer-not-followed', { kind: problem.kind })
   if (SUPPRESS_SYNC_WARNINGS) return
-  dialog.showMessageBox({
+  void dialog.showMessageBox({
     type: 'warning',
     title: 'Your books folder was not found',
     message: problem.pointerPath ? `Total could not find the folder it keeps your books in: ${problem.pointerPath}` : 'Total could not read where it keeps your books.',
@@ -155,9 +155,9 @@ function createWindow(): void {
   })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    void win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -170,7 +170,7 @@ if (gotSingleInstanceLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  void app.whenReady().then(() => {
     bootMark('app ready')
     initLogging()
     configureI18n({ dev: !app.isPackaged })

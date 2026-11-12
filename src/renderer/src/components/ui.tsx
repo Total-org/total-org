@@ -127,7 +127,7 @@ export function DateInput({
   const show = (v: string): string => (allowEmpty && !v ? '' : (format ?? toDisplayDate)(v))
   const [text, setText] = useState(show(value))
   const [bad, setBad] = useState(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-show the text only when the value changes, not while typing
   useEffect(() => setText(show(value)), [value])
   const fieldAria = useFieldAria()
   const inField = useInField()

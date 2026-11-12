@@ -228,7 +228,7 @@ export function InvoiceEntry({
       setBillNameTouched(false)
       setBillDueDateTouched(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the party changes only
   }, [partyId])
 
   const { data: openBillsForNote } = useQuery({
@@ -368,7 +368,7 @@ export function InvoiceEntry({
   useEffect(() => {
     if (!appliedTcs) tcsAppliedKey.current = null
     else if (tcsAppliedKey.current == null) tcsAppliedKey.current = tcsKey
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the applied TCS changes only; tcsKey is read at that moment
   }, [appliedTcs])
   const tcsStale = !!appliedTcs && !appliedTcs.isManual && tcsAppliedKey.current != null && tcsAppliedKey.current !== tcsKey
   const grandTotal = computed.rounded + (appliedTcs?.tdsAmount ?? 0)
@@ -528,6 +528,7 @@ export function InvoiceEntry({
     } finally {
       setSaving(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
   }, [saving, partyId, accountId, computed, buildPayload, isSalesSide, kind, typeId, voucherId, isEdit, date, toast, setWorkingDate, queryClient, numberField.reset, leave, tdsDeduction.reset, tdsDeduction.afterSave, tdsStale, tcsStale, tcsCollection.reset, tcsCollection.afterSave, features.tcs, grandTotal, onHold, overrideReason, canOverrideHold, party, draft?.aiDraftId, formErrors, errorShell, saveCard, pendingParty, createPending])
   useEffect(() => {
     if (resave.current == null || partyId == null || saving || !party) return
@@ -648,7 +649,7 @@ export function InvoiceEntry({
     convertFrom.current = null
     const picks = convertPicks(openLines, src)
     if (picks.length > 0) insertPicks(picks)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the open lines arrive only
   }, [openLines, openLinesAt])
   const removeRow = (i: number): void =>
     setRows((rs) => {

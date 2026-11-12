@@ -87,7 +87,7 @@ export function registerInventoryIpc(handle: IpcHandle, { requireCompany, canSee
     if (!target) return { path: '', cancelled: true }
     const path = await writePdfFile(target, html, { pageSize: 'A4', margins: 'none' })
     auditExport(c.db, 'barcode_labels', { items: q.items.length, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   }, 'viewer')
   handle('serials:list', (p) => serials.listSerials(requireCompany().db, serialsListSchema.parse(p ?? {})), 'viewer')

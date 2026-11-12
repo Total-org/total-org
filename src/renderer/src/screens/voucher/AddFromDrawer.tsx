@@ -49,6 +49,7 @@ export function AddFromDrawer({
   linkType?: LinkType
 }): React.JSX.Element {
   const isReturn = linkType === 'return'
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- small constant object per render; recomputing the memo is harmless
   const heads = isReturn ? (RETURN_HEADS[lines[0]?.kind ?? 'sales'] ?? RETURN_HEADS.sales!) : { qty: 'On doc.', done: 'Done' }
   const [reason, setReason] = useState('')
   const [against, setAgainst] = useState('')

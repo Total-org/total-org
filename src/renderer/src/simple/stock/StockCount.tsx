@@ -46,6 +46,7 @@ export function StockCount(): React.JSX.Element {
   const saving = poster.status === 'posting'
   // What Total shows as on the count's date (the Stock summary's own pass).
   const { data } = useQuery({ queryKey: ['simpleStock', form.date], queryFn: () => api.simpleStock.list(form.date) }) // i18n-technical
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
   const rows = data?.rows ?? []
   // On hand per product (undefined until loaded: no cost is asked before the list is there).
   const onHand = useMemo(() => (data ? new Map(data.rows.map((r) => [r.itemId, r.qtyMilli])) : undefined), [data])
@@ -89,7 +90,7 @@ export function StockCount(): React.JSX.Element {
       )
     }, 350)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, saved])
 
   const place = (err: unknown): void => {

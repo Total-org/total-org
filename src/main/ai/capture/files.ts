@@ -30,7 +30,6 @@ export function extOf(name: string): string {
 /** Cleaned display name: no path parts, no control characters, capped. */
 export function cleanName(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? name
-  // eslint-disable-next-line no-control-regex
   return base.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200) || 'file'
 }
 

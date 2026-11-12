@@ -81,7 +81,7 @@ export function TransportModal({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per voucher
   }, [voucherId])
 
   const set = (patch: Partial<VoucherTransportInput>): void => {

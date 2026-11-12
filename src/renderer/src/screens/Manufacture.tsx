@@ -243,7 +243,7 @@ export function ManufactureForm({
       jobWork
     }),
     // explosionKey: bomRows.current flips with the rows it fills.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the comment above
     [date, isEdit, alterNumber, numberField.forPayload, godownId, narration, finishedItemId, qty, saleRate, labour, labourPosted, creditId, rows, bpRows, versionId, exploded, jobWork, explosionKey]
   )
 
@@ -288,7 +288,7 @@ export function ManufactureForm({
       return padRows(keyed(explosion.rows.map((r) => ({ itemId: r.componentId, qtyText: qtyText(r.qtyMilli), godownId: null }))))
     })
     // explosionKey covers the explosion's content.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the comment above
   }, [explosionKey, isEdit])
 
   const setRow = (i: number, patch: Partial<ManufactureRowState>): void => {
@@ -409,7 +409,7 @@ export function ManufactureForm({
     } finally {
       setSaving(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
   }, [saving, state, typeId, materialPaise, itemName, toast, voucherId, isEdit, setWorkingDate, date, queryClient, leave, jobWork, aiDraftId])
 
   useEffect(() => {

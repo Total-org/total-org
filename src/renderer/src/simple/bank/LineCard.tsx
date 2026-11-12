@@ -142,7 +142,7 @@ export function LineCard({
       )
     }, 300)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key stands for the line's answer
   }, [key, workingDate])
 
   const accountName = (id: number): string | null => accounts.find((a) => a.id === id)?.name ?? null

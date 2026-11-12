@@ -57,7 +57,7 @@ export function registerAuditIpc(handle: IpcHandle, { requireCompany, canSeeProf
     })
     const path = await writeExportPdf(c.slug, `${editLogFilename(q)}.pdf`, html, { pageSize: 'A4', landscape: true, pageNumbers: true })
     auditExport(c.db, 'edit_log_pdf', { ...q, rows: r.rows.length, chainOk: r.verification.ok, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path, rows: r.rows.length, verification: r.verification }
   }, 'viewer')
 

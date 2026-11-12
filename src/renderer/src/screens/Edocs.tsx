@@ -254,6 +254,7 @@ function EdocsDocuments(): React.JSX.Element {
   const [detailsFor, setDetailsFor] = useState<number | null>(null)
   const [gatewayFor, setGatewayFor] = useState<{ voucherId: number; number: string } | null>(null)
   const [docTypeFilter, setDocTypeFilter] = useState<DocTypeFilter>('all')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
   const allRows = data ?? []
   const rows = useMemo(
     () => (docTypeFilter === 'all' ? allRows : allRows.filter((r) => r.docType === docTypeFilter)),

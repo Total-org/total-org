@@ -148,6 +148,7 @@ function AnswerView({ turn, onAsk, onOpen, onEntry, onPlan, busy }: {
   // below as the second source).
   const unanswered = !!a && !a.understood
   const helpReady = useHelpLanguage(lang as Language, unanswered) // #148: loads the translations for the search
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- helpReady is the trigger: re-search once the help translations arrive
   const helpHits = useMemo(() => (unanswered ? HELP.search(turn.text, lang as Language, 3) : []), [unanswered, turn.text, lang, helpReady])
   return (
     <div className="flex flex-col gap-2" data-testid="ask-turn">
@@ -285,6 +286,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
   const owner = `${slug ?? ''}:${userId ?? '-'}` // i18n-technical
   const storedOwner = useAskTotal((s) => s.owner)
   const storedTurns = useAskTotal((s) => s.turns)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only for another owner's panel state; the effect then sees no turns
   const turns = storedOwner === owner ? storedTurns : []
   const setTurns = useAskTotal((s) => s.setTurns)
   useEffect(() => useAskTotal.getState().claim(owner), [owner])
@@ -334,7 +336,7 @@ export function AskTotalDrawer({ onClose, width, onResize, aiReady, onEscalate, 
         setBusy(false)
       }
     },
-    [workingDate, lang, aiReady, onEscalate, nav, place]
+    [workingDate, lang, aiReady, onEscalate, nav, place, setTurns]
   )
 
   useEffect(() => {

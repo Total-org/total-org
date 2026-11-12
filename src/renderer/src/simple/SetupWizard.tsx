@@ -46,7 +46,7 @@ export function SetupWizard({
     if (hasStoredLanguage()) return
     const os = osLanguage()
     if (os) setLanguage(os)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on mount only
   }, [])
   const languageName = (v: Language): string =>
     languagePickerLabel(v, v === 'hi' ? t('simple.looks.lang.hi') : v === 'hinglish' ? t('simple.looks.lang.hinglish') : t('simple.looks.lang.en'))

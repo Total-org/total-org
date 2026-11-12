@@ -81,7 +81,6 @@ describe.skipIf(skip)('encryption cost on 100k vouchers', () => {
     const best = (k: Buffer | null, p: string): number => Math.min(timeOpenAndReport(p, k), timeOpenAndReport(p, k), timeOpenAndReport(p, k))
     const p = best(null, plain)
     const e = best(key, enc)
-    // eslint-disable-next-line no-console
     console.log(`[WP 7.2 perf] 100k vouchers — open+migrate+quick_check+TB: plaintext ${p.toFixed(0)} ms, encrypted ${e.toFixed(0)} ms; verified conversion ${convertMs.toFixed(0)} ms`)
     expect(e).toBeLessThan(p * 3 + 1000)
   }, 600_000)

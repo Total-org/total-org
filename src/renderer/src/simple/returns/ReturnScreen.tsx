@@ -79,7 +79,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
   const walkIn = !!bill?.walkIn
   useEffect(() => {
     if (walkIn) setForm((f) => (f.settle === 'refund' ? f : { ...f, settle: 'refund' })) // i18n-technical
-  }, [walkIn])
+  }, [walkIn, setForm])
 
   const ctx: ReturnContext | null = useMemo(
     () =>
@@ -157,7 +157,7 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
       )
     }, 350)
     return () => window.clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, ready, savedIds])
 
   // ---------- save ----------

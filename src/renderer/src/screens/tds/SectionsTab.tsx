@@ -96,7 +96,7 @@ function SectionsBody(): React.JSX.Element {
         ledgerId: l.id, name: l.name, pan: l.pan, explicitType: l.deducteeType, panType: deducteeTypeFromPan(l.pan),
         sectionCode: (k === 'tcs' ? l.tcsSectionId : l.tdsSectionId) != null ? (codeOf.get((k === 'tcs' ? l.tcsSectionId : l.tdsSectionId)!) ?? null) : null, certificates: certCount.get(l.id) ?? 0
       }))
-  }, [ledgers, certificates, codeOf])
+  }, [ledgers, certificates, codeOf, k])
 
   const certColumns = useMemo(
     () =>
