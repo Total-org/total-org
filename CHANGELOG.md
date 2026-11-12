@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**MSME: the 45 / 15 days run from the day you accepted the goods** (#PR, WP 2d). Under the MSMED Act
+**MSME: the 45 / 15 days run from the day you accepted the goods** (#261, WP 2d). Under the MSMED Act
 (s.15, with s.2(b)'s Explanation), the time to pay a micro or small supplier runs from the day the goods
 were delivered or the services rendered, or from the day the supplier removed a written objection
 you raised within 15 days. That is not always the bill date. On Payables → MSME, each bill's
