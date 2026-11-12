@@ -150,22 +150,25 @@ describe('Gateway dashboard', () => {
     expect(go).toHaveBeenLastCalledWith({ name: 'masters' })
   })
 
-  it('Alt+F7 follows Manufacture being turned on while the Gateway is open (A11: the handler listed no manufacturing dep)', async () => {
+  it('Alt+F7 follows Manufacture being turned on while the Gateway is open', async () => {
     const opts = { features: { manufacturing: false } as Partial<CompanyFeatures> }
     const client = setup(opts)
     await waitFor(() => screen.getByTestId('tile-cash'))
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('config:features:get', undefined))
-    await act(async () => {
-      await client.refetchQueries({ queryKey: ['features'] })
-    })
+    go.mockClear()
+    fireEvent.keyDown(window, { key: 'F7', altKey: true })
+    expect(go).not.toHaveBeenCalledWith({ name: 'manufacture' })
     opts.features = { manufacturing: true }
     await act(async () => {
       await client.invalidateQueries()
-      await client.refetchQueries()
     })
-    go.mockClear()
-    fireEvent.keyDown(window, { key: 'F7', altKey: true })
-    expect(go).toHaveBeenCalledWith({ name: 'manufacture' })
+    // The refetched flag reaches the key handler once React re-renders (the handler re-binds with
+    // `shortcuts` / `features.manufacturing`).
+    await waitFor(() => {
+      go.mockClear()
+      fireEvent.keyDown(window, { key: 'F7', altKey: true })
+      expect(go).toHaveBeenCalledWith({ name: 'manufacture' })
+    })
   })
 
   it('Alt+F7 opens Manufacture only while manufacturing is on (WP 8.3: setup can turn it off)', async () => {
