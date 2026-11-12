@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 // @ts-expect-error — plain .mjs release script (no types)
-import { buildManifest, signManifest, checkManifest, RELEASE_KEYS as SCRIPT_KEYS } from '../../scripts/release/manifest.mjs'
+import { buildManifest, signManifest, checkManifest, releaseKeys as scriptKeys } from '../../scripts/release/manifest.mjs'
 import { assetWithHash, installerFor, releaseAssetUrl, RELEASE_KEYS, sha512File, verifyManifest, type ReleaseKey } from './releaseManifest'
 
 function testKey(id = 'test-key'): { pem: string; keys: ReleaseKey[] } {
@@ -31,7 +31,7 @@ const sha512 = (b: Buffer): string => createHash('sha512').update(b).digest('hex
 describe('release manifest', () => {
   it('the pinned key is the same for the app and the release script', () => {
     expect(RELEASE_KEYS.length).toBeGreaterThan(0)
-    expect(SCRIPT_KEYS).toEqual(RELEASE_KEYS)
+    expect(scriptKeys()).toEqual(RELEASE_KEYS)
     for (const k of RELEASE_KEYS) expect(Buffer.from(k.spki, 'base64')).toHaveLength(44) // Ed25519 SPKI
   })
 

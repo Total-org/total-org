@@ -21,7 +21,11 @@ export const MANIFEST_ASSET = 'total-manifest.json'
 export const MANIFEST_CONTEXT = 'total-release-manifest:v1\n'
 
 const here = dirname(fileURLToPath(import.meta.url))
-export const RELEASE_KEYS = JSON.parse(readFileSync(join(here, '..', '..', 'src', 'main', 'releaseKeys.json'), 'utf8')).keys
+/** The pinned public keys, read when first needed: gate.mjs imports this file in jobs whose sparse
+ *  checkout holds only scripts/release (the verify job also checks out src/main for the keys). */
+export function releaseKeys() {
+  return JSON.parse(readFileSync(join(here, '..', '..', 'src', 'main', 'releaseKeys.json'), 'utf8')).keys
+}
 
 const hashOf = (bytes, algo) => createHash(algo).update(bytes).digest('hex')
 
@@ -35,14 +39,14 @@ export function buildManifest(version, files, created = new Date().toISOString()
   return JSON.stringify({ format: 1, product: 'Total', version: v, tag: `v${v}`, created, assets })
 }
 
-/** The keyId of a public key (PEM / KeyObject) in RELEASE_KEYS, or null. */
+/** The keyId of a public key (PEM / KeyObject) in the pinned keys, or null. */
 function keyIdOf(publicKey, keys) {
   const spki = createPublicKey(publicKey).export({ type: 'spki', format: 'der' }).toString('base64')
   return keys.find((k) => k.spki === spki)?.id ?? null
 }
 
 /** Sign the manifest text: the file's JSON. The key must be one the app pins. */
-export function signManifest(manifestText, privateKeyPem, keys = RELEASE_KEYS) {
+export function signManifest(manifestText, privateKeyPem, keys = releaseKeys()) {
   const key = createPrivateKey(privateKeyPem)
   if (key.asymmetricKeyType !== 'ed25519') throw new Error('RELEASE_MANIFEST_KEY is not an Ed25519 key')
   const keyId = keyIdOf(key, keys)
@@ -52,7 +56,7 @@ export function signManifest(manifestText, privateKeyPem, keys = RELEASE_KEYS) {
 }
 
 /** Check a signed manifest file's text: { ok, reason, manifest }. */
-export function checkManifest(fileText, version, keys = RELEASE_KEYS) {
+export function checkManifest(fileText, version, keys = releaseKeys()) {
   let file
   try {
     file = JSON.parse(fileText)
