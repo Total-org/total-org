@@ -54,6 +54,7 @@ export function DashCard<T>({
   action,
   className = '',
   skeletonRows = 4,
+  loadingHeight,
   children
 }: {
   title: string
@@ -62,10 +63,21 @@ export function DashCard<T>({
   action?: ReactNode
   className?: string
   skeletonRows?: number
+  /** Phase 5 (no layout shift): the card's height once loaded, in px — held while it loads, so
+   *  the grid does not jump when the figures arrive. For cards whose loaded size is set by their
+   *  layout (a chart, a fixed list), not by how many rows the books give. */
+  loadingHeight?: number
   children: (data: T) => ReactNode
 }): React.JSX.Element {
+  const holdHeight = card.state === 'loading' && loadingHeight !== undefined
   return (
-    <section aria-label={title} data-testid={testId} data-state={card.state} className={`h-full min-w-0 ${className}`}>
+    <section
+      aria-label={title}
+      data-testid={testId}
+      data-state={card.state}
+      className={`h-full min-w-0 ${className}`}
+      style={holdHeight ? { minHeight: loadingHeight } : undefined}
+    >
       <Panel className="flex h-full flex-col">
         <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
           <h2 className="text-detail font-semibold text-ink">{title}</h2>
@@ -74,7 +86,7 @@ export function DashCard<T>({
         <div className="min-h-0 flex-1">
           <CardBoundary name={testId}>
             {card.state === 'loading' ? (
-              <div aria-hidden="true" className="flex flex-col gap-2.5 p-4">
+              <div aria-hidden="true" className="flex flex-col gap-2.5 overflow-hidden p-4">
                 {Array.from({ length: skeletonRows }, (_, i) => (
                   <Skeleton key={i} className={`h-3.5 ${i % 2 ? 'w-2/3' : 'w-full'}`} />
                 ))}

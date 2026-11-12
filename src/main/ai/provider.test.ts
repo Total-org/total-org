@@ -1,10 +1,16 @@
 // The OpenAI adapter against a fake SDK client: request shape, streamed deltas, tool calls,
 // usage, retries with backoff (only before anything streamed), cancellation and key redaction.
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createRequire } from 'module'
+import type OpenAIType from 'openai'
 import { OpenAiProvider, buildResponsesBody, redactSecrets, type OpenAiLike } from './provider'
 import { AiAbortError, AiProviderError, type ChatRequest } from './types'
 import { MockProvider } from './mockProvider'
+
+// The provider requires the SDK's CommonJS build on first use (Phase 5 speed; the bundled app has
+// always loaded that build — rollup turns the import into require('openai')). The SDK's error
+// classes are taken from that same copy, so `instanceof` in the provider sees them as the app does.
+const OpenAI = (createRequire(import.meta.url)('openai') as { default: typeof OpenAIType }).default
 
 const KEY = 'sk-test-abcdefghijklmnopqrstuvwxyz0123456789'
 

@@ -3,7 +3,9 @@
 // integrity stamp and the migration never touch the seed), launches, waits for the company list,
 // opens Perf Traders and waits for its Home to be idle — in the full app (Gateway) and, with
 // --simple, in simple mode (Home = SimpleHome). Prints launch → company list, click → Home idle,
-// and the total, per run.
+// and the total, per run — and (Phase 5) launch → Home SHOWN: the Home screen drawn and usable
+// (skeletons where figures are still on their way). --trace adds main's start-up steps
+// (src/main/bootTrace.ts) and the renderer's own timings.
 //
 // Usage: npm run build && node scripts/perf-launch.mjs --data <perf-seed dir> [--runs 3] [--simple] [--trace] [--boot [--lang hi|hinglish]] [--app <dir>]
 // (run with `env -u ELECTRON_RUN_AS_NODE` from agent shells — see CLAUDE.md.)
@@ -58,6 +60,18 @@ for (let r = 0; r < runs; r++) {
     if (trace) h.app.process().stdout.on('data', (b) => { for (const l of String(b).split('\n')) if (l.startsWith('[ipc] ')) calls.push(`${(performance.now() - t0).toFixed(0).padStart(6)} ${l.slice(6)}`) })
     await h.waitScreen('company-select', 60_000)
     const tList = performance.now()
+    if (trace) {
+      // Main's start-up steps (src/main/bootTrace.ts), ms since the main process started.
+      const marks = await h.app.evaluate(() => globalThis.__totalBootMarks ?? [])
+      console.log(`  main start-up (ms since the process started): ${marks.map((m) => `${m.step} ${m.ms}`).join(' · ')}`)
+      const r = await h.page.evaluate(() => ({
+        now: Math.round(performance.now()),
+        dcl: Math.round(performance.getEntriesByType('navigation')[0].domContentLoadedEventEnd),
+        render: Math.round(performance.getEntriesByName('total:first-render')[0]?.startTime ?? -1),
+        fcp: Math.round(performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? -1)
+      }))
+      console.log(`  renderer (ms since its navigation started): DOMContentLoaded ${r.dcl} · first render ${r.render} · first contentful paint ${r.fcp} · company list seen ${r.now}; company list at ${(tList - t0).toFixed(0)} ms since launch`)
+    }
     let bootRow = null
     if (boot) {
       const firstDcl = await h.page.evaluate(() => Math.round(performance.getEntriesByType('navigation')[0].domContentLoadedEventEnd))
@@ -79,24 +93,44 @@ for (let r = 0; r < runs; r++) {
       bootRow = { firstDcl, reload: mid('ms'), dcl: mid('dcl'), cat: mid('cat') }
       console.log(`  renderer boot${lang ? ` (${lang})` : ''}: first launch DOMContentLoaded ${firstDcl} ms; reload → company list ${mid('ms').toFixed(0)} ms, DOMContentLoaded ${mid('dcl').toFixed(0)} ms, catalogue wait ${mid('cat').toFixed(1)} ms (median of 5 reloads)`)
     }
+    // Phase 5: the moments are taken IN THE PAGE by a MutationObserver (not frame-bound — Playwright's
+    // waitForSelector polls on animation frames, which an unfocused window throttles, so it noticed
+    // the Home screen up to a second late). Home SHOWN = the Home screen drawn and usable, figures
+    // still loading in skeletons (gateway-dashboard / simple-home); Home idle = nothing loading.
+    await h.page.evaluate(() => {
+      const w = window
+      w.__perfLaunch = { t0: performance.now(), shown: null, idle: null }
+      const look = () => {
+        const p = w.__perfLaunch
+        if (p.shown === null && document.querySelector('[data-testid="gateway-dashboard"], [data-testid="simple-home"]')) p.shown = performance.now()
+        // Idle: nothing fetching AND no card still in its skeleton (a moment before the first
+        // query starts must not count).
+        if (p.shown !== null && p.idle === null && document.querySelector('[data-screen="gateway"][data-loading="false"]') && !document.querySelector('[data-state="loading"], [data-testid="simple-home-skeleton"]')) p.idle = performance.now()
+      }
+      new MutationObserver(look).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-loading', 'data-testid', 'data-state'] })
+    })
     const tOpen = performance.now() // = tList unless --boot reloaded first
     await h.clickText('Perf Traders')
-    await h.page.waitForSelector('[data-screen="gateway"][data-loading="false"]', { state: 'attached', timeout: 120_000 })
+    await h.page.waitForFunction(() => window.__perfLaunch.idle !== null, null, { timeout: 120_000, polling: 50 })
     if (simple) await h.page.waitForSelector('[data-testid="simple-home"]', { state: 'attached', timeout: 120_000 })
-    const tHome = performance.now()
+    const p = await h.page.evaluate(() => window.__perfLaunch)
+    const shownMs = p.shown - p.t0
+    const idleMs = p.idle - p.t0
+    const tHome = tOpen + idleMs
     // The company:open round trip alone (a second open in this session: no weekly check due).
     await h.invoke('company:close')
     const t1 = performance.now()
     await h.invoke('company:open', { slug: 'perf-traders' })
     const ipc = performance.now() - t1
-    rows.push({ list: tList - t0, open: tHome - tOpen, total: tList - t0 + (tHome - tOpen), ipc, ...(bootRow ?? {}) })
+    const shown = tList - t0 + shownMs
+    rows.push({ list: tList - t0, shown, open: tHome - tOpen, total: tList - t0 + (tHome - tOpen), ipc, ...(bootRow ?? {}) })
     if (trace) console.log(`  IPC calls (ms since launch, handler ms):\n  ${calls.join('\n  ')}`)
-    console.log(`run ${r + 1}: launch → company list ${(tList - t0).toFixed(0)} ms, open → Home idle ${(tHome - tOpen).toFixed(0)} ms, total ${(tList - t0 + tHome - tOpen).toFixed(0)} ms; company:open alone ${ipc.toFixed(0)} ms`)
+    console.log(`run ${r + 1}: launch → company list ${(tList - t0).toFixed(0)} ms, launch → Home shown ${shown.toFixed(0)} ms, open → Home idle ${(tHome - tOpen).toFixed(0)} ms, total ${(tList - t0 + tHome - tOpen).toFixed(0)} ms; company:open alone ${ipc.toFixed(0)} ms`)
   } finally {
     await h.close().catch(() => {})
     rmSync(dir, { recursive: true, force: true })
   }
 }
 const med = (k) => rows.map((x) => x[k]).sort((a, b) => a - b)[Math.floor(rows.length / 2)]
-console.log(`median (${simple ? "simple Home" : "Gateway"}): launch → list ${med("list").toFixed(0)} ms, open → Home ${med("open").toFixed(0)} ms, total ${med("total").toFixed(0)} ms, company:open alone ${med("ipc").toFixed(0)} ms`)
+console.log(`median (${simple ? "simple Home" : "Gateway"}): launch → list ${med("list").toFixed(0)} ms, launch → Home shown ${med("shown").toFixed(0)} ms, open → Home ${med("open").toFixed(0)} ms, total ${med("total").toFixed(0)} ms, company:open alone ${med("ipc").toFixed(0)} ms`)
 if (boot) console.log(`median renderer boot: first launch DOMContentLoaded ${med('firstDcl')} ms, reload → company list ${med('reload').toFixed(0)} ms, reload DOMContentLoaded ${med('dcl').toFixed(0)} ms, catalogue wait ${med('cat').toFixed(1)} ms${lang ? ` (${lang})` : ''}`)

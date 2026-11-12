@@ -5,9 +5,9 @@ import { useAskTotal } from './AskTotal'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
-import { useNav } from '../state/stores'
+import { useNav, useSession } from '../state/stores'
 import { Page } from '../components/ui'
-import { Button, SkeletonTiles, Why } from '../components/kit'
+import { Button, Skeleton, Why } from '../components/kit'
 import { OpeningsHomeCard } from './OpeningsHomeCard'
 import { ApprovalsHomeCard } from './queue/ApprovalsHomeCard'
 import { useCanWrite, ViewerBackupNote } from './ViewerNote'
@@ -79,15 +79,52 @@ export function SimpleHome(): React.JSX.Element {
           </Button>
         </section>
       )}
-      {!home && !homeQ.isError && (
-        <div className="mt-5">
-          <SkeletonTiles count={3} />
-        </div>
-      )}
+      {!home && !homeQ.isError && <HomeSkeleton />}
       {home && <HomeBody home={home} />}
       {/* WP 10.3: the first-run tour (once per company + user after setup; Help runs it again). */}
       <HomeTour />
     </Page>
+  )
+}
+
+/** Phase 5 (skeletons, no layout shift): while `simple:home` loads, the tile grid HomeBody draws —
+ *  the wide cash tile, four tiles, the profit row and the attention card — as placeholders of the
+ *  tiles' usual size, so the page has its shape at once and the figures land in place. */
+/** The grid HomeBody draws: the GST tile only for a registered business (composition gets its own
+ *  tile), and the profit row's span follows (HomeBody `profitSpan`). */
+function skeletonTileSpans(registration: string | undefined): string[] {
+  const gstTile = registration !== 'unregistered' // i18n-technical: registration type
+  return [
+    'md:col-span-2 xl:row-span-2', // i18n-technical: cash and bank, the wide tile
+    '', // money in today
+    '', // money out today
+    '', // customers owe you
+    '', // you owe suppliers
+    ...(gstTile ? [''] : []), // GST
+    gstTile ? 'md:col-span-1 xl:col-span-3' : 'md:col-span-2 xl:col-span-1' // i18n-technical: profit
+  ]
+}
+
+function HomeSkeleton(): React.JSX.Element {
+  const registration = useSession((s) => s.info?.gstRegistrationType)
+  return (
+    <div aria-hidden="true" data-testid="simple-home-skeleton">
+      <ul className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {skeletonTileSpans(registration).map((span, i) => (
+          <li key={i} className={`${cardCls} flex min-h-[7.25rem] flex-col ${span}`}>
+            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="mt-3 h-6 w-1/2" />
+            <Skeleton className="mt-auto h-3 w-1/4" />
+          </li>
+        ))}
+      </ul>
+      <section className={`${cardCls} mt-5 flex flex-col gap-3`}>
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-2/3" />
+        <Skeleton className="h-3 w-1/2" />
+        <Skeleton className="h-3 w-3/5" />
+      </section>
+    </div>
   )
 }
 

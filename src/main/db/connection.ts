@@ -116,8 +116,9 @@ export const backupDestFor = (slug: string, tag: string): string => join(company
 
 /**
  * WAL-safe snapshot of an already-open company DB into backups/, tagged (e.g. 'open', 'manual',
- * 'auto', 'pre-tally-import', 'pre-restore', 'quit'). Uses better-sqlite3's native online backup
- * so uncheckpointed WAL content is always captured — a raw file copy would not see it.
+ * 'auto', 'pre-tally-import', 'pre-restore', 'quit'). `snapshotTo` (db/backup.ts) captures every
+ * committed change, uncheckpointed WAL content included: a pinned file copy after a full checkpoint
+ * (Phase 5), else better-sqlite3's online backup — never a bare copy of a file with WAL frames.
  */
 export async function backupCompany(db: DB, slug: string, tag = 'auto', auditUser: string = SYSTEM_AUDIT_USER): Promise<string> {
   const dest = backupDestFor(slug, tag)

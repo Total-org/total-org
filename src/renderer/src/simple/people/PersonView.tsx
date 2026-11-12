@@ -11,7 +11,7 @@ import { useAccountantView } from '../../lib/handoff'
 import { AccountantViewButton } from '../AccountantViewButton'
 import { useLanguage, useT } from '../../lib/i18n'
 import { useNav, useSession, useToasts } from '../../state/stores'
-import { Button, Field, Page, TextInput, useFormErrors } from '../../components/ui'
+import { Button, Field, Page, Skeleton, SkeletonRows, TextInput, useFormErrors } from '../../components/ui'
 import { DataTable, defineColumns } from '../../components/table'
 import { moneyInScreen, moneyOutScreen } from '../money/moneyLinks'
 import { Pill } from './Pill'
@@ -47,7 +47,21 @@ export function PersonView({ id }: { id: number }): React.JSX.Element {
   const nav = useNav()
   const workingDate = useSession((s) => s.workingDate)
   const { data: p, isLoading } = useQuery({ queryKey: ['simplePerson', id, workingDate], queryFn: () => api.simplePeople.person(id, workingDate) }) // i18n-technical
-  if (isLoading) return <Page data-testid="simple-person">{null}</Page>
+  // Phase 5 (skeletons): the page's shape while the person loads, not a blank page.
+  if (isLoading) {
+    return (
+      <Page data-testid="simple-person">
+        <div aria-hidden="true">
+          <Skeleton className="mb-3 h-3 w-24" />
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="mt-3 h-4 w-80" />
+          <div className="mt-5 rounded-xl border border-line bg-panel shadow-elev-1">
+            <SkeletonRows rows={6} />
+          </div>
+        </div>
+      </Page>
+    )
+  }
   if (!p) {
     return (
       <Page data-testid="simple-person">

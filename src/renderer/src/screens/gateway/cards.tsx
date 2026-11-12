@@ -49,6 +49,12 @@ function monthCategories(w: DashboardWindow): ChartCategory[] {
 
 // ---------- charts ----------
 
+/** Phase 5 (no layout shift): a chart card's height once drawn (header + legend + the 176 px chart) —
+ *  held by its skeleton. The other `loadingHeight`s below are the loaded cards' heights measured on
+ *  Perf Traders (Ageing: two fixed four-bucket lists; Recent: eight rows; Books: three rows; Cash:
+ *  a cash account and two banks). */
+const CHART_CARD_HEIGHT = 253
+
 export function TradeChartCard({ card, window: w }: { card: CardState<DashTrade>; window: DashboardWindow | undefined }): React.JSX.Element {
   const nav = useNav()
   return (
@@ -57,6 +63,7 @@ export function TradeChartCard({ card, window: w }: { card: CardState<DashTrade>
       testId="dash-trade"
       card={card}
       skeletonRows={6}
+      loadingHeight={CHART_CARD_HEIGHT}
       action={<CardLink onClick={() => nav.go({ name: 'registers' })}>Registers →</CardLink>}
     >
       {(t) => {
@@ -101,6 +108,7 @@ export function ProfitChartCard({ card, window: w }: { card: CardState<DashTrade
       testId="dash-profit"
       card={card}
       skeletonRows={6}
+      loadingHeight={CHART_CARD_HEIGHT}
       action={<CardLink onClick={() => nav.go({ name: 'profit-loss' })}>Profit &amp; loss →</CardLink>}
     >
       {(t) => {
@@ -185,6 +193,8 @@ export function AgeingCard({ receivables, payables }: { receivables: CardState<D
       title="Ageing"
       testId="dash-ageing"
       card={combined}
+      skeletonRows={8}
+      loadingHeight={300}
       action={<CardLink onClick={() => nav.go({ name: 'outstandings' })}>Outstandings →</CardLink>}
     >
       {({ r, p }) => (
@@ -414,7 +424,7 @@ export function ComplianceCard({
 export function CashCard({ card }: { card: CardState<DashCash> }): React.JSX.Element {
   const nav = useNav()
   return (
-    <DashCard title="Cash & bank" testId="dash-cash" card={card} action={<CardLink onClick={() => nav.go({ name: 'banking' })}>Banking →</CardLink>}>
+    <DashCard title="Cash & bank" testId="dash-cash" card={card} loadingHeight={163} action={<CardLink onClick={() => nav.go({ name: 'banking' })}>Banking →</CardLink>}>
       {(c) => (
         <div>
           {c.ledgers.map((l) => (
@@ -486,7 +496,7 @@ export function BooksCard({
       ? { state: 'loading' }
       : { state: 'ready', data: { a: activity.state === 'ready' ? activity.data : null, s: status.state === 'ready' ? status.data : null } }
   return (
-    <DashCard title="Books" testId="dash-books" card={combined}>
+    <DashCard title="Books" testId="dash-books" card={combined} skeletonRows={3} loadingHeight={148}>
       {({ a, s }) => (
         <div className="flex flex-col">
           <div {...drillRowProps(() => nav.go({ name: 'registers', tab: 'entries' }))} data-testid="dash-entries" className={rowCls}>
@@ -516,7 +526,7 @@ export function RecentCard({ rows }: { rows: DayBookRow[] | undefined }): React.
   const nav = useNav()
   const card: CardState<DayBookRow[]> = rows === undefined ? { state: 'loading' } : { state: 'ready', data: rows }
   return (
-    <DashCard title="Recent entries" testId="dash-recent" card={card} skeletonRows={6} action={<CardLink onClick={() => nav.go({ name: 'registers', tab: 'entries' })}>All entries →</CardLink>}>
+    <DashCard title="Recent entries" testId="dash-recent" card={card} skeletonRows={8} loadingHeight={323} action={<CardLink onClick={() => nav.go({ name: 'registers', tab: 'entries' })}>All entries →</CardLink>}>
       {(list) =>
         list.length === 0 ? (
           <p className="px-4 py-6 text-center text-body-sm text-muted">No vouchers in this period yet</p>
