@@ -20,6 +20,16 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**MSME: the 45 / 15 days run from the day you accepted the goods** (#261, WP 2d). Under the MSMED Act
+(s.15, with s.2(b)'s Explanation), the time to pay a micro or small supplier runs from the day the goods
+were delivered or the services rendered, or from the day the supplier removed a written objection
+you raised within 15 days. That is not always the bill date. On Payables → MSME, each bill's
+"Accepted" date now has a **Change** button. The pay-by date, s.16 interest, s.43B(h), MSME Form 1
+and the cash forecast then count from the date you give. *For accountants*: bills without a recorded
+date count from the bill date exactly as before. Nothing changes in existing books until you record
+a date. *For developers*: migration "msme acceptance" (table `msme_acceptance`) and channel
+`payables:msmeAcceptanceSet`.
+
 ## [0.12.2] - 2026-11-13
 
 **A warning for advances on goods** (#259, WP 2d). A regular business pays GST on goods when it

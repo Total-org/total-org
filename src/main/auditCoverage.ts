@@ -526,6 +526,7 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'payables:bankRates': QUERY,
   'payables:bankRateSave': a('msme_bank_rate'),
   'payables:bankRateDelete': a('msme_bank_rate'),
+  'payables:msmeAcceptanceSet': a('msme_acceptance'),
   'payables:supplierStatement': QUERY,
   'payables:supplierRecon': r('matches a pasted supplier ledger against the books; writes nothing'),
   // ---------- cash and finance (WP 4.4) ----------

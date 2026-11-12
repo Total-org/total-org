@@ -75,3 +75,11 @@ export const supplierReconSchema = z.object({
 
 export const msmeDueSchema = z.object({ asOn: isoDate })
 export const runExportSchema = z.object({ id })
+
+/** WP 2d — record (or clear, `acceptedOn: null`) a bill's MSME day of acceptance. */
+export const msmeAcceptanceSetSchema = z.strictObject({
+  voucherId: id,
+  acceptedOn: isoDate.nullable(),
+  basis: z.enum(['delivered', 'objection_removed']).default('delivered'),
+  note: z.string().trim().max(200).default('')
+})

@@ -116,6 +116,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'common.caCheck.point.tcsRules': 'Kuch TCS rates (tour package, parking, toll, mining) aur TCS ke base mein GST hai ya nahi, yeh copy se padha gaya, kanoon se nahi.',
   'common.caCheck.point.payrollSalaryTds': 'Salary ka TDS paas ke rupaye tak round kiya jaata hai, aur Form 16 Part B ki lines 1962 ke rules se hain. Pakka nahi.',
   'common.caCheck.point.msme43bh': 'Trader supplier ke bills section 43B(h) ki list se bahar rakhe gaye hain — yeh ek office memo ki samajh hai. Finance Act 2026 ke badlav nahi padhe gaye.',
+  'common.caCheck.point.msmeAcceptanceCoverage': 'MSME bill par niyam lagu hai ya nahi, yeh supply ke din se dekha jaata hai (aapki darj ki gayi delivery ki tareekh, warna bill ki tareekh), objection hatne ke din se nahi — yeh ek samajh hai, kanoon ya faisle mein jaanchi nahi gayi.',
   'common.caCheck.point.msmeForm1Udyam': 'MSME Form 1 ka layout aur Udyam number kaise padha jaata hai (pehle state, phir district) copy se liya gaya, sarkari text se nahi.',
   'common.caCheck.point.forecastDates': 'Forecast mein tax ki dates (GST, TDS) summaries se likhi gayi hain, aur chhote supplier ke bills section 15 ki date par Total ki samajh se jaate hain. Inhe check kar lein.',
   'common.caCheck.point.auditRetention': 'Badlav ka record kitne samay rakhna hai aur usmein kya dikhna chahiye, yeh kanoon ke sahi shabdon mein dobara nahi padha gaya.',

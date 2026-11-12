@@ -274,7 +274,8 @@ not merged, when this was written. Their files and ids exist only after they mer
     - In the code: `src/shared/gst/states.ts`.
 54. **Applicability and advance GST** 
     - Today: the GPT review left these for a CA: when e-invoicing applies, GST on advances, and the MSME acceptance date.
-    - Confirm: your view on each (the first is also Q17).
+    - MSME (WP 2d): a bill can now record its day of acceptance (delivery, or an objection removed) and the s.15 period runs from it; whether the supplier was covered is judged on the supply day (the recorded delivery day, else the bill date), never on the day an objection was removed.
+    - Confirm: your view on each (the first is also Q17); for MSME, that coverage reading.
     - In the code: to-do.md section 5, last line ("GST calendar items from the GPT review").
 55. **Exports and SEZ "with payment of IGST"**
     - Today: a bill to a party flagged "SEZ / export with payment" is charged IGST (an SEZ unit in your own state too, IGST Act s.7(5)(b)); one flagged "without payment" (LUT / bond) is charged no GST (s.16(3)). A credit note to such a party follows the same class.
@@ -338,6 +339,7 @@ note); this list is rewritten from that file, so it never drifts from what the a
 | `tcs-rules` | Some TCS rates (tour packages, parking, toll, mining) and whether GST is in the TCS base were read in copies, not the Act. *(s.206C(1C), (1G), (1H) Income-tax Act; Form 27EQ / Form 143)* | Q19, Q20, Q21 | Taxes → TCS card; TCS screen header |
 | `payroll-salary-tds` | Salary TDS is rounded to the nearest rupee, and the Form 16 Part B rows follow the 1962 rules. Not confirmed. *(s.192 Income-tax Act; Form 16 Part B (1962 Rules))* | Q7, Q42, Q43 | Payroll screen header (salary TDS, Form 16) |
 | `msme-43bh` | Bills of a trader supplier are left out of the s.43B(h) list — a reading of an office memo. Changes by the Finance Act 2026 were not read. *(s.43B(h) and s.37 Income-tax Act; MSMED Act s.15)* | Q35 | Payables → MSME tab |
+| `msme-acceptance-coverage` | Whether an MSME bill is covered is judged on the day of supply (the delivery day you record, else the bill date), not on the day an objection was removed — a reading, not checked in the law or a judgment. *(MSMED Act s.2(b) Explanation, s.2(n), s.15 — day of acceptance; registration before the supply)* | Q54 | Payables → MSME tab |
 | `msme-form1-udyam` | The MSME Form 1 layout and how a Udyam number is read (state, then district) come from copies, not the official text. *(MSME Form 1 (MSMED Act s.9); Udyam registration number)* | Q36 | Payables → MSME tab |
 | `forecast-dates` | The tax due dates in the forecast (GST, TDS) were written from summaries, and a small supplier’s bills move to their s.15 date as Total reads the rule. Check them. *(Statutory due dates in the cash forecast (GST, TDS))* | Q50, Q37, Q54 | Cash forecast screen header |
 | `audit-retention` | How long the edit log must be kept, and what it must show, was not re-read in the law’s exact words. *(s.128(5) Companies Act; Income-tax rule 6F; IT Act 2025 s.62 / Rules 2026 r.46(9))* | Q52 | Edit log screen header |

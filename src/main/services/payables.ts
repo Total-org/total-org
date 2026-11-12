@@ -22,14 +22,14 @@ import {
 import { daysToPay, earlyDiscount, payByDate, planBucket } from '@shared/payables/planning'
 import { parseSupplierStatementCsv, reconcileSupplier, type BookLedgerLine } from '@shared/payables/supplierRecon'
 import type {
-  MsmeForm1Supplier, MsmeBill43Bh, MsmeBillRow, MsmeDueSummary, MsmeFormRow, MsmeReport, MsmeYearEndWarning, PayablePlanRow, PayablesPlan,
+  MsmeAcceptance, MsmeForm1Supplier, MsmeBill43Bh, MsmeBillRow, MsmeDueSummary, MsmeFormRow, MsmeReport, MsmeYearEndWarning, PayablePlanRow, PayablesPlan,
   PaymentRun, PaymentRunLine, PaymentRunPreview, PlanCashLedger, SupplierMsmeFacts, SupplierReconResult, SupplierStatement
 } from '@shared/payables/types'
-import { bankRateInputSchema, paymentRunSchema, type PaymentRunInput } from '@shared/payables/schemas'
+import { bankRateInputSchema, msmeAcceptanceSetSchema, paymentRunSchema, type PaymentRunInput } from '@shared/payables/schemas'
 import { outstandings, openBills, partyBillEvents } from './analysis'
 import { settlementTimeline } from '@shared/payables/settlements'
 import { descendantIdsByName, partyGroupIdsBySide } from './masters'
-import { saveVoucher, IN_BOOKS, NOT_DELETED } from './vouchers'
+import { getLockDate, saveVoucher, IN_BOOKS, NOT_DELETED } from './vouchers'
 import { ledgerStatement } from './reports'
 import { tdsSuggestion } from './tds'
 import { getFeatures } from './config'
@@ -112,6 +112,80 @@ const coveredOn = (f: SupplierRow | undefined, billDate: string): boolean =>
 const billKey = (ledgerId: number, b: Pick<OutstandingBill, 'voucherId' | 'number'>): string => `${ledgerId}|${b.voucherId ?? 'open'}|${b.number}`
 
 // ---------------------------------------------------------------------------------------------
+// WP 2d — the day of acceptance (MSMED Act s.2(b) Explanation)
+// ---------------------------------------------------------------------------------------------
+
+/** The recorded acceptances of these bill vouchers (chunks of 500). A bill without one is accepted
+ *  on its own date, exactly as before. */
+export function msmeAcceptances(db: DB, voucherIds: readonly (number | null)[]): Map<number, MsmeAcceptance> {
+  const ids = [...new Set(voucherIds.filter((v): v is number => v != null))]
+  const out = new Map<number, MsmeAcceptance>()
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500)
+    for (const r of db
+      .prepare(`SELECT voucher_id AS voucherId, accepted_on AS acceptedOn, basis, note FROM msme_acceptance WHERE voucher_id IN (${chunk.map(() => '?').join(',')})`)
+      .all(...chunk) as MsmeAcceptance[]) out.set(r.voucherId, r)
+  }
+  return out
+}
+
+/** The day the s.15 period runs from: the bill's recorded acceptance, else its date. */
+const acceptedOnOf = (acc: Map<number, MsmeAcceptance>, b: { voucherId: number | null; date: string }): string =>
+  (b.voucherId != null ? acc.get(b.voucherId)?.acceptedOn : undefined) ?? b.date
+
+/** The day the supply was made, for whether the supplier was covered (registered) then: a recorded
+ *  delivery day, else the bill date — a removed objection is later than the supply (review of
+ *  #261; the reading is a CA point, `msme-acceptance-coverage`). */
+export const supplyDayOf = (acc: Map<number, MsmeAcceptance>, b: { voucherId: number | null; date: string }): string => {
+  const a = b.voucherId != null ? acc.get(b.voucherId) : undefined
+  return a?.basis === 'delivered' ? a.acceptedOn : b.date
+}
+
+/** How far a recorded day may be from the bill date (a slip in the year is refused). */
+const ACCEPTANCE_MAX_GAP_DAYS = 365
+
+/**
+ * Record (or clear) a bill's day of acceptance. MSMED Act 2006 s.2(b) Explanation: "the day of
+ * acceptance" means (a) "the day of the actual delivery of goods or the rendering of services", or
+ * (b) "where any objection is made in writing by the buyer regarding acceptance of goods or services
+ * within fifteen days from the day of the delivery of goods or the rendering of services, the day on
+ * which such objection is removed by the supplier"; "the day of deemed acceptance" — no written
+ * objection within fifteen days — is "the day of the actual delivery of goods or the rendering of
+ * services" (msmeSources.ts, the Gazette text). Only a bill voucher in the books that credits an
+ * MSME-registered supplier can carry one; the day can't be after today. Audited
+ * (`msme_acceptance`); the same answer writes nothing.
+ */
+export function setMsmeAcceptance(db: DB, raw: unknown, today: string = todayISO()): MsmeAcceptance | null {
+  const input = msmeAcceptanceSetSchema.parse(raw)
+  const voucher = db
+    .prepare(`SELECT v.id, v.date FROM vouchers v WHERE v.id = ? AND ${IN_BOOKS}`)
+    .get(input.voucherId) as { id: number; date: string } | undefined
+  if (!voucher) throw new Error('That bill is not in the books')
+  // A bill inside the locked period keeps its figures (s.43B(h), Form 1 and the year-end check of a
+  // closed / filed period would move otherwise).
+  const lock = getLockDate(db)
+  if (lock && voucher.date <= lock) throw new Error(`The books are locked up to ${lock} — this bill's MSME dates can't change`)
+  const supplier = db
+    .prepare(`SELECT 1 FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? AND vl.dr_cr = 'cr' AND l.msme_registered = 1`)
+    .get(input.voucherId)
+  if (!supplier) throw new Error('Only a bill from an MSME-registered supplier has a day of acceptance')
+  if (input.acceptedOn != null && input.acceptedOn > today) throw new Error('The day of acceptance cannot be after today')
+  if (input.acceptedOn != null && Math.abs(daysBetween(voucher.date, input.acceptedOn)) > ACCEPTANCE_MAX_GAP_DAYS)
+    throw new Error(`The day of acceptance must be within ${ACCEPTANCE_MAX_GAP_DAYS} days of the bill date (${voucher.date})`)
+  const before = msmeAcceptances(db, [input.voucherId]).get(input.voucherId) ?? null
+  const after: MsmeAcceptance | null = input.acceptedOn == null ? null : { voucherId: input.voucherId, acceptedOn: input.acceptedOn, basis: input.basis, note: input.note }
+  if (JSON.stringify(before) === JSON.stringify(after)) return after
+  if (after == null) db.prepare('DELETE FROM msme_acceptance WHERE voucher_id = ?').run(input.voucherId)
+  else
+    db.prepare(
+      `INSERT INTO msme_acceptance (voucher_id, accepted_on, basis, note) VALUES (?, ?, ?, ?)
+       ON CONFLICT (voucher_id) DO UPDATE SET accepted_on = excluded.accepted_on, basis = excluded.basis, note = excluded.note`
+    ).run(after.voucherId, after.acceptedOn, after.basis, after.note)
+  writeAudit(db, 'msme_acceptance', input.voucherId, before == null ? 'create' : after == null ? 'delete' : 'update', before, after)
+  return after
+}
+
+// ---------------------------------------------------------------------------------------------
 // Bank rate (s.16) — effective-dated, editable
 // ---------------------------------------------------------------------------------------------
 
@@ -187,11 +261,13 @@ export function payablesPlan(db: DB, asOn: string): PayablesPlan {
   const rates = listBankRates(db)
   const parties = outstandings(db, 'payable', asOn)
   const refs = referencesFor(db, parties.flatMap((p) => p.bills.map((b) => b.voucherId)))
+  const acc = msmeAcceptances(db, parties.flatMap((p) => p.bills.map((b) => b.voucherId)))
   const rows: PayablePlanRow[] = []
   for (const p of parties) {
     const f = facts.get(p.ledgerId)
     for (const b of p.bills) {
-      const s15 = coveredOn(f, b.date) ? s15Deadline(b.date, f!.msme!.agreedCreditDays) : null
+      const acceptedOn = acceptedOnOf(acc, b)
+      const s15 = coveredOn(f, supplyDayOf(acc, b)) ? s15Deadline(acceptedOn, f!.msme!.agreedCreditDays) : null
       const payBy = payByDate(b.date, b.dueDate, s15?.payBy ?? null)
       const interest = s15 && asOn >= s15.interestFrom ? s16Interest(b.pending, s15.interestFrom, asOn, rates).interestPaise : 0
       rows.push({
@@ -211,7 +287,8 @@ export function payablesPlan(db: DB, asOn: string): PayablesPlan {
         bucket: planBucket(payBy, asOn),
         daysToPay: daysToPay(payBy, asOn),
         discount: earlyDiscount(b.pending, b.date, f?.discount ?? null, asOn),
-        interestIndicative: interest
+        interestIndicative: interest,
+        acceptedOn
       })
     }
   }
@@ -582,14 +659,17 @@ function disallowanceForFy(db: DB, suppliers: SupplierRow[], fyStartYear: number
   const out: MsmeBill43Bh[] = []
   const carried = { bills: 0, amount: 0 }
   for (const s of suppliers) {
-    for (const b of bills(s.id, fy.to)) {
+    const yearBills = bills(s.id, fy.to)
+    const acc = msmeAcceptances(db, yearBills.map((b) => b.voucherId))
+    for (const b of yearBills) {
       if (b.voucherId == null || b.date < fy.from) {
         carried.bills++
         carried.amount += b.pending
         continue
       }
-      if (!coveredOn(s, b.date)) continue
-      const s15 = s15Deadline(b.date, s.msme!.agreedCreditDays)
+      const acceptedOn = acceptedOnOf(acc, b)
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
+      const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       let pendingAtPayBy: number | null = null
       if (s15.payBy > fy.to && s15.payBy < today) {
         const at = bills(s.id, s15.payBy).find((x) => billKey(s.id, x) === billKey(s.id, b))
@@ -604,7 +684,7 @@ function disallowanceForFy(db: DB, suppliers: SupplierRow[], fyStartYear: number
       )
       out.push({
         key: billKey(s.id, b), ledgerId: s.id, partyName: s.name, voucherId: b.voucherId, number: b.number, date: b.date,
-        payBy: s15.payBy, pendingAtFyEnd: b.pending, gstExcluded: b.pending - expensePending,
+        acceptedOn, payBy: s15.payBy, pendingAtFyEnd: b.pending, gstExcluded: b.pending - expensePending,
         status: res.status, disallowed: res.disallowed, atRisk: res.atRisk
       })
     }
@@ -631,15 +711,18 @@ export function msmeReport(
   for (const s of suppliers) {
     const open = bills(s.id, asOn)
     for (const [k, v] of referencesFor(db, open.map((b) => b.voucherId))) refs.set(k, v)
+    const acc = msmeAcceptances(db, open.map((b) => b.voucherId))
     for (const b of open) {
-      if (!coveredOn(s, b.date)) continue
-      const s15 = s15Deadline(b.date, s.msme!.agreedCreditDays)
+      const acceptedOn = acceptedOnOf(acc, b)
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
+      const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       const { bucket, daysLate } = msmeAgeBucket(s15.payBy, asOn)
       const i = s16Interest(b.pending, s15.interestFrom, asOn, rates)
       rows.push({
         key: billKey(s.id, b), ledgerId: s.id, partyName: s.name, category: s.msme!.category!, udyamNo: s.msme!.udyamNo, pan: s.pan,
         voucherId: b.voucherId, number: b.number, supplierRef: b.voucherId != null ? (refs.get(b.voucherId) ?? null) : null,
-        date: b.date, amount: b.amount, pending: b.pending, s15, bucket, daysLate, ageDays: Math.max(0, daysBetween(b.date, asOn)),
+        date: b.date, amount: b.amount, pending: b.pending, s15, bucket, daysLate,
+        acceptedOn, acceptance: b.voucherId != null ? (acc.get(b.voucherId) ?? null) : null, ageDays: Math.max(0, daysBetween(b.date, asOn)),
         interest: { paise: i.interestPaise, rateBp: i.rateBp, months: i.months, days: i.days }
       })
     }
@@ -655,15 +738,17 @@ export function msmeReport(
   for (const s of suppliers) {
     const open = bills(s.id, period.to)
     const formRefs = referencesFor(db, open.map((b) => b.voucherId))
+    const acc = msmeAcceptances(db, open.map((b) => b.voucherId))
     for (const b of open) {
-      if (!coveredOn(s, b.date)) continue
-      const days = daysBetween(b.date, period.to)
+      const acceptedOn = acceptedOnOf(acc, b)
+      if (!coveredOn(s, supplyDayOf(acc, b))) continue
+      const days = daysBetween(acceptedOn, period.to)
       if (days <= FORM_MSME1_DAYS) continue
-      const s15 = s15Deadline(b.date, s.msme!.agreedCreditDays)
+      const s15 = s15Deadline(acceptedOn, s.msme!.agreedCreditDays)
       formRows.push({
         ledgerId: s.id, partyName: s.name, pan: s.pan, udyamNo: s.msme!.udyamNo, category: s.msme!.category!,
         voucherId: b.voucherId, number: b.number, supplierRef: b.voucherId != null ? (formRefs.get(b.voucherId) ?? null) : null,
-        date: b.date, amount: b.amount, pending: b.pending, dueFrom: s15.interestFrom, days
+        date: b.date, acceptedOn, amount: b.amount, pending: b.pending, dueFrom: s15.interestFrom, days
       })
     }
   }
@@ -714,7 +799,10 @@ function form1Supplier(
     outstandingUpTo45: 0, outstandingOver45: 0
   }
   const { events, creditDays } = partyBillEvents(db, s.id, to)
-  const timeline = settlementTimeline(events, to, creditDays, from).filter((x) => x.date >= from && x.date <= to && coveredOn(s, x.billDate))
+  const all = settlementTimeline(events, to, creditDays, from)
+  const acc = msmeAcceptances(db, all.map((x) => x.billVoucherId))
+  const acceptedOf = (x: { billVoucherId: number | null; billDate: string }): string => acceptedOnOf(acc, { voucherId: x.billVoucherId, date: x.billDate })
+  const timeline = all.filter((x) => x.date >= from && x.date <= to && coveredOn(s, supplyDayOf(acc, { voucherId: x.billVoucherId, date: x.billDate })))
   const kinds = new Map<number, string>()
   const ids = [...new Set(timeline.map((x) => x.byVoucherId).filter((v): v is number => v != null))]
   for (let i = 0; i < ids.length; i += 500) {
@@ -733,7 +821,7 @@ function form1Supplier(
       continue
     }
     paid.add(x.billKey)
-    if (daysBetween(x.billDate, x.date) > FORM_MSME1_DAYS) {
+    if (daysBetween(acceptedOf(x), x.date) > FORM_MSME1_DAYS) {
       out.paidAfter45.amount += x.amount
       late.add(x.billKey)
     } else out.paidWithin45.amount += x.amount
@@ -741,9 +829,12 @@ function form1Supplier(
   out.paidAfter45.count = late.size
   out.paidWithin45.count = [...paid].filter((k) => !late.has(k)).length
   out.debitNotes.count = dn.size
-  for (const b of bills(s.id, to)) {
-    if (!coveredOn(s, b.date)) continue
-    if (daysBetween(b.date, to) > FORM_MSME1_DAYS) out.outstandingOver45 += b.pending
+  const open = bills(s.id, to)
+  const openAcc = msmeAcceptances(db, open.map((b) => b.voucherId))
+  for (const b of open) {
+    const acceptedOn = acceptedOnOf(openAcc, b)
+    if (!coveredOn(s, supplyDayOf(openAcc, b))) continue
+    if (daysBetween(acceptedOn, to) > FORM_MSME1_DAYS) out.outstandingOver45 += b.pending
     else out.outstandingUpTo45 += b.pending
   }
   return out
@@ -767,7 +858,7 @@ export function msmeForm1Csv(db: DB, opts: { asOn: string; formPeriodDate?: stri
     'Invoice amount', 'Amount due', 'Date from which due', 'Days outstanding', 'Reason for delay'
   ]
   const rows = r.form1.rows.map((x) => [
-    r.form1.period.label, x.partyName, x.pan ?? '', x.udyamNo ?? '', x.category, x.supplierRef ?? x.number, x.number, x.date,
+    r.form1.period.label, x.partyName, x.pan ?? '', x.udyamNo ?? '', x.category, x.supplierRef ?? x.number, x.number, x.acceptedOn,
     plainRupees(x.amount), plainRupees(x.pending), x.dueFrom, String(x.days), ''
   ])
   const csv = `${rowsToCsv(formHeader, formRows)}\r\n${rowsToCsv(header, rows).replace(/^\uFEFF/, '')}`

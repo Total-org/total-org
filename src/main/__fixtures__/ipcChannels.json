@@ -365,6 +365,7 @@
  { "channel": "payables:bankRateSave", "role": "owner", "ungated": false, "capability": null },
  { "channel": "payables:bankRates", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "payables:createRun", "role": "accountant", "ungated": false, "capability": "canPost" },
+ { "channel": "payables:msmeAcceptanceSet", "role": "accountant", "ungated": false, "capability": null },
  { "channel": "payables:msmeDue", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "payables:msmeForm1Csv", "role": "viewer", "ungated": false, "capability": "canExport" },
  { "channel": "payables:msmeReport", "role": "viewer", "ungated": false, "capability": null },

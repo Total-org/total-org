@@ -35,7 +35,7 @@ import { openingDateOf } from './openingBills'
 import { listGroups, partyGroupIdsBySide } from './masters'
 import { pendingOrders, pendingStockNotes } from './tradeReports'
 import { statutoryDues } from './payrollStatutory'
-import { listBankRates } from './payables'
+import { listBankRates, msmeAcceptances, supplyDayOf } from './payables'
 import { daysBetween, isMsmeCovered, s15Deadline, s16Interest, type MsmeCategory } from '@shared/payables/msme'
 import { IN_BOOKS, NOT_DELETED } from './vouchers'
 import { addDays } from './cashFinanceCommon'
@@ -327,11 +327,14 @@ export function withMsmeFacts(db: DB, bills: readonly OpenBillInput[], flows: Fo
   const rates = listBankRates(db)
   // payableFlows maps the bills with pending > 0 one to one, in order.
   const open = bills.filter((b) => b.pending > 0)
+  // WP 2d: the s.15 period runs from the bill's recorded day of acceptance, else its date.
+  const acc = msmeAcceptances(db, open.filter((b) => terms.has(b.ledgerId)).map((b) => b.voucherId))
   return flows.map((f, i) => {
     const b = open[i]
     const t = b ? terms.get(b.ledgerId) : undefined
-    if (!b || !t || (t.registeredFrom != null && b.date < t.registeredFrom)) return f
-    const s15 = s15Deadline(b.date, t.agreedDays)
+    const acceptedOn = b ? ((b.voucherId != null ? acc.get(b.voucherId)?.acceptedOn : undefined) ?? b.date) : ''
+    if (!b || !t || (t.registeredFrom != null && supplyDayOf(acc, b) < t.registeredFrom)) return f
+    const s15 = s15Deadline(acceptedOn, t.agreedDays)
     const interestPaise = asOn >= s15.interestFrom ? s16Interest(b.pending, s15.interestFrom, asOn, rates).interestPaise : 0
     return { ...f, msme: { payBy: s15.payBy, daysLate: Math.max(0, daysBetween(s15.payBy, asOn)), interestPaise, pending: b.pending } }
   })

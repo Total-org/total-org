@@ -442,6 +442,16 @@ export const CA_POINTS = [
     places: ['payables.msme']
   },
   {
+    // WP 2d (review of #261): with a recorded day of acceptance, whether a supplier was covered
+    // (registered) is judged on the day of SUPPLY — a recorded delivery day, else the bill date;
+    // a removed objection never brings an earlier supply in. Not read in a judgment or official text.
+    id: 'msme-acceptance-coverage',
+    rule: 'MSMED Act s.2(b) Explanation, s.2(n), s.15 — day of acceptance; registration before the supply',
+    covers: [],
+    questions: [54],
+    places: ['payables.msme']
+  },
+  {
     id: 'msme-form1-udyam',
     rule: 'MSME Form 1 (MSMED Act s.9); Udyam registration number',
     covers: [],

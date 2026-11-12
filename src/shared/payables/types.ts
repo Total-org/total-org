@@ -41,6 +41,19 @@ export interface PayablePlanRow {
   discount: { by: string; bp: number; paise: number; available: boolean } | null
   /** Indicative s.16 interest accrued to the plan date (micro / small, past the deadline). */
   interestIndicative: number
+  /** The day of acceptance the s.15 period runs from: the recorded one, else the bill date. */
+  acceptedOn: string
+}
+
+/** WP 2d — a bill's recorded day of acceptance (MSMED Act s.2(b) Explanation); none = the bill date. */
+export type MsmeAcceptanceBasis = 'delivered' | 'objection_removed'
+export interface MsmeAcceptance {
+  voucherId: number
+  acceptedOn: string
+  /** delivered = the day goods were delivered / services rendered (Explanation (i)(a), (ii));
+   *  objection_removed = the day the supplier removed a written objection made within 15 days ((i)(b)). */
+  basis: MsmeAcceptanceBasis
+  note: string
 }
 
 export interface PlanCashLedger {
@@ -116,7 +129,11 @@ export interface MsmeBillRow {
   s15: S15Deadline
   bucket: MsmeAgeBucket
   daysLate: number
-  /** Days since acceptance (bill date) as on the report date. */
+  /** The day of acceptance the s.15 period runs from: the recorded one, else the bill date. */
+  acceptedOn: string
+  /** The recorded acceptance, when there is one (WP 2d). */
+  acceptance: MsmeAcceptance | null
+  /** Days since the bill date as on the report date. */
   ageDays: number
   interest: { paise: number; rateBp: number | null; months: number; days: number }
 }
@@ -128,6 +145,8 @@ export interface MsmeBill43Bh {
   voucherId: number | null
   number: string
   date: string
+  /** The day of acceptance the s.15 period runs from (recorded, else the bill date). */
+  acceptedOn: string
   payBy: string
   pendingAtFyEnd: number
   /** GST on the bill credited as input tax (ITC) — not an expense, so out of the figure (pro rata). */
@@ -146,8 +165,10 @@ export interface MsmeFormRow {
   voucherId: number | null
   number: string
   supplierRef: string | null
-  /** Date of acceptance (bill date). */
+  /** The bill date. */
   date: string
+  /** The day of acceptance (WP 2d: recorded, else the bill date) — the CSV's "Date of acceptance". */
+  acceptedOn: string
   amount: number
   /** Outstanding at the half-year end. */
   pending: number
