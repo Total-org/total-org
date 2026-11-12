@@ -79,6 +79,8 @@ export interface CarryContext {
   openBills: ReadonlyMap<number, readonly MoneyOpenBill[]>
   /** The bill a return is made against (simplePost.loadOriginal). */
   original: IntentOriginal | null
+  /** Phase 5 (Made goods): the recipe version in force for a product on a date (null = none). */
+  recipeVersion?: (itemId: number, date: string) => number | null
 }
 
 export interface CarryInput<F extends CarryFlow = CarryFlow> {
@@ -179,7 +181,7 @@ function carry(input: CarryInput, ctx: CarryContext, dropped: Dropped): CarryFor
       return counted(input as CarryInput<'simple-stock-count'>, dropped)
     case 'simple-made-goods':
       if (current.form !== 'manufacture') return refuse('form')
-      return made(input as CarryInput<'simple-made-goods'>, dropped)
+      return made(input as CarryInput<'simple-made-goods'>, ctx, dropped)
   }
 }
 
@@ -823,7 +825,7 @@ function counted(input: CarryInput<'simple-stock-count'>, dropped: Dropped): Cou
 /** The manufacture editor → Made goods. The simple form always uses the recipe in force, so an
  *  entry whose materials were typed by hand (the editor stops following its recipe), exploded
  *  otherwise, with by-products or as job work can't come back. */
-function made(input: CarryInput<'simple-made-goods'>, dropped: Dropped): MakeForm {
+function made(input: CarryInput<'simple-made-goods'>, ctx: CarryContext, dropped: Dropped): MakeForm {
   const o = (input.original as Make).state
   const c = (input.current as Make).state
   const ref: ManufactureFormState = (dropped.ref as Make).state
@@ -831,8 +833,12 @@ function made(input: CarryInput<'simple-made-goods'>, dropped: Dropped): MakeFor
   if (c.finishedItemId == null || c.jobWork != null) return refuse('lines')
   if ((c.byProducts ?? []).some((b) => b.itemId != null)) return refuse('lines')
   if (c.bomVersionId == null || (c.bomExploded ?? false) !== (o.bomExploded ?? false)) return refuse('lines')
-  // Another recipe picked by hand on the same date (the form takes the one in force).
-  if (c.bomVersionId !== o.bomVersionId && c.date === o.date && c.finishedItemId === o.finishedItemId) return refuse('lines')
+  // The form posts the recipe in force for its product and date; the editor keeps the version it
+  // opened with (or one picked by hand). Same product and date: it must be that version; another
+  // date / product: it must be the one in force then (else the preview would differ from the editor).
+  const same = c.date === o.date && c.finishedItemId === o.finishedItemId
+  const inForce = same ? o.bomVersionId : (ctx.recipeVersion?.(c.finishedItemId, c.date) ?? null)
+  if (inForce == null || c.bomVersionId !== inForce) return refuse('lines')
   dropped.add('number', c.number.trim() !== '' && c.number.trim() !== ref.number.trim())
   dropped.add('note', c.narration.trim() !== ref.narration.trim())
   dropped.add('godowns', (c.godownId ?? null) !== (ref.godownId ?? null))

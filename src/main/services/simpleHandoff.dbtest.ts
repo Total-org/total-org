@@ -447,20 +447,23 @@ describe('simple:carryBack — the unsaved editor\'s changes back into the simpl
 })
 
 describe('Phase 5 — the two-step hand-off: the money paid now after the bill is saved', () => {
-  /** Step 1: the bill saved in its editor; step 2: the follow-up the banner opens (followUpIntent →
-   *  simple:intentForm, no trace) saved in ITS editor — together = what simple:post saves. */
-  function twoStepsAsPosted(i: Record<string, unknown>, partyName: string): void {
+  const othersOf = (hf: ReturnType<typeof intentForm>) => hf.entries.slice(1).map((e) => ({ role: e.role, kind: e.kind, amount: e.amount }))
+  /** The second step as the banner builds it: simple:handoffTarget's `open` facts → followUpIntent
+   *  (null = no step; undefined = the entry is not in the books). */
+  function nextStep(hf: ReturnType<typeof intentForm>, sent: Record<string, unknown>, savedId: number) {
+    const v = handoffFacts(db, { voucherId: savedId, open: true }).voucher
+    if (!v) return undefined
+    return followUpIntent({ kind: hf.kind, intent: sent as never, others: othersOf(hf) }, { voucherId: savedId, date: v.date!, partyId: v.partyId ?? null, open: v.open ?? null })
+  }
+  /** Step 1: the bill / note saved in its editor; step 2: the follow-up the banner opens
+   *  (simple:intentForm, no trace) saved in ITS editor — together = what simple:post saves. */
+  function twoStepsAsPosted(i: Record<string, unknown>): void {
     const sent = intent(i)
     const hf = intentForm(db, INFO, sent, TODAY)
     expect(hf.entries).toHaveLength(2)
     const viaEditors = rehearse(db, () => {
       const billId = editorSave(hf.entries[0]!)
-      const bill = getVoucher(db, billId)!
-      const partyId = bill.partyLedgerId ?? L(partyName)
-      const next = followUpIntent(
-        { kind: hf.kind, intent: sent as never, others: hf.entries.slice(1).map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })) },
-        { voucherId: billId, date: bill.date, partyId, openBills: moneyBills(db, partyId, bill.date) }
-      )
+      const next = nextStep(hf, sent, billId)
       if (!next) throw new Error('no second step')
       const before = trace()
       const step2 = intentForm(db, INFO, intent(next), TODAY)
@@ -471,35 +474,65 @@ describe('Phase 5 — the two-step hand-off: the money paid now after the bill i
     const out = post(i)
     expect(out.voucherIds.map((id) => rows(id))).toEqual(viaEditors)
   }
+  const saleOf = (amount: string) => post({ kind: 'sale', customerId: L('Ramesh'), amount: { amount, gstRate: 0 }, payment: { how: 'cash' } }).voucherIds[0]!
 
   it('a sale part paid by UPI: the receipt against the saved bill for what was paid', () => {
-    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '2', rate: '500' }], payment: { how: 'upi', amount: '500' } }, 'Ramesh')
+    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '2', rate: '500' }], payment: { how: 'upi', amount: '500' } })
   })
 
   it('a just-an-amount sale paid in full in cash', () => {
-    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '2000', gstRate: 18 }, payment: { how: 'cash' } }, 'Ramesh')
+    twoStepsAsPosted({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '2000', gstRate: 18 }, payment: { how: 'cash' } })
   })
 
   it('a purchase with the supplier bill number, paid in full from the bank', () => {
-    twoStepsAsPosted({ kind: 'purchase', supplierId: L('Bharat Steel'), billNo: 'BS/77', items: [{ itemId: I('Flour'), qty: '10', rate: '40' }], payment: { how: 'bank', reference: 'UTR123' } }, 'Bharat Steel')
+    twoStepsAsPosted({ kind: 'purchase', supplierId: L('Bharat Steel'), billNo: 'BS/77', items: [{ itemId: I('Flour'), qty: '10', rate: '40' }], payment: { how: 'bank', reference: 'UTR123' } })
   })
 
   it('a purchase return refunded by bank: the money in from the supplier', () => {
     const bill = post({ kind: 'purchase', supplierId: L('Bharat Steel'), billNo: 'BS/55', amount: { amount: '1000', accountId: L('Purchases') }, payment: { how: 'bank' } })
-    twoStepsAsPosted({ kind: 'return_purchase', billId: bill.voucherIds[0]!, amount: { amount: '100' }, refund: { how: 'bank' } }, 'Bharat Steel')
+    twoStepsAsPosted({ kind: 'return_purchase', billId: bill.voucherIds[0]!, amount: { amount: '100' }, refund: { how: 'bank' } })
   })
 
-  it('nothing is offered once the saved bill is settled another way', () => {
-    const sent = intent({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '1000', gstRate: 0 }, payment: { how: 'cash' } })
+  it('review: a sale return refunded in cash to a customer holding an EARLIER advance — the refund is set against the note’s own credit, not the advance', () => {
+    post({ kind: 'money_in', customerId: L('Ramesh'), amount: '300', into: { how: 'cash' }, advance: true })
+    const bill = saleOf('1000')
+    twoStepsAsPosted({ kind: 'return_sale', billId: bill, amount: { amount: '100' }, refund: { how: 'cash' } })
+  })
+
+  it('review: the note lowered in the editor (₹500 asked, ₹100 saved) — the refund offered is ₹100, never ₹500', () => {
+    const bill = saleOf('1000')
+    const sent = intent({ kind: 'return_sale', billId: bill, amount: { amount: '500' }, refund: { how: 'cash' } })
+    const hf = intentForm(db, INFO, sent, TODAY)
+    expect(hf.entries[1]!.amount).toBe(50_000)
+    rehearse(db, () => {
+      const note = hf.entries[0]!
+      if (note.form !== 'accounting') throw new Error('accounting form')
+      // ₹500 → ₹100 on every line of the note (a 0 % amount return: party Cr, sales return Dr).
+      const lowered = { ...note, state: { ...note.state, rows: note.state.rows.map((r) => ({ ...r, amount: 10_000 })), billRefs: note.state.billRefs.map((r) => ({ ...r, amount: 10_000 })) } } as HandoffEntry
+      const noteId = editorSave(lowered)
+      const next = nextStep(hf, sent, noteId)
+      expect(next).toMatchObject({ kind: 'money_out', amount: 10_000, customerId: L('Ramesh'), bills: [{ amount: 10_000 }] })
+      const pay = intentForm(db, INFO, intent(next!), TODAY).entries[0]!
+      expect(pay.state).toMatchObject({ rows: expect.arrayContaining([expect.objectContaining({ ledgerId: L('Ramesh'), drCr: 'dr', amount: 10_000 })]) })
+    })
+  })
+
+  it('review: an undone (binned) note or bill offers no step; one settled another way offers nothing', () => {
+    const bill = saleOf('1000')
+    const sent = intent({ kind: 'return_sale', billId: bill, amount: { amount: '100' }, refund: { how: 'cash' } })
     const hf = intentForm(db, INFO, sent, TODAY)
     rehearse(db, () => {
-      const billId = editorSave(hf.entries[0]!)
+      const noteId = editorSave(hf.entries[0]!)
+      expect(nextStep(hf, sent, noteId)).toMatchObject({ amount: 10_000 })
+      db.prepare("UPDATE vouchers SET deleted_at = datetime('now') WHERE id = ?").run(noteId)
+      expect(nextStep(hf, sent, noteId)).toBeUndefined()
+    })
+    const sale = intent({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: '1000', gstRate: 0 }, payment: { how: 'cash' } })
+    const sf = intentForm(db, INFO, sale, TODAY)
+    rehearse(db, () => {
+      const billId = editorSave(sf.entries[0]!)
       post({ kind: 'money_in', customerId: L('Ramesh'), amount: '1000', into: { how: 'cash' } })
-      const next = followUpIntent(
-        { kind: hf.kind, intent: sent as never, others: hf.entries.slice(1).map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })) },
-        { voucherId: billId, date: TODAY, partyId: L('Ramesh'), openBills: moneyBills(db, L('Ramesh'), TODAY) }
-      )
-      expect(next).toBeNull()
+      expect(nextStep(sf, sale, billId)).toBeNull()
     })
   })
 })
@@ -550,6 +583,20 @@ describe('Phase 5 — Count your stock / Made goods carried back from the full e
     expect(trace()).toEqual(before)
     const byHand = { ...original, state: { ...s, bomVersionId: null, rows: [{ itemId: I('Flour'), qtyText: '7', godownId: null }] } } as HandoffEntry
     expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: byHand, base }, TODAY)).toEqual({ ok: false, reason: 'lines' })
+  })
+
+  it('review: made goods on another date carry back only while the recipe the editor shows is the one in force then', () => {
+    setBom(db, { itemId: I('Bread'), lines: [{ componentId: I('Flour'), qtyMilliPerUnit: 500 }] })
+    const base: MakeForm = { date: TODAY, itemId: I('Bread'), qtyText: '10', price: 5000, labour: null, labourRecorded: null }
+    const sent = intent({ kind: 'make_goods', date: TODAY, itemId: I('Bread'), qty: '10', price: 5000 })
+    const original = intentForm(db, INFO, sent, TODAY).entries[0]!
+    const s = original.state as ManufactureFormState
+    // One recipe for every date: another date carries back.
+    const moved = { ...original, state: { ...s, date: '2025-08-10' } } as HandoffEntry
+    expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: moved, base }, TODAY)).toEqual({ ok: true, dropped: [], form: { ...base, date: '2025-08-10' } })
+    // The editor keeps showing a version that is not the one in force on its date: refused.
+    const pinnedOther = { ...original, state: { ...s, date: '2025-08-10', bomVersionId: (s.bomVersionId ?? 0) + 999 } } as HandoffEntry
+    expect(carryBackForm(db, INFO, { flow: 'simple-made-goods', intent: sent, original, current: pinnedOther, base }, TODAY)).toEqual({ ok: false, reason: 'lines' })
   })
 })
 

@@ -168,10 +168,13 @@ describe('Phase 5: the two-step hand-off (a payment made now)', () => {
   it('after the bill saves, "one more step" opens the receipt editor pre-filled against that bill', async () => {
     ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' })]
     const intentForms: unknown[] = []
+    let undone = false
     const base = invoke.getMockImplementation()!
     invoke.mockImplementation(async (channel: string, payload?: unknown) => {
-      if (channel === 'voucher:get') return { ok: true, data: { id: 99, date: '2026-10-14', number: '1', partyLedgerId: 40 } }
-      if (channel === 'simple:money:bills') return { ok: true, data: [{ name: '1', date: '2026-10-14', pending: 30_000, voucherId: 99, dueDate: null, overdueDays: 0 }] }
+      if (channel === 'simple:handoffTarget') {
+        expect(payload).toEqual({ voucherId: 99, open: true })
+        return { ok: true, data: undone ? {} : { voucher: { id: 99, kind: 'sales', originalId: null, date: '2026-10-14', partyId: 40, open: { name: '1', amount: 30_000 } } } }
+      }
       if (channel === 'simple:intentForm') {
         intentForms.push((payload as { intent: unknown }).intent)
         return { ok: true, data: { kind: 'money_in', missing: [], entries: [{ role: 'money', kind: 'receipt', voucherTypeId: 2, form: 'accounting', amount: 10_000, state: { date: '2026-10-14', number: '', rows: [], narration: '', instrumentNo: '', billRefs: [], advanceReceipt: false, optional: false, tds: null, original: null } }] } }
@@ -206,5 +209,15 @@ describe('Phase 5: the two-step hand-off (a payment made now)', () => {
     const top = useNav.getState().stack
     expect(top).toHaveLength(3)
     expect(top.at(-1)).toMatchObject({ name: 'voucher-entry', handoff: { from: 'simple-money-in', kind: 'money_in', afterBill: '1', others: [] } })
+    // Review: a bill undone meanwhile (binned) offers no step — it says so instead.
+    cleanup()
+    undone = true
+    saved.length = 0
+    renderHandoff(handoff)
+    await waitFor(() => expect((screen.getAllByTestId('input-line-qty')[0] as HTMLInputElement).value).toBe('3'), { timeout: 3000 })
+    await act(async () => fireEvent.click(screen.getByTestId('btn-save-voucher')))
+    await act(async () => fireEvent.click(await screen.findByTestId('btn-handoff-next')))
+    await waitFor(() => expect(screen.queryByTestId('handoff-next')).toBeNull())
+    expect(intentForms).toHaveLength(1)
   })
 })

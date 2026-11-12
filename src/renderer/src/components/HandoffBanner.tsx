@@ -70,19 +70,19 @@ export function HandoffNextStep({ handoff, savedId }: { handoff: SimpleHandoff; 
     if (busy) return
     setBusy(true)
     try {
-      const v = await api.vouchers.get(savedId)
-      if (!v) {
+      // The saved entry as the books hold it now: undone (binned) → no step; else what is still open.
+      const v = (await api.simple.handoffTarget({ voucherId: savedId, open: true })).voucher
+      if (!v || v.date == null) {
         setDone(true)
-        return void toast.push('info', t('simple.handoff.nothingLeft'))
+        return void toast.push('info', t('simple.handoff.undone'))
       }
-      const partyId = v.partyLedgerId ?? intentParty(handoff)
-      const openBills = partyId != null ? await api.simpleMoney.bills(partyId, v.date) : []
-      const intent = followUpIntent(handoff, { voucherId: savedId, date: v.date, partyId, openBills })
+      const partyId = v.partyId ?? intentParty(handoff)
+      const intent = followUpIntent(handoff, { voucherId: savedId, date: v.date, partyId, open: v.open ?? null })
       if (!intent) {
         setDone(true)
         return void toast.push('info', t('simple.handoff.nothingLeft'))
       }
-      const bill = openBills.find((b) => b.voucherId === savedId)?.name ?? v.number
+      const bill = v.open?.name ?? ''
       const blank: Screen = { name: 'voucher-entry', kindHint: part.kind }
       await openHandoff({
         from: INTENT_SCREEN[intent.kind] as Screen['name'],
