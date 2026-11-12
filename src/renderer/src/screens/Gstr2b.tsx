@@ -272,7 +272,7 @@ export function Gstr2bScreen(): React.JSX.Element {
     if (month && data.period && data.period !== month.period) {
       toast.push('warning', `The JSON is for period ${data.period}, but ${month.label} is selected — showing figures for the selected month`)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- warn once per loaded file; the month is read at that moment
   }, [data, imported])
 
   // WP 5.5: keep a copy of the imported statement for the GST 2B assistant (Analysis →
@@ -319,7 +319,7 @@ export function Gstr2bScreen(): React.JSX.Element {
   const result = data?.result
   const pairs = useMemo(() => result?.pairs.filter((p) => p.bucket === bucket) ?? [], [result, bucket])
   // createPurchase reads nav + the ledger list — rebuild the columns only when ledgers load.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- see the comment above
   const columns = useMemo(() => pairColumns(createPurchase), [ledgers])
 
   if (!month) {

@@ -61,7 +61,7 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
   const { months, month, monthKey, setMonthKey } = useMonth('previous')
   useEffect(() => {
     if (initialPeriod && months.some((m) => m.key === initialPeriod)) setMonthKey(initialPeriod)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apply the linked period once the month list has it; setMonthKey is the month hook's setter
   }, [initialPeriod])
   const period = month?.key ?? monthKey
   useAiScreenContext('checks', { tab: 'gst2b', period })

@@ -982,7 +982,7 @@ export function registerIpc(): void {
 
   handle('company:revealExports', () => {
     const c = requireCompany()
-    shell.openPath(companyExportsDir(c.slug))
+    void shell.openPath(companyExportsDir(c.slug))
     return null
   })
 

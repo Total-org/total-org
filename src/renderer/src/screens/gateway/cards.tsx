@@ -289,7 +289,7 @@ export function ComplianceCard({
       // Fire-and-forget: an OS notification failing is not worth interrupting the Gateway for.
       void api.app.notifyDeadlines(soon.map((d) => ({ title: d.form, body: `${d.title} — due ${toDisplayDate(d.date)}` }))).catch(() => {})
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- notify once per data change; tds?.state stands for tds
   }, [info, slug, hasPayroll, dashboardLoaded, tds?.state, deductedKnown])
 
   const combined: CardState<{ gst: DashGst | null | string; tds: DashTds | null | string }> =

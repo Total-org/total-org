@@ -272,6 +272,7 @@ export function ChequeBackfillModal({ bankLedgerId, bankName, onClose, onFilled 
     queryFn: () => bankingApi.cheques.backfillPreview(bankLedgerId, includeOutside)
   })
   const [unpicked, setUnpicked] = useState<Set<number>>(new Set())
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
   const rows = data?.rows ?? []
   const picked = useMemo(() => new Set(rows.map((r) => r.voucherId).filter((id) => !unpicked.has(id))), [rows, unpicked])
   const toggle = (id: number): void =>

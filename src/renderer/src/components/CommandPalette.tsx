@@ -199,6 +199,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
         }
       }
     ]
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- clearCompany kept so the command list rebuilds with the session
   }, [nav, toast, clearCompany])
 
   const matching = useMemo(() => {

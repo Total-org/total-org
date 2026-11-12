@@ -87,6 +87,7 @@ function HelpDrawer({ context }: { context: HelpArticleId }): React.JSX.Element 
   const langReady = useHelpLanguage(language)
   const allReady = useHelpLanguage(language, searching)
   const article = articleId ? HELP.article(articleId, language) : null
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- allReady / langReady are the trigger: re-search once the articles arrive
   const hits = useMemo(() => (searching ? HELP.search(query, language, 10) : []), [searching, query, language, allReady, langReady])
 
   useEffect(() => {

@@ -112,7 +112,7 @@ export function Gateway(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [nav, shortcuts, features.inventory, features.orders])
+  }, [nav, shortcuts, features.inventory, features.orders, features.manufacturing])
 
   const [backingUp, setBackingUp] = useState(false)
   const backupNow = async (): Promise<void> => {

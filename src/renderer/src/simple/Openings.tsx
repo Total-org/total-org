@@ -161,7 +161,7 @@ function OpeningsFlow({ state }: { state: OpeningsState }): React.JSX.Element {
       live = false
       clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- payloadKey stands for the payload's content
   }, [last, payloadKey, done])
 
   const next = (): void => {

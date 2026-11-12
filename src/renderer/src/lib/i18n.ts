@@ -211,5 +211,6 @@ export function useT(): Translate {
   // A new `t` once the catalogue arrives (a late load after a timed-out first paint), so memos
   // keyed on `t` (kit labels, column lists) re-run instead of keeping the English fallback.
   const loaded = isCatalogueLoaded(language)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loaded is the trigger: a new t once the catalogue arrives (see above)
   return useMemo<Translate>(() => translator(language), [language, loaded])
 }

@@ -141,7 +141,7 @@ export function useTableView<Row>(
   const defaultsSig = JSON.stringify(options.defaults ?? {})
   const defaults = useMemo(
     () => defaultView(columnsRef.current, options.defaults),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- colSig / defaultsSig stand for the columns' and defaults' content
     [colSig, defaultsSig]
   )
   const legacyMapRef = useRef(options.legacyIdMap)

@@ -90,7 +90,7 @@ export function CategoriseModal({ bankLedgerId, onClose, onDone }: { bankLedgerI
           )
         }
       ]),
-    [edits] // eslint-disable-line react-hooks/exhaustive-deps
+    [edits] // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: rebuilt only when the edits change (behaviour kept, A11)
   )
 
   const accept = async (only: StatementCategoryRow[]): Promise<void> => {
