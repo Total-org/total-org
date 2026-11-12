@@ -48,7 +48,7 @@ release until the version is bumped.
 Back up before you open an existing company in a newer build. Database updates run on first open and
 there is no downgrade; restore the backup instead. Details: [CHANGELOG.md](CHANGELOG.md).
 
-**Windows**: run `Total-Setup-<version>.exe` from the release (installs for you only, no
+**Windows (preview)** — tested by CI on every change, little real-PC use yet: run `Total-Setup-<version>.exe` from the release (installs for you only, no
 administrator password). It is not code-signed yet, so Windows may show "Windows protected your PC":
 choose **More info → Run anyway**. Your books live in `Documents\total`. What is verified on Windows
 and what differs: [docs/windows.md](docs/windows.md).

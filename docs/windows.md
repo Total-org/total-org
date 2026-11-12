@@ -1,8 +1,9 @@
 # Total on Windows (WP 7.3)
 
 Total ships a Windows build (NSIS installer, `Total-Setup-<version>.exe`) from the same sources as
-the macOS app. This page lists what is verified on Windows, how to run the tests there, and what
-differs from macOS. The user-facing version is the in-app help article **Total on Windows**
+the macOS app. It is labelled a **preview** in the app, the help, the README and on the site
+(Phase 6): CI runs it on every change, but it has had little use on real PCs. This page lists what is verified on Windows, how to run the tests there, and what
+differs from macOS. The user-facing version is the in-app help article **Total on Windows (preview)**
 (`src/renderer/src/help/{en,hi,hinglish}/windows.md`).
 
 ## Verification matrix

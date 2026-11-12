@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Hindi and Hinglish say "beta"; Windows says "preview"** (#264, Phase 6 prep). The language pickers
+(first-run setup, How Total looks in both modes) now show "हिन्दी (beta)" and "Hinglish (beta)" —
+in Hindi, "(बीटा)" — because a native speaker has not reviewed the text yet. Windows is called a
+preview in its help page, Settings → About (and, on Windows, simple Settings → Backups), the
+README and on the website: it is tested automatically on every change, but few people have used it
+on real computers yet. The reminder's message-language picker marks Hindi and Hinglish beta too.
+
 **A warning when several lines share one guessed GST rate** (#265, WP 2d). On a bill typed as amounts,
 a sales line whose account has no GST rate takes its rate from the GST the bill posts. When several
 such lines share one bill, they all get one rate. If they were really at different rates (say 5 % and

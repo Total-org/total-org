@@ -17,6 +17,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'common.save': 'सेव करें',
   'common.saveShortcut': 'सेव करें ⌘↵',
   'common.cancel': 'रद्द करें',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (बीटा)',
   'common.back': 'पीछे',
   'common.next': 'आगे',
   'common.done': 'हो गया',
@@ -1614,6 +1616,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.backups.whereHint': 'बैकअप आपके Total फ़ोल्डर (Documents → total) में रखे जाते हैं। एक कॉपी सुरक्षित रखने के लिए उसे खोलें और बैकअप पेन ड्राइव या क्लाउड फ़ोल्डर में कॉपी करें।',
   'simple.backups.failed': 'बैकअप नहीं बन सका: {reason}',
   'simple.backups.copyHint': 'हर बार बिज़नेस खोलने पर Total अपने आप भी एक बैकअप बनाता है।',
+  'simple.backups.windowsPreview': 'Windows पर Total अभी प्रीव्यू है: हर बदलाव अपने-आप जाँचा जाता है, पर अभी कम लोगों ने इसे असली कंप्यूटरों पर चलाया है। अपने बैकअप की एक कॉपी कहीं और भी रखें।',
   'simple.backups.restoreTitle': 'किसी बैकअप पर वापस जाना',
   'simple.backups.restore': 'अगर कुछ गड़बड़ हो जाए, तो आप अपना हिसाब किसी बैकअप जैसा वापस ला सकते हैं। उस बैकअप के बाद लिखी हर चीज़ बदल जाएगी, इसलिए पहले आज का बैकअप ले लें।',
   'simple.backups.all': 'सारे बैकअप और वापस जाना (पूरा ऐप)',

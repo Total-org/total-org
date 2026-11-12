@@ -12,7 +12,7 @@ import { DataFolderSetting } from '../../simple/DataFolderSetting'
 import { runUpdatesWrite, useUpdatesCanSet } from '../../lib/updatesGate'
 import { confirmDialog } from '../../lib/dialogs'
 
-const PLATFORM_LABELS: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }
+const PLATFORM_LABELS: Record<string, string> = { darwin: 'macOS', win32: 'Windows (preview)', linux: 'Linux' }
 
 function statusToast(r: UpdateCheckResult): {
   kind: Toast['kind']

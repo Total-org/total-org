@@ -36,7 +36,7 @@ export function SimpleLooks(): React.JSX.Element {
   const themeLabel = (v: ThemePref): string =>
     v === 'light' ? t('simple.looks.theme.light') : v === 'dark' ? t('simple.looks.theme.dark') : t('simple.looks.theme.system')
   const languageLabel = (v: (typeof LANGUAGES)[number]): string =>
-    languagePickerLabel(v, v === 'en' ? t('simple.looks.lang.en') : v === 'hi' ? t('simple.looks.lang.hi') : t('simple.looks.lang.hinglish'))
+    languagePickerLabel(v, v === 'en' ? t('simple.looks.lang.en') : v === 'hi' ? t('simple.looks.lang.hi') : t('simple.looks.lang.hinglish'), t)
 
   return (
     <Page width="narrow" data-testid="simple-looks">
