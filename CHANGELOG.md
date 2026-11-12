@@ -23,8 +23,9 @@ Things to know about the version numbers:
 **Hindi and Hinglish say "beta"; Windows says "preview"** (#264, Phase 6 prep). The language pickers
 (first-run setup, How Total looks in both modes) now show "हिन्दी (beta)" and "Hinglish (beta)" —
 in Hindi, "(बीटा)" — because a native speaker has not reviewed the text yet. Windows is called a
-preview in its help page, Settings → About and on the website: it is tested automatically on every
-change, but the installer is not signed and few people have used it on real computers.
+preview in its help page, Settings → About (and, on Windows, simple Settings → Backups), the
+README and on the website: it is tested automatically on every change, but few people have used it
+on real computers yet. The reminder's message-language picker marks Hindi and Hinglish beta too.
 
 **GST you can't claim back (s.17(5))** (#263, WP 2d). The law blocks the GST credit on some
 purchases: food and drinks, a car that carries people (and its repairs and insurance), club or gym
