@@ -1,13 +1,13 @@
 // Path-parameterized, Electron-free backup primitives (dbtest-able; better-sqlite3 objects are
 // passed in from callers that already opened them with the Electron ABI).
 import Database from 'better-sqlite3-multiple-ciphers'
-import { existsSync, readdirSync, statSync, unlinkSync, copyFileSync, renameSync, rmSync, openSync, fsyncSync, closeSync, constants as fsConstants } from 'fs'
+import { existsSync, readdirSync, statSync, unlinkSync, copyFileSync, renameSync, rmSync, openSync, fsyncSync, closeSync, utimesSync, constants as fsConstants } from 'fs'
 import { copyFile } from 'fs/promises'
 import { execFile } from 'child_process'
 import { join, basename, dirname } from 'path'
 import type { DB } from './connection'
 import { keyOfHandle, openDb, removeDbFiles } from './encryption'
-import { CheckStoppedError, pragmaCheck } from './checkHost'
+import { CheckStoppedError, pragmaCheck, trackFileReader } from './checkHost'
 import { assertNotNewer } from './migrate'
 import { preUpgradeOf, PRE_UPGRADE_TAG } from './preUpgrade'
 import { AppError } from '@shared/errors'
@@ -86,39 +86,63 @@ export async function snapshotTo(db: DB, dest: string): Promise<void> {
 export async function pinnedFileCopy(db: DB, dest: string): Promise<boolean> {
   const src = db.name
   if (!src || db.memory || !existsSync(src)) return false
-  let pin: DB | null = null
-  try {
-    if (String(db.pragma('journal_mode', { simple: true })).toLowerCase() !== 'wal') return false
-    const [cp] = db.pragma('wal_checkpoint(PASSIVE)') as Array<{ busy: number; log: number; checkpointed: number }>
-    if (!cp || cp.busy !== 0 || cp.log !== cp.checkpointed) return false
-    pin = openDb(src, { readonly: true, fileMustExist: true, key: keyOfHandle(db) })
-    pin.exec('BEGIN')
-    pin.prepare('SELECT count(*) FROM sqlite_master').get()
-  } catch {
-    try {
-      pin?.close()
-    } catch {
-      // the pin was never usable
-    }
-    return false
+  type Checkpoint = { busy: number; log: number; checkpointed: number }
+  const fullyCheckpointed = (): boolean => {
+    const [cp] = db.pragma('wal_checkpoint(PASSIVE)') as Checkpoint[]
+    return !!cp && cp.busy === 0 && cp.log === cp.checkpointed
   }
-  const tmp = `${dest}.copy-tmp`
-  try {
-    removeDbFiles(tmp)
-    if (!(await cloneFile(src, tmp))) await copyFile(src, tmp, fsConstants.COPYFILE_FICLONE)
-    renameSync(tmp, dest)
-    return true
-  } catch (err) {
-    removeDbFiles(tmp)
-    throw err
-  } finally {
+  let pin: DB | null = null
+  const endPin = (): void => {
     try {
-      pin.exec('ROLLBACK')
+      pin?.exec('ROLLBACK')
     } catch {
       // closing ends the read anyway
     }
-    pin.close()
+    try {
+      pin?.close()
+    } catch {
+      // already closed
+    }
   }
+  try {
+    if (String(db.pragma('journal_mode', { simple: true })).toLowerCase() !== 'wal') return false
+    if (!fullyCheckpointed()) return false
+    pin = openDb(src, { readonly: true, fileMustExist: true, key: keyOfHandle(db) })
+    pin.exec('BEGIN')
+    pin.prepare('SELECT count(*) FROM sqlite_master').get()
+    // Review of #253: another PROCESS (total-cli) may have committed between the checkpoint and the
+    // pin — then the pin reads frames the file does not hold yet, and a later checkpoint could move
+    // them in mid-copy. Checkpointing once more WITH the pin held makes the file exactly the pin's
+    // snapshot (nothing beyond the pin can be moved in); anything still left over → decline.
+    if (!fullyCheckpointed()) {
+      endPin()
+      return false
+    }
+  } catch {
+    endPin()
+    return false
+  }
+  const tmp = `${dest}.copy-tmp`
+  const copying = (async (): Promise<boolean> => {
+    try {
+      removeDbFiles(tmp)
+      if (!(await cloneFile(src, tmp))) await copyFile(src, tmp, fsConstants.COPYFILE_FICLONE)
+      // A clone keeps the source's modified time; the backup list sorts and prunes by it.
+      const now = new Date()
+      utimesSync(tmp, now, now)
+      renameSync(tmp, dest)
+      return true
+    } catch (err) {
+      removeDbFiles(tmp)
+      throw err
+    } finally {
+      endPin()
+    }
+  })()
+  // Review of #253: the pin is a reader of the LIVE file — restore, the lock change, delete and a
+  // data-folder move wait for it through stopChecks (db/checkHost.ts), as for the check worker.
+  trackFileReader(src, copying)
+  return copying
 }
 
 /** macOS: clone `src` to `dest` (APFS clonefile through /bin/cp -c — libuv's copyfile does not

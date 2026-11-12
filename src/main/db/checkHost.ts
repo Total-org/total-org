@@ -62,6 +62,28 @@ let seq = 0
 const running = new Map<string, Set<Worker>>()
 const stopped = new WeakSet<Worker>()
 
+/** Phase 5 (review of #253): other readers of a file that stopChecks must wait for — the pinned
+ *  file copy of a backup (db/backup.ts pinnedFileCopy) holds a read transaction on the LIVE company
+ *  file while it copies (seconds for a byte copy of a big book). Keyed by the resolved path. */
+const fileReaders = new Map<string, Set<Promise<unknown>>>()
+
+/** Register `done` as a reader of `path` until it settles (stopChecks / stopChecksUnder /
+ *  stopAllChecks wait for it). */
+export function trackFileReader(path: string, done: Promise<unknown>): void {
+  const key = resolve(path)
+  const set = fileReaders.get(key) ?? new Set<Promise<unknown>>()
+  fileReaders.set(key, set)
+  set.add(done)
+  const drop = (): void => {
+    set.delete(done)
+    if (set.size === 0 && fileReaders.get(key) === set) fileReaders.delete(key)
+  }
+  done.then(drop, drop)
+}
+
+/** How many tracked readers (pinned copies) hold `path` right now (tests). */
+export const runningFileReaders = (path: string): number => fileReaders.get(resolve(path))?.size ?? 0
+
 /** The rejection of a check stopped by stopChecks — not a finding about the file. */
 export class CheckStoppedError extends Error {
   constructor() {
@@ -168,28 +190,30 @@ export async function runCheckJob<T>(file: string, job: CheckJob, opts: CheckJob
  *  delete): on Windows an open handle refuses the rename / unlink (EPERM / EBUSY). The stopped
  *  checks reject; their callers treat that as a failed check of a file that is going away. */
 export async function stopChecks(path: string): Promise<void> {
+  // A pinned backup copy of this file is waited for (it is short: an APFS clone, or a byte copy).
+  const readers = [...(fileReaders.get(resolve(path)) ?? [])].map((p) => p.catch(() => undefined))
   const set = running.get(path)
-  if (!set) return
-  await Promise.all(
-    [...set].map((w) => {
+  await Promise.all([
+    ...readers,
+    ...[...(set ?? [])].map((w) => {
       stopped.add(w)
       return w.terminate().catch(() => undefined)
     })
-  )
+  ])
 }
 
 /** Stop every check of every file (a data-folder move copies the whole folder: a backup check
  *  still reading — or creating a `-shm` beside — a file there would make the copy differ). This
  *  includes the restore checks ('verify' jobs), tracked under the backup they read. */
 export async function stopAllChecks(): Promise<void> {
-  await Promise.all([...running.keys()].map((path) => stopChecks(path)))
+  await Promise.all([...new Set([...running.keys(), ...fileReaders.keys()])].map((path) => stopChecks(path)))
 }
 
 /** stopChecks for every file inside `dir` (the company folder on delete, the backups folder before
  *  a passphrase change rewrites every backup): the restore checks reading its backups included. */
 export async function stopChecksUnder(dir: string): Promise<void> {
   const root = resolve(dir)
-  const inside = [...running.keys()].filter((p) => {
+  const inside = [...new Set([...running.keys(), ...fileReaders.keys()])].filter((p) => {
     const abs = resolve(p)
     return abs === root || abs.startsWith(root + sep)
   })

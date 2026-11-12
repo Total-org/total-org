@@ -397,6 +397,13 @@ renderer's DOMContentLoaded / first render / first paint), and what changed — 
   as the online backup wrote. It declines (and the online backup runs as before) when the
   checkpoint can't finish (a reader on an older snapshot, e.g. a whole-file check still reading),
   outside WAL mode or for a memory database. Every backup path benefits (manual, scheduled, quit).
+  Review of #253: the pin is a reader of the LIVE file, so it is tracked like the check worker's
+  readers (`checkHost.trackFileReader`) — `stopChecks` / `stopChecksUnder` / `stopAllChecks`, which
+  restore, the lock change, delete and a data-folder move already call before touching the file,
+  wait for the copy; and a second PASSIVE checkpoint WITH the pin held must move every frame (a
+  commit by another process — total-cli — between the first checkpoint and the pin would otherwise
+  let a later checkpoint change the file mid-copy). The copy is stamped with the current time (a
+  clone keeps the books file's modified time; the backup list sorts and prunes by it).
 - **Main start-up**: the window is created BEFORE `registerIpc` (same synchronous `whenReady`
   callback, so no IPC message can be handled before the handlers exist) — its renderer process
   loads while main registers its ~440 handlers; `openai` (~60 ms to require) and `electron-updater`
@@ -418,7 +425,8 @@ tuned in WP 7.1; the next step would be running Home's read in a worker thread o
 connection (main stays free while it runs), not more indexes. A second `company:open` within a
 couple of seconds of the first waits for the first open's backup quick_check to stop (a native
 SQLite call a worker cannot abort mid-way) — the script's "company:open alone" column shows it;
-a real session does not reopen that fast. Electron itself takes ~0.2–0.5 s before main's first
+a real session does not reopen that fast. On a loaded machine the open's integrity quick_check (a
+worker reading the whole file, ~0.27 s when calm) took up to 2 s and is now what an open waits for. Electron itself takes ~0.2–0.5 s before main's first
 line runs.
 
 ## CI

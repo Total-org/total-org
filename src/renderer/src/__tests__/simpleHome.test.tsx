@@ -260,6 +260,21 @@ describe('simple Home (WP 8.6)', () => {
     expect(screen.queryByTestId('simple-home-skeleton')).toBeNull()
   })
 
+  it('Phase 5: an unregistered business’s skeleton has no GST tile, and its profit tile spans as HomeBody draws it', async () => {
+    act(() => useSession.setState({ info: { gstRegistrationType: 'unregistered' } as never }))
+    invoke.mockImplementation((channel: string) => (channel === 'simple:home' ? new Promise(() => {}) : Promise.resolve({ ok: true, data: null })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <SimpleHome />
+      </QueryClientProvider>
+    )
+    const tiles = (await screen.findByTestId('simple-home-skeleton')).querySelectorAll('li')
+    expect(tiles).toHaveLength(6)
+    expect(tiles[5]?.className).toMatch(/md:col-span-2 xl:col-span-1/)
+    act(() => useSession.setState({ info: null as never }))
+  })
+
   it('an empty company: one "Nothing recorded yet" card with the next setup step; the GST number step is never ticked for an unregistered business', async () => {
     renderHome(
       home({

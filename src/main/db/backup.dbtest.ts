@@ -10,6 +10,7 @@ import {
   snapshotTo, listBackupsIn, pruneBackupsIn, tagOf, backupStamp, restoreCompanyDb, rollbackRestore, pinnedFileCopy, cloneFile
 } from './backup'
 import { isEncryptedFile, keyOfHandle, openDb, rekeyFile } from './encryption'
+import { runningFileReaders, stopAllChecks, stopChecks, stopChecksUnder } from './checkHost'
 import { newDataKey } from './keyEnvelope'
 
 function tmpDir(): string {
@@ -93,6 +94,50 @@ describe('pinnedFileCopy (the snapshot as a pinned file copy)', () => {
     const [cp] = db.pragma('wal_checkpoint(PASSIVE)') as Array<{ log: number; checkpointed: number }>
     expect(cp?.log).toBe(cp?.checkpointed)
     expect((db.prepare('SELECT COUNT(*) AS n FROM vouchers').get() as { n: number }).n).toBe(7)
+    db.close()
+  })
+
+  it('the pin is a tracked reader of the live file: stopChecks waits for the copy, after which a full checkpoint and close leave no WAL behind (review of #253)', async () => {
+    const { dir, dbPath, db } = walCompany()
+    db.pragma('busy_timeout = 5000') // as openCompanyDb sets it
+    postSimpleVoucher(db, { date: '2025-04-10', amount: 10000, kind: 'receipt' })
+    const dest = join(dir, 'snap.db')
+    const copying = pinnedFileCopy(db, dest)
+    expect(runningFileReaders(dbPath)).toBe(1)
+    // A save while the copy runs (it goes into the WAL), then what restore / the lock change do:
+    postSimpleVoucher(db, { date: '2025-04-11', amount: 20000, kind: 'receipt' })
+    await stopChecks(dbPath)
+    expect(runningFileReaders(dbPath)).toBe(0)
+    expect(await copying).toBe(true)
+    const t0 = performance.now()
+    const [cp] = db.pragma('wal_checkpoint(TRUNCATE)') as Array<{ busy: number; log: number; checkpointed: number }>
+    expect(performance.now() - t0).toBeLessThan(1000)
+    expect(cp).toEqual({ busy: 0, log: 0, checkpointed: 0 })
+    db.close()
+    expect(existsSync(`${dbPath}-wal`) ? readFileSync(`${dbPath}-wal`).length : 0).toBe(0)
+    expect(count(dest)).toBe(1)
+  })
+
+  it('stopChecksUnder (delete, a lock change) and stopAllChecks (a data-folder move) wait for a pinned copy too', async () => {
+    for (const stop of [(d: string) => stopChecksUnder(d), () => stopAllChecks()]) {
+      const { dir, dbPath, db } = walCompany()
+      const copying = pinnedFileCopy(db, join(dir, 'snap.db'))
+      expect(runningFileReaders(dbPath)).toBe(1)
+      await stop(dir)
+      expect(runningFileReaders(dbPath)).toBe(0)
+      expect(await copying).toBe(true)
+      db.close()
+    }
+  })
+
+  it('the backup copy is stamped now, not with the books file’s modified time (a clone keeps the source’s)', async () => {
+    const { dir, dbPath, db } = walCompany()
+    db.pragma('wal_checkpoint(TRUNCATE)')
+    const old = new Date(Date.now() - 10 * 86_400_000)
+    utimesSync(dbPath, old, old)
+    const dest = join(dir, 'snap.db')
+    expect(await pinnedFileCopy(db, dest)).toBe(true)
+    expect(Date.now() - listBackupsIn(dir).find((b) => b.file === 'snap.db')!.mtime).toBeLessThan(60_000)
     db.close()
   })
 
