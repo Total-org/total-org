@@ -3,6 +3,8 @@
  * See src/main/services/jobWork.ts for the flows. Quantities in thousandths, money in paise.
  */
 
+import { daysBetweenISO } from './dates'
+
 export type JobWorkKind = 'send' | 'receive' | 'return'
 
 /** A job_work_challans row (migration 023). */
@@ -22,10 +24,8 @@ export interface JobWorkChallan {
   originalChallanVoucherId: number | null
 }
 
-/** Whole days from `from` to `to` (ISO dates; negative when `to` is earlier). */
-export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86_400_000)
-}
+/** Whole days from `from` to `to` (ISO dates; negative when `to` is earlier) — dates.ts's (HEALTH-2). */
+export const daysBetween = daysBetweenISO
 
 /**
  * The inward lots still on hand after `consumedMilli` left, oldest consumed first (FIFO). Lots

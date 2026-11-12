@@ -66,6 +66,7 @@ See `AGENTS.md` → "How work is run": one thread per work package / PR, 2–3 f
 
 ## Hard rules & conventions
 
+- Day arithmetic on ISO dates is `dates.ts` `addDaysISO` / `daysBetweenISO` (UTC) — no private copies (A11 / HEALTH-2; older module names like `addDays` are aliases of them).
 - **Money is integer paise everywhere**; quantities are integer thousandths (`qtyMilli`). Floats never touch amounts. Formatting/parsing only via `src/shared/money.ts`.
 - **Voucher lines are the source of truth** — every report is computed from `voucher_lines` + opening balances at query time. Never denormalise balances.
 - The engine (`src/shared/`) stays pure: no Electron, no DB. Anything testable goes here or in pure main-side modules; **vitest must never import better-sqlite3** (`npm test` is the pure engine; DB code is tested by `test:db`).

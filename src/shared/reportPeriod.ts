@@ -2,7 +2,7 @@
  * Period arithmetic for the comparative statements, ratio analysis and Ask Total's periods —
  * pure date maths on ISO 'YYYY-MM-DD' strings (Indian financial year, 1 April – 31 March).
  */
-import { fyFromStartYear, fyOf, toMonthLabel } from './dates'
+import { addDaysISO, fyFromStartYear, fyOf, toMonthLabel } from './dates'
 
 export const RELATIVE_PERIODS = ['thisMonth', 'lastMonth', 'thisQuarter', 'lastQuarter', 'fyToDate', 'lastFy'] as const
 export type RelativePeriod = (typeof RELATIVE_PERIODS)[number]
@@ -29,11 +29,8 @@ export function monthEnd(iso: string): string {
   return ymd(y, m, daysInMonth(y, m))
 }
 
-export function addDays(iso: string, delta: number): string {
-  const dt = new Date(iso + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
-}
+/** `delta` days after `iso` — dates.ts's (HEALTH-2). */
+export const addDays = addDaysISO
 
 /** Same day `n` months later (negative = earlier), clamped to the target month's last day. */
 export function addMonths(iso: string, n: number): string {

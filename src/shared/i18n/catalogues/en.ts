@@ -564,8 +564,6 @@ export const en = {
   'simple.sell.customer': 'Customer',
   'simple.sell.walkIn': 'Walk-in customer',
   'simple.sell.whatSold': 'What did you sell?',
-  'simple.sell.mode.items': 'Products',
-  'simple.sell.mode.amount': 'Just an amount',
   'simple.sell.addProduct': 'Add a product',
   'simple.sell.paidHow': 'Paid how?',
   'simple.sell.dueDate': 'Payment due on',
@@ -606,12 +604,6 @@ export const en = {
   'simple.money.whoPaid': 'Who paid you?',
   'simple.money.paidTo': 'Who did you pay?',
   'simple.money.other': 'Other',
-  'simple.money.other.ownerIn': 'Owner put money in',
-  'simple.money.other.loanTaken': 'Loan taken',
-  'simple.money.other.otherIncome': 'Other income',
-  'simple.money.other.refund': 'Refund',
-  'simple.money.other.ownerOut': 'Owner took money out',
-  'simple.money.other.salary': 'Salary',
   'simple.money.to': 'To',
   'simple.money.whichBills': 'Which bills does this pay?',
   'simple.money.oldestFirst': 'Oldest bills are ticked first.',
@@ -2275,15 +2267,6 @@ export const en = {
   'simple.money.entry.editHint': 'Opens the full editor; “Back to simple” brings you back.',
   'simple.money.entry.missing': 'This is not in the books any more (it may have been moved to the bin).',
 
-  // ---------- Ask Total (§5) ----------
-  'simple.ask.title': 'Ask Total',
-  'simple.ask.placeholder': 'Ask about your business',
-  'simple.ask.cantAnswer': 'I can’t answer that yet; try these:',
-  'simple.ask.examples.whoOwes': 'Who owes me money?',
-  'simple.ask.examples.gstDue': 'How much GST do I have to pay?',
-  'simple.ask.examples.profit': 'What was my profit last month?',
-  'simple.ask.examples.cash': 'How much cash do I have?',
-  'simple.ask.draftReady': 'I’ve filled in an entry for you to check.',
 
   // ---------- "Why?" popovers and help (§5) ----------
   'simple.why.title': 'Why this number?',

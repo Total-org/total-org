@@ -38,18 +38,12 @@
  */
 import type { BillEvent } from './outstanding'
 import { mulDivRound, instalmentDate } from './intMath'
+import { addDaysISO, daysBetweenISO } from './dates'
 
 // ---------- dates ----------
 
-const DAY = 86_400_000
-export function addDaysISO(date: string, delta: number): string {
-  const dt = new Date(date + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
-}
-export function daysBetweenISO(from: string, to: string): number {
-  return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / DAY)
-}
+// HEALTH-2: the one definition lives in dates.ts; the names stay exported here for their callers.
+export { addDaysISO, daysBetweenISO }
 function monthEndISO(date: string): string {
   const [y, m] = date.split('-').map(Number) as [number, number]
   return `${date.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`

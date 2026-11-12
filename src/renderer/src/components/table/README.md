@@ -339,7 +339,7 @@ stored yet, the old `total-reportcfg-<slug>-<key>` booleans seed the hidden colu
 key is read only, never deleted. If the old toggle keys don't match the new column ids, pass
 `legacyIdMap`. One old key may drive several columns, as in
 `{ movement: ['movementDr', 'movementCr'] }`. After that, delete the `COLUMNS` / `useReportConfig`
-/ `ReportConfigButton` trio from the screen: the toolbar's column chooser replaces it.
+pair from the screen: the toolbar's column chooser replaces it (the old `ReportConfigButton` is gone).
 
 ## 5. Styling notes
 

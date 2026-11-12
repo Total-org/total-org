@@ -1,3 +1,4 @@
+import { addDaysISO, daysBetweenISO } from '../dates'
 /**
  * MSME payment rules (WP 4.3) — pure. The s.15 payment deadline, s.16 interest (INDICATIVE), the
  * Income-tax s.43B(h) disallowance figure and the MSME Form 1 half-years. The bank rate comes in
@@ -55,15 +56,9 @@ export function isValidUdyam(raw: string): boolean {
 // Date helpers (UTC, ISO 'YYYY-MM-DD')
 // ---------------------------------------------------------------------------------------------
 
-export function addDays(date: string, days: number): string {
-  const dt = new Date(`${date}T00:00:00Z`)
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
-}
-
-export function daysBetween(fromDate: string, toDate: string): number {
-  return Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000)
-}
+/** HEALTH-2: the one definition lives in dates.ts; these names stay for their callers. */
+export const addDays = addDaysISO
+export const daysBetween = daysBetweenISO
 
 /** Same day-of-month `n` months later, clamped to the month's last day (31 Jan + 1 = 28/29 Feb). */
 export function addMonthsClamped(date: string, n: number): string {

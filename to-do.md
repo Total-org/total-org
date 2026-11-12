@@ -228,6 +228,11 @@ done on main were dropped. One line each; the pointer says where to look.
 - WP 10.3: help is simple-mode only; the full app keeps its shortcut list — PR #100
 - WP 10.4: accountant screens stay English; full-app button names glossed in Hindi help — PR #105
 - GPT review P3 / P6 / P7: freeze transaction tax facts and unify entry / return / PDF calculation with independent fixtures; guided GST review with filing evidence; verified upgrade recovery and external backups; Electron hardening — `~/.claude/total-orch/gpt-opinion.md`
+- Audit A11 (code health) leftovers, not pure dedupes so left for a reviewed change — PR #PRNUM:
+  - HEALTH-1: IPC channels with no renderer client — `importwiz:templateSave` (ipcDataImport) and `gateway:ewb:extend` (ipcGateway; maybe unfinished Phase 4). Removing one edits the pinned `ipcChannels.json` + auditCoverage by hand.
+  - HEALTH-2: date helpers with their own formula (`demo.ts` / `searchQuery.ts` `Date.UTC(y, m - 1, d + n)`, `depreciation.ts` ms maths, `outstanding.ts` / `reportMath.ts` `Date.parse` without `T00:00:00Z`, `anomalies` / `recon2b` absolute difference) — same result for valid ISO dates but not the same code; fold in with a property test.
+  - HEALTH-3: party side / bank detection by seeded group NAME in the renderer (`voucher/hooks.ts` `isBankLedger`, `LedgerFormModal`, `voucher/modals.tsx`, `lib/handoff.ts`, `Gateway.tsx`) and `services/counter.ts` (walk-in under 'Sundry Debtors') — switching to `partyGroupRole` / `cashBankGroupIds` changes defaults for imported charts; bill total (COR-3) is a figure change.
+  - HEALTH-6: one rounding rule (`roundPaise` / `Math.round(a*b/c)` / `mulDivRound` / BigInt half-up) — negative halves round differently, so it is the triage P2 "one rounding rule, BigInt only" work with owner sign-off.
 
 ## 7. Dependabot / dependency leftovers
 

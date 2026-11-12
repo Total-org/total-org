@@ -9,6 +9,7 @@ import { useMode, useScreenView } from '../../lib/mode'
 import { useT } from '../../lib/i18n'
 import { rememberSaved } from '../../lib/handoff'
 import type { ErrorShell } from '../../components/kit/formErrors'
+import { addDaysISO } from '@shared/dates'
 
 export { TRADING_KINDS } from '@shared/voucherEdit'
 
@@ -69,12 +70,8 @@ export function isBankLedger(l: Ledger, groupMap: Map<number, Group>): boolean {
   return groupChain(l.groupId, groupMap).some((g) => ['Bank Accounts', 'Bank OD A/c'].includes(g.name))
 }
 
-/** Local UTC date-add — mirrors @shared/outstanding's private helper (that one isn't exported). */
-export function addDaysLocal(date: string, days: number): string {
-  const dt = new Date(`${date}T00:00:00Z`)
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
-}
+/** UTC date-add (HEALTH-2: the one definition is dates.ts addDaysISO; the name stays for callers). */
+export const addDaysLocal = addDaysISO
 
 // ---------- voucher number field ----------
 

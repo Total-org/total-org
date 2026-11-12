@@ -14,6 +14,7 @@ import { useNav, useSession, useToasts } from '../../state/stores'
 import { confirmDialog } from '../../lib/dialogs'
 import { withCreditHoldOverride } from '../../lib/creditHoldOverride'
 import { isOwnerOrNoUsers } from '../../lib/roles'
+import { addDaysISO as addDaysIso } from '@shared/dates'
 
 const STATUS_LABEL: Record<PdcRegisterRow['status'], string> = { pending: 'Pending', due: 'Due — locked period', matured: 'Matured', bounced: 'Bounced' }
 /** A held invoice / challan waits for the owner, not for its date or a lock (WP 4.2). */
@@ -175,12 +176,6 @@ export function PdcTab(): React.JSX.Element {
       )}
     </>
   )
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
 }
 
 function BounceModal({ row, onClose, onDone }: { row: PdcRegisterRow; onClose: () => void; onDone: () => void }): React.JSX.Element {

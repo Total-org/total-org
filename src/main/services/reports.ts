@@ -14,7 +14,7 @@ import { latestVouchers, IN_BOOKS, MOVES_STOCK, NOT_DELETED, NOT_YEAR_END_CLOSE 
 import * as stockAnalysis from './stockAnalysis'
 import { balanceBasis, periodIncludesStoredPnl, resetsEachYear } from '@shared/yearOpening'
 import { booksFromYear } from './booksStart'
-import { fyOf } from '@shared/dates'
+import { addDaysISO, fyOf } from '@shared/dates'
 import { impliedRateMicro } from '@shared/forex'
 
 // ---------- shared helpers ----------
@@ -1062,12 +1062,6 @@ export function cashFlow(db: DB, from: string, to: string): CashFlowStatement {
     openingCash,
     closingCash
   })
-}
-
-function addDaysISO(iso: string, delta: number): string {
-  const dt = new Date(iso + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + delta)
-  return dt.toISOString().slice(0, 10)
 }
 
 /** Ids of all groups in the subtrees rooted at the named groups, computed in JS from an

@@ -8,6 +8,7 @@
 import { gstr3bDueDate } from './gst/filing'
 import { depositDueDate } from './tdsInterest'
 import { EINVOICE_APPLICABILITY_UNVERIFIED, type EinvoiceApplicability } from './gst/einvoiceApplicability'
+import { addDaysISO as addDays } from './dates'
 
 export type DeadlineKind = 'gst' | 'tds' | 'pf' | 'esi' | 'advance-tax'
 
@@ -36,12 +37,6 @@ function ymd(y: number, m: number, d: number): string {
 function parseISO(iso: string): { y: number; m: number; d: number } {
   const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
   return { y, m, d }
-}
-
-function addDays(iso: string, days: number): string {
-  const dt = new Date(iso + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + days)
-  return dt.toISOString().slice(0, 10)
 }
 
 /** Add `delta` calendar months to (y, m), rolling the year over as needed. `m` is 1-indexed. */

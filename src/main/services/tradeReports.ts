@@ -7,11 +7,7 @@ import { SHARED_CAPACITY_SOURCES } from '@shared/tradeCycle/rules'
 import { hasTradeSchema } from './tradeLinks'
 import { NOT_DELETED } from './vouchers'
 import { getTradeDoc } from './tradeDocs'
-
-/** Whole days from `from` to `to` (ISO dates). */
-function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
-}
+import { daysBetweenISO as daysBetween } from '@shared/dates'
 
 /**
  * Pending stock notes (WP 2.5b, design §5.3): delivery challans not yet invoiced ("goods
