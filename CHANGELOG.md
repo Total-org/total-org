@@ -30,6 +30,8 @@ date count from the bill date exactly as before. Nothing changes in existing boo
 a date. *For developers*: migration "msme acceptance" (table `msme_acceptance`) and channel
 `payables:msmeAcceptanceSet`.
 
+## [0.12.2] - 2026-11-13
+
 **A warning for advances on goods** (#259, WP 2d). A regular business pays GST on goods when it
 invoices, not when the customer pays in advance (Notification 66/2017-Central Tax). The GSTR-1
 checks now warn when an advance in Table 11A comes from a customer you sell goods to, going by the
