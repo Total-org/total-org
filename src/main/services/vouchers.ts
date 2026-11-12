@@ -590,6 +590,49 @@ export function assertGstAllowed(
   throw new AppError('gst_not_charged', gstNotChargedMessage(registrationOn(reg, input.date)), { field: 'items' })
 }
 
+/**
+ * WP 2d — the s.17(5) mark a save stores. An explicit `true` is refused on a kind other than a
+ * purchase / debit note (`itc_blocked_kind`) and on a reverse-charge supplier's bill
+ * (`itc_blocked_rcm`: its credit is self-assessed — ISRC — which the mark does not move; to-do).
+ * Absent: an altered voucher keeps its mark while its kind can carry it; a NEW debit note takes the
+ * mark when every original it returns (return links, bills set against, or a purchase with its
+ * reference — same party) is a marked purchase.
+ */
+function resolveItcBlocked(db: DB, input: VoucherInputParsed, kind: VoucherKind, before: Voucher | null): boolean {
+  const canCarry = kind === 'purchase' || kind === 'debit_note'
+  const rcmParty = (): boolean =>
+    input.partyLedgerId != null && !!(db.prepare('SELECT COALESCE(rcm, 0) AS r FROM ledgers WHERE id = ?').get(input.partyLedgerId) as { r: number } | undefined)?.r
+  if (input.itcBlocked === true) {
+    if (!canCarry) throw new AppError('itc_blocked_kind', 'Only a purchase or a debit note can have its GST credit blocked (s.17(5))')
+    if (rcmParty()) throw new AppError('itc_blocked_rcm', 'A reverse-charge supplier’s bill can’t be marked as blocked credit here — its GST is self-assessed (ask your CA)')
+    return true
+  }
+  if (input.itcBlocked === false || !canCarry) return false
+  if (before) return !!before.itcBlocked
+  if (kind !== 'debit_note' || rcmParty()) return false
+  const ids = new Set<number>()
+  if (input.partyLedgerId != null) {
+    const byBill = db.prepare(
+      `SELECT v.id FROM bill_refs br JOIN vouchers v ON v.id = br.voucher_id
+       WHERE br.kind = 'new' AND br.name = ? AND br.party_ledger_id = ? AND ${NOT_DELETED}`
+    )
+    for (const r of input.billRefs) if (r.kind === 'against') for (const o of byBill.all(r.name, input.partyLedgerId) as { id: number }[]) ids.add(o.id)
+    if (input.reference) {
+      for (const o of db
+        .prepare(`SELECT v.id FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id WHERE vt.kind = 'purchase' AND v.party_ledger_id = ? AND v.reference = ? AND ${NOT_DELETED}`)
+        .all(input.partyLedgerId, input.reference) as { id: number }[]) ids.add(o.id)
+    }
+  }
+  const byLine = db.prepare(`SELECT v.id FROM inventory_lines il JOIN vouchers v ON v.id = il.voucher_id WHERE il.line_uid = ? AND ${NOT_DELETED}`)
+  for (const l of input.inventory) if (l.source?.lineUid && l.source.linkType === 'return') for (const o of byLine.all(l.source.lineUid) as { id: number }[]) ids.add(o.id)
+  if (ids.size === 0) return false
+  const rows = db
+    .prepare(`SELECT v.itc_blocked AS b, vt.kind FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id WHERE v.id IN (${[...ids].map(() => '?').join(',')})`)
+    .all(...ids) as { b: number; kind: string }[]
+  const bills = rows.filter((r) => r.kind === 'purchase')
+  return bills.length > 0 && bills.every((r) => r.b === 1)
+}
+
 /** A note's originals — the bills it is set against (same party) and the invoices its return
  *  lines come from — of which one was raised in a GST-charging period or carries tax. */
 function noteAgainstTaxedBill(
@@ -753,9 +796,10 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
         input.posOverride, input.currencyCode, input.exchangeRate, postDated ? 1 : 0, isOptional ? 1 : 0)
       voucherId = Number(res.lastInsertRowid)
     }
-    // WP 2d: blocked input tax (s.17(5)) — purchases / debit notes only; absent = keep.
-    const itcBlocked = input.itcBlocked ?? before?.itcBlocked ?? false
-    if (itcBlocked && vt.kind !== 'purchase' && vt.kind !== 'debit_note') throw new Error('Only a purchase or a debit note can have its GST credit blocked (s.17(5))')
+    // WP 2d: blocked input tax (s.17(5)) — purchases / debit notes only. Absent = keep what the
+    // voucher has (a kind that can't carry it drops it); a NEW debit note returning bills that are
+    // all marked takes the mark (review of #263: else the return would cut ordinary credit).
+    const itcBlocked = resolveItcBlocked(db, input, vt.kind, before)
     if (itcBlocked || before?.itcBlocked) db.prepare('UPDATE vouchers SET itc_blocked = ? WHERE id = ?').run(itcBlocked ? 1 : 0, voucherId)
 
     // Bank reconciliation dates live on voucher_lines (set by banking.setBankDate, not by this

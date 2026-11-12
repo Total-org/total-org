@@ -635,13 +635,13 @@ function billsCache(db: DB): (ledgerId: number, date: string) => OutstandingBill
 function deductibleShare(db: DB, voucherId: number, partyLedgerId: number, itcBlocked: boolean): [number, number] {
   const rows = db
     .prepare(
-      `SELECT vl.ledger_id AS ledgerId, vl.dr_cr AS drCr, vl.amount, l.tax_type AS taxType
-       FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ?`
+      `SELECT vl.ledger_id AS ledgerId, vl.dr_cr AS drCr, vl.amount, l.tax_type AS taxType, v.itc_blocked AS itcBlocked
+       FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id JOIN vouchers v ON v.id = vl.voucher_id WHERE vl.voucher_id = ?`
     )
-    .all(voucherId) as { ledgerId: number; drCr: 'dr' | 'cr'; amount: number; taxType: string | null }[]
+    .all(voucherId) as { ledgerId: number; drCr: 'dr' | 'cr'; amount: number; taxType: string | null; itcBlocked: number }[]
   const total = rows.filter((x) => x.ledgerId === partyLedgerId && x.drCr === 'cr').reduce((a, x) => a + x.amount, 0)
   // A blocked supplier's — or a bill marked blocked under s.17(5) (WP 2d) — GST is an expense, not ITC.
-  const blocked = itcBlocked || !!(db.prepare('SELECT itc_blocked AS b FROM vouchers WHERE id = ?').get(voucherId) as { b: number } | undefined)?.b
+  const blocked = itcBlocked || rows.some((x) => x.itcBlocked === 1)
   const gst = blocked ? 0 : rows.filter((x) => x.taxType && x.drCr === 'dr').reduce((a, x) => a + x.amount, 0)
   if (total <= 0) return [1, 1]
   return [Math.max(0, total - gst), total]

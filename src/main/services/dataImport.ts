@@ -1040,7 +1040,9 @@ function voucherInputFor(ctx: Ctx, d: VoucherDraft, vt: { id: number; kind: Vouc
       isOptional: d.isOptional || undefined,
       postDated: d.postDated || undefined,
       // WP 2d: a Books workbook carries a blocked-ITC bill (s.17(5)) in its voucher JSON cell.
-      ...(vm.itc_blocked === 1 && (vt.kind === 'purchase' || vt.kind === 'debit_note') ? { itcBlocked: true } : {}),
+      // Stated for every purchase / debit note (the workbook is the truth — a row without the mark
+      // clears it on a matched voucher; review of #263).
+      ...(vt.kind === 'purchase' || vt.kind === 'debit_note' ? { itcBlocked: vm.itc_blocked === 1 } : {}),
       lines,
       inventory,
       billRefs,

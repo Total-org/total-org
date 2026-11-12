@@ -488,6 +488,8 @@ export interface PurchaseView extends PurchaseRow {
   /** The rupee round-off the editor posted (+ rounded up), 0 when none. */
   rounding: number
   note: string | null
+  /** WP 2d: the bill's GST can't be claimed back (s.17(5)) — present only when marked. */
+  itcBlocked?: boolean
 }
 
 // ---------- "Prices include GST" switched with prices already typed (to-do §4, shots-86) ----------

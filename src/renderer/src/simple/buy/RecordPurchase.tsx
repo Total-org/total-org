@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Ledger } from '@shared/domain'
+import { CaCheck } from '../../components/CaCheck'
 import { gstRegistrationOf } from '@shared/gst/registration'
 import { formatPaise } from '@shared/money'
 import { toPlainDate } from '@shared/dates'
@@ -452,7 +453,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                 <FieldError name="gstOnBill" error={errors.get(F.gstOnBill)} />
                 {form.gstOnBill && (
                   <div className="mt-3" data-testid="buy-gst-blocked-question">
-                    <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.gstBlockedQuestion')}</span>
+                    <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.gstBlockedQuestion')}<CaCheck place="simple.gstBlocked" date={form.date} /></span>
                     <p className="mb-2 text-small text-muted">{t('simple.buy.gstBlockedWhat')}</p>
                     <div role="radiogroup" aria-label={t('simple.buy.gstBlockedQuestion')} className="flex flex-wrap gap-2">
                       {[false, true].map((blocked) => (

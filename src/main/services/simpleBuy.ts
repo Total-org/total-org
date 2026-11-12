@@ -164,6 +164,7 @@ export function purchaseView(db: DB, id: number, today: string): PurchaseView | 
     partyName: row.partyName ?? '',
     total: row.total,
     tax: row.tax,
+    ...(v.itcBlocked ? { itcBlocked: true } : {}),
     paid,
     due,
     dueDate: open?.dueDate ?? null,

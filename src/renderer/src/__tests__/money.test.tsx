@@ -299,6 +299,29 @@ describe('Money out (WP 9.4)', () => {
     }))
   })
 
+  it('WP 2d: "Can you claim this GST back?" No → the purchase is marked blocked and the "claim back" hint goes', async () => {
+    renderUi(<MoneyOut />)
+    await ready()
+    click('money-out-who-expense')
+    click('picker-money-expense')
+    fireEvent.click(await screen.findByTestId('category-rent'))
+    typeAmount('1180')
+    click('money-gst-bill-yes')
+    await pick('picker-money-bill-supplier', 'Bharat')
+    fireEvent.change(screen.getByTestId('input-money-bill-no'), { target: { value: 'R-78' } })
+    expect(screen.queryByTestId('money-gst-blocked-no')).toBeNull() // asked once a rate is picked
+    click('money-gst-rate-18')
+    const hint = (): boolean => visible().includes('claim back')
+    expect(hint()).toBe(true)
+    click('money-gst-blocked-no')
+    expect(screen.queryByText(/counts toward what you can claim back/)).toBeNull()
+    expect(bannedWordsIn(visible())).toEqual([])
+    click('money-how-bank')
+    click('btn-money-save')
+    await waitFor(() => expect(calls('simple:post')).toHaveLength(1))
+    expect((calls('simple:post')[0] as { intent: Record<string, unknown> }).intent).toEqual(expect.objectContaining({ kind: 'purchase', billNo: 'R-78', itcBlocked: true }))
+  })
+
   it('unregistered: no GST bill question; a payment to the expense', async () => {
     act(() => useSession.setState({ info: info('unregistered') }))
     renderUi(<MoneyOut />)

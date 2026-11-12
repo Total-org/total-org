@@ -82,6 +82,8 @@ export const ERROR_MAP = {
   irn_live: e('errors.einvoiceLive'),
   books_locked: e('errors.dateLocked', 'date', ['date'], 'errors.dateLockedPlain'),
   gst_not_charged: e('errors.taxNotRegistered', 'items'),
+  itc_blocked_kind: e('errors.itcBlockedKind'),
+  itc_blocked_rcm: e('errors.itcBlockedRcm'),
   bad_purpose: e('errors.wrongPurpose'),
   credit_hold: e('errors.creditHold', 'party', ['name'], 'errors.creditHoldPlain'),
   credit_limit: e('errors.creditLimit', 'party', ['name'], 'errors.creditLimitPlain'),
