@@ -116,10 +116,20 @@ export interface SetupDraft {
   start: StartChoice
   earlierDate: string
   fresh: boolean | null
+  /** The user picked a start themselves (audit A7 / UX-9: until then the fresh / continuing
+   *  answer picks it — today for a new business, the FY start for one already running). */
+  startPicked?: boolean
 }
 
 export function emptySetupDraft(): SetupDraft {
   return { name: '', stateCode: '27', businessType: null, gst: null, gstin: '', filing: null, stock: null, start: 'fy', earlierDate: '', fresh: null }
+}
+
+/** Audit A7 / UX-9: "Starting fresh" starts the books today (a new business has no earlier months
+ *  — and no GST months to be reminded of); "Already running" the FY start. Only while the user
+ *  has not picked a start themselves. */
+export function freshAnswer(d: Pick<SetupDraft, 'startPicked'>, fresh: boolean): Partial<SetupDraft> {
+  return { fresh, ...(d.startPicked ? {} : { start: fresh ? 'today' : 'fy' }) }
 }
 
 /** The start date a choice means. */

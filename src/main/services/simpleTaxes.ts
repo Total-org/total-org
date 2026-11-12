@@ -31,7 +31,7 @@ import {
 } from '@shared/simple/taxes'
 import { getFeatures, getGstProfile } from './config'
 import { dashGst, gst3bFigures, readGstFiledAll } from './dashboard'
-import { gstCredit, readGstFiled } from './simpleHome'
+import { gstCredit, homeGstStart, readGstFiled } from './simpleHome'
 import { closeChecklist, getStatement, gst2bMismatches, gstPreparedAt, withholdingFacts } from './assistants'
 import { listLedgers } from './masters'
 import { writeAudit } from './audit'
@@ -93,7 +93,9 @@ function periodOf(db: DB, company: CompanyInfo, filing: 'monthly' | 'quarterly',
     if (!p) throw new AppError('simple_taxes_period', 'That period has not started yet.', { field: 'period' })
     return p
   }
-  const row = dashGst(db, company, today, gstStartsOn(company.booksBeginDate, company.gstRegistrationSince))!
+  // Audit A7 review: the Home tile's own start (a fresh business: its first entry), so the Taxes
+  // screen and Ask Total open on the period Home shows; earlier periods stay among the choices.
+  const row = dashGst(db, company, today, homeGstStart(db, company, today, company.gstRegistrationSince))!
   const from = row.from ?? `${row.period}-01`
   // The period is named by its last month (a quarter by its third month); the dates are dashGst's own.
   const named = gstPeriodFor(row.period, filing, today)!

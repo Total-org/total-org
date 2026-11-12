@@ -301,6 +301,7 @@ export class Harness {
     if (typeof timeout === 'object') [opts, timeout] = [timeout, 30000]
     const mode = opts.mode ?? this.mode
     await this.waitScreen('company-select')
+    await this.revealAccountantWays()
     await this.click('btn-company-create')
     await this.fill('input-company-name', name)
     if (opts.gstin) await this.fill('input-company-gstin', opts.gstin)
@@ -316,9 +317,18 @@ export class Harness {
    *  full app" is the 0.10 path (no `ui` meta), used for the default accountant mode. */
   async createDemoCompany(timeout = 60000, { mode = this.mode } = {}) {
     await this.waitScreen('company-select')
+    if (mode !== 'simple') await this.revealAccountantWays()
     await this.click(mode === 'simple' ? 'btn-company-demo' : 'btn-company-demo-full')
     await this.waitScreen('gateway', timeout)
     await this.setMode(mode)
+  }
+
+  /** Audit A7 / UX-21: on the first-run wizard the accountant ways in (full form, sample in the
+   *  full app, open a backup) wait behind "I'm an accountant, or I have a backup" — open it. */
+  async revealAccountantWays() {
+    await this.page.waitForSelector('[data-testid="btn-setup-accountant-ways"], [data-testid="btn-company-create"]:visible', { state: 'attached', timeout: 15000 })
+    const toggle = await this.page.$('[data-testid="btn-setup-accountant-ways"][aria-expanded="false"]')
+    if (toggle) await toggle.click()
   }
 
   /** WP 8.1: put the open company in `mode`. Accountant is what a company without `ui` meta

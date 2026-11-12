@@ -185,7 +185,8 @@ export function simpleTargetFor(screen: Screen, facts: HandoffFacts | null): Scr
     case 'stock-summary':
       return { name: 'simple-stock' }
     case 'company-info':
-      return screen.backTo === 'simple-taxes' ? { name: 'simple-taxes' } : section(screen)
+      // Audit A7 / UX-1: Company details → the plain Business details screen.
+      return screen.backTo === 'simple-taxes' ? { name: 'simple-taxes' } : { name: 'simple-business' }
     case 'registers':
       // All entries (the Day book's list): Money, as the Day book went back to.
       if (screen.tab === 'entries') return { name: 'simple-section', section: 'money' }
@@ -246,7 +247,7 @@ export function backToSimpleClears(screen: Screen, target: Screen): Name[] {
   if (screen.name === 'registers') out.add(alwaysKey({ name: 'simple-reports', report: 'by-month' }))
   if (screen.name === 'outstandings' && (screen.side === 'payable' || screen.backTo === 'simple-people')) out.add('simple-people')
   if (screen.name === 'ledger-statement' && target.name === 'simple-person') out.add('simple-person')
-  if (screen.name === 'company-info' && screen.backTo === 'simple-taxes') out.add('simple-taxes')
+  if (screen.name === 'company-info') out.add(screen.backTo === 'simple-taxes' ? 'simple-taxes' : 'simple-business')
   return [...out]
 }
 
