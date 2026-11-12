@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { isCatalogueLoaded, LANGUAGES, type Language, type MessageKey } from '@shared/i18n'
+import { isCatalogueLoaded, languagePickerLabel, LANGUAGES, type Language, type MessageKey } from '@shared/i18n'
 import { toPlainDate } from '@shared/dates'
 import { reminderMessage, reminderSms, whatsappLink, whatsappNumber, type PersonReminder, type PersonView, type ReminderVia } from '@shared/simple/people'
 import type { ReminderBucket } from '@shared/receivables/config'
@@ -108,7 +108,7 @@ export function ReminderPanel({ person, reminder, startLang, onSent }: { person:
           label={t('simple.people.reminder.language')}
           size="sm"
           testId="reminder-lang"
-          options={LANGUAGES.map((l) => ({ value: l, label: lbl(LANG_TEXT[l]) }))}
+          options={LANGUAGES.map((l) => ({ value: l, label: languagePickerLabel(l, lbl(LANG_TEXT[l]), t) }))}
           value={lang}
           onChange={setChosen}
         />

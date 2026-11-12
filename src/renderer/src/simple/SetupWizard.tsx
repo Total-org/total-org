@@ -49,7 +49,7 @@ export function SetupWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on mount only
   }, [])
   const languageName = (v: Language): string =>
-    languagePickerLabel(v, v === 'hi' ? t('simple.looks.lang.hi') : v === 'hinglish' ? t('simple.looks.lang.hinglish') : t('simple.looks.lang.en'))
+    languagePickerLabel(v, v === 'hi' ? t('simple.looks.lang.hi') : v === 'hinglish' ? t('simple.looks.lang.hinglish') : t('simple.looks.lang.en'), t)
   const [draft, setDraft] = useState<SetupDraft>(emptySetupDraft)
   const [stepIdx, setStepIdx] = useState(0)
   const [errors, setErrors] = useState<Partial<Record<keyof SetupDraft, SetupErrorKey>>>({})

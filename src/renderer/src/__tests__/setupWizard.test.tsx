@@ -137,7 +137,12 @@ describe('setup wizard', () => {
     // English to start with on an English machine; the picker sits above the first question.
     expect(screen.getByTestId('setup-language-en').getAttribute('aria-checked')).toBe('true')
     expect(screen.getByTestId('setup-step-label').textContent).toBe('Step 1 of 6')
+    // Phase 6: Hindi and Hinglish are labelled beta, in the picker's own language.
+    expect(screen.getByTestId('setup-language-en').textContent).toBe('English')
+    expect(screen.getByTestId('setup-language-hi').textContent).toBe('हिन्दी (beta)')
+    expect(screen.getByTestId('setup-language-hinglish').textContent).toBe('Hinglish (beta)')
     click('setup-language-hi')
+    expect(screen.getByTestId('setup-language-hinglish').textContent).toBe('Hinglish (बीटा)')
     expect(localStorage.getItem(LANGUAGE_KEY)).toBe('hi')
     // The wizard itself re-renders in Hindi.
     expect(screen.getByTestId('setup-step-label').textContent).toBe(t('simple.setup.step', { step: 1, total: 6 }, 'hi'))

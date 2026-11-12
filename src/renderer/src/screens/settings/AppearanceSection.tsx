@@ -40,7 +40,7 @@ export function AppearanceSection(): React.JSX.Element {
   const { language, setLanguage, setsCompany: canSetCompany } = useLanguageChoice()
   const languagePending = useLanguagePending()
   const t = useT()
-  const languages = LANGUAGES.map((value) => ({ value, label: languagePickerLabel(value, t(`settings.language.${value}` as const)) }))
+  const languages = LANGUAGES.map((value) => ({ value, label: languagePickerLabel(value, t(`settings.language.${value}` as const), t) }))
   return (
     <div>
       <SectionTitle>How Total looks</SectionTitle>

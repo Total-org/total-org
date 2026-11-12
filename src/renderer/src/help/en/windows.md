@@ -1,6 +1,8 @@
-# Total on Windows
+# Total on Windows (preview)
 
 Total works the same on Windows as on a Mac: the same screens, the same books, the same backups. A few things look or behave a little differently, and this page lists them.
+
+Windows is a **preview** for now: every change is checked on Windows by our automatic tests, but it has not yet been tried on many real computers. Keep your own backups, and tell us if something looks wrong.
 
 ## Keys
 

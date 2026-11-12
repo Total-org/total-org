@@ -12,6 +12,8 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'common.save': 'Save karein',
   'common.saveShortcut': 'Save karein ⌘↵',
   'common.cancel': 'Cancel karein',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (beta)',
   'common.back': 'Peeche',
   'common.next': 'Aage',
   'common.done': 'Ho gaya',
@@ -1609,6 +1611,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.backups.whereHint': 'Backups aapke Total folder (Documents → total) mein rakhe jaate hain. Ek copy surakshit rakhne ke liye use kholein aur backup pen drive ya cloud folder mein copy karein.',
   'simple.backups.failed': 'Backup nahi ban saka: {reason}',
   'simple.backups.copyHint': 'Har baar business kholne par Total apne aap bhi ek backup banata hai.',
+  'simple.backups.windowsPreview': 'Windows par Total abhi preview hai: har badlaav apne aap jaancha jaata hai, par abhi kam logon ne ise asli computers par chalaya hai. Apne backups ki ek copy kahin aur bhi rakhein.',
   'simple.backups.restoreTitle': 'Kisi backup par wapas jaana',
   'simple.backups.restore': 'Agar kuch gadbad ho jaaye, to aap apna hisaab kisi backup jaisa wapas la sakte hain. Us backup ke baad likhi har cheez badal jaayegi, isliye pehle aaj ka backup le lein.',
   'simple.backups.all': 'Saare backups aur wapas jaana (full app)',

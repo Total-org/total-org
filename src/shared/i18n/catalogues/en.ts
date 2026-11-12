@@ -23,6 +23,8 @@ export const en = {
   'common.save': 'Save',
   'common.saveShortcut': 'Save ⌘↵',
   'common.cancel': 'Cancel',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (beta)',
   'common.back': 'Back',
   'common.next': 'Next',
   'common.done': 'Done',
@@ -1704,6 +1706,7 @@ export const en = {
   'simple.backups.whereHint': 'Backups are kept in your Total folder (Documents → total). To keep a copy safe, open it and copy a backup to a pen drive or a cloud folder.',
   'simple.backups.failed': 'The backup could not be made: {reason}',
   'simple.backups.copyHint': 'Total also makes a backup by itself each time you open your business.',
+  'simple.backups.windowsPreview': 'Total on Windows is a preview: it is checked automatically on every change, but few people have used it on real computers yet. Keep a copy of your backups somewhere else.',
   'simple.backups.restoreTitle': 'Going back to a backup',
   'simple.backups.restore': 'If something went wrong, you can put your records back as they were in a backup. Everything recorded after that backup is replaced, so back up today’s records first.',
   'simple.backups.all': 'All backups and going back (full app)',
