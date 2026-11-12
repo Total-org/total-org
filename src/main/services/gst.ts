@@ -15,7 +15,7 @@ import {
 import { backOutAdvance, computeGst, supplyTypeFor } from '@shared/gst/calc'
 import { spreadPosted } from '@shared/gst/postedSpread'
 import { toUqc } from '@shared/gst/uqc'
-import { validateGstr1, type GstIssue } from '@shared/gst/validate'
+import { blendedRateIssue, validateGstr1, type GstIssue } from '@shared/gst/validate'
 import { goodsAdvanceMessage, goodsAdvanceParties, supplyKindOfHsn, type AdvanceParty, type SupplyCounts } from '@shared/gst/advanceGoods'
 import { fyFromStartYear, fyOf } from '@shared/dates'
 import { plainRupees } from '@shared/money'
@@ -290,6 +290,11 @@ function originalInvoices(db: DB, company: CompanyInfo, notes: { id: number; dat
   return out
 }
 
+/** WP 2d: what the extraction noticed without changing a document — the ids of vouchers whose
+ *  several rate-less lines were given ONE rate from the posted tax that another mix of slabs
+ *  explains too (gstValidate's `blended_rate`). */
+export interface OutwardExtractionNotes { blended: number[] }
+
 /**
  * Extract outward GST documents (sales + credit notes + outward debit notes) for a period.
  *
@@ -299,14 +304,14 @@ function originalInvoices(db: DB, company: CompanyInfo, notes: { id: number; dat
  * to nilLines (Table 8), never into the rated buckets. SEWOP/EXPWOP (without-payment)
  * documents are zero-rated with no tax charged.
  */
-export function extractOutwardDocs(db: DB, company: CompanyInfo, from: string, to: string): GstDoc[] {
+export function extractOutwardDocs(db: DB, company: CompanyInfo, from: string, to: string, notes?: OutwardExtractionNotes): GstDoc[] {
   // CGST Act s.18(6) / rule 44(6) proviso: a capital good sold below its credit pays the excess as
   // output tax (services/fixedAssets.ts) — added to its tax invoice's document so GSTR-1, 3B, 9 and
   // the HSN summary agree with the books. A company without such sales gets the docs unchanged.
-  return applyCapitalGoodsExtraTax(db, extractOutwardDocsRaw(db, company, from, to), from, to)
+  return applyCapitalGoodsExtraTax(db, extractOutwardDocsRaw(db, company, from, to, notes), from, to)
 }
 
-function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: string): GstDoc[] {
+function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: string, notes?: OutwardExtractionNotes): GstDoc[] {
   // To-do §4: a voucher's own tax-fact snapshot (services/taxFacts.ts) wins over today's masters.
   const itemFacts = lineSnapSql(db, 'v', 'il', 'si')
   const ledgerFacts = lineSnapSql(db, 'v', 'vl', 'l')
@@ -495,6 +500,7 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
             ? postedLineRates(db, v.id, salesSide, salesLines.map((l) => ({ taxable: l.amount, rate: l.gstRate })), supply, v.date)
             : null
         if (resolved?.offSlab) offSlabRate = true
+        if (resolved?.blended) notes?.blended.push(v.id)
         salesLines.forEach((line, i) => {
           // WP 4.2: a ledger can carry a cess rate (migration 032) — absent = no cess, as before.
           collect(
@@ -1127,7 +1133,8 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
  *  e-invoice doc-no warning (#140) runs while the switch is on OR the profile says e-invoicing
  *  is required on the period's last day (to-do §4). */
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
-  const docs = extractOutwardDocs(db, company, from, to)
+  const notes: OutwardExtractionNotes = { blended: [] }
+  const docs = extractOutwardDocs(db, company, from, to, notes)
   const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
     gstin: company.gstin,
@@ -1135,7 +1142,8 @@ export function gstValidate(db: DB, company: CompanyInfo, from: string, to: stri
     einvoicing: einvoicingOn(db, company) || einvoiceProfileApplicability(db, company, to).required
   })
   const goods = goodsAdvanceIssue(db, company, from, to)
-  return goods ? [...issues, goods] : issues
+  const blended = blendedRateIssue(notes.blended)
+  return [...issues, ...(blended ? [blended] : []), ...(goods ? [goods] : [])]
 }
 
 /**

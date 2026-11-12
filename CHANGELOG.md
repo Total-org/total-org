@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**A warning when several lines share one guessed GST rate** (#265, WP 2d). On a bill typed as amounts,
+a sales line whose account has no GST rate takes its rate from the GST the bill posts. When several
+such lines share one bill, they all get one rate. If they were really at different rates (say 5 % and
+18 %), the split by rate in GSTR-1 is wrong, even when the blend happens to land on a standard rate
+such as 12 %. The GSTR-1 checks now warn about these bills and name them. *For accountants*: no
+figure changes.
+
 **GST you can't claim back (s.17(5))** (#263, WP 2d). The law blocks the GST credit on some
 purchases: food and drinks, a car that carries people (and its repairs and insurance), club or gym
 fees, staff holidays, building your own premises, personal use, and gifts or free samples. Record a
