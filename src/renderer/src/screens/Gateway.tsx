@@ -11,6 +11,7 @@
 // side by side, so they use plain focusable rows rather than useKeyNav — a window-level ↑/↓ owner
 // would be ambiguous between six lists. Charts take focus and read out months with ←/→.
 // Single-letter keys still jump to screens (registry cards) and F4–F9 start a voucher.
+import { ApprovalsWaiting } from './gateway/ApprovalsWaiting'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/client'
@@ -200,6 +201,7 @@ export function Gateway(): React.JSX.Element {
       />
 
       {brandNew && setup && <OnboardingCard setup={setup} />}
+      <ApprovalsWaiting />
 
       {/* A container query, not a viewport one: the docked assistant narrows the screen (WP 5.2). */}
       <div className="@container">

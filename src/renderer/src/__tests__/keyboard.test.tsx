@@ -13,7 +13,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { DockModeContext, DockedDrawer, isPanelOpen, routePanelEscape } from '../components/kit'
-import { Modal, isAnyModalOpen } from '../components/ui'
+import { Button, Modal, isAnyModalOpen } from '../components/ui'
+import { pageSaveShortcut, usePageSaveShortcut } from '../lib/saveShortcut'
 import { TypeAhead, type PickerOption } from '../components/pickers'
 import { handleRadioArrows, handleSlashKey, screenSearchBox, syncRovingRadios, useRovingRadios } from '../lib/simpleKeys'
 import { handleHelpKey } from '../help/keys'
@@ -213,13 +214,18 @@ describe('Esc closes the topmost layer only (simple shell)', () => {
     delete document.documentElement.dataset.shell
   })
 
-  it('the full app (no dock provider): the panel is not a layer — Esc on the screen reaches the form as before', () => {
+  it('Phase 5 — the full app (no dock provider): the panel is an Esc layer too — Esc closes it first, then reaches the form; focus is not moved', async () => {
     const formEsc = vi.fn()
     render(<Stack dock={null} onFormEscape={formEsc} />)
-    expect(isPanelOpen()).toBe(false)
+    expect(isPanelOpen()).toBe(true)
+    // Opening the panel leaves the keyboard where it was in the full app.
+    expect(document.activeElement).toBe(document.body)
+    screen.getByTestId('form-button').focus()
+    esc(screen.getByTestId('form-button'))
+    await waitFor(() => expect(screen.queryByTestId('panel')).toBeNull())
+    expect(formEsc).not.toHaveBeenCalled()
     esc(screen.getByTestId('form-button'))
     expect(formEsc).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('panel')).toBeTruthy()
   })
 })
 
@@ -429,5 +435,145 @@ describe('pickers: Enter never creates', () => {
     }
     expect(bad).toEqual([])
     expect(files.some((f) => /import\s*\{[^}]*\bTypeAhead\b[^}]*\}\s*from\s*'[^']*components\/pickers'/.test(readFileSync(f, 'utf8')))).toBe(true)
+  })
+})
+
+describe('Phase 5 — ⌘↵ / Ctrl+Enter saves in both modes', () => {
+  const save = (el: Element | Window, mod: 'metaKey' | 'ctrlKey' = 'metaKey'): void => {
+    fireEvent.keyDown(el, { key: 'Enter', [mod]: true })
+  }
+
+  it('in a dialog: presses its one primary button (⌘ and Ctrl); none with two primaries or a disabled one', () => {
+    const ok = vi.fn()
+    const other = vi.fn()
+    const { rerender } = render(
+      <Modal title="New account" onClose={() => {}}>
+        <input aria-label="Name" data-testid="name" />
+        <Button onClick={other}>Cancel</Button>
+        <Button variant="primary" onClick={ok}>Create</Button>
+      </Modal>
+    )
+    save(screen.getByTestId('name'))
+    expect(ok).toHaveBeenCalledTimes(1)
+    save(screen.getByTestId('name'), 'ctrlKey')
+    expect(ok).toHaveBeenCalledTimes(2)
+    expect(other).not.toHaveBeenCalled()
+    rerender(
+      <Modal title="New account" onClose={() => {}}>
+        <input aria-label="Name" data-testid="name" />
+        <Button variant="primary" onClick={other}>One</Button>
+        <Button variant="primary" onClick={other}>Two</Button>
+      </Modal>
+    )
+    save(screen.getByTestId('name'))
+    rerender(
+      <Modal title="New account" onClose={() => {}}>
+        <input aria-label="Name" data-testid="name" />
+        <Button variant="primary" disabled onClick={other}>Create</Button>
+      </Modal>
+    )
+    save(screen.getByTestId('name'))
+    expect(other).not.toHaveBeenCalled()
+  })
+
+  it('a marked Save wins over the primary in a dialog; a picker that takes ⌘↵ itself goes first', () => {
+    const marked = vi.fn()
+    const primary = vi.fn()
+    render(
+      <Modal title="Edit" onClose={() => {}}>
+        <input role="combobox" aria-expanded="false" aria-controls="x" aria-label="Own" data-testid="own" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} />
+        <Button variant="primary" onClick={primary}>Next</Button>
+        <Button data-save-shortcut="" onClick={marked}>Save</Button>
+      </Modal>
+    )
+    save(screen.getByTestId('own'))
+    expect(marked).not.toHaveBeenCalled()
+    save(document.body)
+    expect(marked).toHaveBeenCalledTimes(1)
+    expect(primary).not.toHaveBeenCalled()
+  })
+
+  it('review of #258: a field whose own Enter handler ignores ⌘ never runs the action twice (dialog and screen)', () => {
+    const act1 = vi.fn()
+    render(
+      <Modal title="Passphrase" onClose={() => {}}>
+        <input aria-label="Passphrase" data-testid="pass" onKeyDown={(e) => e.key === 'Enter' && act1()} />
+        <Button variant="primary" onClick={act1}>Open</Button>
+      </Modal>
+    )
+    save(screen.getByTestId('pass'))
+    expect(act1).toHaveBeenCalledTimes(1)
+    // Plain Enter is still the field's own.
+    fireEvent.keyDown(screen.getByTestId('pass'), { key: 'Enter' })
+    expect(act1).toHaveBeenCalledTimes(2)
+    cleanup()
+    const act2 = vi.fn()
+    function Page(): React.JSX.Element {
+      usePageSaveShortcut()
+      return (
+        <main id="main">
+          <input aria-label="UPI ID" data-testid="upi" onKeyDown={(e) => e.key === 'Enter' && act2()} />
+          <Button data-save-shortcut="" onClick={act2}>Save</Button>
+        </main>
+      )
+    }
+    render(<Page />)
+    save(screen.getByTestId('upi'))
+    expect(act2).toHaveBeenCalledTimes(1)
+  })
+
+  it('review of #258: ⌘↵ typed in a side panel never presses the screen’s Save behind it', () => {
+    const saveIt = vi.fn()
+    function Page(): React.JSX.Element {
+      usePageSaveShortcut()
+      return (
+        <>
+          <main id="main">
+            <Button data-save-shortcut="" onClick={saveIt}>Save details</Button>
+          </main>
+          <DockedDrawer title="Help" onClose={() => {}} width={400}>
+            <input aria-label="Search help" data-testid="help-search" />
+          </DockedDrawer>
+        </>
+      )
+    }
+    render(<Page />)
+    save(screen.getByTestId('help-search'))
+    expect(saveIt).not.toHaveBeenCalled()
+    save(document.body)
+    expect(saveIt).toHaveBeenCalledTimes(1)
+  })
+
+  it('on a screen: the one marked Save only, never while a dialog is open, never when the screen took the key', () => {
+    const saveIt = vi.fn()
+    render(
+      <main id="main">
+        <Button variant="primary" onClick={() => {}}>Some other primary</Button>
+        <Button data-save-shortcut="" onClick={saveIt}>Save details</Button>
+      </main>
+    )
+    const key = (prevented = false): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, cancelable: true })
+      if (prevented) e.preventDefault()
+      return e
+    }
+    expect(pageSaveShortcut(key())).toBe(true)
+    expect(saveIt).toHaveBeenCalledTimes(1)
+    expect(pageSaveShortcut(key(true))).toBe(false)
+    expect(pageSaveShortcut(new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(false)
+    cleanup()
+    render(
+      <>
+        <main id="main">
+          <Button data-save-shortcut="" onClick={saveIt}>Save details</Button>
+        </main>
+        <Modal title="Sure?" onClose={() => {}}>
+          <Button onClick={() => {}}>OK</Button>
+        </Modal>
+      </>
+    )
+    expect(isAnyModalOpen()).toBe(true)
+    expect(pageSaveShortcut(key())).toBe(false)
+    expect(saveIt).toHaveBeenCalledTimes(1)
   })
 })

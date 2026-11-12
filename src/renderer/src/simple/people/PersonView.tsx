@@ -309,7 +309,7 @@ function Person({ p }: { p: PersonData }): React.JSX.Element {
         </div>
         {canEdit && (
           <div className="mt-3">
-            <Button variant="primary" data-testid="btn-person-save" disabled={!changed || busy} onClick={() => void saveContact()}>
+            <Button variant="primary" data-testid="btn-person-save" data-save-shortcut="" disabled={!changed || busy} onClick={() => void saveContact()}>
               {t('simple.people.saveContact')}
             </Button>
           </div>

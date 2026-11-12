@@ -62,7 +62,7 @@ const DASH = {
 const MSME = { asOn: today, dueThisWeek: 1250000, dueThisWeekBills: 2, overdue: 0, overdueBills: 0 }
 const PROMISED = { count: 1, amount: 500000, overdueCount: 0, weekFrom: today, weekTo: today }
 
-function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures> } = {}): QueryClient {
+function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures>; waiting?: number } = {}): QueryClient {
   invoke.mockImplementation(async (channel: string) => {
     switch (channel) {
       // Launch to Home: the Gateway's four reads come as ONE dashboard:all, each part a section.
@@ -82,6 +82,7 @@ function setup(opts: { series?: DashboardSeries | { fail: string }; features?: P
       case 'app:notifyDeadlines': return { ok: true, data: null }
       case 'log:renderer': return { ok: true, data: null }
       case 'master:ledgers:list': return { ok: true, data: [] }
+      case 'ai:queue': return opts.waiting != null ? { ok: true, data: { waiting: opts.waiting, groups: [], plans: [] } } : { ok: false, error: 'unmocked channel ai:queue' }
       default: return { ok: false, error: `unmocked channel ${channel}` }
     }
   })
@@ -264,6 +265,18 @@ describe('Gateway dashboard', () => {
     expect(live.textContent).toMatch(/^May \d{4}: Sales/)
     // A hidden data table carries every exact value.
     expect(chart.querySelector('table caption')?.textContent).toBe('Sales vs purchases by month')
+  })
+
+  it('Phase 5: proposals waiting for approval show on the Dashboard and open the approval queue; none waiting, nothing shown', async () => {
+    setup({ waiting: 2 })
+    const card = await screen.findByTestId('gateway-approvals')
+    expect(card.textContent).toContain('2 proposals are waiting for approval')
+    fireEvent.click(card)
+    expect(go).toHaveBeenCalledWith({ name: 'ai-queue' })
+    cleanup()
+    setup({ waiting: 0 })
+    await screen.findByTestId('gateway-dashboard')
+    expect(screen.queryByTestId('gateway-approvals')).toBeNull()
   })
 
   it('the onboarding card lists what is left and links to it', async () => {

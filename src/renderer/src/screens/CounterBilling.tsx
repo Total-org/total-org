@@ -537,6 +537,8 @@ export function CounterBillingScreen(): React.JSX.Element {
                 setSuggest(0)
               }}
               onKeyDown={onSearchKey}
+              // Its Esc clears what is typed (kit/layers.ts) before any open side panel closes.
+              {...(search !== '' || multiplier != null ? { 'data-consumes-escape': '' } : {})}
               role="combobox"
               aria-expanded={suggestions.length > 0}
               aria-controls="counter-suggestions"
@@ -598,6 +600,7 @@ export function CounterBillingScreen(): React.JSX.Element {
                           autoFocus
                           className={`${inputCls} num text-right`}
                           data-testid={`input-counter-edit-${f}`}
+                          data-consumes-escape=""
                           aria-label={`${FIELD_LABEL[f]} of ${it?.name ?? 'line'}`}
                           value={editing.text}
                           placeholder={f === 'disc' ? '10% or ₹' : undefined}

@@ -103,6 +103,7 @@ import { switcherMayOpen, useCompanySwitch } from './lib/companySwitch'
 import { layerCount } from './components/kit/layers'
 import { CompanySwitcher } from './components/CompanySwitcher'
 import { useAlwaysFullRedirect } from './lib/handoff'
+import { usePageSaveShortcut } from './lib/saveShortcut'
 import { FOCUS_SEARCH_EVENT } from './lib/searchEvents'
 import { CommandPalette } from './components/CommandPalette'
 import { useAssistantPanel } from './components/ai/AssistantPanel'
@@ -124,6 +125,8 @@ export default function App(): React.JSX.Element {
   const simpleView = useScreenView(screen.name).view === 'simple'
   // WP 9.10: a simple flow set to "Always open the full app for this" opens its full counterpart.
   useAlwaysFullRedirect()
+  // Phase 5: ⌘↵ presses a screen's marked Save in both modes (lib/saveShortcut.ts).
+  usePageSaveShortcut()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const queryClient = useQueryClient()

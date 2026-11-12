@@ -61,6 +61,8 @@ export function RateCell({
       placeholder="—"
       aria-label={label}
       data-testid={testId}
+      // Its Esc puts the rate back (kit/layers.ts) before any open side panel closes.
+      data-consumes-escape=""
       onChange={(e) => setText(e.target.value)}
       onFocus={(e) => e.target.select()}
       onBlur={() => void commit()}

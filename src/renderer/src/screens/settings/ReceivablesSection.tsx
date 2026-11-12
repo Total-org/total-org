@@ -94,7 +94,7 @@ export function ReceivablesSection(): React.JSX.Element {
 
         <div className="flex justify-end gap-2">
           <Button variant="ghost" disabled={!dirty} onClick={() => setDraft(data?.config ?? null)}>Discard</Button>
-          <Button variant="primary" data-testid="btn-rx-save" disabled={!dirty} onClick={() => void save()}>Save</Button>
+          <Button variant="primary" data-testid="btn-rx-save" data-save-shortcut="" disabled={!dirty} onClick={() => void save()}>Save</Button>
         </div>
       </Panel>
     </div>
