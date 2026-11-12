@@ -48,8 +48,16 @@ export function screenTitle(name: string): string | undefined {
   return SCREENS.find((s) => s.name === name)?.title
 }
 
-/** The context for a screen. Pure; tested. */
-export function screenContextFor(screen: Screen, from: string, to: string, extra: Params = {}): AiContext {
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/** The context for a screen. Pure; tested. A screen that shows its own dates (audit A8: the trial
+ *  balance / balance sheet / P&L stop at today) registers them as `from` / `to` through
+ *  `useAiScreenContext`; they replace the working period, so "Explain this" and the screen data
+ *  read the dates the user sees. */
+export function screenContextFor(screen: Screen, sessionFrom: string, sessionTo: string, registered: Params = {}): AiContext {
+  const { from: shownFrom, to: shownTo, ...extra } = registered
+  const from = typeof shownFrom === 'string' && ISO_DAY.test(shownFrom) ? shownFrom : sessionFrom
+  const to = typeof shownTo === 'string' && ISO_DAY.test(shownTo) ? shownTo : sessionTo
   const params: Params = {}
   const rec = screen as unknown as Record<string, unknown>
   for (const k of PARAM_KEYS) {

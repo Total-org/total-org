@@ -140,7 +140,8 @@ afterEach(() => {
 
 async function openGstr2b(): Promise<void> {
   renderWithClient(<Gstr2bScreen />)
-  fireEvent.click(screen.getByTestId('btn-2b-paste'))
+  // Audit A8 / UX-4: the screen first asks which month is being filed (gst:duePeriod).
+  fireEvent.click(await screen.findByTestId('btn-2b-paste', undefined, { timeout: 10_000 }))
   fireEvent.change(screen.getByTestId('input-2b-paste'), { target: { value: '{"data":{}}' } })
   fireEvent.click(screen.getByTestId('btn-2b-paste-apply'))
   await waitFor(() => expect(screen.getByTestId('rows-2b-pairs')).toBeTruthy())

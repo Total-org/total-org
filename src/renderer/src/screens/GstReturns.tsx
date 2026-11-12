@@ -7,7 +7,7 @@ import { GatewayReturnPanel } from './gst/GatewayPanel'
 import { AmountInput, Banner, Button, DrawerSection, EmptyState, Money, Page, PageHeader, Panel, Select, SkeletonRows, Spinner, TabBar } from '../components/ui'
 import { OptionChoice, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
-import { todayISO } from '@shared/dates'
+import { toMonthLabel, todayISO } from '@shared/dates'
 import { formatPaise } from '@shared/money'
 import { posLabel } from '@shared/gst/states'
 import { b2clLabelForPeriod, type Gstr1Result, type Gstr3bResult } from '@shared/gst/returns'
@@ -56,15 +56,20 @@ export function MonthBar({
   months,
   value,
   onChange,
-  testId = 'input-month'
+  testId = 'input-month',
+  quarter
 }: {
   months: MonthChoice[]
   value: string
   onChange: (key: string) => void
   /** data-testid (lib/testids.ts — `input-<screen>-month`). */
   testId?: string
+  /** Review of #249: a quarterly filer's return being filed ('YYYY-MM-DD' range, `useMonth().dueQuarter`)
+   *  — said beside the month while it lies inside it, so one month is never read as the quarter. */
+  quarter?: { from: string; to: string } | null
 }): React.JSX.Element {
-  return (
+  const inQuarter = quarter != null && value >= quarter.from.slice(0, 7) && value <= quarter.to.slice(0, 7)
+  const select = (
     <Select value={value} onChange={(e) => onChange(e.target.value)} className="w-48" data-testid={testId} aria-label="Return period">
       {months.map((m) => (
         <option key={m.key} value={m.key}>
@@ -73,12 +78,24 @@ export function MonthBar({
       ))}
     </Select>
   )
+  if (!inQuarter) return select
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-hint text-muted" data-testid="gst-due-quarter">
+        Quarterly return {toMonthLabel(quarter.from.slice(0, 7))}–{toMonthLabel(quarter.to.slice(0, 7), 'long')} · one month at a time
+      </span>
+      {select}
+    </div>
+  )
 }
 
-/** Which month a return screen opens on (a screen option): this month, or the previous one —
- *  the month usually being filed. */
-export type OpenOn = 'current' | 'previous'
+/** Which month a return screen opens on (a screen option): the month being filed — the period
+ *  whose return is next due, as the Compliance card names it (audit A8 / UX-4, the default) —,
+ *  this month, or the previous one. */
+export type OpenOn = 'due' | 'current' | 'previous'
+export const OPEN_ON_VALUES: readonly OpenOn[] = ['due', 'current', 'previous']
 export const OPEN_ON_CHOICES: { value: OpenOn; label: string }[] = [
+  { value: 'due', label: 'The month being filed' },
   { value: 'current', label: 'This month' },
   { value: 'previous', label: 'Previous month' }
 ]
@@ -88,29 +105,55 @@ function previousMonthKey(key: string): string {
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
 }
 
-export function useDefaultMonth(months: MonthChoice[], openOn: OpenOn = 'current'): [string, (k: string) => void] {
+/** The list's month for `target`: itself, else the nearest end of the list (a target before the
+ *  period = its first month, after it = its last); undefined for an empty list. */
+export function nearestMonthKey(months: readonly MonthChoice[], target: string): string | undefined {
+  if (months.some((m) => m.key === target)) return target
+  const first = months[0]?.key
+  if (first != null && target < first) return first
+  return months[months.length - 1]?.key
+}
+
+/** `dueMonth` ('YYYY-MM', `gst:duePeriod`) is the target for `openOn: 'due'`; absent / null (not
+ *  a regular registration) = this month. */
+export function useDefaultMonth(months: MonthChoice[], openOn: OpenOn = 'current', dueMonth?: string | null): [string, (k: string) => void] {
   const today = todayISO().slice(0, 7)
-  const current = openOn === 'previous' ? previousMonthKey(today) : today
-  const fallback = months.find((m) => m.key === current)?.key ?? months[months.length - 1]?.key ?? current
-  const [key, setKey] = useState(fallback)
-  return [months.some((m) => m.key === key) ? key : fallback, setKey]
+  const target = openOn === 'previous' ? previousMonthKey(today) : openOn === 'due' ? (dueMonth ?? today) : today
+  const fallback = nearestMonthKey(months, target) ?? target
+  const [key, setKey] = useState<string | null>(null)
+  return [key != null && months.some((m) => m.key === key) ? key : fallback, setKey]
 }
 
 /** Selected month resolved against the list — null when the period yields no months at all
- *  (item 77 pattern: never `months.find(...)!`). */
+ *  (item 77 pattern: never `months.find(...)!`), and while `pending` (the due period of
+ *  `openOn: 'due'` is still being read, so no return is computed for a month about to change). */
 export function useMonth(openOn: OpenOn = 'current'): {
   months: MonthChoice[]
   month: MonthChoice | null
   monthKey: string
   setMonthKey: (k: string) => void
+  pending: boolean
+  /** A quarterly filer's period being filed (for MonthBar's note); null otherwise. */
+  dueQuarter: { from: string; to: string } | null
 } {
   const months = useMonths()
-  const [monthKey, setMonthKey] = useDefaultMonth(months, openOn)
-  const month = months.find((m) => m.key === monthKey) ?? months[0] ?? null
-  return { months, month, monthKey, setMonthKey }
+  const due = useQuery({ queryKey: ['gstDuePeriod'], queryFn: api.gst.duePeriod, enabled: openOn === 'due', staleTime: 60_000, retry: false })
+  // A failed read (an old main, a closed company) falls back to this month at once.
+  const pending = openOn === 'due' && due.isPending
+  const [monthKey, setMonthKey] = useDefaultMonth(months, openOn, due.data?.period)
+  const month = pending ? null : (months.find((m) => m.key === monthKey) ?? months[0] ?? null)
+  const dueQuarter = openOn === 'due' && due.data?.quarterly ? { from: due.data.from, to: due.data.to } : null
+  return { months, month, monthKey, setMonthKey, pending, dueQuarter }
 }
 
-export function NoMonths(): React.JSX.Element {
+export function NoMonths({ pending = false }: { pending?: boolean } = {}): React.JSX.Element {
+  if (pending) {
+    return (
+      <Panel>
+        <SkeletonRows />
+      </Panel>
+    )
+  }
   return (
     <Panel>
       <EmptyState
@@ -239,8 +282,8 @@ function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: Ope
  *  period, as GSTR-3B is. Without it: unchanged. */
 export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
   const features = useFeatures()
-  const opts = useScreenOptions('gstr1', { openOn: 'current' as OpenOn }, { openOn: ['current', 'previous'] })
-  const { months, month, monthKey, setMonthKey } = useMonth(opts.options.openOn)
+  const opts = useScreenOptions('gstr1', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,7 +335,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
     return (
       <Page>
         <PageHeader title="GSTR-1 · Outward supplies" />
-        <NoMonths />
+        <NoMonths pending={pending} />
       </Page>
     )
   }
@@ -303,7 +346,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
         title="GSTR-1 · Outward supplies"
         subtitle={<CaCheck place="gstr1.screen" />}
         tabs={<GstReturnTabs current="gstr1" />}
-        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" />}
+        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" quarter={dueQuarter} />}
         actions={
           <Button
             variant="primary"
@@ -526,8 +569,8 @@ function ManualAdjustments({ period }: { period: string }): React.JSX.Element {
 
 /** `initialMonth` (WP 8.6, 'YYYY-MM'): opened from the simple Home's GST tile on its period. */
 export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
-  const opts = useScreenOptions('gstr3b', { openOn: 'current' as OpenOn }, { openOn: ['current', 'previous'] })
-  const { months, month, monthKey, setMonthKey } = useMonth(opts.options.openOn)
+  const opts = useScreenOptions('gstr3b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -590,7 +633,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     return (
       <Page>
         <PageHeader title="GSTR-3B · Summary return" />
-        <NoMonths />
+        <NoMonths pending={pending} />
       </Page>
     )
   }
@@ -601,7 +644,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         title="GSTR-3B · Summary return"
         subtitle={<CaCheck place="gstr3b.screen" />}
         tabs={<GstReturnTabs current="gstr3b" />}
-        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" />}
+        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" quarter={dueQuarter} />}
         actions={
           <Button variant="primary" data-testid="btn-gstr3b-export" onClick={() => void doExport()} disabled={exportRefused || !info?.gstin} disabledTitle={exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : undefined}>
             Export JSON

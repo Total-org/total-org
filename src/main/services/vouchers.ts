@@ -247,6 +247,35 @@ export function nextVoucherNumber(db: DB, voucherTypeId: number, date: string, e
   })
 }
 
+/** Audit A8 / UX-3: the parties used most recently on one side — sales / credit notes / delivery
+ *  challans (`sales`) or purchases / debit notes / GRNs (`purchase`) — newest first, binned
+ *  vouchers left out. Only the newest `window` vouchers by id are read (a bounded walk of the
+ *  primary key, whatever the size of the books) and at most `scan` of them on that side; it only
+ *  orders the party picker, so a side with no voucher among them simply has no "recent" ones. */
+export const RECENT_PARTY_KINDS = {
+  sales: ['sales', 'credit_note', 'delivery_note'],
+  purchase: ['purchase', 'debit_note', 'receipt_note']
+} as const
+
+export function recentParties(db: DB, side: 'sales' | 'purchase', limit = 10, scan = 500, window = 5000): number[] {
+  const kinds = RECENT_PARTY_KINDS[side]
+  const top = (db.prepare('SELECT MAX(id) AS id FROM vouchers').get() as { id: number | null }).id
+  if (top == null) return []
+  const rows = db
+    .prepare(
+      `SELECT v.party_ledger_id AS id FROM vouchers v JOIN voucher_types t ON t.id = v.voucher_type_id
+        WHERE v.id > ? AND ${NOT_DELETED} AND v.party_ledger_id IS NOT NULL AND t.kind IN (${kinds.map(() => '?').join(',')})
+        ORDER BY v.id DESC LIMIT ?`
+    )
+    .all(top - window, ...kinds, scan) as { id: number }[]
+  const out: number[] = []
+  for (const r of rows) {
+    if (!out.includes(r.id)) out.push(r.id)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 /** True when another live voucher of this type already carries `number` — the renderer's
  *  pre-save confirm for a manually typed number (the post-save duplicateNumber flag on
  *  SavedVoucher stays as the belt-and-braces warning for races). Binned vouchers don't

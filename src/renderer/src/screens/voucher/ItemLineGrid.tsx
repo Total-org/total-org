@@ -162,6 +162,7 @@ export function ItemLineGrid({
                     <input
                       className={`${inputCls} num text-right`}
                       data-testid="input-line-qty"
+                      aria-label={`Quantity, line ${i + 1}`}
                       value={r.qtyText}
                       inputMode="decimal"
                       placeholder="0"
@@ -184,6 +185,7 @@ export function ItemLineGrid({
                       setRow(i, resolverOn ? { rate: p, pricing: p == null ? undefined : { source: 'manual' } } : { rate: p })
                     }
                     testId="input-line-rate"
+                    ariaLabel={`${rateLabel ?? 'Rate'}, line ${i + 1}`}
                   />
                   {resolverOn && item && <PriceHint pricing={r.pricing} onReset={() => linePricing.resetRow(r.key)} />}
                 </td>
@@ -193,6 +195,7 @@ export function ItemLineGrid({
                     onPaise={(p) => setRow(i, resolverOn && r.rate != null ? { discount: p, pricing: { source: 'manual' } } : { discount: p })}
                     placeholder="0"
                     testId="input-line-discount"
+                    ariaLabel={`Discount, line ${i + 1}`}
                   />
                 </td>
                 {showGst && (

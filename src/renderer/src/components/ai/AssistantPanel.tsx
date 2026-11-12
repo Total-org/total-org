@@ -317,14 +317,15 @@ function explainHandler(f: ExplainInput): void {
   const screen = nav.stack[nav.stack.length - 1]!
   const { from, to } = useSession.getState()
   const ctx = screenContextFor(screen, from, to, useAiScreenParams.getState().byScreen[screen.name])
-  const asOn = f.asOn ?? (AS_ON_SCREENS.has(screen.name) && !f.from ? to : undefined)
+  // The screen's own dates when it registered them (TB / BS / P&L as on today), else the period.
+  const asOn = f.asOn ?? (AS_ON_SCREENS.has(screen.name) && !f.from ? ctx.to : undefined)
   const { question, context } = explainContextFor({
     ...f,
     screen: f.screen ?? screen.name,
     screenLabel: f.screen ? screenTitle(f.screen) : ctx.label,
     params: ctx.params,
-    from: f.from ?? from,
-    to: f.to ?? to,
+    from: f.from ?? ctx.from,
+    to: f.to ?? ctx.to,
     ...(asOn ? { asOn } : {})
   })
   useAssistantPanel.getState().ask(question, context)

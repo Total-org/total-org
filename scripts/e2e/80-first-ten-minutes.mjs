@@ -1,4 +1,4 @@
-// Scenario 79 — audit A7 "First ten minutes" (2026-11 audit UX-1, UX-2, UX-9, UX-15, UX-21).
+// Scenario 80 — audit A7 "First ten minutes" (2026-11 audit UX-1, UX-2, UX-9, UX-15, UX-21).
 //   1. First run: the wizard and "Try with sample data"; the accountant ways in (full form, sample
 //      in the full app, open a backup) wait behind one line until asked for (UX-21).
 //   2. "Try with sample data" opens a coherent sample shop (UX-2): its day-one figures entered (no
@@ -22,7 +22,7 @@ const nextMonth20 = (iso) => {
   return `${ny}-${String(nm).padStart(2, '0')}-20`
 }
 
-await scenario('79-first-ten-minutes', async (h) => {
+await scenario('80-first-ten-minutes', async (h) => {
   const { page } = h
   const today = localToday()
 

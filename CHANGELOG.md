@@ -37,7 +37,18 @@ still lists them). Fixed: the GST tile showed the previous month's due date for 
 when the month before was skipped, and Home could miss a bill saved a moment before.
 *For accountants:* no figure changes — the full app's "Sample data in the full app" is the same
 sample as before. *For developers:* new screen `simple-business`; `createDemoCompany('simple')` →
-`services/sampleShop.ts`; `homeGstStart` in `services/simpleHome.ts`; e2e 79.
+`services/sampleShop.ts`; `homeGstStart` in `services/simpleHome.ts`; e2e 80.
+
+- **Accountant defaults a CA would otherwise change every time** (A8 part 1). Plain words: in the
+  full app a sales bill's party list now starts with your customers (the ones you billed last on
+  top), then cash and bank, then suppliers — a purchase starts with suppliers — and never offers a
+  tax, income or expense account as the buyer. GSTR-1, GSTR-3B and GSTR-2B open on the month being
+  filed (the one the Gateway's GST card names) instead of the running month. The trial balance,
+  balance sheet and P&L stop at today while the year is still running (the trial balance says so,
+  and Options → "Stop at today" reads the year end); the trial balance has a Group-wise switch and
+  P&L / balance sheet show "Compare periods" in the header. On a sales bill, Tab reaches Save before
+  Cancel and the e-way fields (vehicle, transporter, distance) wait under "GST and dispatch
+  details". No figure changes: every report is the same for the same date.
 
 - **CI gets Electron from its own cache** (#247). Plain words: nothing in the app changes. For
   developers: every CI / release job that runs Electron restores the Electron download (and, where it

@@ -2,7 +2,7 @@
 // Trial balance limited to the cash / bank accounts as on the given date, All entries (Registers) on one
 // day, Outstandings on the asked side, GSTR-3B on the asked month. Without the params each screen
 // is unchanged.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { DayBookRow, OutstandingParty, TrialBalance } from '@shared/reports'
@@ -59,6 +59,10 @@ afterEach(() => cleanup())
 
 describe('Home link targets (WP 8.6)', () => {
   it('Trial balance: as on the given date, only the given accounts', async () => {
+    // Clock pinned to 7 Nov 2026 so the no-date default below is a literal (audit A8 / UX-10).
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-07T10:00:00'))
+    onTestFinished(() => void vi.useRealTimers())
     renderScreen(<TrialBalanceScreen asOn="2026-10-13" ledgerIds={[5, 6]} />)
     await waitFor(() => expect(rowsOf('trial-balance')).toHaveLength(2), SLOW)
     expect(invoke).toHaveBeenCalledWith('report:trialBalance', { asOn: '2026-10-13' })
@@ -66,7 +70,8 @@ describe('Home link targets (WP 8.6)', () => {
     cleanup()
     renderScreen(<TrialBalanceScreen />)
     await waitFor(() => expect(rowsOf('trial-balance')).toHaveLength(3), SLOW)
-    expect(invoke).toHaveBeenCalledWith('report:trialBalance', { asOn: '2027-03-31' })
+    // Audit A8 / UX-10: without an asked date, as on today while the period holds it.
+    expect(invoke).toHaveBeenCalledWith('report:trialBalance', { asOn: '2026-11-07' })
   })
 
   it('All entries: one day (the Day book went in the feature cleanup)', async () => {
