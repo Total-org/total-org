@@ -225,7 +225,7 @@ await scenario('32-receivables', async (h) => {
   await h.click('btn-save-voucher')
   // The banner already says "on credit hold"; only the save gate sets the party field's error —
   // once it shows, the save handler has returned without sending the voucher.
-  await page.waitForFunction(() => /on credit hold.*— (override it with a reason to save|an owner can override it)/.test(document.body.textContent ?? ''), null, { timeout: 8000 })
+  await page.waitForFunction(() => /on credit hold/.test(document.querySelector('[data-testid="field-error-party"]')?.textContent ?? ''), null, { timeout: 8000 })
   assertEq(await count('sales'), salesBefore, 'the invoice is blocked')
   // The server refuses it too (the banner is not the only gate).
   const direct = await page.evaluate(([p, t, s, d]) => window.total.invoke('voucher:save', {
