@@ -74,7 +74,14 @@ describe('setup wizard', () => {
     expect(screen.getByTestId('setup-start-today').textContent).toContain('13 Oct 2026')
     next()
     expect(screen.getByTestId('setup-choice-error').textContent).toBe('Choose one.')
+    // Audit A7 / UX-9: a new business starts today unless the user picked a start themselves;
+    // "already running" goes back to the FY start, "starting fresh" to today again.
     click('setup-fresh-new')
+    expect(screen.getByTestId('setup-start-today').getAttribute('aria-checked')).toBe('true')
+    click('setup-fresh-continuing')
+    expect(screen.getByTestId('setup-start-fy').getAttribute('aria-checked')).toBe('true')
+    click('setup-fresh-new')
+    expect(screen.getByTestId('setup-start-today').getAttribute('aria-checked')).toBe('true')
     next()
     expect(step()).toBe('tally')
     expect(screen.getByTestId('setup-summary').textContent).toContain('Shop (kirana / retail)')
@@ -83,7 +90,7 @@ describe('setup wizard', () => {
     const [payload, opts] = onFinish.mock.calls[0]! as unknown as [SimpleSetupInput, { tally: boolean }]
     expect(payload).toEqual({
       name: 'Ramesh Kirana', stateCode: '27', businessType: 'retail', gst: 'no', gstin: null, filing: null,
-      stock: true, startDate: '2026-04-01', fresh: true, mode: 'simple', fromTally: false
+      stock: true, startDate: '2026-10-13', fresh: true, mode: 'simple', fromTally: false
     })
     expect(opts).toEqual({ tally: false })
   })

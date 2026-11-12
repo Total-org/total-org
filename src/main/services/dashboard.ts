@@ -101,26 +101,27 @@ export function dashGst(db: DB, company: CompanyInfo, today: string, notBefore?:
     from = `${month}-01`
     to = monthEnd(month)
   }
-  if (notBefore && to < notBefore) {
-    from = filing === 'quarterly' ? `${quarterStartOf(monthOf(today))}-01` : `${monthOf(today)}-01`
-    to = today
-    soFar = true
-  }
-  // The Taxes screen's "I've filed" (meta gstFiled): once that period's GSTR-3B is marked filed it
-  // is done — the tile (Gateway chip, simple Home, the Taxes screen's default period) moves on to
-  // the running period so far, with that period's own due dates. A running period can't be marked
-  // filed (setGstFiled refuses it), so this never skips twice. The figures are gstr3b()'s as ever.
   let gstr1Due = next1?.date ?? null
   let gstr3bDue = next3b?.date ?? null
-  const filedHere = readGstFiled(db)[monthOf(to)]
-  if (!soFar && filedHere?.gstr3b) {
+  /** The running period so far, with that period's own due dates. */
+  const running = (moveGstr1: boolean): void => {
     from = filing === 'quarterly' ? `${quarterStartOf(monthOf(today))}-01` : `${monthOf(today)}-01`
     to = today
     soFar = true
     const last = filing === 'quarterly' ? addMonths(quarterStartOf(monthOf(today)), 2) : monthOf(today)
     gstr3bDue = gstr3bDueDate(last, filing, company.stateCode).date
-    if (filedHere.gstr1 || !gstr1Due) gstr1Due = gstr1DueDate(last, filing)
+    if (moveGstr1 || !gstr1Due) gstr1Due = gstr1DueDate(last, filing)
   }
+  // WP 10.8: a period that ended before the books (or the registration) began is not offered.
+  // Audit A7 / UX-9: the running period then shows ITS due dates — it used to keep the skipped
+  // period's ("Nothing to pay by 20 Nov" for November's tax, which is due on 20 December).
+  if (notBefore && to < notBefore) running(true)
+  // The Taxes screen's "I've filed" (meta gstFiled): once that period's GSTR-3B is marked filed it
+  // is done — the tile (Gateway chip, simple Home, the Taxes screen's default period) moves on to
+  // the running period so far, with that period's own due dates. A running period can't be marked
+  // filed (setGstFiled refuses it), so this never skips twice. The figures are gstr3b()'s as ever.
+  const filedHere = readGstFiled(db)[monthOf(to)]
+  if (!soFar && filedHere?.gstr3b) running(!!filedHere.gstr1)
   const period = monthOf(to)
   const f = gst3bFigures(db, company, from, to, period)
   return {

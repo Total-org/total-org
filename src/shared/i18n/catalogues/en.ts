@@ -846,6 +846,8 @@ export const en = {
   'simple.stock.level.ok': 'Enough',
   'simple.stock.level.low': 'Running low',
   'simple.stock.level.out': 'Out of stock',
+  'simple.stock.level.oversold': 'Sold more than recorded',
+  'simple.stock.oversoldNote': '{count, plural, one {One product shows less than nothing} other {# products show less than nothing}}: more was sold than you recorded buying or counting. Its worth is what the earlier stock cost — the sales after it ran out count as costing nothing, so your profit looks higher than it is. Record the missing purchase, or count your stock.',
   'simple.stock.showLabel': 'Show',
   'simple.stock.showAll': 'All products',
   'simple.stock.showLow': 'Running low ({count})',

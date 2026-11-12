@@ -135,8 +135,9 @@ function compute(db: DB, company: CompanyInfo, opts: { today: string; backups: D
 
   // ---- GST: the Gateway's row for a regular registration; composition gets its note ----
   const filing = company.gstRegistrationType === 'regular' ? getGstProfile(db).filing : 'monthly'
-  // WP 10.8: never a return period that ended before the books (or the registration) began.
-  const gstRow = dashGst(db, company, today, gstStartsOn(company.booksBeginDate, company.gstRegistrationSince))
+  // WP 10.8: never a return period that ended before the books (or the registration) began;
+  // audit A7 / UX-9: for a business that started fresh, before its first entry.
+  const gstRow = dashGst(db, company, today, homeGstStart(db, company, today, company.gstRegistrationSince))
   // Review (to-do §4): the "Why?" of a quarterly filer's PMT-06 dates and of the composition
   // dates — the dates simple:taxes shows, from the same shared/gst/filing.ts rules.
   // The quarter's first two months — `period` is the quarter's last month only for a filed
@@ -234,6 +235,22 @@ export function gstCredit(db: DB, from: string, to: string): HomeGstCredit {
 
 export { readGstFiled }
 
+/**
+ * Audit A7 / UX-9: the first day Home looks at for GST and the month-end checks — WP 10.8's
+ * gstStartsOn (the books-begin day, or the registration's when later and given) and, for a
+ * business that told setup it started fresh (meta ui.startedFresh), not before its first entry:
+ * a new shop whose books begin on 1 April but which made its first bill in November is not told
+ * "the GST files for October are not prepared". No entry yet = today (nothing to nag about).
+ * Only Home uses it — the Taxes screen still offers every period from the books' start (a
+ * registered business files nil returns too; that is the owner's call, not a reminder's).
+ */
+export function homeGstStart(db: DB, company: CompanyInfo, today: string, registrationSince: string | null | undefined): string | undefined {
+  const base = gstStartsOn(company.booksBeginDate, registrationSince)
+  if (getUi(db).startedFresh !== true) return base
+  const first = (db.prepare(`SELECT MIN(v.date) AS d FROM vouchers v WHERE ${IN_BOOKS}`).get() as { d: string | null }).d ?? today
+  return base && base > first ? base : first
+}
+
 /** `simple:homeAttention` — the close checklist for the previous month (the Assistants default)
  *  and, unless the year has more than ANOMALY_HOME_CAP entries, the anomaly scan for the FY to
  *  today. Overdue bills are not taken from here (Home has them from the tiles, as on today). */
@@ -243,7 +260,7 @@ export function simpleHomeAttention(db: DB, company: CompanyInfo, today: string)
     const period = addMonths(monthOf(today), -1)
     // WP 10.8: a business whose books began after that month has nothing to close for it (a
     // company started today is not told "GST files for last month are not prepared").
-    const startsOn = gstStartsOn(company.booksBeginDate, null)
+    const startsOn = homeGstStart(db, company, today, null)
     const checks = startsOn && gstPeriodEnd({ period }) < startsOn ? [] : closeChecklist(db, company, period, today).checks
     const count = (db.prepare(`SELECT COUNT(*) AS n FROM vouchers v WHERE v.date BETWEEN ? AND ? AND ${IN_BOOKS}`).get(fy.from, today) as { n: number }).n
     const anomaliesSkipped = count > ANOMALY_HOME_CAP
@@ -254,7 +271,7 @@ export function simpleHomeAttention(db: DB, company: CompanyInfo, today: string)
     const filed = readGstFiled(db)[period]
     // WP 10.8 review: nor for a month that ended before the regular registration began (the
     // Taxes screen and Home's GST tile never offer it — the same gstStartsOn rule).
-    const gstFrom = gstStartsOn(company.booksBeginDate, company.gstRegistrationSince)
+    const gstFrom = homeGstStart(db, company, today, company.gstRegistrationSince)
     const noReturn = (filed?.gstr1 && filed.gstr3b) || (gstFrom != null && gstPeriodEnd({ period }) < gstFrom)
     const items = attentionItems(noReturn ? checks.filter((c) => c.key !== 'gst_returns') : checks, found)
     // WP 9.7: products running low or out (the Stock list's own rule, as on today) — one row

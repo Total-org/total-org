@@ -6,6 +6,7 @@ import { stateListIn } from '@shared/gst/stateNames'
 import { toPlainDate, fyOf, fyFromStartYear } from '@shared/dates'
 import { BUSINESS_TYPES, type BusinessType } from '@shared/simple/presets'
 import type { GstAnswer, SetupDraft, SetupErrorKey, StartChoice } from '@shared/simple/setup'
+import { freshAnswer } from '@shared/simple/setup'
 import { GST_FILING_FREQUENCIES, type GstFilingFrequency } from '@shared/gst/filing'
 
 /** WP 8.3: the setup wizard's steps (SetupWizard.tsx holds the answers and moves between them).
@@ -229,7 +230,7 @@ export function StartStep({ draft, set, errors, today }: StepProps): React.JSX.E
   const lbl = useLabel()
   const fyStart = fyFromStartYear(fyOf(today).startYear).from
   const [FY, TODAY, EARLIER]: StartChoice[] = ['fy', 'today', 'earlier'] // i18n-technical
-  const pick = (start: StartChoice): void => set({ start })
+  const pick = (start: StartChoice): void => set({ start, startPicked: true })
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -249,8 +250,8 @@ export function StartStep({ draft, set, errors, today }: StepProps): React.JSX.E
       <div>
         <Question>{t('simple.setup.fresh')}</Question>
         <Choices label={t('simple.setup.fresh')} error={err.fresh}>
-          <ChoiceCard testId="setup-fresh-new" on={draft.fresh === true} onPick={() => set({ fresh: true })} title={t('simple.setup.fresh.new')} hint={t('simple.setup.fresh.newHint')} />
-          <ChoiceCard testId="setup-fresh-continuing" on={draft.fresh === false} onPick={() => set({ fresh: false })} title={t('simple.setup.fresh.continuing')} hint={t('simple.setup.fresh.continuingHint')} />
+          <ChoiceCard testId="setup-fresh-new" on={draft.fresh === true} onPick={() => set(freshAnswer(draft, true))} title={t('simple.setup.fresh.new')} hint={t('simple.setup.fresh.newHint')} />
+          <ChoiceCard testId="setup-fresh-continuing" on={draft.fresh === false} onPick={() => set(freshAnswer(draft, false))} title={t('simple.setup.fresh.continuing')} hint={t('simple.setup.fresh.continuingHint')} />
         </Choices>
       </div>
     </div>

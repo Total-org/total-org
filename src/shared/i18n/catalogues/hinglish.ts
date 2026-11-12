@@ -792,6 +792,8 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.stock.level.ok': 'Kaafi hai',
   'simple.stock.level.low': 'Kam ho raha hai',
   'simple.stock.level.out': 'Stock khatam',
+  'simple.stock.level.oversold': 'Darj se zyada bika',
+  'simple.stock.oversoldNote': '{count, plural, one {Ek saamaan zero se kam dikh raha hai} other {# saamaan zero se kam dikh rahe hain}}: jitna khareeda ya gina darj hai, usse zyada bika. Uski keemat pehle wale stock ki laagat hai — stock khatam hone ke baad ki bikri bina laagat ke gini jaati hai, isliye munafa asal se zyada dikhta hai. Chhooti hui khareed darj karein, ya apna stock ginein.',
   'simple.stock.showLabel': 'Dikhayein',
   'simple.stock.showAll': 'Saare items',
   'simple.stock.showLow': 'Kam ho raha hai ({count})',

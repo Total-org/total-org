@@ -797,6 +797,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.stock.level.ok': 'काफ़ी है',
   'simple.stock.level.low': 'कम हो रहा है',
   'simple.stock.level.out': 'स्टॉक खत्म',
+  'simple.stock.level.oversold': 'दर्ज से ज़्यादा बिका',
+  'simple.stock.oversoldNote': '{count, plural, one {एक सामान शून्य से कम दिख रहा है} other {# सामान शून्य से कम दिख रहे हैं}}: जितना खरीदा या गिना दर्ज है, उससे ज़्यादा बिका। उसकी कीमत पहले वाले स्टॉक की लागत है — स्टॉक खत्म होने के बाद की बिक्री बिना लागत के गिनी जाती है, इसलिए मुनाफ़ा असल से ज़्यादा दिखता है। छूटी हुई खरीद दर्ज करें, या अपना स्टॉक गिनें।',
   'simple.stock.showLabel': 'दिखाएँ',
   'simple.stock.showAll': 'सारा सामान',
   'simple.stock.showLow': 'कम हो रहा है ({count})',
