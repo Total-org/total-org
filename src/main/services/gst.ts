@@ -16,6 +16,7 @@ import { backOutAdvance, computeGst, supplyTypeFor } from '@shared/gst/calc'
 import { spreadPosted } from '@shared/gst/postedSpread'
 import { toUqc } from '@shared/gst/uqc'
 import { validateGstr1, type GstIssue } from '@shared/gst/validate'
+import { goodsAdvanceMessage, goodsAdvanceParties, supplyKindOfHsn, type AdvanceParty, type SupplyCounts } from '@shared/gst/advanceGoods'
 import { fyFromStartYear, fyOf } from '@shared/dates'
 import { plainRupees } from '@shared/money'
 import { parseGstr2b, reconcile2b, type PurchaseDoc, type Recon2bOptions, type Recon2bResult } from '@shared/gst/recon2b'
@@ -1155,12 +1156,84 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
  *  is required on the period's last day (to-do §4). */
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
   const docs = extractOutwardDocs(db, company, from, to)
-  return validateGstr1(docs, {
+  const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
     gstin: company.gstin,
     gstRegistrationType: company.gstRegistrationType,
     einvoicing: einvoicingOn(db, company) || einvoiceProfileApplicability(db, company, to).required
   })
+  const goods = goodsAdvanceIssue(db, company, from, to)
+  return goods ? [...issues, goods] : issues
+}
+
+/**
+ * WP 2d — a warning, never a figure: Table 11A advances (extractAdvances' rows) from customers who
+ * buy goods (shared/gst/advanceGoods.ts; Notification 66/2017-CT — a regular taxpayer pays GST on
+ * goods at the invoice). Composition / unregistered businesses file no GSTR-1, so nothing is said.
+ */
+export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to: string): GstIssue | null {
+  if (company.gstRegistrationType !== 'regular') return null
+  const receipts = db
+    .prepare(
+      `SELECT DISTINCT p.id AS partyId, p.name AS partyName, v.id AS voucherId
+       FROM bill_refs br
+       JOIN vouchers v ON v.id = br.voucher_id
+       JOIN voucher_types vt ON vt.id = v.voucher_type_id
+       JOIN ledgers p ON p.id = br.party_ledger_id
+       WHERE vt.kind = 'receipt' AND br.kind = 'new' AND p.gst_rate IS NOT NULL
+         AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
+       ORDER BY p.name, v.id`
+    )
+    .all(from, to) as { partyId: number; partyName: string; voucherId: number }[]
+  if (receipts.length === 0) return null
+
+  const parties = new Map<number, AdvanceParty>()
+  for (const r of receipts) {
+    const p = parties.get(r.partyId) ?? { partyId: r.partyId, partyName: r.partyName, voucherIds: [], sales: { goods: 0, services: 0 } }
+    p.voucherIds.push(r.voucherId)
+    parties.set(r.partyId, p)
+  }
+  const business: SupplyCounts = { goods: 0, services: 0 }
+  // Coded sale lines up to the period end, grouped by customer and code: item lines by the item's
+  // HSN, ledger lines by a non-tax, non-party ledger's HSN (as each reader takes them — snapshot first).
+  const item = lineSnapSql(db, 'v', 'il', 's').hsn
+  const ledger = lineSnapSql(db, 'v', 'vl', 'l').hsn
+  const rows = db
+    .prepare(
+      `SELECT partyId, hsn, COUNT(*) AS n FROM (
+         SELECT v.party_ledger_id AS partyId, ${item} AS hsn
+         FROM inventory_lines il
+         JOIN vouchers v ON v.id = il.voucher_id
+         JOIN voucher_types vt ON vt.id = v.voucher_type_id
+         JOIN stock_items s ON s.id = il.stock_item_id
+         WHERE vt.kind = 'sales' AND v.date <= ? AND ${IN_BOOKS}
+         UNION ALL
+         SELECT v.party_ledger_id AS partyId, ${ledger} AS hsn
+         FROM voucher_lines vl
+         JOIN vouchers v ON v.id = vl.voucher_id
+         JOIN voucher_types vt ON vt.id = v.voucher_type_id
+         JOIN ledgers l ON l.id = vl.ledger_id
+         WHERE vt.kind = 'sales' AND vl.dr_cr = 'cr' AND l.tax_type IS NULL
+           AND l.id IS NOT v.party_ledger_id AND v.date <= ? AND ${IN_BOOKS}
+       ) WHERE hsn IS NOT NULL AND TRIM(hsn) <> ''
+       GROUP BY partyId, hsn`
+    )
+    .all(to, to) as { partyId: number | null; hsn: string; n: number }[]
+  for (const r of rows) {
+    const kind = supplyKindOfHsn(r.hsn)
+    if (!kind) continue
+    business[kind] += r.n
+    const p = r.partyId == null ? undefined : parties.get(r.partyId)
+    if (p) p.sales[kind] += r.n
+  }
+  const flagged = goodsAdvanceParties([...parties.values()], business)
+  if (flagged.length === 0) return null
+  return {
+    code: 'advance_goods',
+    severity: 'warning',
+    message: goodsAdvanceMessage(flagged),
+    voucherIds: flagged.flatMap((p) => p.voucherIds)
+  }
 }
 
 /** Throw (with the issue list) when blocking issues exist — the server-side export gate.
