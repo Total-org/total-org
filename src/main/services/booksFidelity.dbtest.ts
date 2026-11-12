@@ -94,6 +94,7 @@ function richCompany(): { db: DB; prevFy: number } {
   saveVoucher(db, { ...base, voucherTypeId: vt(db, 'journal'), date: `${prevFy + 1}-05-03`, isOptional: true, lines: [{ ledgerId: rent.id, drCr: 'dr', amount: 100, costAllocations: [] }, { ledgerId: capital.id, drCr: 'cr', amount: 100, costAllocations: [] }] })
   saveVoucher(db, {
     ...base, voucherTypeId: vt(db, 'purchase'), date: `${prevFy + 1}-05-05`, partyLedgerId: supplier,
+    itcBlocked: true, // WP 2d: the s.17(5) mark rides through export / import
     lines: [{ ledgerId: L(db, 'Purchase A/c'), drCr: 'dr', amount: 100000, costAllocations: [] }, { ledgerId: supplier, drCr: 'cr', amount: 100000, costAllocations: [] }],
     inventory: [{ stockItemId: phone.id, godownId: null, qtyMilli: 2000, ratePaise: 50000, amount: 100000, direction: 'in', serials: ['SN-1', 'SN-2'] }],
     billRefs: [{ kind: 'new', name: 'BS-9', amount: 100000, dueDate: `${prevFy + 1}-06-04` }]

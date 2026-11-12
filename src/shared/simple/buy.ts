@@ -66,6 +66,9 @@ export interface BuyForm {
   gstRate: number | null
   /** "Does the bill show GST?" — asked only for a regular registration on the bill's date. */
   gstOnBill: boolean
+  /** WP 2d: "Can you claim this GST back?" answered No (CGST Act s.17(5)) — asked with `claim`
+   *  only; optional, absent = yes. */
+  gstBlocked?: boolean
   /** Prices / the amount typed with GST (true) or before GST. */
   ratesIncludeGst: boolean
   paid: BuyPaidChoice
@@ -345,6 +348,7 @@ export function purchaseIntentFrom(form: BuyForm, ctx: BuyContext, defaults: Buy
     ...(form.billNo.trim() ? { billNo: form.billNo.trim() } : {}),
     ...(form.note.trim() ? { narration: form.note.trim() } : {}),
     gstOnBill: intentGstOnBill(g),
+    ...(g === 'claim' && form.gstBlocked ? { itcBlocked: true } : {}),
     payment
   }
   if (form.mode !== 'items') {

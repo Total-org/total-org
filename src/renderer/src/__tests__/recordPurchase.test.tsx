@@ -168,6 +168,28 @@ describe('Record a purchase (WP 9.3)', () => {
     })
   })
 
+  it('WP 2d: "Can you claim this GST back?" No → the bill is posted marked blocked (s.17(5)) and the GST is said as not claimable', async () => {
+    renderUi()
+    await ready()
+    expect(screen.getByTestId('buy-gst-blocked-question')).toBeTruthy()
+    await pick('picker-buy-supplier', 'Bharat')
+    typeIn('input-buy-bill-no', 'BS/102')
+    await pick('picker-buy-item-0', 'Steel bolt')
+    typeIn('input-buy-qty-0', '10')
+    typeIn('input-buy-rate-0', '100')
+    await waitFor(() => expect(screen.getByTestId('buy-tax').getAttribute('data-paise')).toBe('18000'))
+    // "Does the bill show GST?" No: nothing to block, the question goes; Yes brings it back.
+    click('buy-gst-no')
+    expect(screen.queryByTestId('buy-gst-blocked-question')).toBeNull()
+    click('buy-gst-yes')
+    click('buy-gst-blocked-no')
+    expect(screen.getByText('GST you can’t claim back')).toBeTruthy()
+    expect(bannedWordsIn(visibleText())).toEqual([])
+    click('btn-buy-save')
+    await screen.findByTestId('save-card')
+    expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'purchase', gstOnBill: true, itcBlocked: true } })
+  })
+
   it('to-do §4: "Prices include GST" with prices typed converts them — the bill stays the same', async () => {
     renderUi()
     await ready()

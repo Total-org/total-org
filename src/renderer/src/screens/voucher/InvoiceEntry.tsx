@@ -131,6 +131,8 @@ export function InvoiceEntry({
   // ---------- GST details (place-of-supply override + memorandum flag) ----------
   const [gstOpen, setGstOpen] = useState(false)
   const [posOverride, setPosOverride] = useState<string | null>(initial?.posOverride ?? null)
+  // WP 2d: blocked input tax (s.17(5)); undefined until loaded as set or ticked — the server keeps it then.
+  const [itcBlocked, setItcBlocked] = useState<boolean | undefined>(initial?.itcBlocked)
   const [optionalVoucher, setOptionalVoucher] = useState(initial?.optional ?? false)
 
   const numberField = useVoucherNumberField(typeId, date, voucherId)
@@ -276,6 +278,7 @@ export function InvoiceEntry({
       currencyCode,
       fxRateText,
       posOverride,
+      ...(itcBlocked !== undefined ? { itcBlocked } : {}),
       optional: optionalVoucher,
       billName,
       billDueDate,
@@ -298,7 +301,7 @@ export function InvoiceEntry({
       ...(initial?.legacyGroupTax != null ? { legacyGroupTax: initial.legacyGroupTax } : {}),
       ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {})
     }),
-    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal]
+    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal]
   )
   // A bill name still following the number (not typed) is reported as the hand-off had it: blank —
   // the number arriving from the numbering query is no change of the user's.
@@ -1016,6 +1019,17 @@ export function InvoiceEntry({
               />
               Optional (memorandum) voucher — never counts toward the books or returns
             </label>
+            {(kind === 'purchase' || kind === 'debit_note') && (!unregisteredNow || itcBlocked) && (
+              <label className="col-span-3 flex items-center gap-2 pb-2 text-body-sm" title="CGST Act s.17(5): food and drinks, a car for people (and its insurance / repairs), club or gym membership, staff holiday travel, building work on your own premises, personal use, gifts and free samples …">
+                <input
+                  type="checkbox"
+                  data-testid="input-itc-blocked"
+                  checked={!!itcBlocked}
+                  onChange={(e) => setItcBlocked(e.target.checked)}
+                />
+                GST credit blocked (s.17(5)) — the input tax goes to GSTR-3B 4(A)(5) and is reversed in 4(B)(1)
+              </label>
+            )}
             {/* Audit A8 / UX-18: the e-way dispatch fields sit here, off the keyboard path from
                 the items to Save (they used to follow the narration). Saved exactly as before. */}
             {showEway && (

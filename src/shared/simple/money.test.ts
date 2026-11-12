@@ -129,6 +129,10 @@ describe('Money out → money_out / purchase', () => {
     const i = moneyOutIntentFrom(f, [], DEFAULTS, outCtx())
     expect(i).toEqual({ kind: 'purchase', date: TODAY, supplierId: 20, billNo: 'INV-9', amount: { amount: 100_000, accountId: 6, gstRate: 18, billTotal: 118_000 }, payment: { how: 'bank', accountId: 3 } })
     expect(roundToRupee(computeGst(100_000, 18, 'intra').total)).toBe(118_000)
+    // WP 2d: "Can you claim this GST back?" No → the purchase is marked blocked (s.17(5)); a 0 % bill has nothing to block.
+    expect(moneyOutIntentFrom({ ...f, gstBlocked: true }, [], DEFAULTS, outCtx())).toMatchObject({ kind: 'purchase', itcBlocked: true })
+    expect(moneyOutIntentFrom({ ...f, gstBlocked: true, gstRate: 0 }, [], DEFAULTS, outCtx())).not.toHaveProperty('itcBlocked')
+    expect(parse(moneyOutIntentFrom({ ...f, gstBlocked: true }, [], DEFAULTS, outCtx()))).toMatchObject({ itcBlocked: true })
     // Inter-state supplier: IGST — same taxable here.
     expect(moneyOutIntentFrom({ ...f, billSupplierId: 21 }, [], DEFAULTS, outCtx())).toMatchObject({ amount: { amount: 100_000 } })
     expect(parse(i)).toMatchObject({ kind: 'purchase', supplierId: 20, billNo: 'INV-9', gstOnBill: true, payment: { how: 'bank', accountId: 3, amount: null } })

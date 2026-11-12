@@ -33,6 +33,7 @@ interface VoucherRow {
   instrument_no: string | null; instrument_date: string | null
   transporter_id: string | null; vehicle_no: string | null; transport_distance: number | null
   pos_override: string | null
+  itc_blocked: number
   currency_code: string | null; exchange_rate: number | null
   irn: string | null; irn_ack_no: string | null; irn_ack_date: string | null
   ewb_no: string | null; ewb_valid_upto: string | null
@@ -182,6 +183,7 @@ export function getVoucher(db: DB, id: number): Voucher | null {
     vehicleNo: v.vehicle_no,
     transportDistanceKm: v.transport_distance,
     posOverride: v.pos_override,
+    ...(v.itc_blocked ? { itcBlocked: true as const } : {}),
     currencyCode: v.currency_code,
     exchangeRate: v.exchange_rate,
     irn: v.irn,
@@ -751,6 +753,10 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
         input.posOverride, input.currencyCode, input.exchangeRate, postDated ? 1 : 0, isOptional ? 1 : 0)
       voucherId = Number(res.lastInsertRowid)
     }
+    // WP 2d: blocked input tax (s.17(5)) — purchases / debit notes only; absent = keep.
+    const itcBlocked = input.itcBlocked ?? before?.itcBlocked ?? false
+    if (itcBlocked && vt.kind !== 'purchase' && vt.kind !== 'debit_note') throw new Error('Only a purchase or a debit note can have its GST credit blocked (s.17(5))')
+    if (itcBlocked || before?.itcBlocked) db.prepare('UPDATE vouchers SET itc_blocked = ? WHERE id = ?').run(itcBlocked ? 1 : 0, voucherId)
 
     // Bank reconciliation dates live on voucher_lines (set by banking.setBankDate, not by this
     // input), so replacing the line set would silently un-reconcile an altered voucher. Carry

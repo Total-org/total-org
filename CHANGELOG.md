@@ -20,6 +20,16 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**GST you can't claim back (s.17(5))** (#PR, WP 2d). The law blocks the GST credit on some
+purchases: food and drinks, a car that carries people (and its repairs and insurance), club or gym
+fees, staff holidays, building your own premises, personal use, and gifts or free samples. Record a
+purchase and Money out's GST bill now ask "Can you claim this GST back?". In the full app the
+purchase and debit-note editors have a "GST credit blocked (s.17(5))" box. *For accountants*: a
+marked bill keeps its input-tax lines, so GSTR-2B still matches. GSTR-3B shows its credit in 4(A)(5)
+and reverses it in 4(B)(1), as it already did for a supplier marked "blocked". Bills already in
+your books are not marked and read exactly as before. *For developers*: migration "itc blocked"
+(`vouchers.itc_blocked`); voucher payload `itcBlocked` (absent = keep).
+
 **MSME: the 45 / 15 days run from the day you accepted the goods** (#261, WP 2d). Under the MSMED Act
 (s.15, with s.2(b)'s Explanation), the time to pay a micro or small supplier runs from the day the goods
 were delivered or the services rendered, or from the day the supplier removed a written objection

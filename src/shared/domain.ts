@@ -360,6 +360,8 @@ export interface Voucher {
   transportDistanceKm: number | null
   /** Place-of-supply override (two-digit state code); null = derive from party/company state. */
   posOverride: string | null
+  /** WP 2d: present (true) only when the input tax is blocked under CGST Act s.17(5). */
+  itcBlocked?: true
   /** Foreign-currency invoice: ISO code + base-currency (INR) per unit rate. */
   currencyCode: string | null
   exchangeRate: number | null

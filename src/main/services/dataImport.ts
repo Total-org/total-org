@@ -1039,6 +1039,8 @@ function voucherInputFor(ctx: Ctx, d: VoucherDraft, vt: { id: number; kind: Vouc
       exchangeRate: d.exchangeRate,
       isOptional: d.isOptional || undefined,
       postDated: d.postDated || undefined,
+      // WP 2d: a Books workbook carries a blocked-ITC bill (s.17(5)) in its voucher JSON cell.
+      ...(vm.itc_blocked === 1 && (vt.kind === 'purchase' || vt.kind === 'debit_note') ? { itcBlocked: true } : {}),
       lines,
       inventory,
       billRefs,
@@ -1407,6 +1409,7 @@ export function voucherToInput(v: Voucher): VoucherInput {
     instrumentNo: v.instrumentNo, instrumentDate: v.instrumentDate, transporterId: v.transporterId, vehicleNo: v.vehicleNo,
     transportDistanceKm: v.transportDistanceKm, posOverride: v.posOverride, currencyCode: v.currencyCode, exchangeRate: v.exchangeRate,
     postDated: v.postDated || undefined, isOptional: v.isOptional || undefined,
+    ...(v.itcBlocked ? { itcBlocked: true } : { itcBlocked: false }),
     lines: v.lines.map((l) => ({ ledgerId: l.ledgerId, drCr: l.drCr, amount: l.amount, costAllocations: l.costAllocations.map((a) => ({ costCentreId: a.costCentreId, amount: a.amount })) })),
     inventory: v.inventory.map((l) => ({
       stockItemId: l.stockItemId, godownId: l.godownId, batchId: l.batchId, qtyMilli: l.qtyMilli, ratePaise: l.ratePaise, discountPaise: l.discountPaise,

@@ -30,6 +30,9 @@ export interface HeaderPassthrough {
   exchangeRate: number | null
   /** Delivery challan / GRN purpose (WP 2.5) — present only on those kinds. */
   trade?: { purpose: TradePurpose } | null
+  /** WP 2d: blocked input tax (s.17(5)). Present only when set — or when an editor states it;
+   *  absent = the server keeps what the voucher has. */
+  itcBlocked?: boolean
 }
 
 export const EMPTY_PASSTHROUGH: HeaderPassthrough = {
@@ -57,7 +60,8 @@ export function passthroughOf(v: Voucher): HeaderPassthrough {
     posOverride: v.posOverride,
     currencyCode: v.currencyCode,
     exchangeRate: v.exchangeRate,
-    ...(v.trade ? { trade: { purpose: v.trade.purpose } } : {})
+    ...(v.trade ? { trade: { purpose: v.trade.purpose } } : {}),
+    ...(v.itcBlocked ? { itcBlocked: true } : {})
   }
 }
 
@@ -93,6 +97,7 @@ export function voucherToPayload(v: Voucher): VoucherPayload {
     narration: v.narration,
     postDated: v.postDated,
     isOptional: v.isOptional,
+    itcBlocked: !!v.itcBlocked,
     lines: v.lines.map((l) => ({
       ledgerId: l.ledgerId,
       drCr: l.drCr,
@@ -201,6 +206,8 @@ export function diffPayloads(a: VoucherPayload, b: VoucherPayload): string[] {
   for (const k of ['postDated', 'isOptional'] as const) {
     if (a[k] !== undefined && b[k] !== undefined && a[k] !== b[k]) out.push(k)
   }
+  // WP 2d: absent = keep what is stored, so compared only when both state it.
+  if (a.itcBlocked !== undefined && b.itcBlocked !== undefined && a.itcBlocked !== b.itcBlocked) out.push('itcBlocked')
   const ai = a.inventory ?? []
   const bi = b.inventory ?? []
   if (ai.length === bi.length) {

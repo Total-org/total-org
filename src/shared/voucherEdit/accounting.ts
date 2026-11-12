@@ -36,6 +36,9 @@ export interface AccountingFormState {
   /** A new voucher's reference carried from a draft (the form has no field for it); on
    *  alteration the stored reference rides in `original`. */
   reference?: string | null
+  /** WP 2d (purchases / debit notes): the input tax is blocked under s.17(5). Absent = not stated
+   *  by this form (an altered voucher keeps what it has — its `original` carries it). */
+  itcBlocked?: boolean
   /** null for a new voucher. */
   original: AccountingOriginal | null
 }
@@ -120,6 +123,7 @@ export function buildAccountingPayload(
       posOverride: o?.posOverride ?? null,
       currencyCode: o?.currencyCode ?? null,
       exchangeRate: o?.exchangeRate ?? null,
+      ...(state.itcBlocked !== undefined ? { itcBlocked: state.itcBlocked } : {}),
       isOptional: state.optional,
       lines,
       // Every stored inventory field, verbatim (batch, discount, godown, physical-count flag).
@@ -164,6 +168,7 @@ export function accountingStateFromVoucher(v: Voucher): AccountingFormState {
     tcs: v.tcs
       ? { sectionId: v.tcs.sectionId, baseAmount: v.tcs.baseAmount, tdsAmount: v.tcs.tcsAmount, isManual: !!v.tcs.isManual }
       : null,
+    ...(v.itcBlocked ? { itcBlocked: true } : {}),
     original: {
       ...passthroughOf(v),
       ledgerIds: distinctSorted(v.lines.map((l) => l.ledgerId)),

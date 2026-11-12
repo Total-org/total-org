@@ -640,7 +640,9 @@ function deductibleShare(db: DB, voucherId: number, partyLedgerId: number, itcBl
     )
     .all(voucherId) as { ledgerId: number; drCr: 'dr' | 'cr'; amount: number; taxType: string | null }[]
   const total = rows.filter((x) => x.ledgerId === partyLedgerId && x.drCr === 'cr').reduce((a, x) => a + x.amount, 0)
-  const gst = itcBlocked ? 0 : rows.filter((x) => x.taxType && x.drCr === 'dr').reduce((a, x) => a + x.amount, 0)
+  // A blocked supplier's — or a bill marked blocked under s.17(5) (WP 2d) — GST is an expense, not ITC.
+  const blocked = itcBlocked || !!(db.prepare('SELECT itc_blocked AS b FROM vouchers WHERE id = ?').get(voucherId) as { b: number } | undefined)?.b
+  const gst = blocked ? 0 : rows.filter((x) => x.taxType && x.drCr === 'dr').reduce((a, x) => a + x.amount, 0)
   if (total <= 0) return [1, 1]
   return [Math.max(0, total - gst), total]
 }
