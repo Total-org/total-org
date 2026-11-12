@@ -20,6 +20,25 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The first ten minutes** (#248, audit A7). "Try with sample data" now opens a sample shop that
+makes sense: its day-one cash, bank, stock and old bills are entered, every product has a selling
+price, stock never goes below zero (restocks come before the sales that need them, so goods sold
+cost something), customers pay after their credit days — one of them late — and rent, electricity
+and salary go out each month; the profit is real. The simple Stock list now says "Sold more than
+recorded" for a product below zero and explains what that does to its worth and to profit.
+Settings → Business details is a plain screen in your language: name, address, phone, e-mail,
+GST number, PAN, and the logo and bank details printed on your bills (registration, state,
+e-invoices and TAN stay in the full form, one click away); Home's "Add your business details"
+opens it. A new business's empty Home leads with "Make your first bill". The first screen shows
+the wizard and the sample; the accountant ways in wait behind "I'm an accountant, or I have a
+backup". "Starting fresh" starts the books today unless you pick another day, and Home no longer
+reminds a business that started fresh about GST months before its first entry (the Taxes screen
+still lists them). Fixed: the GST tile showed the previous month's due date for the running month
+when the month before was skipped, and Home could miss a bill saved a moment before.
+*For accountants:* no figure changes — the full app's "Sample data in the full app" is the same
+sample as before. *For developers:* new screen `simple-business`; `createDemoCompany('simple')` →
+`services/sampleShop.ts`; `homeGstStart` in `services/simpleHome.ts`; e2e 79.
+
 ## [0.12.1] - 2026-11-09
 
 **Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT removed** (#243, A13b).
