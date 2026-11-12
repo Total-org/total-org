@@ -159,6 +159,12 @@ export const GST_SOURCES = {
   igstS16: {
     id: 'igstS16', title: 'IGST Act s.16 — zero-rated supply (export; supply for authorised operations to an SEZ developer / unit); (3) without payment of IGST under bond / LUT; (4) on payment only for notified classes (as amended by the Finance Act 2021, in force 1 October 2023, Notification 27/2023-CT)',
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_IGST_Act/active/chaptervii/section16_v1.00.html', accessed: '2026-11-08', verified: true
+  },
+  // WP 2d (accessed 2026-11-13): advances for goods (shared/gst/advanceGoods.ts).
+  n66_2017: {
+    id: 'n66_2017', title: 'Notification 66/2017-Central Tax (15-11-2017, s.148 CGST Act) — a registered person not under composition pays central tax on outward supplies of GOODS at the time of supply in s.12(2)(a) (the invoice), so no tax on an advance for goods',
+    url: 'https://gstcouncil.gov.in/sites/default/files/2024-05/notfctn-66-central-tax-english.pdf', accessed: '2026-11-13', verified: true,
+    note: 'GST Council copy of the notification as issued (supersedes 40/2017-CT). A later amendment for specified actionable claims (Notification 50/2023-CT) was not read; it does not touch ordinary goods.'
   }
 } satisfies Record<string, GstSource>
 

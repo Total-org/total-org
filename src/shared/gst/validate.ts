@@ -75,6 +75,7 @@ export interface GstIssue {
     | 'b2cl_edge'
     | 'zero_rated_intra_tax'
     | 'off_slab_rate'
+    | 'advance_goods'
     | 'einvoice_doc_no'
   severity: 'blocking' | 'warning'
   message: string

@@ -16,6 +16,7 @@ import { backOutAdvance, computeGst, supplyTypeFor } from '@shared/gst/calc'
 import { spreadPosted } from '@shared/gst/postedSpread'
 import { toUqc } from '@shared/gst/uqc'
 import { validateGstr1, type GstIssue } from '@shared/gst/validate'
+import { goodsAdvanceMessage, goodsAdvanceParties, supplyKindOfHsn, type AdvanceParty, type SupplyCounts } from '@shared/gst/advanceGoods'
 import { fyFromStartYear, fyOf } from '@shared/dates'
 import { plainRupees } from '@shared/money'
 import { parseGstr2b, reconcile2b, type PurchaseDoc, type Recon2bOptions, type Recon2bResult } from '@shared/gst/recon2b'
@@ -25,7 +26,7 @@ import { einvoiceApplicability, type EinvoiceApplicability } from '@shared/gst/e
 import { einvoiceTurnOnNotice, type EinvoiceStatus } from '@shared/compliance'
 import { companyExportsDir } from '../paths'
 import { IN_BOOKS } from './vouchers'
-import { chargesGstOn } from '@shared/gst/registration'
+import { chargesGstOn, registrationOn } from '@shared/gst/registration'
 import { hasTradeSchema } from './tradeLinks'
 import { writeAudit } from './audit'
 import { lineSnapSql, partySnapSql, partySnapshots, withPartySnap } from './taxFacts'
@@ -1127,12 +1128,98 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
  *  is required on the period's last day (to-do §4). */
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
   const docs = extractOutwardDocs(db, company, from, to)
-  return validateGstr1(docs, {
+  const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
     gstin: company.gstin,
     gstRegistrationType: company.gstRegistrationType,
     einvoicing: einvoicingOn(db, company) || einvoiceProfileApplicability(db, company, to).required
   })
+  const goods = goodsAdvanceIssue(db, company, from, to)
+  return goods ? [...issues, goods] : issues
+}
+
+/**
+ * WP 2d — a warning, never a figure: Table 11A advances (extractAdvances' rows, with a non-zero rate
+ * — a 0 % advance carries no tax) from customers who buy goods (shared/gst/advanceGoods.ts;
+ * Notification 66/2017-CT — a registered person not under composition pays GST on goods at the
+ * invoice). Only while the registration in force at the period end is regular (`registrationOn`).
+ * Costs one grouped read over the advance customers' sales; the business-wide fallback (a customer
+ * with no coded sale) is two EXISTS probes.
+ */
+export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to: string): GstIssue | null {
+  if (registrationOn(company, to) !== 'regular') return null
+  const receipts = db
+    .prepare(
+      `SELECT DISTINCT p.id AS partyId, p.name AS partyName, v.id AS voucherId
+       FROM bill_refs br
+       JOIN vouchers v ON v.id = br.voucher_id
+       JOIN voucher_types vt ON vt.id = v.voucher_type_id
+       JOIN ledgers p ON p.id = br.party_ledger_id
+       WHERE vt.kind = 'receipt' AND br.kind = 'new' AND p.gst_rate IS NOT NULL AND p.gst_rate > 0
+         AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
+       ORDER BY p.name, v.id`
+    )
+    .all(from, to) as { partyId: number; partyName: string; voucherId: number }[]
+  if (receipts.length === 0) return null
+
+  const parties = new Map<number, AdvanceParty>()
+  for (const r of receipts) {
+    const p = parties.get(r.partyId) ?? { partyId: r.partyId, partyName: r.partyName, voucherIds: [], sales: { goods: 0, services: 0 } }
+    p.voucherIds.push(r.voucherId)
+    parties.set(r.partyId, p)
+  }
+  // Coded sale lines up to the period end: item lines by the item's HSN, ledger lines by a non-tax,
+  // non-party ledger's HSN (as each reader takes them — the voucher's snapshot first).
+  const item = lineSnapSql(db, 'v', 'il', 's').hsn
+  const ledger = lineSnapSql(db, 'v', 'vl', 'l').hsn
+  const coded = (partyFilter: string): string =>
+    `SELECT v.party_ledger_id AS partyId, ${item} AS hsn
+     FROM inventory_lines il
+     JOIN vouchers v ON v.id = il.voucher_id
+     JOIN voucher_types vt ON vt.id = v.voucher_type_id
+     JOIN stock_items s ON s.id = il.stock_item_id
+     WHERE vt.kind = 'sales' AND v.date <= @to AND ${IN_BOOKS} ${partyFilter}
+     UNION ALL
+     SELECT v.party_ledger_id AS partyId, ${ledger} AS hsn
+     FROM voucher_lines vl
+     JOIN vouchers v ON v.id = vl.voucher_id
+     JOIN voucher_types vt ON vt.id = v.voucher_type_id
+     JOIN ledgers l ON l.id = vl.ledger_id
+     WHERE vt.kind = 'sales' AND vl.dr_cr = 'cr' AND l.tax_type IS NULL
+       AND l.id IS NOT v.party_ledger_id AND v.date <= @to AND ${IN_BOOKS} ${partyFilter}`
+  const ids = [...parties.keys()]
+  const params: Record<string, string | number> = { to }
+  ids.forEach((id, i) => (params[`p${i}`] = id))
+  const rows = db
+    .prepare(
+      `SELECT partyId, hsn, COUNT(*) AS n FROM (${coded(`AND v.party_ledger_id IN (${ids.map((_, i) => `@p${i}`).join(',')})`)})
+       WHERE hsn IS NOT NULL GROUP BY partyId, hsn`
+    )
+    .all(params) as { partyId: number; hsn: string; n: number }[]
+  for (const r of rows) {
+    const kind = supplyKindOfHsn(r.hsn)
+    const p = parties.get(r.partyId)
+    if (kind && p) p.sales[kind] += r.n
+  }
+  // The business decides only for a customer with no coded sale of their own: does it sell any
+  // goods code / any services code at all (presence is all goodsAdvanceParties reads)?
+  const business: SupplyCounts = { goods: 0, services: 0 }
+  if ([...parties.values()].some((p) => p.sales.goods + p.sales.services === 0)) {
+    const probe = (pattern: string): number =>
+      db.prepare(`SELECT EXISTS (SELECT 1 FROM (${coded('')}) WHERE ${pattern}) AS x`).pluck().get({ to }) as number
+    // A code is 4–8 digits; chapter 99 is a service (SAC), any other chapter goods (supplyKindOfHsn).
+    const isCode = `TRIM(hsn) GLOB '[0-9][0-9][0-9][0-9]*' AND TRIM(hsn) NOT GLOB '*[^0-9]*' AND LENGTH(TRIM(hsn)) BETWEEN 4 AND 8`
+    business.goods = probe(`${isCode} AND TRIM(hsn) NOT GLOB '99*'`)
+    business.services = probe(`${isCode} AND TRIM(hsn) GLOB '99*'`)
+  }
+  const flagged = goodsAdvanceParties([...parties.values()], business)
+  if (flagged.length === 0) return null
+  return {
+    code: 'advance_goods',
+    severity: 'warning',
+    message: goodsAdvanceMessage(flagged),
+    voucherIds: flagged.flatMap((p) => p.voucherIds)
+  }
 }
 
 /** Throw (with the issue list) when blocking issues exist — the server-side export gate.
