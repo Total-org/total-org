@@ -12,7 +12,7 @@ export default function GettingStartedPage(): React.JSX.Element {
 
       <h2>1. Download & first launch</h2>
       <p>
-        Grab the build for your machine from the <a href="/">homepage</a> — macOS (Apple Silicon) or Windows. Total
+        Grab the build for your machine from the <a href="/">homepage</a> — macOS (Apple Silicon) or Windows (preview). Total
         isn&rsquo;t code-signed yet, so on macOS Gatekeeper will say the app &ldquo;is damaged and can&rsquo;t be
         opened&rdquo;. Right-click → Open does <b>not</b> get past this for the current build — instead:
       </p>

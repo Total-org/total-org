@@ -12,6 +12,8 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'common.save': 'Save karein',
   'common.saveShortcut': 'Save karein ⌘↵',
   'common.cancel': 'Cancel karein',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (beta)',
   'common.back': 'Peeche',
   'common.next': 'Aage',
   'common.done': 'Ho gaya',

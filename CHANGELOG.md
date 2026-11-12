@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Hindi and Hinglish say "beta"; Windows says "preview"** (Phase 6 prep). The language pickers
+(first-run setup, How Total looks in both modes) now show "हिन्दी (beta)" and "Hinglish (beta)" —
+in Hindi, "(बीटा)" — because a native speaker has not reviewed the text yet. Windows is called a
+preview in its help page, Settings → About and on the website: it is tested automatically on every
+change, but the installer is not signed and few people have used it on real computers.
+
 **For developers: an upgrade matrix for 1.0** (#262, Phase 6 prep). A manual workflow (Actions → Upgrade
 matrix) makes books with 0.10.0, 0.11.0, 0.12.0 and 0.12.1, opens them with the current code and
 lists every report figure that differs, in one table. Nothing in the app changes.

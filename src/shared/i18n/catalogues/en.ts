@@ -23,6 +23,8 @@ export const en = {
   'common.save': 'Save',
   'common.saveShortcut': 'Save ⌘↵',
   'common.cancel': 'Cancel',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (beta)',
   'common.back': 'Back',
   'common.next': 'Next',
   'common.done': 'Done',

@@ -17,6 +17,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'common.save': 'सेव करें',
   'common.saveShortcut': 'सेव करें ⌘↵',
   'common.cancel': 'रद्द करें',
+  // Phase 6: a machine-drafted language in the language pickers (plan D6).
+  'common.language.beta': '{name} (बीटा)',
   'common.back': 'पीछे',
   'common.next': 'आगे',
   'common.done': 'हो गया',

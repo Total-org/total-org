@@ -1,6 +1,8 @@
-# Windows par Total
+# Windows par Total (preview)
 
 Windows par Total waise hi chalta hai jaise Mac par: wahi screens, wahi hisaab, wahi backups. Kuch cheezein thodi alag dikhti ya chalti hain — woh is page par hain.
+
+Abhi Windows **preview** hai: har badlaav Windows par hamari automatic jaanch se guzarta hai, par ise abhi bahut se asli computers par nahi aazmaya gaya hai aur installer par signature nahi hai. Apne backups khud bhi rakhein, aur kuch galat lage to humein batayein.
 
 ## Keys
 

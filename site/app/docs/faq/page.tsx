@@ -18,7 +18,7 @@ export default function FaqPage(): React.JSX.Element {
 
       <h2>Does it run on Windows?</h2>
       <p>
-        Yes. Total ships a native macOS build (Apple Silicon, macOS 13 Ventura or later) and a Windows installer. Both talk to the same
+        Yes, as a preview. Total ships a native macOS build (Apple Silicon, macOS 13 Ventura or later) and a Windows installer — the Windows one is a preview: tested automatically on every change, but not yet signed or tried on many real PCs. Both talk to the same
         <code>~/Documents/total</code>-style data folder and the same file format, so a company created on one platform
         opens on the other if you copy the folder across.
       </p>

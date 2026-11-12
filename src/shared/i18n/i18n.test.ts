@@ -1,7 +1,7 @@
 // WP 8.2: t() (interpolation, plurals, select, fallback), catalogue key parity across en / hi /
 // hinglish, and the banned-word lint over the simple-mode namespaces.
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { CATALOGUES, HINGLISH_BETA_LABEL, LANGUAGES, configureI18n, languagePickerLabel, en, normalizeLanguage, t, translator, type MessageKey } from './index'
+import { BETA_LANGUAGES, CATALOGUES, LANGUAGES, configureI18n, languagePickerLabel, en, normalizeLanguage, t, translator, type MessageKey } from './index'
 import { MessageSyntaxError, formatMessage, messageVariables, parseMessage } from './format'
 import { bannedWordsIn } from '../simple/bannedWords'
 
@@ -242,16 +242,18 @@ describe('catalogues', () => {
   })
 })
 
-describe('Hinglish beta label (owner D6 proposal, off by default)', () => {
-  it('is off: every picker label is the catalogue name', () => {
-    expect(HINGLISH_BETA_LABEL).toBe(false)
-    for (const lang of LANGUAGES) expect(languagePickerLabel(lang, 'Name')).toBe('Name')
+describe('Hindi and Hinglish are labelled beta in the language pickers (Phase 6)', () => {
+  it('Hindi and Hinglish are the beta languages; English is not', () => {
+    expect([...BETA_LANGUAGES]).toEqual(['hi', 'hinglish'])
   })
 
-  it('when turned on only Hinglish gets "(beta)"', () => {
-    expect(languagePickerLabel('hinglish', 'Hinglish', true)).toBe('Hinglish (beta)')
-    expect(languagePickerLabel('hi', 'हिन्दी', true)).toBe('हिन्दी')
-    expect(languagePickerLabel('en', 'English', true)).toBe('English')
+  it('the label says beta in the reader\'s own language', () => {
+    expect(languagePickerLabel('en', 'English', translator('en'))).toBe('English')
+    expect(languagePickerLabel('hi', 'हिन्दी', translator('en'))).toBe('हिन्दी (beta)')
+    expect(languagePickerLabel('hinglish', 'Hinglish', translator('en'))).toBe('Hinglish (beta)')
+    expect(languagePickerLabel('hinglish', 'Hinglish', translator('hi'))).toBe('Hinglish (बीटा)')
+    expect(languagePickerLabel('hi', 'हिन्दी', translator('hinglish'))).toBe('हिन्दी (beta)')
+    expect(languagePickerLabel('en', 'English', translator('hi'))).toBe('English')
   })
 
   it('the "machine-drafted, pending review" note is in every language on both How Total looks screens', () => {

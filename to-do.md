@@ -11,7 +11,7 @@ done on main were dropped. One line each; the pointer says where to look.
 - D3: who may switch a company's mode [owner only; anyone may open the accountant view per screen] — plan §D3
 - ~~D4: HSN search needs a bundled CBIC HSN / SAC list [not bundled; code-only field, the user picks the slab] — plan §D4, `src/shared/gst/rateTable.ts`~~ DONE — PR #219: the GST portal's HSN / SAC list is bundled (searchable by code or words); no rate is ever suggested (the list has none) — the user still picks the slab. **Rate suggestions are deferred**: they need an official, cited HSN → rate mapping, which the portal list does not carry (owner brief 7 Nov: "only where an official, cited rate mapping exists")
 - D5: recruit 5+ real beginner testers [owner recruits; the scripted proxy study stood in] — plan §D5, PR #111
-- D6: Hindi / Hinglish by a native reviewer [machine-drafted text shipped; Hinglish may ship as "beta"] — plan §D6, PR #105 (28 unsure phrases listed)
+- D6: Hindi / Hinglish by a native reviewer [machine-drafted text shipped; ~~Hinglish may ship as "beta"~~ DONE — both Hindi and Hinglish are labelled beta in every language picker (Phase 6 prep)] — plan §D6, PR #105 (28 unsure phrases listed)
 - D7: Phase 7 hardening items from the GPT review are prerequisites for 1.0 [yes] — plan §D7
 - Selling before the purchase is recorded costs the sale at ₹0 (negative stock): re-cost from the next purchase (engine change, opt-in per company) or block / warn hard in simple mode [warning only, WP 10.8] — `src/shared/valuation.ts`
 - Change price when there is no default price level but a non-default "Selling price" level exists: which level becomes the default [the row lands on that level; walk-in bills don't read it] — PR #91, `services/simpleStock.ts`

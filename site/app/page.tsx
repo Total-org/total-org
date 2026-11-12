@@ -84,7 +84,7 @@ export default async function Home(): Promise<React.JSX.Element> {
             <WaitlistForm id="hero" enabled={enabled} releasesUrl={releasesUrl} />
             <p className={s.tryNow}>
               Want to try it now? Download the current build for{' '}
-              <a href="/api/download?platform=mac">macOS</a> or <a href="/api/download?platform=win">Windows</a>
+              <a href="/api/download?platform=mac">macOS</a> or <a href="/api/download?platform=win">Windows</a> (preview)
               {release ? ` (version ${release.version})` : ''}, or see <a href={releasesUrl}>every release on GitHub</a>.
             </p>
           </div>
@@ -273,9 +273,9 @@ export default async function Home(): Promise<React.JSX.Element> {
             </p>
           </div>
           <div>
-            <h3 className={s.h3}>Mac and Windows</h3>
+            <h3 className={s.h3}>Mac, and Windows as a preview</h3>
             <p>
-              macOS 13 or later on Apple Silicon, and Windows. Your books are a folder you can copy to another computer.
+              macOS 13 or later on Apple Silicon. Windows is a preview: tested automatically on every change, not yet signed or tried on many real PCs. Your books are a folder you can copy to another computer.
             </p>
           </div>
         </section>
