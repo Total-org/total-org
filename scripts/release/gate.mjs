@@ -152,6 +152,14 @@ function compare(oldFile, newFile, preflightFile, outFile) {
   // '-' = no batch to approve from (the Phase 6 upgrade matrix): every difference is reported.
   const pre = preflightFile === '-' ? { prs: [] } : readJson(preflightFile)
   const health = []
+  // A fallback (snapshot.ts, UPGRADE_ALLOW_FALLBACKS — the upgrade matrix only) means a check was
+  // not made: never a gate verdict.
+  if (preflightFile !== '-') {
+    for (const [side, f] of [['old', old], ['HEAD', neu]]) {
+      if (f.fallbacks?.length) health.push(`the ${side} run took fallbacks (${f.fallbacks.join('; ')}) — not a gate result`)
+    }
+  }
+  let capped = false
   const differences = []
   const added = []
   for (const [slug, c] of Object.entries(old.companies)) {
@@ -162,6 +170,7 @@ function compare(oldFile, newFile, preflightFile, outFile) {
     }
     health.push(...healthProblems(slug, n, neu.migrations))
     const r = compareOutputs(c.figures, n.figures)
+    if (r.capped) capped = true
     differences.push(...r.differences.map((d) => ({ ...d, path: `${slug}/${d.path}` })))
     added.push(...r.added.map((a) => `${slug}/${a}`))
   }
@@ -172,7 +181,7 @@ function compare(oldFile, newFile, preflightFile, outFile) {
     { name: 'figures on upgraded books', ...figures }
   ]
   const reportCount = Object.values(old.companies).reduce((n, c) => n + Object.keys(c.figures).length, 0)
-  const result = { ok: checks.every((c) => c.ok), checks, reportCount, migrationsAfter: neu.migrations, differences: differences.slice(0, 200), differenceCount: differences.length, added: added.slice(0, 200), addedCount: added.length }
+  const result = { ok: checks.every((c) => c.ok), checks, reportCount, migrationsAfter: neu.migrations, capped, differences: differences.slice(0, 200), differenceCount: differences.length, added: added.slice(0, 200), addedCount: added.length }
   writeJson(outFile, result)
   for (const c of checks) process.stdout.write(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}: ${c.reason}\n`)
   setOutput('ok', result.ok)
@@ -305,9 +314,12 @@ async function verify(version) {
 
 function matrix(dir, outFile, ...tags) {
   const read = (tag, name) => (existsSync(`${dir}/${tag}/${name}`) ? readJson(`${dir}/${tag}/${name}`) : null)
-  const table = upgradeMatrixTable(tags.map((tag) => ({ tag, old: read(tag, 'old.json'), upgrade: read(tag, 'upgrade.json') })))
+  const { table, clean } = upgradeMatrixTable(tags.map((tag) => ({ tag, old: read(tag, 'old.json'), upgrade: read(tag, 'upgrade.json') })))
   writeFileSync(outFile, `${table}\n`)
   summary(`### Upgrade matrix — older releases' books opened by HEAD\n\n${table}`)
+  // A health problem, a difference or a release that did not finish fails the run (the table and
+  // the files are still uploaded).
+  if (!clean) process.exit(1)
 }
 
 const [cmd, ...args] = process.argv.slice(2)

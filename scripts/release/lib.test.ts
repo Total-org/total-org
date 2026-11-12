@@ -109,7 +109,7 @@ describe('CHANGELOG', () => {
 describe('comparing old and new report outputs', () => {
   it('identical = no differences', () => {
     const a = { 'x/tb': { rows: [{ id: 1, closing: 100 }], total: 100 } }
-    expect(compareOutputs(a, structuredClone(a))).toEqual({ differences: [], added: [] })
+    expect(compareOutputs(a, structuredClone(a))).toEqual({ differences: [], added: [], capped: false })
   })
   it('a changed figure is a difference with its path', () => {
     const a = { 'x/tb': { rows: [{ id: 1, closing: 100 }] } }
@@ -178,15 +178,19 @@ describe('release assets', () => {
 
 describe('the Phase 6 upgrade matrix table', () => {
   const old = { migrations: 40, companies: { 'demo-traders': { migrations: 40, figures: {} } } }
-  const clean = { checks: [{ name: 'migrations + backup restore check', ok: true, reason: 'clean' }], reportCount: 30, migrationsAfter: 62, differences: [], differenceCount: 0 }
-  it('a clean release reads clean with no differences', () => {
-    const t = upgradeMatrixTable([{ tag: 'v0.10.0', old, upgrade: clean }])
-    expect(t.split('\n')[2]).toBe('| v0.10.0 | demo-traders | 40 → 62 | clean | 30 | 0 | — |')
+  const clean = { checks: [{ name: 'migrations + backup restore check', ok: true, reason: 'clean' }], reportCount: 30, migrationsAfter: 62, capped: false, differences: [], differenceCount: 0 }
+  const header = '| Release | Books | Migrations (old → HEAD) | Health | Reports compared | Figures that differ | Where (of those listed) |'
+  it('a clean release reads clean with no differences, and the matrix is clean', () => {
+    const { table, clean: ok } = upgradeMatrixTable([{ tag: 'v0.10.0', old: { ...old, fallbacks: ['no Perf Traders seeder'] }, upgrade: clean }])
+    expect(table.split('\n')[0]).toBe(header)
+    expect(table.split('\n')[2]).toBe('| v0.10.0 | demo-traders (fallbacks: no Perf Traders seeder) | 40 → 62 | clean | 30 | 0 | — |')
+    expect(ok).toBe(true)
   })
-  it('differences are counted per company and report kind; a job that did not finish says so', () => {
+  it('differences are counted per company and report kind; a capped count reads ≥; a job that did not finish says so; none is clean', () => {
     const upgrade = {
       ...clean,
       checks: [{ name: 'migrations + backup restore check', ok: false, reason: 'demo-traders: the audit chain does not verify' }],
+      capped: true,
       differences: [
         { path: 'demo-traders/outstandings:receivable:2027-03-31.parties[0].bills[0].overdueDays', old: 3, new: 40 },
         { path: 'demo-traders/outstandings:receivable:2027-03-31.parties[1].pending', old: 1, new: 2 },
@@ -194,8 +198,18 @@ describe('the Phase 6 upgrade matrix table', () => {
       ],
       differenceCount: 3
     }
-    const rows = upgradeMatrixTable([{ tag: 'v0.11.0', old, upgrade }, { tag: 'v0.12.0', old: null, upgrade: null }]).split('\n')
-    expect(rows[2]).toBe('| v0.11.0 | demo-traders | 40 → 62 | **demo-traders: the audit chain does not verify** | 30 | **3** | demo-traders outstandings ×2; demo-traders gstr1 ×1 |')
+    const { table, clean: ok } = upgradeMatrixTable([{ tag: 'v0.11.0', old, upgrade }, { tag: 'v0.12.0', old: null, upgrade: null }])
+    const rows = table.split('\n')
+    expect(rows[2]).toBe('| v0.11.0 | demo-traders | 40 → 62 | **demo-traders: the audit chain does not verify** | 30 | **≥ 3** | demo-traders outstandings ×2; demo-traders gstr1 ×1 |')
     expect(rows[3]).toBe('| v0.12.0 | — | — | did not finish (see the job log) | — | — | — |')
+    expect(ok).toBe(false)
+  })
+  it('one difference alone, or one unfinished release alone, makes the matrix not clean', () => {
+    expect(upgradeMatrixTable([{ tag: 'v1', old, upgrade: { ...clean, differences: [{ path: 'demo-traders/tb:x', old: 1, new: 2 }], differenceCount: 1 } }]).clean).toBe(false)
+    expect(upgradeMatrixTable([{ tag: 'v1', old, upgrade: null }]).clean).toBe(false)
+  })
+  it('compareOutputs says when it stopped at its limit', () => {
+    expect(compareOutputs({ a: [1, 2, 3] }, { a: [4, 5, 6] }, 2).capped).toBe(true)
+    expect(compareOutputs({ a: [1, 2, 3] }, { a: [4, 5, 3] }, 5).capped).toBe(false)
   })
 })

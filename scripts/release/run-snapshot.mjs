@@ -21,9 +21,12 @@ const treeRequire = createRequire(join(tree, 'package.json'))
 const esbuild = treeRequire('esbuild')
 const electron = treeRequire('electron')
 
-// Modules snapshot.ts can do without: a release older than the module gets an empty stand-in, and
-// snapshot.ts falls back (0.10 / 0.11 have no e2e clock, no Perf Traders seeder and no restore
-// check). Every other import must exist in the tree, so a renamed service still fails the bundle.
+// Modules snapshot.ts can do without — ONLY with UPGRADE_ALLOW_FALLBACKS=1 (the Phase 6 upgrade
+// matrix; the scheduled gate never sets it): a release older than the module gets an empty
+// stand-in, and snapshot.ts falls back and records it (0.10 / 0.11 have no e2e clock, no Perf
+// Traders seeder and no restore check). Otherwise every import must exist in the tree, so a moved
+// or renamed module still fails the bundle.
+const ALLOW_FALLBACKS = process.env.UPGRADE_ALLOW_FALLBACKS === '1'
 const OPTIONAL = ['@shared/e2eClock', '@main/perf/cli', '@main/perf/seedLarge', '@main/services/backupVerify']
 const srcPath = (spec) => join(tree, 'src', spec.startsWith('@shared') ? 'shared' : 'main', spec.replace(/^@(shared|main)\/?/, ''))
 const inTree = (spec) => ['.ts', '.tsx', '/index.ts'].some((ext) => existsSync(srcPath(spec) + ext))
@@ -33,7 +36,7 @@ const treeModules = {
   name: 'tree-modules',
   setup(build) {
     build.onResolve({ filter: /^@(shared|main)(\/|$)/ }, async (args) => {
-      if (OPTIONAL.includes(args.path) && !inTree(args.path)) return { path: args.path, namespace: 'absent' }
+      if (ALLOW_FALLBACKS && OPTIONAL.includes(args.path) && !inTree(args.path)) return { path: args.path, namespace: 'absent' }
       const r = await build.resolve(srcPath(args.path), { kind: args.kind, resolveDir: args.resolveDir })
       return r.errors.length ? { errors: r.errors } : { path: r.path, namespace: r.namespace, sideEffects: r.sideEffects }
     })

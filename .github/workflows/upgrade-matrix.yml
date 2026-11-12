@@ -8,8 +8,9 @@
 # (scripts/release/upgrade/snapshot.ts via run-snapshot.mjs), never a fork of it.
 #
 # Unlike the gate nothing is approved here: EVERY difference is listed (`compare … -`), and the
-# report job writes one table (run summary + the `upgrade-matrix` artifact). A difference is a
-# finding for the owner, never a reason to edit a fixture.
+# report job writes one table (run summary + the `upgrade-matrix` artifact) and FAILS when any
+# release has a health problem, a difference or did not finish. A difference is a finding for the
+# owner, never a reason to edit a fixture.
 #
 # Manual only (Actions → Upgrade matrix → Run workflow), plus pull requests that change it or the
 # snapshot worker (a workflow can be dispatched only once it is on the default branch).
@@ -62,16 +63,21 @@ jobs:
         tag: ${{ fromJSON(needs.plan.outputs.tags) }}
     env:
       UPGRADE_VOUCHERS: '3000'
+      # Lets 0.10 / 0.11 run without the modules they predate; every fallback taken is recorded in
+      # old.json and shown in the table. The scheduled gate never sets it.
+      UPGRADE_ALLOW_FALLBACKS: '1'
     steps:
       - name: Check out HEAD (the code under test, and the snapshot worker)
         uses: actions/checkout@v4
         with:
           path: head
+          persist-credentials: false
       - name: Check out ${{ matrix.tag }}
         uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ matrix.tag }}
           path: old
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -109,13 +115,15 @@ jobs:
 
   report:
     needs: [plan, upgrade]
-    if: ${{ !cancelled() }}
+    # Also after a failed release job (its row says so); never on tags the plan refused.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: scripts/release
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -123,13 +131,17 @@ jobs:
         with:
           pattern: upgrade-*
           path: ${{ runner.temp }}/out
-      - name: The table
+      - name: The table (fails unless every release is clean)
+        env:
+          TAGS_JSON: ${{ needs.plan.outputs.tags }}
         run: |
           set -euo pipefail
           # Artifacts land in out/upgrade-<tag>/; the table reads out/<tag>/.
           for d in "$RUNNER_TEMP"/out/upgrade-*; do [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/out/${d##*/upgrade-}"; done
-          node scripts/release/gate.mjs matrix "$RUNNER_TEMP/out" "$RUNNER_TEMP/out/upgrade-matrix.md" $TAGS
+          mapfile -t tags < <(node -e 'for (const t of JSON.parse(process.env.TAGS_JSON)) console.log(t)')
+          node scripts/release/gate.mjs matrix "$RUNNER_TEMP/out" "$RUNNER_TEMP/out/upgrade-matrix.md" "${tags[@]}"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: upgrade-matrix
           path: ${{ runner.temp }}/out
