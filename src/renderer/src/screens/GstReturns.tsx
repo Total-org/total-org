@@ -121,8 +121,9 @@ export function useMonth(openOn: OpenOn = 'current'): {
   pending: boolean
 } {
   const months = useMonths()
-  const due = useQuery({ queryKey: ['gstDuePeriod'], queryFn: api.gst.duePeriod, enabled: openOn === 'due', staleTime: 60_000 })
-  const pending = openOn === 'due' && due.isPending && !due.isError
+  const due = useQuery({ queryKey: ['gstDuePeriod'], queryFn: api.gst.duePeriod, enabled: openOn === 'due', staleTime: 60_000, retry: false })
+  // A failed read (an old main, a closed company) falls back to this month at once.
+  const pending = openOn === 'due' && due.isPending
   const [monthKey, setMonthKey] = useDefaultMonth(months, openOn, due.data?.period)
   const month = pending ? null : (months.find((m) => m.key === monthKey) ?? months[0] ?? null)
   return { months, month, monthKey, setMonthKey, pending }

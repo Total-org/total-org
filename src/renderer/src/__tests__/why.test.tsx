@@ -25,6 +25,7 @@ import { Gstr1Screen } from '../screens/GstReturns'
 import { BillsToPay } from '../simple/people/BillsToPay'
 import { RegistersScreen } from '../screens/Registers'
 import { billsToPayTotals, type BillsToPay as BillsToPayData } from '@shared/simple/people'
+import { todayISO } from '@shared/dates'
 
 const t = translator('en')
 const TODAY = '2026-10-13'
@@ -301,7 +302,10 @@ describe('the P&L opens on the dates a "Why?" asks for (WP 10.2)', () => {
     cleanup()
     invoke.mockClear()
     renderUi(<ProfitLossScreen />)
-    await waitFor(() => expect(asked()).toContainEqual(expect.objectContaining({ from: '2026-04-01', to: '2027-03-31' })))
+    // Audit A8 / UX-10: the session period, stopping at today while it holds today.
+    const today = todayISO()
+    const to = today >= '2026-04-01' && today < '2027-03-31' ? today : '2027-03-31'
+    await waitFor(() => expect(asked()).toContainEqual(expect.objectContaining({ from: '2026-04-01', to })))
   })
 })
 

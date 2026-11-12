@@ -11,6 +11,7 @@ import { RegistersScreen } from '../screens/Registers'
 import { OutstandingsScreen } from '../screens/Outstandings'
 import { Gstr3bScreen } from '../screens/GstReturns'
 import { useNav, useSession } from '../state/stores'
+import { todayISO } from '@shared/dates'
 
 vi.setConfig({ testTimeout: 30_000 })
 const SLOW = { timeout: 10_000 }
@@ -66,7 +67,9 @@ describe('Home link targets (WP 8.6)', () => {
     cleanup()
     renderScreen(<TrialBalanceScreen />)
     await waitFor(() => expect(rowsOf('trial-balance')).toHaveLength(3), SLOW)
-    expect(invoke).toHaveBeenCalledWith('report:trialBalance', { asOn: '2027-03-31' })
+    // Audit A8 / UX-10: without an asked date, as on today while the period holds it.
+    const today = todayISO()
+    expect(invoke).toHaveBeenCalledWith('report:trialBalance', { asOn: today >= '2026-04-01' && today < '2027-03-31' ? today : '2027-03-31' })
   })
 
   it('All entries: one day (the Day book went in the feature cleanup)', async () => {
