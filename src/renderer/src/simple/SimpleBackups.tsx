@@ -7,6 +7,7 @@ import { useT } from '../lib/i18n'
 import { useNav, useToasts } from '../state/stores'
 import { Button, Page } from '../components/ui'
 import { useCanWrite, ViewerNote } from './ViewerNote'
+import { WindowsPreviewNote } from './WindowsPreviewNote'
 import { DataFolderSetting } from './DataFolderSetting'
 
 const BACKUPS_KEY = ['backups'] as const // i18n-technical: query key
@@ -96,6 +97,7 @@ export function SimpleBackups(): React.JSX.Element {
           </p>
         )}
         <p className="mt-3 text-small text-muted">{t('simple.backups.copyHint')}</p>
+        <WindowsPreviewNote />
         <p className="mt-1 text-small text-muted">{t('simple.backups.whereHint')}</p>
         {backups && backups.length > 0 && (
           <Button className="mt-2" variant="secondary" size="sm" data-testid="btn-simple-backups-reveal" onClick={() => void reveal(newestFile)}>
