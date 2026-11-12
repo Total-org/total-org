@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary from the Actions cache, not GitHub's release downloads (502/504 on 8 Nov).
+      - uses: ./.github/actions/electron-binary
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -62,6 +65,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary from the Actions cache, not GitHub's release downloads (502/504 on 8 Nov).
+      - uses: ./.github/actions/electron-binary
+
       - name: Restore the 100k seed
         id: seed-cache
         uses: actions/cache@v4
@@ -92,6 +98,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The Electron binary from the Actions cache, not GitHub's release downloads (502/504 on 8 Nov).
+      - uses: ./.github/actions/electron-binary
 
       - name: Build
         run: npm run build
@@ -128,6 +137,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The Electron binary from the Actions cache, not GitHub's release downloads (502/504 on 8 Nov).
+      - uses: ./.github/actions/electron-binary
 
       - name: Build
         run: npm run build
@@ -177,6 +189,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary + electron-builder's tools from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov).
+      - uses: ./.github/actions/electron-binary
+        with:
+          packaging: 'true'
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -215,6 +233,9 @@ jobs:
 
       - name: NSIS installer + unpacked app (no publish)
         run: npx electron-builder --win --publish never
+        env:
+          # The log shows the Electron zip comes from the cache with no SHASUMS256.txt fetch.
+          DEBUG: '@electron/get:index'
 
       # electron-updater downloads the file latest.yml names; the release must carry exactly that
       # asset (a space in the name is renamed by GitHub on upload — the 0.11.0 mismatch).

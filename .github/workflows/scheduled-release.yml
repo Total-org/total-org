@@ -42,6 +42,7 @@ on:
     paths:
       - .github/workflows/scheduled-release.yml
       - .github/workflows/release.yml
+      - .github/actions/**
       - scripts/release/**
 
 concurrency:
@@ -117,7 +118,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: gate
-          sparse-checkout: scripts/release
+          sparse-checkout: |
+            scripts/release
+            .github/actions
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -127,6 +130,12 @@ jobs:
       - name: Install HEAD's dependencies
         working-directory: head
         run: npm ci --no-audit --no-fund
+      # Both trees run under Electron-as-Node: their binaries from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov).
+      - uses: ./gate/.github/actions/electron-binary
+        with:
+          lockfiles: old/package-lock.json head/package-lock.json
+          install-in: old head
       - name: Books + figures under the last release
         run: |
           UPGRADE_TODAY=$(date -u +%F)

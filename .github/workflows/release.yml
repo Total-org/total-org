@@ -47,6 +47,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary + electron-builder's tools from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov). A re-run of a tag cut before the action existed
+      # skips it and downloads as before.
+      - if: hashFiles('.github/actions/electron-binary/action.yml') != ''
+        uses: ./.github/actions/electron-binary
+        with:
+          packaging: 'true'
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -83,6 +91,7 @@ jobs:
       - name: Publish DMG + ZIP to the release
         run: npx electron-builder --mac --publish always
         env:
+          DEBUG: '@electron/get:index'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Unsigned beta builds: users right-click → Open on first launch, and the
           # in-app updater falls back to a "download the new version" prompt.
@@ -118,6 +127,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The Electron binary + electron-builder's tools from the Actions cache, not GitHub's
+      # release downloads (502/504 on 8 Nov). A re-run of a tag cut before the action existed
+      # skips it and downloads as before.
+      - if: hashFiles('.github/actions/electron-binary/action.yml') != ''
+        uses: ./.github/actions/electron-binary
+        with:
+          packaging: 'true'
+
       - name: Run tests
         run: npm test
 
@@ -130,6 +147,8 @@ jobs:
       - name: Build NSIS installer (no publish — electron-builder creates a DUPLICATE
           release for the tag even when one exists; observed on v0.2.0)
         run: npm run build && npx electron-builder --win --publish never
+        env:
+          DEBUG: '@electron/get:index'
 
       # WP 7.3: electron-updater downloads the file latest.yml names, so the uploaded asset must
       # carry exactly that name (0.11.0 shipped "Total Setup 0.11.0.exe" — GitHub stored it as
