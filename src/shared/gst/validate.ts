@@ -76,6 +76,7 @@ export interface GstIssue {
     | 'zero_rated_intra_tax'
     | 'off_slab_rate'
     | 'advance_goods'
+    | 'blended_rate'
     | 'einvoice_doc_no'
   severity: 'blocking' | 'warning'
   message: string
@@ -94,6 +95,26 @@ export interface Gstr1ValidationCompany {
 
 /** Booked-vs-computed invoice value differences within ±₹1 are treated as legitimate round-off. */
 export const VAL_MISMATCH_TOLERANCE_PAISE = 100
+
+/**
+ * WP 2d: documents whose several sales lines carry no GST rate (ledger without a rate, no item) and
+ * were reported at ONE rate the posted tax implies (shared/gst/postedRate.ts) while another mix of
+ * slabs explains that tax too (`PostedRates.blended`; an off-slab blend is `off_slab_rate`'s). The tax
+ * per rate in GSTR-1 (and the HSN summary) is right only if every such line had that rate. A warning — the
+ * figures are as before; the fix for new bills is a GST rate on each sales account (or items).
+ */
+export function blendedRateIssue(voucherIds: readonly number[]): GstIssue | null {
+  if (voucherIds.length === 0) return null
+  const n = voucherIds.length
+  return {
+    code: 'blended_rate',
+    severity: 'warning',
+    message:
+      `${n} document${n === 1 ? '' : 's'} with several sales lines that have no GST rate: they are reported at the ONE rate the posted tax implies, though a mix of rates would give the same tax. ` +
+      'If every line really was at that rate, nothing is needed; if not, the split by rate is wrong — check them with your CA. For new bills, use items, or a separate sales account for each GST rate (changing the rate on an account already used can change months already filed).',
+    voucherIds: [...voucherIds]
+  }
+}
 
 /**
  * Validate the extracted document set before any GSTR-1/EWB export. Blocking issues must be
