@@ -73,12 +73,24 @@ export interface SimpleHandoff {
   others: { role: IntentRole; kind: VoucherKind; amount: number }[]
   missing: string[]
   addedOnSave?: string[]
+  /** Phase 5: this editor is the SECOND step — the money paid / received / refunded now for the
+   *  entry the first step saved (its bill-wise name). */
+  afterBill?: string
 }
 
 /** simple:handoffTarget — the facts "Back to simple" needs from main (services/simpleHandoff.ts). */
 export interface HandoffFacts {
   /** Absent when the voucher is not in the books (binned, optional, post-dated) or not found. */
-  voucher?: { id: number; kind: VoucherKind; originalId: number | null }
+  voucher?: {
+    id: number
+    kind: VoucherKind
+    originalId: number | null
+    /** Phase 5 (asked with `open`): the hand-off's second step — its date, party and what of it is
+     *  still open (SavedFirstStep). */
+    date?: string
+    partyId?: number | null
+    open?: { name: string; amount: number } | null
+  }
   ledger?: { id: number; isParty: boolean }
 }
 
@@ -156,4 +168,69 @@ export const INTENT_SCREEN: Record<SimpleIntentKind, string> = {
   return_purchase: 'simple-return-purchase',
   stock_count: 'simple-stock-count',
   make_goods: 'simple-made-goods'
+}
+
+// ---------------------------------------------------------------- the second step (Phase 5)
+
+/** What the first step's editor saved, as the books hold it now (simple:handoffTarget with
+ *  `open`; absent there = binned / not in the books, and no second step is offered). */
+export interface SavedFirstStep {
+  voucherId: number
+  date: string
+  /** The saved entry's customer / supplier (null when the editor saved none). */
+  partyId: number | null
+  /** What of THAT entry is still open as on its date (the Outstandings allocation): a bill's
+   *  pending (sale / purchase) or a return note's own credit; null = nothing (settled). */
+  open: { name: string; amount: number } | null
+}
+
+/** The money part of a hand-off that the first editor did not hold. */
+export function moneyPartOf(h: Pick<SimpleHandoff, 'others'>): { role: IntentRole; kind: VoucherKind; amount: number } | null {
+  return h.others.find((o) => (o.role === 'payment' || o.role === 'refund') && o.amount > 0) ?? null
+}
+
+type MoneyAnswer = { how: 'cash' | 'upi' | 'card' | 'bank'; accountId?: number; reference?: string }
+type WithoutClientId<T> = T extends unknown ? Omit<T, 'clientId'> : never
+/** A money intent without its clientId (the hand-off's own is added by openHandoff). */
+export type FollowUpIntent = WithoutClientId<Extract<SimpleIntentInput, { kind: 'money_in' | 'money_out' }>>
+
+/**
+ * Phase 5 — the deferred gap of WP 9.10 closed as a clear TWO-STEP hand-off: once the full editor
+ * has saved the bill (or return note) of a simple form's answers, the money paid / received /
+ * refunded NOW becomes its own entry — a WP 9.1 money intent the editor's mapping turns into the
+ * receipt / payment form (simple:intentForm, nothing saved), set against THAT saved entry by name
+ * and never for more than it still has open (the editor may have changed it):
+ *  - a sale / purchase paid now: money in / out for the customer / supplier against the bill
+ *    (its voucher id + bill-wise name);
+ *  - a return refunded now: money out to the customer / in from the supplier against the note's
+ *    own credit (by name — never an older advance first).
+ * Pure. null = nothing left to record (no money part, no party, the entry settled).
+ */
+export function followUpIntent(h: Pick<SimpleHandoff, 'kind' | 'intent' | 'others'>, saved: SavedFirstStep): FollowUpIntent | null {
+  const part = moneyPartOf(h)
+  type Answer = { how: string; accountId?: number; reference?: string }
+  const intent = h.intent as { payment?: Answer; refund?: Answer; narration?: string } | undefined
+  if (!part || !intent || saved.partyId == null || !saved.open || saved.open.amount <= 0) return null
+  const answer = h.kind === 'sale' || h.kind === 'purchase' ? intent.payment : intent.refund
+  if (!answer || answer.how === 'credit') return null
+  const money: MoneyAnswer = {
+    how: answer.how as MoneyAnswer['how'],
+    ...(answer.accountId != null ? { accountId: answer.accountId } : {}),
+    ...(answer.reference ? { reference: answer.reference } : {})
+  }
+  const amount = Math.min(part.amount, saved.open.amount)
+  const base = { date: saved.date, amount, ...(intent.narration ? { narration: intent.narration } : {}) }
+  const bills = [{ name: saved.open.name, amount, ...(h.kind === 'sale' || h.kind === 'purchase' ? { billId: saved.voucherId } : {}) }]
+  switch (h.kind) {
+    case 'sale':
+      return { kind: 'money_in', ...base, into: money, customerId: saved.partyId, bills }
+    case 'purchase':
+      return { kind: 'money_out', ...base, from: money, supplierId: saved.partyId, bills }
+    case 'return_sale':
+      return { kind: 'money_out', ...base, from: money, customerId: saved.partyId, bills }
+    case 'return_purchase':
+      return { kind: 'money_in', ...base, into: money, supplierId: saved.partyId, bills }
+    default:
+      return null
+  }
 }

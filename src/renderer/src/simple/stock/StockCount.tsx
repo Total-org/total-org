@@ -14,7 +14,8 @@ import { useNav, useSession } from '../../state/stores'
 import { Button, DateInput, Field, FieldError, isAnyModalOpen, Page, TextInput, useFormErrors } from '../../components/ui'
 import { SaveCard } from '../SaveCard'
 import { useCanSave, ViewerNote } from '../ViewerNote'
-import { useAccountantView, useKeptForm } from '../../lib/handoff'
+import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handoff'
+import { CarriedBackNote } from '../CarriedBackNote'
 import { AccountantViewButton } from '../AccountantViewButton'
 
 /** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
@@ -39,6 +40,8 @@ export function StockCount(): React.JSX.Element {
   const workingDate = useSession((s) => s.workingDate)
   const poster = useSimplePost()
   const blank = (): CountForm => ({ date: workingDate, counted: {} })
+  // Phase 5: what "Back to simple" brought back from the full editor (the note says what could not).
+  const carriedBack = useCarriedBack()
   const [form, setForm] = useKeptForm<CountForm>(blank)
   const [search, setSearch] = useState('')
   const [saved, setSaved] = useState<{ ids: number[]; sentences: string[] } | null>(null)
@@ -171,6 +174,7 @@ export function StockCount(): React.JSX.Element {
         </div>
         <AccountantViewButton testId="btn-count-accountant-view" title={t('simple.stock.count.accountantHint')} onOpen={accountantView} />
       </div>
+      <CarriedBackNote dropped={carriedBack} hidden={!!saved} />
 
       {saved ? (
         <SaveCard

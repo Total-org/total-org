@@ -17,6 +17,7 @@ import { emptySellForm, exclusiveLines, saleIntentFrom, type SellContext, type S
 import { buyIntentLines, emptyBuyForm, purchaseIntentFrom, type BuyContext, type BuyForm } from './buy'
 import { emptyMoneyInForm, emptyMoneyOutForm, emptyMoveForm, moneyInIntentFrom, moneyOutIntentFrom, moveIntentFrom, type MoneyInForm, type MoneyOpenBill, type MoneyOutForm, type MoveForm } from './money'
 import { emptyReturnForm, returnIntentFrom, type ReturnBill, type ReturnForm } from './returns'
+import { countIntentFrom, makeIntentFrom } from './stock'
 
 const TODAY = '2025-08-14'
 const L = {
@@ -128,7 +129,9 @@ const INTENT: { [F in CarryFlow]: IntentOf<F> } = {
     moneyOutIntentFrom(f, SUPPLIER_BILLS, DEFAULTS, { facts: c.invoice, companyStateCode: '27', supplierState: (id) => c.ledgers.get(id)?.stateCode ?? null, drawingsId: L.drawings }),
   'simple-move-money': (f) => moveIntentFrom(f),
   'simple-return-sale': (f, c) => returnIntentFrom(f, returnBill(c.original!), { invoice: c.invoice }, DEFAULTS),
-  'simple-return-purchase': (f, c) => returnIntentFrom(f, returnBill(c.original!), { invoice: c.invoice }, DEFAULTS)
+  'simple-return-purchase': (f, c) => returnIntentFrom(f, returnBill(c.original!), { invoice: c.invoice }, DEFAULTS),
+  'simple-stock-count': (f) => countIntentFrom(f),
+  'simple-made-goods': (f) => makeIntentFrom(f)
 }
 
 function returnBill(o: IntentOriginal): ReturnBill {

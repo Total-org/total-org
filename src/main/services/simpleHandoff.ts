@@ -29,25 +29,44 @@ import { IN_BOOKS } from './vouchers'
 import { intentForm, loadIntentContext } from './simplePost'
 import { returnBill } from './simpleReturns'
 import { moneyBills } from './simpleMoney'
+import { partyAllocationWithCredits } from './analysis'
+import { listBomVersions } from './bom'
+import { pickBomVersion, type BomVersion } from '@shared/bom'
 import { WALK_IN_NAME } from './counter'
 import { rehearse } from '../ai/drafting/rehearse'
 
-export function handoffFacts(db: DB, q: { voucherId?: number; ledgerId?: number }): HandoffFacts {
+export function handoffFacts(db: DB, q: { voucherId?: number; ledgerId?: number; open?: boolean }): HandoffFacts {
   const out: HandoffFacts = {}
   if (q.voucherId != null) {
     const v = db
       .prepare(
-        `SELECT v.id, vt.kind, v.party_ledger_id AS partyId, v.reference FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id
+        `SELECT v.id, vt.kind, v.party_ledger_id AS partyId, v.reference, v.date FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id
          WHERE v.id = ? AND ${IN_BOOKS}`
       )
-      .get(q.voucherId) as { id: number; kind: VoucherKind; partyId: number | null; reference: string | null } | undefined
-    if (v) out.voucher = { id: v.id, kind: v.kind, originalId: v.kind === 'credit_note' || v.kind === 'debit_note' ? originalOf(db, v) : null }
+      .get(q.voucherId) as { id: number; kind: VoucherKind; partyId: number | null; reference: string | null; date: string } | undefined
+    if (v) {
+      out.voucher = { id: v.id, kind: v.kind, originalId: v.kind === 'credit_note' || v.kind === 'debit_note' ? originalOf(db, v) : null }
+      if (q.open) out.voucher = { ...out.voucher, date: v.date, partyId: v.partyId, open: v.partyId != null ? openPart(db, v as typeof v & { partyId: number }) : null }
+    }
   }
   if (q.ledgerId != null) {
     const l = db.prepare('SELECT id, group_id AS groupId FROM ledgers WHERE id = ?').get(q.ledgerId) as { id: number; groupId: number } | undefined
     if (l) out.ledger = { id: l.id, isParty: isPartyLedger(l, listGroups(db)) }
   }
   return out
+}
+
+/** Phase 5 — what of a saved bill / return note is still open as on its date (the Outstandings
+ *  allocation): a bill's pending by its voucher id, a note's OWN credit by its own bill name. */
+function openPart(db: DB, v: { id: number; kind: VoucherKind; partyId: number; date: string }): { name: string; amount: number } | null {
+  if (v.kind === 'sales' || v.kind === 'purchase') {
+    const b = moneyBills(db, v.partyId, v.date).find((x) => x.voucherId === v.id && x.pending > 0)
+    return b ? { name: b.name, amount: b.pending } : null
+  }
+  if (v.kind !== 'credit_note' && v.kind !== 'debit_note') return null
+  const own = new Set((db.prepare("SELECT name FROM bill_refs WHERE voucher_id = ? AND kind = 'new'").all(v.id) as { name: string }[]).map((r) => r.name))
+  const c = partyAllocationWithCredits(db, v.partyId, v.date).credits.find((x) => own.has(x.name) && x.amount > 0)
+  return c ? { name: c.name, amount: c.amount } : null
 }
 
 function originalOf(db: DB, note: { id: number; kind: VoucherKind; partyId: number | null; reference: string | null }): number | null {
@@ -94,6 +113,8 @@ export function carryBackForm(db: DB, company: CompanyInfo, req: CarryBackReques
     }
     const bills = new Map<number, MoneyOpenBill[]>()
     for (const id of parties) bills.set(id, moneyBills(db, id, date))
+    let all: BomVersion[] | null = null
+    const versions = (): BomVersion[] => (all ??= listBomVersions(db))
     const walkIn = db.prepare('SELECT id FROM ledgers WHERE name = ?').get(WALK_IN_NAME) as { id: number } | undefined
     return {
       invoice: ic.invoice,
@@ -102,7 +123,8 @@ export function carryBackForm(db: DB, company: CompanyInfo, req: CarryBackReques
       walkInId: walkIn?.id ?? null,
       defaults: { salesId: ic.defaults.salesId, purchaseId: ic.defaults.purchaseId, drawingsId: ic.defaults.drawingsId },
       openBills: bills,
-      original: ic.original
+      original: ic.original,
+      recipeVersion: (itemId, date) => pickBomVersion(versions(), itemId, date)?.id ?? null
     }
   })
   return carryBack({ flow: req.flow, original: req.original, current: req.current, base: req.base }, ctx, {
@@ -151,6 +173,10 @@ function remapForm(db: DB, company: CompanyInfo, flow: CarryFlow, form: CarryFor
       intent = returnIntentFrom(f, bill, { invoice: ctx.invoice }, none)
       break
     }
+    // Phase 5: compared with the entry the hand-off opened (no money / bill choices to re-derive).
+    case 'simple-stock-count':
+    case 'simple-made-goods':
+      return null
   }
   return intentForm(db, company, { ...billOnly(intent), clientId: 'accountant-view-carry-back' }, today).entries[0] ?? null
 }

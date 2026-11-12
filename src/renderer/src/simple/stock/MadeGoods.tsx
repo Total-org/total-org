@@ -16,7 +16,8 @@ import { AmountInput, Button, DateInput, Field, FieldError, isAnyModalOpen, Page
 import { TypeAhead } from '../../components/pickers'
 import { SaveCard } from '../SaveCard'
 import { useCanSave, ViewerNote } from '../ViewerNote'
-import { useAccountantView, useKeptForm } from '../../lib/handoff'
+import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handoff'
+import { CarriedBackNote } from '../CarriedBackNote'
 import { AccountantViewButton } from '../AccountantViewButton'
 
 /** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
@@ -46,6 +47,8 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
   const features = useFeatures()
   const poster = useSimplePost()
   const blank = (): MakeForm => ({ ...emptyMakeForm(workingDate), itemId: itemId ?? null })
+  // Phase 5: what "Back to simple" brought back from the full editor (the note says what could not).
+  const carriedBack = useCarriedBack()
   const [form, setForm] = useKeptForm<MakeForm>(blank)
   const [saved, setSaved] = useState<{ ids: number[]; sentences: string[] } | null>(null)
   const [preview, setPreview] = useState<SimplePreview | null>(null)
@@ -231,6 +234,7 @@ export function MadeGoods({ itemId }: { itemId?: number }): React.JSX.Element {
         </div>
         <AccountantViewButton testId="btn-made-accountant-view" title={t('simple.made.accountantHint')} onOpen={accountantView} />
       </div>
+      <CarriedBackNote dropped={carriedBack} hidden={!!saved} />
 
       {saved ? (
         <SaveCard

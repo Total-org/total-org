@@ -16,7 +16,7 @@
 // line is checked by the flow's own reader (`exclusiveLines` / `buyIntentLines` / `returnRow` /
 // `allocateToBills`) to give back exactly the editor's figures, and a basis that can't is dropped
 // for the exact one (prices before GST) rather than rounded.
-import type { InvoiceContext, AccountingFormState, AccountingRowState, InvoiceFormState, InvoiceRowState, TaxLedgerIds, TaxSide } from '../voucherEdit'
+import type { InvoiceContext, AccountingFormState, AccountingRowState, InvoiceFormState, InvoiceRowState, ManufactureFormState, PhysicalFormState, TaxLedgerIds, TaxSide } from '../voucherEdit'
 import type { HandoffEntry, HandoffPending } from './handoff'
 import { allocateToBills, foldGstIntoLine, returnRow, returnTaxedOriginal, type IntentDefaults, type IntentLedger, type IntentOriginal, type MoneyHow } from './intents'
 import { addBreakups, computeGst, type SupplyType } from '../gst/calc'
@@ -24,15 +24,20 @@ import { billTaxClass } from '../gst/zeroRated'
 import type { VoucherKind } from '../domain'
 import { chargesGstOn } from '../gst/registration'
 import { GST_RATE_TABLE } from '../gst/rateTable'
-import { roundToRupee } from '../money'
+import { formatPaise, roundToRupee } from '../money'
 import { solveTaxable } from '../pricing'
 import { amountToBasis, exclusiveLines, qtyMilliOf, switchSellBasis, type SellContext, type SellForm, type SellLine } from './sell'
 import { buyGst, buyIntentLines, buyTotals, switchBuyBasis, type BuyContext, type BuyForm, type BuyLine } from './buy'
 import { ticksToBills, type MoneyInForm, type MoneyOpenBill, type MoneyOutForm, type MoveForm } from './money'
 import { returnQtyOf, type ReturnForm } from './returns'
+import type { CountForm, MakeForm } from './stock'
 
 /** The simple flows an unsaved hand-off can come back to. */
-export const CARRY_FLOWS = ['simple-sell', 'simple-buy', 'simple-money-in', 'simple-money-out', 'simple-move-money', 'simple-return-sale', 'simple-return-purchase'] as const
+export const CARRY_FLOWS = [
+  'simple-sell', 'simple-buy', 'simple-money-in', 'simple-money-out', 'simple-move-money', 'simple-return-sale', 'simple-return-purchase',
+  // Phase 5: Count your stock / Made goods (the physical stock / manufacture editors).
+  'simple-stock-count', 'simple-made-goods'
+] as const
 export type CarryFlow = (typeof CARRY_FLOWS)[number]
 
 export interface CarryForms {
@@ -43,12 +48,14 @@ export interface CarryForms {
   'simple-move-money': MoveForm
   'simple-return-sale': ReturnForm
   'simple-return-purchase': ReturnForm
+  'simple-stock-count': CountForm
+  'simple-made-goods': MakeForm
 }
 
 /** Editor fields with no place in the simple form (the banner's words: `simple.handoff.dropped.*`). */
 export const CARRY_DROPPED = [
   'number', 'account', 'extraLines', 'tds', 'tcs', 'costCentres', 'transport', 'currency', 'placeOfSupply', 'optional',
-  'dueDate', 'billName', 'billRefs', 'billSplit', 'godowns', 'serials', 'cheque', 'rounding', 'links'
+  'dueDate', 'billName', 'billRefs', 'billSplit', 'godowns', 'serials', 'cheque', 'rounding', 'links', 'note', 'labourAccount'
 ] as const
 export type CarryDropped = (typeof CARRY_DROPPED)[number]
 
@@ -72,6 +79,8 @@ export interface CarryContext {
   openBills: ReadonlyMap<number, readonly MoneyOpenBill[]>
   /** The bill a return is made against (simplePost.loadOriginal). */
   original: IntentOriginal | null
+  /** Phase 5 (Made goods): the recipe version in force for a product on a date (null = none). */
+  recipeVersion?: (itemId: number, date: string) => number | null
 }
 
 export interface CarryInput<F extends CarryFlow = CarryFlow> {
@@ -167,6 +176,12 @@ function carry(input: CarryInput, ctx: CarryContext, dropped: Dropped): CarryFor
     case 'simple-return-sale':
     case 'simple-return-purchase':
       return returned(input as CarryInput<'simple-return-sale'>, ctx, dropped)
+    case 'simple-stock-count':
+      if (current.form !== 'physical') return refuse('form')
+      return counted(input as CarryInput<'simple-stock-count'>, dropped)
+    case 'simple-made-goods':
+      if (current.form !== 'manufacture') return refuse('form')
+      return made(input as CarryInput<'simple-made-goods'>, ctx, dropped)
   }
 }
 
@@ -766,4 +781,78 @@ function returned(input: CarryInput<'simple-return-sale'>, ctx: CarryContext, dr
   const asked = charges && bill.carriesGst && billRate == null
   if (charges && bill.carriesGst && !asked && rate !== billRate) return refuse('gst')
   return { ...base, date: c.date, amount: now.taxable, gstRate: asked ? rate : base.gstRate, reason: c.narration }
+}
+
+// ---------------------------------------------------------------- Count your stock / Made goods (Phase 5)
+
+type Phys = HandoffEntry & { form: 'physical' }
+type Make = HandoffEntry & { form: 'manufacture' }
+
+/** A cost per unit as the count form's "what one cost" box holds it (money.ts words, no symbol). */
+const costText = (paise: number): string => formatPaise(paise)
+
+/** The physical stock editor → Count your stock: per product its counted quantity (one row each —
+ *  a product counted twice can't be one answer), and "what one cost" where the editor carries a
+ *  cost per unit. A quantity / cost the user did not touch keeps the form's own text. */
+function counted(input: CarryInput<'simple-stock-count'>, dropped: Dropped): CountForm {
+  const o = (input.original as Phys).state
+  const c = (input.current as Phys).state
+  const ref: PhysicalFormState = (dropped.ref as Phys).state
+  const base = input.base
+  dropped.add('number', c.number.trim() !== '' && c.number.trim() !== ref.number.trim())
+  dropped.add('note', c.narration.trim() !== ref.narration.trim())
+  dropped.add('optional', (c.isOptional ?? false) !== (ref.isOptional ?? false))
+  const was = new Map(o.rows.filter((r) => r.itemId != null).map((r) => [r.itemId!, r]))
+  const counts: Record<number, string> = {}
+  const costs: Record<number, string> = {}
+  for (const r of c.rows) {
+    if (r.itemId == null || r.qtyText.trim() === '') continue
+    if (r.itemId in counts) return refuse('lines')
+    dropped.add('godowns', r.godownId != null || r.batchId != null)
+    const before = was.get(r.itemId)
+    const baseQty = base.counted[r.itemId]
+    counts[r.itemId] = before && before.qtyText === r.qtyText && baseQty != null && baseQty.trim() !== '' ? baseQty : r.qtyText
+    const rate = r.ratePaise != null && r.ratePaise > 0 ? r.ratePaise : null
+    const wasRate = before?.ratePaise != null && before.ratePaise > 0 ? before.ratePaise : null
+    const baseCost = base.costs?.[r.itemId]
+    if (before && rate === wasRate && baseCost != null) costs[r.itemId] = baseCost
+    else if (rate != null) costs[r.itemId] = costText(rate)
+  }
+  const { costs: _costs, ...rest } = base
+  return { ...rest, date: c.date, counted: counts, ...(Object.keys(costs).length > 0 ? { costs } : {}) }
+}
+
+/** The manufacture editor → Made goods. The simple form always uses the recipe in force, so an
+ *  entry whose materials were typed by hand (the editor stops following its recipe), exploded
+ *  otherwise, with by-products or as job work can't come back. */
+function made(input: CarryInput<'simple-made-goods'>, ctx: CarryContext, dropped: Dropped): MakeForm {
+  const o = (input.original as Make).state
+  const c = (input.current as Make).state
+  const ref: ManufactureFormState = (dropped.ref as Make).state
+  const base = input.base
+  if (c.finishedItemId == null || c.jobWork != null) return refuse('lines')
+  if ((c.byProducts ?? []).some((b) => b.itemId != null)) return refuse('lines')
+  if (c.bomVersionId == null || (c.bomExploded ?? false) !== (o.bomExploded ?? false)) return refuse('lines')
+  // The form posts the recipe in force for its product and date; the editor keeps the version it
+  // opened with (or one picked by hand). Same product and date: it must be that version; another
+  // date / product: it must be the one in force then (else the preview would differ from the editor).
+  const same = c.date === o.date && c.finishedItemId === o.finishedItemId
+  const inForce = same ? o.bomVersionId : (ctx.recipeVersion?.(c.finishedItemId, c.date) ?? null)
+  if (inForce == null || c.bomVersionId !== inForce) return refuse('lines')
+  dropped.add('number', c.number.trim() !== '' && c.number.trim() !== ref.number.trim())
+  dropped.add('note', c.narration.trim() !== ref.narration.trim())
+  dropped.add('godowns', (c.godownId ?? null) !== (ref.godownId ?? null))
+  const labour = c.labourPaise != null && c.labourPaise > 0 ? c.labourPaise : null
+  dropped.add('labourAccount', labour != null && c.labourPosted && (c.labourCreditLedgerId ?? null) !== (ref.labourCreditLedgerId ?? null))
+  const labourWas = o.labourPaise != null && o.labourPaise > 0
+  return {
+    ...base,
+    date: c.date,
+    itemId: c.finishedItemId,
+    qtyText: c.qtyText === o.qtyText ? base.qtyText : c.qtyText,
+    price: c.saleRatePaise === o.saleRatePaise ? base.price : c.saleRatePaise,
+    labour,
+    // "Labour already recorded?" = the editor's "already booked" (no ledger lines).
+    labourRecorded: labour == null ? null : labourWas && c.labourPosted === o.labourPosted ? base.labourRecorded : !c.labourPosted
+  }
 }
