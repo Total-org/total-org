@@ -1,0 +1,148 @@
+# Upgrade matrix (Phase 6, 1.0 prep): books made by OLDER releases, opened by HEAD.
+#
+# For each release tag: that tag's own checkout + `npm ci` seeds books (Demo Traders; Perf Traders
+# too from 0.12.0, the first release with the seeder) and dumps every report the scheduled release's
+# upgrade test dumps (TB, P&L, BS, Outstandings both sides, stock per FY end; GSTR-1 / GSTR-3B per
+# month); HEAD then copies + restore-checks each untouched file, opens it (migrates), checks
+# migrations / integrity / foreign keys / audit chain and dumps again. Same worker as the gate
+# (scripts/release/upgrade/snapshot.ts via run-snapshot.mjs), never a fork of it.
+#
+# Unlike the gate nothing is approved here: EVERY difference is listed (`compare … -`), and the
+# report job writes one table (run summary + the `upgrade-matrix` artifact) and FAILS when any
+# release has a health problem, a difference or did not finish. A difference is a finding for the
+# owner, never a reason to edit a fixture.
+#
+# Manual only (Actions → Upgrade matrix → Run workflow), plus pull requests that change it or the
+# snapshot worker (a workflow can be dispatched only once it is on the default branch).
+name: Upgrade matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Release tags whose books HEAD must open (space-separated)
+        type: string
+        default: v0.10.0 v0.11.0 v0.12.0 v0.12.1
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/upgrade-matrix.yml
+      - scripts/release/upgrade/**
+      - scripts/release/run-snapshot.mjs
+
+concurrency:
+  group: upgrade-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TAGS: ${{ inputs.tags || 'v0.10.0 v0.11.0 v0.12.0 v0.12.1' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+      - id: tags
+        run: |
+          set -euo pipefail
+          json=$(node -e 'const t = process.env.TAGS.trim().split(/\s+/); if (!t.every((x) => /^v\d+\.\d+\.\d+$/.test(x))) { console.error("tags look like v0.12.1"); process.exit(1) } console.log(JSON.stringify(t))')
+          echo "tags=$json" >> "$GITHUB_OUTPUT"
+
+  upgrade:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.plan.outputs.tags) }}
+    env:
+      UPGRADE_VOUCHERS: '3000'
+      # Lets 0.10 / 0.11 run without the modules they predate; every fallback taken is recorded in
+      # old.json and shown in the table. The scheduled gate never sets it.
+      UPGRADE_ALLOW_FALLBACKS: '1'
+    steps:
+      - name: Check out HEAD (the code under test, and the snapshot worker)
+        uses: actions/checkout@v4
+        with:
+          path: head
+          persist-credentials: false
+      - name: Check out ${{ matrix.tag }}
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ matrix.tag }}
+          path: old
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install ${{ matrix.tag }}'s dependencies
+        working-directory: old
+        run: npm ci --no-audit --no-fund
+      - name: Install HEAD's dependencies
+        working-directory: head
+        run: npm ci --no-audit --no-fund
+      - uses: ./head/.github/actions/electron-binary
+        with:
+          lockfiles: old/package-lock.json head/package-lock.json
+          install-in: old head
+      - name: Books + figures under ${{ matrix.tag }}
+        run: |
+          set -euo pipefail
+          # 0.10 / 0.11 cannot shift their clock: the as-on day is the runner's own date.
+          UPGRADE_TODAY=$(date +%F)
+          export UPGRADE_TODAY
+          echo "UPGRADE_TODAY=$UPGRADE_TODAY" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/out/${{ matrix.tag }}"
+          node head/scripts/release/run-snapshot.mjs old seed "$RUNNER_TEMP/books"
+          node head/scripts/release/run-snapshot.mjs old dump "$RUNNER_TEMP/books" "$RUNNER_TEMP/out/${{ matrix.tag }}/old.json"
+      - name: Open + migrate the same books with HEAD, figures again
+        run: node head/scripts/release/run-snapshot.mjs head check "$RUNNER_TEMP/books" "$RUNNER_TEMP/out/${{ matrix.tag }}/new.json"
+      - name: Compare (every difference listed, none approved)
+        # A failing comparison still uploads its files and reaches the table.
+        run: node head/scripts/release/gate.mjs compare "$RUNNER_TEMP/out/${{ matrix.tag }}/old.json" "$RUNNER_TEMP/out/${{ matrix.tag }}/new.json" - "$RUNNER_TEMP/out/${{ matrix.tag }}/upgrade.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upgrade-${{ matrix.tag }}
+          path: ${{ runner.temp }}/out/${{ matrix.tag }}
+          retention-days: 30
+
+  report:
+    needs: [plan, upgrade]
+    # Also after a failed release job (its row says so); never on tags the plan refused.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/release
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: upgrade-*
+          path: ${{ runner.temp }}/out
+      - name: The table (fails unless every release is clean)
+        env:
+          TAGS_JSON: ${{ needs.plan.outputs.tags }}
+        run: |
+          set -euo pipefail
+          # Artifacts land in out/upgrade-<tag>/; the table reads out/<tag>/.
+          for d in "$RUNNER_TEMP"/out/upgrade-*; do [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/out/${d##*/upgrade-}"; done
+          mapfile -t tags < <(node -e 'for (const t of JSON.parse(process.env.TAGS_JSON)) console.log(t)')
+          node scripts/release/gate.mjs matrix "$RUNNER_TEMP/out" "$RUNNER_TEMP/out/upgrade-matrix.md" "${tags[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upgrade-matrix
+          path: ${{ runner.temp }}/out
+          retention-days: 30

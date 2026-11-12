@@ -136,7 +136,8 @@ export function compareOutputs(oldOut, newOut, limit = 200) {
     else walk(oldOut[key], newOut[key], key)
   }
   for (const key of Object.keys(newOut)) if (!(key in oldOut)) added.push(key)
-  return { differences, added }
+  // `capped`: the walk stopped at `limit`, so there may be more differences than listed.
+  return { differences, added, capped: differences.length >= limit }
 }
 
 export const FIGURES_LABEL = 'figures-approved'
@@ -188,4 +189,50 @@ export function missingAssets(version, names) {
     { what: 'latest.yml', test: (n) => n === 'latest.yml' }
   ]
   return want.filter((w) => !names.some(w.test)).map((w) => w.what)
+}
+
+/**
+ * Phase 6 upgrade matrix (.github/workflows/upgrade-matrix.yml): one markdown table over every
+ * release's upgrade test, and whether every row is clean (no health problem, no difference, the
+ * job finished) — the report job fails otherwise. `rows`: [{ tag, old: old.json | null,
+ * upgrade: upgrade.json | null }] (null = that release's job did not get so far). Differences are
+ * counted per company and report kind (the figure key before its first ':') over the LISTED ones;
+ * a count that hit compareOutputs' limit reads "≥ N". Fallbacks the old release needed (snapshot.ts,
+ * UPGRADE_ALLOW_FALLBACKS) are named in the Books column.
+ */
+export function upgradeMatrixTable(rows) {
+  const lines = [
+    '| Release | Books | Migrations (old → HEAD) | Health | Reports compared | Figures that differ | Where (of those listed) |',
+    '|---|---|---|---|---|---|---|'
+  ]
+  let clean = true
+  for (const { tag, old, upgrade } of rows) {
+    if (!old || !upgrade) {
+      clean = false
+      lines.push(`| ${tag} | — | — | did not finish (see the job log) | — | — | — |`)
+      continue
+    }
+    const companies = Object.entries(old.companies)
+    const health = upgrade.checks.find((c) => c.name.startsWith('migrations'))
+    if (!health?.ok || upgrade.differenceCount) clean = false
+    const where = new Map()
+    for (const d of upgrade.differences) {
+      const [slug, rest = ''] = d.path.split('/')
+      const key = `${slug} ${rest.split(':')[0].split('.')[0]}`
+      where.set(key, (where.get(key) ?? 0) + 1)
+    }
+    const fallbacks = old.fallbacks?.length ? ` (fallbacks: ${old.fallbacks.join('; ')})` : ''
+    const count = upgrade.differenceCount ? `**${upgrade.capped ? '≥ ' : ''}${upgrade.differenceCount}**` : '0'
+    const cells = [
+      tag,
+      companies.map(([slug]) => slug).join(', ') + fallbacks,
+      `${companies.map(([, c]) => c.migrations).join(' / ')} → ${upgrade.migrationsAfter ?? '?'}`,
+      health?.ok ? 'clean' : `**${health?.reason ?? 'unknown'}**`,
+      String(upgrade.reportCount),
+      count,
+      [...where].map(([k, n]) => `${k} ×${n}`).join('; ') || '—'
+    ]
+    lines.push(`| ${cells.join(' | ')} |`)
+  }
+  return { table: lines.join('\n'), clean }
 }
