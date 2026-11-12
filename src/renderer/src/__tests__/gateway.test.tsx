@@ -95,6 +95,14 @@ function setup(opts: { series?: DashboardSeries | { fail: string }; features?: P
   return client
 }
 
+/** The features answer has arrived AND rendered (TanStack notifies on a setTimeout(0) scheduler). */
+async function featuresRendered(client: QueryClient): Promise<void> {
+  await waitFor(() => expect(client.getQueryState(['features'])?.status).toBe('success'))
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0))
+  })
+}
+
 beforeEach(() => {
   go.mockReset()
   invoke.mockReset()
@@ -154,7 +162,7 @@ describe('Gateway dashboard', () => {
     const opts = { features: { manufacturing: false } as Partial<CompanyFeatures> }
     const client = setup(opts)
     await waitFor(() => screen.getByTestId('tile-cash'))
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('config:features:get', undefined))
+    await featuresRendered(client)
     go.mockClear()
     fireEvent.keyDown(window, { key: 'F7', altKey: true })
     expect(go).not.toHaveBeenCalledWith({ name: 'manufacture' })
@@ -172,12 +180,10 @@ describe('Gateway dashboard', () => {
   })
 
   it('Alt+F7 opens Manufacture only while manufacturing is on (WP 8.3: setup can turn it off)', async () => {
-    setup({ features: { manufacturing: false } })
+    const client = setup({ features: { manufacturing: false } })
     await waitFor(() => screen.getByTestId('tile-cash'))
-    // Let the features query settle (useFeatures shows the defaults while it loads).
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 30))
-    })
+    // useFeatures shows the defaults while it loads.
+    await featuresRendered(client)
     go.mockClear()
     fireEvent.keyDown(window, { key: 'F7', altKey: true })
     expect(go).not.toHaveBeenCalledWith({ name: 'manufacture' })

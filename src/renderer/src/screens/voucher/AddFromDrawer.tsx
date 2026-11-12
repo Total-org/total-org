@@ -22,8 +22,9 @@ import { DocLink, ItemLink } from '../../components/links'
 import { useStockItems } from '../../components/pickers'
 import { parseQtyText } from '@shared/qty'
 
-/** Column headings for a return, by the kind being returned. */
+/** Column headings for a plain document (not a return). */
 const DOC_HEADS = { qty: 'On doc.', done: 'Done' }
+/** Column headings for a return, by the kind being returned. */
 const RETURN_HEADS: Record<string, { qty: string; done: string }> = {
   sales: { qty: 'Sold', done: 'Returned' },
   purchase: { qty: 'Billed', done: 'Returned' },

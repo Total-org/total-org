@@ -218,7 +218,10 @@ export class Harness {
 
   /** Every IPC call the renderer sent before this one has been answered (main handles them in
    *  order), and what they changed has rendered — for a check that an async refusal / override
-   *  did NOT happen. */
+   *  did NOT happen. Holds only for handlers that answer synchronously (or, like a stubbed
+   *  shell.openPath, resolve at once): an async handler can answer after a later call, and a flow
+   *  that sends several calls in a row is covered only up to the first — wait on what the flow
+   *  itself shows instead. */
   async ipcDrained() {
     await this.page.evaluate(() => window.total.invoke('app:info'))
     await this.frames()
