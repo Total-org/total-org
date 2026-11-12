@@ -17,7 +17,8 @@ import { simpleHome } from './simpleHome'
 import { peopleList } from './simplePeople'
 import { openingsState } from './openings'
 import { askTotal } from '../assist/answer'
-import { saveVoucher } from './vouchers'
+import { getVoucher, saveVoucher } from './vouchers'
+import { voucherToPayload } from '@shared/voucherEdit'
 import { outwardDebitNoteIds } from './gst'
 
 const INFO: CompanyInfo = { ...TEST_INFO, name: 'Groups Co', gstin: null, stateCode: '27', gstRegistrationType: 'unregistered' }
@@ -157,7 +158,7 @@ describe('parties under imported group names (Trade Receivables / Trade Payables
     for (const id of ids) expect(people).not.toContain(id)
   })
 
-  it('GST returns are left as on main (owner, 4 Nov): a debit note to a “Trade Receivables” customer stays purchase-side', () => {
+  it('GST returns: a debit note to a “Trade Receivables” customer saved before WP 2d stays purchase-side (owner, 4 Nov); one saved now records its side and is outward', () => {
     // The same note in both twins: Dr the customer, Cr an expense (no income line — so only the
     // party's group decides the side). Main reads only the seeded Sundry Debtors tree.
     const note = (t: { db: DB; L: (n: string) => number }): number => {
@@ -175,8 +176,18 @@ describe('parties under imported group names (Trade Receivables / Trade Payables
     }
     const s = note(seeded)
     const i = note(imported)
+    // WP 2d: a note saved NOW records its party's side (snap_party_side) — the imported customer's
+    // note is outward too. A note saved before (no side recorded) reads exactly as on main.
+    expect(outwardDebitNoteIds(seeded.db, '2025-08-01', '2025-08-31').has(s)).toBe(true)
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
+    for (const t of [seeded, imported]) t.db.prepare('UPDATE vouchers SET snap_party_side = NULL').run()
     expect(outwardDebitNoteIds(seeded.db, '2025-08-01', '2025-08-31').has(s)).toBe(true)
     expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
+    // Saving that old note again records the side — and says so (the review of #172 warning).
+    const v = getVoucher(imported.db, i)!
+    const again = saveVoucher(imported.db, { ...voucherToPayload(v) }, i)
+    expect(again.warnings?.taxFactsChanged?.[0]).toContain('debit note party side not recorded → debtor')
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
   })
 
   it('GST rule 37 (ITC reversal, GSTR-3B) keeps main\'s side: a purchase from a "Trade Receivables" party is an open bill there', () => {

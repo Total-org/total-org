@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Debit notes to customers under your own group names** (#PR, WP 2d). A debit note to a customer
+filed under a group such as "Trade Receivables", with no sales line on it, was read as a purchase
+return. From now on a debit note records which side its party is on when you save it, and GSTR-1
+takes it as an outward note. *For accountants*: debit notes already in your books are read exactly
+as before, so no filed month moves. Saving an old note again records its side and says so.
+*For developers*: migration "debit-note party side" (`vouchers.snap_party_side`).
+
 **A warning when several lines share one guessed GST rate** (#265, WP 2d). On a bill typed as amounts,
 a sales line whose account has no GST rate takes its rate from the GST the bill posts. When several
 such lines share one bill, they all get one rate. If they were really at different rates (say 5 % and

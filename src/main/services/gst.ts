@@ -29,7 +29,7 @@ import { IN_BOOKS } from './vouchers'
 import { chargesGstOn, registrationOn } from '@shared/gst/registration'
 import { hasTradeSchema } from './tradeLinks'
 import { writeAudit } from './audit'
-import { lineSnapSql, partySnapSql, partySnapshots, withPartySnap } from './taxFacts'
+import { hasPartySideSnapshot, lineSnapSql, partySnapSql, partySnapshots, withPartySnap } from './taxFacts'
 import { openingBillsByParty, openingEvents } from './openingBills'
 
 interface DocVoucherRow {
@@ -50,13 +50,15 @@ const INCOME_GROUPS = ['Sales Accounts', 'Direct Incomes', 'Indirect Incomes']
  * else stays purchase-side (GSTR-3B ITC / 2B reconciliation).
  */
 export function outwardDebitNoteIds(db: DB, from: string, to: string): Set<number> {
+  // WP 2d: a debit note saved since its party's side is recorded (tax-fact snapshot) follows it.
+  const sideCol = hasPartySideSnapshot(db) ? 'v.snap_party_side' : 'NULL'
   const rows = db
     .prepare(
-      `SELECT v.id, v.party_ledger_id AS partyLedgerId
+      `SELECT v.id, v.party_ledger_id AS partyLedgerId, ${sideCol} AS side
        FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id
        WHERE vt.kind = 'debit_note' AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}`
     )
-    .all(from, to) as { id: number; partyLedgerId: number | null }[]
+    .all(from, to) as { id: number; partyLedgerId: number | null; side: 'debtor' | 'creditor' | null }[]
   if (!rows.length) return new Set()
   const incomeIds = descendantIdsByName(db, INCOME_GROUPS)
   // Owner decision (4 Nov, PR #188): GST returns stay exactly as on main — the outward / inward
@@ -73,6 +75,12 @@ export function outwardDebitNoteIds(db: DB, from: string, to: string): Set<numbe
     const crGroups = (lineStmt.all(r.id) as { groupId: number }[]).map((x) => x.groupId)
     if (crGroups.some((g) => incomeIds.has(g))) {
       out.add(r.id)
+      continue
+    }
+    if (r.side != null) {
+      // The side recorded when it was saved (by the party group's ROLE — an imported "Trade
+      // Receivables" customer included); never re-read, so a later regrouping moves nothing.
+      if (r.side === 'debtor') out.add(r.id)
       continue
     }
     if (r.partyLedgerId != null) {

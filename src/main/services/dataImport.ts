@@ -955,7 +955,10 @@ function taxFactsOf(d: VoucherDraft): VoucherTaxFacts | null {
     return { gstRate: rate(lm.snap_gst_rate), cessRate: rate(lm.snap_cess_rate), hsn: text(lm.snap_hsn) }
   }
   return {
-    party: { gstin: text(vm.snap_party_gstin), state: text(vm.snap_party_state), exportType: text(vm.snap_party_export_type), rcm: rate(vm.snap_party_rcm) },
+    party: {
+      gstin: text(vm.snap_party_gstin), state: text(vm.snap_party_state), exportType: text(vm.snap_party_export_type), rcm: rate(vm.snap_party_rcm),
+      ...(vm.snap_party_side === 'debtor' || vm.snap_party_side === 'creditor' ? { side: vm.snap_party_side } : {})
+    },
     lines: d.ledgerLines.map((l) => line(l.more as Record<string, unknown> | undefined)),
     inventory: d.items.map((it) => line(it.more as Record<string, unknown> | undefined))
   }

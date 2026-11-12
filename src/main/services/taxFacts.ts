@@ -15,6 +15,7 @@
  * (`writeTaxFacts`; none = no snapshot), never today's masters.
  */
 import type { DB } from '../db/connection'
+import { partyGroupIdsBySide } from './masters'
 
 export interface LineTaxFacts {
   gstRate: number | null
@@ -25,12 +26,38 @@ export interface LineTaxFacts {
 /** One voucher's snapshot: the party's class and one entry per ledger line / item line, in
  *  line order. */
 export interface VoucherTaxFacts {
-  party: { gstin: string | null; state: string | null; exportType: string | null; rcm: number | null }
+  /** `side` (WP 2d): a debit note's party side by its group's role; optional — absent / null = none
+   *  recorded (the seeded Sundry Debtors rule, as before). */
+  party: { gstin: string | null; state: string | null; exportType: string | null; rcm: number | null; side?: PartySide | null }
   lines: LineTaxFacts[]
   inventory: LineTaxFacts[]
 }
 
+export type PartySide = 'debtor' | 'creditor'
+
 const schemaSeen = new WeakSet<DB>()
+const sideSeen = new WeakMap<DB, boolean>()
+
+/** WP 2d: the debit-note side column exists (a partly migrated test database has none). */
+export function hasPartySideSnapshot(db: DB): boolean {
+  let ok = sideSeen.get(db)
+  if (ok === undefined) {
+    ok = (db.prepare('PRAGMA table_info(vouchers)').all() as { name: string }[]).some((c) => c.name === 'snap_party_side')
+    sideSeen.set(db, ok)
+  }
+  return ok
+}
+
+/** A debit note's party side now (by its group's role — `partyGroupIdsBySide`), else null. */
+function debitNoteSide(db: DB, voucherId: number): PartySide | null {
+  const v = db
+    .prepare('SELECT vt.kind, p.group_id AS g FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id LEFT JOIN ledgers p ON p.id = v.party_ledger_id WHERE v.id = ?')
+    .get(voucherId) as { kind: string; g: number | null } | undefined
+  if (!v || v.kind !== 'debit_note' || v.g == null) return null
+  if (partyGroupIdsBySide(db, 'debtor').has(v.g)) return 'debtor'
+  if (partyGroupIdsBySide(db, 'creditor').has(v.g)) return 'creditor'
+  return null
+}
 
 /** True once the snapshot columns exist (a partly migrated test database has none). */
 export function hasTaxSnapshots(db: DB): boolean {
@@ -98,6 +125,7 @@ export function snapshotTaxFacts(db: DB, voucherId: number): void {
     snapshotStmts.set(db, stmts)
   }
   for (const s of stmts) s.run(voucherId)
+  if (hasPartySideSnapshot(db)) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(debitNoteSide(db, voucherId), voucherId)
 }
 
 type Stmt = { get(...p: unknown[]): unknown; all(...p: unknown[]): unknown[] }
@@ -119,8 +147,9 @@ export function readTaxFacts(db: DB, voucherId: number): VoucherTaxFacts | null 
   }
   const v = st.head.get(voucherId) as { on_: number | null; gstin: string | null; state: string | null; exportType: string | null; rcm: number | null } | undefined
   if (!v || v.on_ !== 1) return null
+  const side = hasPartySideSnapshot(db) ? ((db.prepare('SELECT snap_party_side AS s FROM vouchers WHERE id = ?').get(voucherId) as { s: PartySide | null }).s) : null
   return {
-    party: { gstin: v.gstin, state: v.state, exportType: v.exportType, rcm: v.rcm },
+    party: { gstin: v.gstin, state: v.state, exportType: v.exportType, rcm: v.rcm, ...(side ? { side } : {}) },
     lines: st.lines.all(voucherId) as LineTaxFacts[],
     inventory: st.inventory.all(voucherId) as LineTaxFacts[]
   }
@@ -151,6 +180,7 @@ export function writeTaxFacts(db: DB, voucherId: number, facts: VoucherTaxFacts 
   const p = fits ? facts!.party : null
   db.prepare('UPDATE vouchers SET snap_tax_facts = ?, snap_party_gstin = ?, snap_party_state = ?, snap_party_export_type = ?, snap_party_rcm = ? WHERE id = ?')
     .run(fits ? 1 : null, p?.gstin ?? null, p?.state ?? null, p?.exportType ?? null, p?.rcm ?? null, voucherId)
+  if (hasPartySideSnapshot(db)) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(p?.side ?? null, voucherId)
 }
 
 /** A plain-object reading of a snapshot carried in an import / undo image (unknown shape → null). */
@@ -164,8 +194,9 @@ export function taxFactsFrom(value: unknown): VoucherTaxFacts | null {
     const o = (l ?? {}) as Record<string, unknown>
     return { gstRate: numOrNull(o.gstRate), cessRate: numOrNull(o.cessRate), hsn: str(o.hsn) }
   }
+  const side = f.party.side === 'debtor' || f.party.side === 'creditor' ? f.party.side : null
   return {
-    party: { gstin: str(f.party.gstin), state: str(f.party.state), exportType: str(f.party.exportType), rcm: numOrNull(f.party.rcm) },
+    party: { gstin: str(f.party.gstin), state: str(f.party.state), exportType: str(f.party.exportType), rcm: numOrNull(f.party.rcm), ...(side ? { side } : {}) },
     lines: f.lines.map(line),
     inventory: f.inventory.map(line)
   }
@@ -188,6 +219,9 @@ export function taxFactsDiff(before: VoucherTaxFacts, after: VoucherTaxFacts): s
   if (p0.state !== p1.state) out.push(`party state ${show(p0.state)} → ${show(p1.state)}`)
   if (p0.exportType !== p1.exportType) out.push(`SEZ / export type ${show(p0.exportType)} → ${show(p1.exportType)}`)
   if ((p0.rcm ?? 0) !== (p1.rcm ?? 0)) out.push(`reverse charge ${p0.rcm ? 'on' : 'off'} → ${p1.rcm ? 'on' : 'off'}`)
+  // WP 2d: a debit note re-saved after its party moved side (or saved first since the side was
+  // recorded) changes which return it is in.
+  if ((p0.side ?? null) !== (p1.side ?? null)) out.push(`debit note party side ${p0.side ?? 'not recorded'} → ${p1.side ?? 'not recorded'}`)
   const lines = (label: string, a: LineTaxFacts[], b: LineTaxFacts[]): void => {
     if (a.length !== b.length) return
     a.forEach((l0, i) => {
