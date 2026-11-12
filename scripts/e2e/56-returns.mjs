@@ -11,6 +11,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 // The plan §1 banned list (shared/simple/bannedWords.ts), as its patterns match it.
 const BANNED = [
@@ -31,7 +32,7 @@ await scenario('56-returns', async (h) => {
         await h.click('btn-theme')
         await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
       }
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP95_SHOTS
       if (dir && SHOTS.has(name)) {

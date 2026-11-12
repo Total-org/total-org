@@ -18,6 +18,9 @@ import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handof
 import { CarriedBackNote } from '../CarriedBackNote'
 import { AccountantViewButton } from '../AccountantViewButton'
 
+/** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
+const NONE: never[] = []
+
 const F = { date: 'date', counts: 'counts' } as const satisfies Record<CountField, CountField> // i18n-technical: form field paths
 
 const isDirty = (f: CountForm): boolean => Object.values(f.counted).some((v) => v.trim() !== '')
@@ -49,8 +52,7 @@ export function StockCount(): React.JSX.Element {
   const saving = poster.status === 'posting'
   // What Total shows as on the count's date (the Stock summary's own pass).
   const { data } = useQuery({ queryKey: ['simpleStock', form.date], queryFn: () => api.simpleStock.list(form.date) }) // i18n-technical
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
-  const rows = data?.rows ?? []
+  const rows = data?.rows ?? NONE
   // On hand per product (undefined until loaded: no cost is asked before the list is there).
   const onHand = useMemo(() => (data ? new Map(data.rows.map((r) => [r.itemId, r.qtyMilli])) : undefined), [data])
   const shown = useMemo(() => {

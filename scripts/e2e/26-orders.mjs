@@ -11,6 +11,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('26-orders', async (h) => {
   await h.createDemoCompany()
@@ -30,7 +31,7 @@ await scenario('26-orders', async (h) => {
     if (!shotsDir) return
     for (const want of ['light', 'dark']) {
       if ((await theme()) !== want) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(200)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${want}.png`) })
     }
     if ((await theme()) !== 'light') await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
@@ -44,7 +45,7 @@ await scenario('26-orders', async (h) => {
       f.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:9999;background:#fff;border:0'
       document.body.appendChild(f)
     }, html)
-    await page.waitForTimeout(500)
+    await waitForSettled(page)
     await page.screenshot({ path: path.join(shotsDir, `${name}.png`) })
     await page.evaluate(() => document.getElementById('e2e-print-preview')?.remove())
   }
@@ -192,7 +193,7 @@ await scenario('26-orders', async (h) => {
   assertEq(await valveRows.count(), 3, 'quotation, order and challan lines are offered')
   await valveRows.filter({ hasText: 'Sales Order' }).locator('[data-testid="input-add-from-pick"]').check()
   await valveRows.filter({ hasText: 'Delivery' }).locator('[data-testid="input-add-from-pick"]').check()
-  await page.waitForTimeout(150)
+  await waitForSettled(page)
   await both('08-invoice-add-from-orders')
   await h.click('btn-add-from-insert')
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="chip-line-source"]').length === 2, null, { timeout: 5000 })

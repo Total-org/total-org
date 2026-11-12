@@ -6,6 +6,7 @@
 // lines is refused with the plain message → GSTR-3B shows nothing owed → Outstandings ageing is
 // as on today (not the FY end) and the dashboard shows no TDS deadline.
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('46-unregistered-sale', async (h) => {
   const page = h.page
@@ -126,7 +127,7 @@ await scenario('46-unregistered-sale', async (h) => {
 
   await h.goto('gateway')
   await page.waitForSelector('[data-testid="dash-compliance"]', { timeout: 15000 })
-  await page.waitForTimeout(500)
+  await waitForSettled(page)
   const compliance = await page.textContent('[data-testid="dash-compliance"]')
   assert(!/TDS/.test(compliance ?? ''), `no TDS deadline for a shop that never deducted (${compliance})`)
   assert(!/GSTR/.test(compliance ?? ''), 'no GST return deadlines for an unregistered company')

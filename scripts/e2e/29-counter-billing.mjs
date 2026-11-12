@@ -13,6 +13,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION, localToday } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('29-counter-billing', async (h) => {
   await h.createDemoCompany()
@@ -27,7 +28,7 @@ await scenario('29-counter-billing', async (h) => {
     if (!shotsDir) return
     for (const want of ['light', 'dark']) {
       if ((await theme()) !== want) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(200)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${want}.png`) })
     }
     if ((await theme()) !== 'light') await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
@@ -41,7 +42,7 @@ await scenario('29-counter-billing', async (h) => {
       f.style.cssText = `position:fixed;top:0;left:0;width:${w};height:100vh;z-index:9999;background:#fff;border:0`
       document.body.appendChild(f)
     }, [html, width])
-    await page.waitForTimeout(500)
+    await waitForSettled(page)
     await page.screenshot({ path: path.join(shotsDir, `${name}.png`) })
     await page.evaluate(() => document.getElementById('e2e-print-preview')?.remove())
   }
@@ -222,7 +223,7 @@ await scenario('29-counter-billing', async (h) => {
   await page.waitForSelector('[data-testid="input-counter-template"]', { timeout: 5000 })
   await both('09c-counter-options')
   await page.keyboard.press('Escape')
-  await page.waitForTimeout(200)
+  await page.waitForSelector('[data-testid="input-counter-template"]', { state: 'detached', timeout: 5000 })
   await search.focus()
   await page.keyboard.press('Delete')
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="counter-line"]').length === 0, null, { timeout: 3000 })
@@ -262,7 +263,7 @@ await scenario('29-counter-billing', async (h) => {
   const rate = page.locator('[data-testid="input-line-rate"]').first()
   await rate.fill('400')
   await qty.fill('4')
-  await page.waitForTimeout(300)
+  await h.ipcDrained()
   assertEq(await page.inputValue('[data-testid="input-line-rate"]'), '400.00', 'a hand-typed rate is never overridden')
   assertEq(await page.textContent('[data-testid="line-price-hint"]'), 'Manual', 'the line is marked manual')
 

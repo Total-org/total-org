@@ -32,6 +32,9 @@ import { BackToBankButton, goBackToBank } from './backToBank'
 import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handoff'
 import { CarriedBackNote } from '../CarriedBackNote'
 
+/** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
+const NONE: never[] = []
+
 const WHO_TEXT: Record<MoneyOutWho, MessageKey> = {
   supplier: 'simple.money.out.who.supplier',
   expense: 'simple.money.out.who.expense',
@@ -119,8 +122,8 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
     [facts, info, setup]
   )
   const alloc = useMemo(() => billAllocation(open, form.amount, form.ticks, form.advance), [open, form.amount, form.ticks, form.advance])
-  const clientErrors = useMemo(() => (setup && ctx ? moneyOutErrors(form, open, defaults, ctx) : {}), [form, open, setup, ctx]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults and ctx derive from setup and the facts (listed)
-  const intent = useMemo(() => (setup && ctx ? moneyOutIntentFrom(form, open, defaults, ctx) : null), [form, open, setup, ctx]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults and ctx derive from setup and the facts (listed)
+  const clientErrors = useMemo(() => (setup && ctx ? moneyOutErrors(form, open, defaults, ctx) : {}), [form, open, setup, ctx]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults derives from setup (listed)
+  const intent = useMemo(() => (setup && ctx ? moneyOutIntentFrom(form, open, defaults, ctx) : null), [form, open, setup, ctx]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults derives from setup (listed)
 
   const errors = useFormErrors<MoneyOutField>(
     {
@@ -161,8 +164,7 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
 
   const supplierOptions = useMemo(() => (setup?.suppliers ?? []).map((c) => ({ id: c.id, label: c.name, ...(c.phone ? { sub: c.phone } : {}) })), [setup?.suppliers])
   const drawingsName = ledgers.find((l) => l.id === setup?.drawingsId)?.name ?? null
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while setup has not loaded; the memo then recomputes an empty list
-  const credits = setup?.customerCredits ?? []
+  const credits = setup?.customerCredits ?? NONE
   const whoChoices = MONEY_OUT_WHO.filter((w) => (w !== 'salary' || setup?.payroll) && (w !== 'refund' || credits.length > 0 || form.who === 'refund'))
   const refundOptions = useMemo(() => credits.map((c) => ({ id: c.id, label: c.name, sub: t('simple.money.holdsCredit', { amount: formatPaise(c.credit, { symbol: true }) }) })), [credits, t])
   const slabs = useMemo(() => slabsOn(form.date), [form.date])

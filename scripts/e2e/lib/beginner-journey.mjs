@@ -5,7 +5,8 @@
 //
 // A persona: { name, company, type, gst: 'regular'|'composition'|'no'|'not-sure', gstin?, stock,
 //   continuing, language: 'en'|'hi'|'hinglish', openings?, sale, purchase, ... } — see e2e 60.
-import { PICKER_OPTION, isoLocal } from '../../lib/harness.mjs'
+import { PICKER_OPTION, isoLocal, until } from '../../lib/harness.mjs'
+import { waitForSettled } from '../../lib/a11y.mjs'
 
 export const BANNED = [
   /\bvouchers?\b/i, /\bledgers?\b/i, /\bjournals?\b/i, /\bcontras?\b/i, /\b(?:Dr|Cr)\b/, /\bparticulars?\b/i, /\bnarrations?\b/i, /\bsundry\b/i,
@@ -56,18 +57,22 @@ export function journey(h) {
   }
   /** A preview line once it has settled: not empty, not "Checking…", unchanged for 600 ms. */
   const settled = async (testId, timeout = 20000) => {
-    const end = Date.now() + timeout
     let last = null
     let since = Date.now()
-    while (Date.now() < end) {
-      const now = await text(testId).catch(() => '')
-      if (now !== last) {
-        last = now
-        since = Date.now()
-      } else if (now && !now.endsWith('…') && Date.now() - since >= 600) return now
-      await page.waitForTimeout(100)
+    try {
+      await until(async () => {
+        const now = await text(testId).catch(() => '')
+        if (now !== last) {
+          last = now
+          since = Date.now()
+          return false
+        }
+        return !!now && !now.endsWith('…') && Date.now() - since >= 600
+      }, { timeout, what: `${testId} settled` })
+      return last
+    } catch {
+      throw new Error(`${testId} did not settle (last: ${JSON.stringify(last)})`)
     }
-    throw new Error(`${testId} did not settle (last: ${JSON.stringify(last)})`)
   }
   /** Back to Home from wherever the last step left the screen (a save card, a list). */
   const home = async () => {
@@ -91,9 +96,9 @@ export function journey(h) {
     const input = page.locator(`[data-testid="${testId}"]`).first()
     await input.click()
     await input.fill(value)
-    await page.waitForTimeout(300)
+    await page.waitForSelector('[role="option"][data-create="true"]', { state: 'attached', timeout: 10000 })
     await input.press('ArrowDown')
-    await page.waitForTimeout(100)
+    await page.waitForSelector('[role="option"][data-create="true"][aria-selected="true"]', { state: 'attached', timeout: 5000 })
     await input.press('Enter')
     await attached('[data-testid="dialog-new-account"]')
     await h.click('btn-account-create')
@@ -143,7 +148,7 @@ export function journey(h) {
           if (await has('tour-next')) await h.click('tour-next')
           else if (await has('tour-done')) await h.click('tour-done')
           else await page.keyboard.press('Escape')
-          await page.waitForTimeout(150)
+          await h.frames()
         }
       }
       await h.waitIdle()
@@ -375,7 +380,7 @@ export function journey(h) {
       await open('taxes', 'gst-summary')
       await attached('[data-testid="taxes-figures"]')
       await h.waitIdle()
-      await page.waitForTimeout(300)
+      await waitForSettled(page)
       return {
         collected: await paise('tile-gst-collected'),
         purchases: await paise('tile-gst-purchases'),

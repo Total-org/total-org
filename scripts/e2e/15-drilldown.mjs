@@ -93,7 +93,7 @@ await scenario('15-drilldown', async (h) => {
           if (b.querySelector('span.inline-block')?.textContent === '▸') b.click()
         }
       })
-      await h.page.waitForTimeout(100)
+      await h.frames()
     }
     await h.page.waitForSelector('[data-testid="statement-ledger"]', { timeout: 10000 })
     const leafId = await h.page.$eval('[data-testid="statement-ledger"]', (el) => el.getAttribute('data-drill-ledger'))

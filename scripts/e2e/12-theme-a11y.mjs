@@ -94,7 +94,6 @@ await scenario('12-theme-a11y', async (h) => {
     await setTheme(theme)
     for (const name of screens) {
       await h.goto(name)
-      await h.page.waitForTimeout(150)
       await waitForSettled(h.page)
       const r = await h.page.evaluate(sweepInPage)
       for (const c of r.lowContrast) failures.push(`${theme}/${name} contrast: ${c}`)
@@ -115,7 +114,6 @@ await scenario('12-theme-a11y', async (h) => {
       if (await h.page.$(optionsBtn)) {
         await h.page.click(optionsBtn)
         await h.page.waitForSelector(`[data-testid="options-${name}"]`, { timeout: 5000 })
-        await h.page.waitForTimeout(300) // let the slide-in (opacity) animation finish
         await waitForSettled(h.page)
         const d = await h.page.evaluate(sweepInPage)
         for (const c of d.lowContrast) failures.push(`${theme}/${name} options contrast: ${c}`)

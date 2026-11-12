@@ -22,6 +22,8 @@ import { DocLink, ItemLink } from '../../components/links'
 import { useStockItems } from '../../components/pickers'
 import { parseQtyText } from '@shared/qty'
 
+/** Column headings for a plain document (not a return). */
+const DOC_HEADS = { qty: 'On doc.', done: 'Done' }
 /** Column headings for a return, by the kind being returned. */
 const RETURN_HEADS: Record<string, { qty: string; done: string }> = {
   sales: { qty: 'Sold', done: 'Returned' },
@@ -49,8 +51,7 @@ export function AddFromDrawer({
   linkType?: LinkType
 }): React.JSX.Element {
   const isReturn = linkType === 'return'
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- small constant object per render; recomputing the memo is harmless
-  const heads = isReturn ? (RETURN_HEADS[lines[0]?.kind ?? 'sales'] ?? RETURN_HEADS.sales!) : { qty: 'On doc.', done: 'Done' }
+  const heads = isReturn ? (RETURN_HEADS[lines[0]?.kind ?? 'sales'] ?? RETURN_HEADS.sales!) : DOC_HEADS
   const [reason, setReason] = useState('')
   const [against, setAgainst] = useState('')
   // Documents the lines come from, in date order ("Against…" picks a whole one).

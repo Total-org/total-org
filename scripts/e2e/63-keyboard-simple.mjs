@@ -206,7 +206,7 @@ await scenario('63-keyboard-simple', async (h) => {
 
   // ---------- 1024×700 at 125 % zoom (819×560 CSS px): nothing cut off, the window never scrolls ----------
   await page.setViewportSize({ width: 819, height: 560 })
-  await page.waitForTimeout(200)
+  await h.frames()
   await layout('Money in at 125 %')
   await page.keyboard.press('Meta+k')
   await attached('[data-testid="input-palette"]')
