@@ -120,6 +120,10 @@
       "maximum": 100000,
       "default": null
     },
+    "itcBlocked": {
+      "description": "Purchase / debit note only: true = its GST credit is blocked under CGST Act s.17(5) (input tax stays on the bill, reported as availed and reversed in GSTR-3B 4(A)(5) + 4(B)(1)); omitted = keep what an altered voucher has (a new one: not blocked).",
+      "type": "boolean"
+    },
     "postDated": {
       "description": "Post-dated voucher (PDC): stays out of the books until its date arrives, then matures automatically on company open.",
       "type": "boolean"

@@ -47,6 +47,9 @@ export interface InvoiceFormState {
   currencyCode: string
   fxRateText: string
   posOverride: string | null
+  /** WP 2d (purchases / debit notes): the input tax is blocked under s.17(5). Absent = not
+   *  stated by this form (the server keeps what the voucher has). */
+  itcBlocked?: boolean
   optional: boolean
   billName: string
   billDueDate: string
@@ -432,6 +435,7 @@ export function buildInvoicePayload(
       posOverride: state.posOverride,
       currencyCode: c.fxActive ? state.currencyCode : null,
       exchangeRate: c.fxActive ? c.fxRate : null,
+      ...(state.itcBlocked !== undefined && (ctx.kind === 'purchase' || ctx.kind === 'debit_note') ? { itcBlocked: state.itcBlocked } : {}),
       isOptional: state.optional,
       lines,
       inventory: c.detail.map((d) => ({
@@ -588,6 +592,7 @@ export function invoiceStateFromVoucher(
       currencyCode: v.currencyCode ?? '',
       fxRateText: v.exchangeRate != null ? String(v.exchangeRate) : '',
       posOverride: v.posOverride,
+      ...(v.itcBlocked ? { itcBlocked: true } : {}),
       optional: v.isOptional,
       billName,
       billDueDate,

@@ -43,6 +43,7 @@ const FIELD_DOCS: Record<string, string> = {
   vehicleNo: 'Vehicle number for e-way bill flows.',
   transportDistanceKm: 'Transport distance in km (integer).',
   posOverride: 'Place-of-supply override: two-digit GST state code (e.g. "27"); null = derive from party/company state.',
+  itcBlocked: 'Purchase / debit note only: true = its GST credit is blocked under CGST Act s.17(5) (input tax stays on the bill, reported as availed and reversed in GSTR-3B 4(A)(5) + 4(B)(1)); omitted = keep what an altered voucher has (a new one: not blocked).',
   postDated: 'Post-dated voucher (PDC): stays out of the books until its date arrives, then matures automatically on company open.',
   isOptional: 'Optional (memorandum) voucher: recorded but never counted in books or reports.',
   currencyCode: '3-letter currency code for multi-currency vouchers (e.g. USD); null = base currency (INR).',

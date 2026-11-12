@@ -101,6 +101,8 @@ export interface MoneyOutForm extends MoneyFormBase {
   advance: boolean
   /** "Do you have a GST bill?" (an expense, regular registration on the date). null = not answered. */
   gstBill: boolean | null
+  /** WP 2d: "Can you claim this GST back?" answered No — s.17(5) blocks it (optional; absent = yes). */
+  gstBlocked?: boolean
   /** The GST bill: who it is from, its number and rate. */
   billSupplierId: number | null
   billNo: string
@@ -340,6 +342,7 @@ export function moneyOutIntentFrom(
       // the money paid is what left the cash / bank — never a rupee-rounded figure.
       amount: { amount: taxable, ...(f.payeeId != null ? { accountId: f.payeeId } : {}), gstRate: rate, ...(f.amount != null && f.amount > 0 ? { billTotal: f.amount } : {}) },
       payment: { how: f.how, ...(accountId != null ? { accountId } : {}), ...(opt(f.reference) ? { reference: opt(f.reference)! } : {}) },
+      ...(f.gstBlocked && rate > 0 ? { itcBlocked: true } : {}),
       ...narration
     }
   }

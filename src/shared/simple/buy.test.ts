@@ -110,6 +110,21 @@ describe('live totals = the editor calculation = what is posted', () => {
     expect(linesOf(posted(rent, c))).toEqual([[10, 'cr', 118_000], [21, 'dr', 100_000], [50, 'dr', 9_000], [51, 'dr', 9_000]])
   })
 
+  it('WP 2d: "Can you claim this GST back?" No → the bill keeps its GST lines, marked blocked (s.17(5)); asked only when GST is claimed', () => {
+    const c = ctxFor()
+    const rent = form({ mode: 'expense', categoryId: 21, amount: 118_000, ratesIncludeGst: true })
+    expect(purchaseIntentFrom(rent, c, DEFAULTS)).not.toHaveProperty('itcBlocked')
+    const blocked = { ...rent, gstBlocked: true }
+    expect(purchaseIntentFrom(blocked, c, DEFAULTS)).toMatchObject({ itcBlocked: true, gstOnBill: true })
+    const m = posted(blocked, c)
+    expect(m.entries[0]!.payload).toMatchObject({ itcBlocked: true })
+    // The same lines as an ordinary bill: ₹1,000 + CGST ₹90 + SGST ₹90.
+    expect(linesOf(m)).toEqual([[10, 'cr', 118_000], [21, 'dr', 100_000], [50, 'dr', 9_000], [51, 'dr', 9_000]])
+    // No GST on the bill, or a business that can't claim: nothing to block.
+    expect(purchaseIntentFrom({ ...blocked, gstOnBill: false }, c, DEFAULTS)).not.toHaveProperty('itcBlocked')
+    expect(purchaseIntentFrom({ ...blocked, mode: 'amount' }, ctxFor('unregistered'), DEFAULTS)).not.toHaveProperty('itcBlocked')
+  })
+
   it('to-do §4: an amount typed WITH GST is the printed bill total — the bill is exactly that, the rest its round off', () => {
     const c = ctxFor()
     // ₹1,180.50 printed at 18 %: before GST = solveTaxable's; the bill stays ₹1,180.50 (not ₹1,181).

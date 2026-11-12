@@ -116,6 +116,19 @@ describe('voucherToPayload / diffPayloads', () => {
     expect(diffPayloads(voucherToPayload(v), voucherToPayload(v))).toEqual([])
   })
 
+  it('WP 2d: the invoice form states the s.17(5) mark only on a purchase / debit note, and only once it holds one', () => {
+    const p = built(buildInvoicePayload(invoiceState(), ctxFor('purchase'), 1, TAX))
+    expect(p).not.toHaveProperty('itcBlocked') // untouched new bill: the server's default
+    expect(built(buildInvoicePayload(invoiceState({ itcBlocked: true }), ctxFor('purchase'), 1, TAX)).itcBlocked).toBe(true)
+    expect(built(buildInvoicePayload(invoiceState({ itcBlocked: false }), ctxFor('debit_note'), 1, TAX)).itcBlocked).toBe(false) // unticked: cleared
+    expect(built(buildInvoicePayload(invoiceState({ itcBlocked: true }), ctxFor('sales'), 1, TAX))).not.toHaveProperty('itcBlocked')
+    // A stored marked bill re-saved as stored diffs to nothing (absent = keep).
+    const v = stored(p, { itcBlocked: true })
+    expect(voucherToPayload(v).itcBlocked).toBe(true)
+    expect(diffPayloads(p, voucherToPayload(v))).toEqual([])
+    expect(diffPayloads({ ...p, itcBlocked: false }, voucherToPayload(v))).toEqual(['itcBlocked'])
+  })
+
   it('names the field that would change, including every inventory-line field', () => {
     const v = stored(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
     const p = voucherToPayload(v)
