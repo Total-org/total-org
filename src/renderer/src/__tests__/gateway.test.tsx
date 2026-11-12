@@ -242,7 +242,7 @@ describe('Gateway dashboard', () => {
   it('Phase 5: proposals waiting for approval show on the Dashboard and open the approval queue; none waiting, nothing shown', async () => {
     setup({ waiting: 2 })
     const card = await screen.findByTestId('gateway-approvals')
-    expect(card.textContent).toContain('2 proposals wait for your approval')
+    expect(card.textContent).toContain('2 proposals are waiting for approval')
     fireEvent.click(card)
     expect(go).toHaveBeenCalledWith({ name: 'ai-queue' })
     cleanup()

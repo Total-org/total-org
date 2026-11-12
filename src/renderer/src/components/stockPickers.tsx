@@ -111,6 +111,7 @@ export function BatchPicker({
           className={`${inputCls} w-28`}
           aria-label="New batch name"
           data-testid="input-batch-new-name"
+          data-consumes-escape=""
           value={draft.name}
           autoFocus
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -124,6 +125,7 @@ export function BatchPicker({
           aria-label="Expiry date"
           placeholder="Expiry (opt.)"
           data-testid="input-batch-new-expiry"
+          data-consumes-escape=""
           value={draft.expiryText}
           onChange={(e) => setDraft({ ...draft, expiryText: e.target.value })}
           onKeyDown={(e) => {

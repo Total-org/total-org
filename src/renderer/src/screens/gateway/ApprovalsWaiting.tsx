@@ -16,7 +16,7 @@ export function ApprovalsWaiting(): React.JSX.Element | null {
       onClick={() => nav.go({ name: 'ai-queue' })}
     >
       <span className="text-detail font-medium text-ink">
-        {data.waiting} {data.waiting === 1 ? 'proposal waits' : 'proposals wait'} for your approval
+        {data.waiting} {data.waiting === 1 ? 'proposal is' : 'proposals are'} waiting for approval
       </span>
       <span className="t-link shrink-0 text-hint font-medium">Open the approval queue →</span>
     </button>
