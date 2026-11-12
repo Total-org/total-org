@@ -290,6 +290,11 @@ function originalInvoices(db: DB, company: CompanyInfo, notes: { id: number; dat
   return out
 }
 
+/** WP 2d: what the extraction noticed without changing a document — the ids of vouchers whose
+ *  several rate-less lines were given ONE rate from the posted tax that another mix of slabs
+ *  explains too (gstValidate's `blended_rate`). */
+export interface OutwardExtractionNotes { blended: number[] }
+
 /**
  * Extract outward GST documents (sales + credit notes + outward debit notes) for a period.
  *
@@ -299,10 +304,6 @@ function originalInvoices(db: DB, company: CompanyInfo, notes: { id: number; dat
  * to nilLines (Table 8), never into the rated buckets. SEWOP/EXPWOP (without-payment)
  * documents are zero-rated with no tax charged.
  */
-/** WP 2d: what the extraction noticed without changing a document — the ids of vouchers whose
- *  several rate-less lines were given ONE rate from the posted tax (gstValidate's `blended_rate`). */
-export interface OutwardExtractionNotes { blended: number[] }
-
 export function extractOutwardDocs(db: DB, company: CompanyInfo, from: string, to: string, notes?: OutwardExtractionNotes): GstDoc[] {
   // CGST Act s.18(6) / rule 44(6) proviso: a capital good sold below its credit pays the excess as
   // output tax (services/fixedAssets.ts) — added to its tax invoice's document so GSTR-1, 3B, 9 and

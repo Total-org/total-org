@@ -24,8 +24,15 @@ describe('resolvePostedRates', () => {
     expect(resolvePostedRates([{ taxable: 60000, rate: null }, { taxable: 70000, rate: null }], 15600, 'intra', D)).toEqual({
       rates: [12, 12], derived: true, offSlab: false, blended: true
     })
-    // ₹1,000 at 5 % + ₹1,000 at 18 % = ₹230 on ₹2,000 = 11.5 %: off-slab AND blended.
-    expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 23000, 'intra', D)).toMatchObject({ offSlab: true, blended: true })
+    // ₹1,000 at 5 % + ₹1,000 at 18 % = ₹230 on ₹2,000 = 11.5 %: off-slab — that warning covers it, not this one.
+    expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 23000, 'intra', D)).not.toHaveProperty('blended')
+    // Review of #265: one rate only explains it — no other mix of slabs gives the tax, so not blended.
+    // ₹1,000 + ₹1,000 with ₹360 posted: 18 % each (no 5 / 18 / 40 … mix gives ₹360).
+    expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 36000, 'intra', D)).toEqual({ rates: [18, 18], derived: true, offSlab: false })
+    // ₹700 + ₹300 with ₹50 posted: 5 % each.
+    expect(resolvePostedRates([{ taxable: 70000, rate: null }, { taxable: 30000, rate: null }], 5000, 'intra', D)).toEqual({ rates: [5, 5], derived: true, offSlab: false })
+    // More lines than the search takes (7): kept as blended (it could be).
+    expect(resolvePostedRates(Array.from({ length: 7 }, () => ({ taxable: 10000, rate: null })), 12600, 'intra', D)).toMatchObject({ rates: Array(7).fill(18), blended: true })
     // One rate-less line (beside a rated one, or with a sub-rupee round-off line) is never blended.
     expect(resolvePostedRates([{ taxable: 100000, rate: 18 }, { taxable: 100000, rate: null }], 23000, 'intra', D)).not.toHaveProperty('blended')
     expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 40, rate: null }], 18000, 'intra', D)).not.toHaveProperty('blended')
@@ -67,7 +74,7 @@ describe('resolvePostedRates', () => {
   it('several rate-less lines at different true rates get one blended rate, flagged when it fits no slab', () => {
     // 1,000 at 5% (50) + 1,000 at 18% (180) = 230 on 2,000 = 11.5%.
     expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 23000, 'intra', D)).toEqual({
-      rates: [11.5, 11.5], derived: true, offSlab: true, blended: true // WP 2d: the additive flag; rates unchanged
+      rates: [11.5, 11.5], derived: true, offSlab: true
     })
   })
   it('a posting that matches no slab is reported at the implied rate and flagged', () => {

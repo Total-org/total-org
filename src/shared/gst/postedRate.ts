@@ -43,6 +43,30 @@ const ANY_PERIOD_SLABS: readonly GstSlab[] = (() => {
 
 const gstOf = (g: { cgst: number; sgst: number; igst: number }): number => g.cgst + g.sgst + g.igst
 
+/** Above this many rate-less lines the search is not run and the bill is taken as blended. */
+const BLEND_SEARCH_MAX_LINES = 6
+
+/**
+ * WP 2d (review of #265): could the rate-less lines' tax `rest` come from a MIX of slabs (positive
+ * rates of the date's table and of any period's — not every line at `uniform`), within the rounding?
+ * Then reporting them all at `uniform` is a guess. A depth-first search over the lines, pruned on
+ * the running tax; more than BLEND_SEARCH_MAX_LINES lines = assume it could.
+ */
+function otherMixExplains(taxables: readonly number[], rest: number, uniform: number, tolerance: number, supply: SupplyType, date: string): boolean {
+  if (taxables.length > BLEND_SEARCH_MAX_LINES) return true
+  const rates = [...new Set([...slabsOn(date), ...ANY_PERIOD_SLABS].map((s) => s.rate).filter((r) => r > 0))]
+  const taxOf = taxables.map((t) => rates.map((r) => gstOf(computeGst(t, r, supply))))
+  const maxRest = taxOf.map((row) => Math.max(...row))
+  const tail = maxRest.map((_, i) => maxRest.slice(i).reduce((a, b) => a + b, 0))
+  const walk = (i: number, sum: number, mixed: boolean): boolean => {
+    if (sum > rest + tolerance) return false
+    if (i === taxables.length) return mixed && Math.abs(sum - rest) <= tolerance
+    if (sum + tail[i]! < rest - tolerance) return false
+    return rates.some((r, k) => walk(i + 1, sum + taxOf[i]![k]!, mixed || r !== uniform))
+  }
+  return walk(0, 0, false)
+}
+
 /** rest / taxable as a percent with 4 decimals, half-up, exact (BigInt — no float overflow). */
 function impliedRate(rest: number, taxable: number): number {
   const num = 2n * BigInt(rest) * 1_000_000n + BigInt(taxable)
@@ -56,7 +80,10 @@ function impliedRate(rest: number, taxable: number): number {
  * bigger ones left out) — the nearest slab whose tax is within the rounding of the lines and of the
  * posted tax (the voucher date's slabs first, then any period's), else the implied rate with
  * `offSlab` set. Several rate-less lines at different true rates get ONE blended rate (the posted
- * tax cannot be attributed per line) — flagged when it fits no slab.
+ * tax cannot be attributed per line) — flagged `offSlab` when it fits no slab, and (WP 2d) `blended`
+ * when it lands on a slab but another mix of slabs over the same lines explains the tax too
+ * (`otherMixExplains`: 5 % + 18 % on ₹600 + ₹700 is the ₹156 that 12 % gives) — the split by rate
+ * is then a guess; one rate that only it can explain (₹360 on ₹1,000 + ₹1,000 = 18 % each) is not.
  *
  * A RATED line whose master rate does not explain the posted tax (a "just an amount" bill charged
  * at 5 % on an 18 % Sales account — bug hunt 2026-11) is re-rated too, but only when (review of
@@ -105,9 +132,10 @@ export function resolvePostedRates(
     const slab = slabFor(target, rest)
     const targetTaxable = [...target].reduce((s, i) => s + lines[i]!.taxable, 0)
     const rate = slab ?? impliedRate(rest, targetTaxable)
+    const blended = slab != null && target.size > 1 && otherMixExplains([...target].map((i) => lines[i]!.taxable), rest, slab, tolerance, supply, date)
     return {
       rates: lines.map((l, i) => (target.has(i) ? rate : (l.rate ?? 0))), derived: true, offSlab: slab == null,
-      ...(target.size > 1 ? { blended: true } : {})
+      ...(blended ? { blended: true } : {})
     }
   }
   // The rated lines' master rates do not explain the posting: one slab over every taxable line that
