@@ -241,7 +241,7 @@ export function RecipeSection({ product }: { product: StockProductView }): React
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="primary" disabled={saving} data-testid="btn-recipe-save" onClick={() => void save()}>
+            <Button variant="primary" disabled={saving} data-testid="btn-recipe-save" data-save-shortcut="" onClick={() => void save()}>
               {t('simple.stock.recipe.save')}
             </Button>
             <Button disabled={saving} data-testid="btn-recipe-cancel" onClick={cancel}>

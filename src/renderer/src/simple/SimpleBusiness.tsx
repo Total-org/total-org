@@ -266,7 +266,7 @@ export function SimpleBusiness(): React.JSX.Element {
 
         {!readOnly && (
           <div className="flex justify-end">
-            <Button type="submit" variant="primary" data-testid="btn-business-save" disabled={busy || !dirty}>
+            <Button type="submit" variant="primary" data-testid="btn-business-save" data-save-shortcut="" disabled={busy || !dirty}>
               {busy ? t('simple.business.saving') : t('common.save')}
             </Button>
           </div>

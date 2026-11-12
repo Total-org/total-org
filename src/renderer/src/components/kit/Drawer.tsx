@@ -97,9 +97,9 @@ export function DrawerSection({
 /**
  * WP 10.5: how a DockedDrawer sits in the simple shell. The simple shell provides 'dock' (a
  * window ≥ 1600 px wide: beside the screen, as before) or 'overlay' (narrower: over the screen's
- * right edge, under the header, so the screen keeps its width); either way the open panel is an
- * Esc layer (layers.ts `registerPanelLayer`). Without a provider (the full app) the panel docks
- * and its DOM and keys are exactly as they were.
+ * right edge, under the header, so the screen keeps its width). Without a provider (the full app)
+ * the panel docks and its DOM is exactly as it was. In both, the open panel is an Esc layer
+ * (layers.ts `registerPanelLayer`, Phase 5 for the full app).
  */
 export type DockMode = 'dock' | 'overlay'
 export const DockModeContext = createContext<DockMode | null>(null)
@@ -146,7 +146,9 @@ export function DockedDrawer({
   // Keyed on "is a layer", not on the mode: a window crossing 1600 px (overlay ↔ dock) keeps the
   // panel's place in the Esc stack and leaves the keyboard where it is.
   const layered = dock !== null
-  useEffect(() => (layered ? registerPanelLayer(() => onCloseRef.current()) : undefined), [layered])
+  // Phase 5: an Esc layer in BOTH modes (Esc closes the panel before the screen's own Esc goes
+  // back); the full app's DOM, focus and toasts stay as they were (`layered` is the simple shell).
+  useEffect(() => registerPanelLayer(() => onCloseRef.current()), [])
   // WP 10.5 (simple shell): opening moves the keyboard into the panel (the panel itself — a
   // reader hears its name; Tab goes on to its first control; a panel that wants its box focused,
   // like Ask Total, does so itself); closing gives it back to where it was, unless the user moved on.

@@ -56,6 +56,7 @@ beforeEach(() => {
       case 'gateway:return:save': ret = record('saved'); return { ok: true, data: ret }
       case 'gateway:return:status': ret = record(ret?.state === 'saved' ? 'processing' : 'processed'); return { ok: true, data: ret }
       case 'gateway:return:file': ret = record('filed', { arn: 'AA270926123456X', filedOn: '2026-10-13' }); return { ok: true, data: ret }
+      case 'gateway:2b:fetch': return { ok: true, data: { period: '092026', documents: 3, test: true, keptImported: false, jsonText: '{}', fileName: null } }
       case 'gateway:edoc:record': return { ok: true, data: { test: true, record: { irn: null, irnLive: false, ewbNo: null, cancelEwb: { allowed: false }, cancelIrn: { allowed: false } } } }
       default: return { ok: true, data: [] }
     }
@@ -70,6 +71,30 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   invoke.mockReset()
+})
+
+describe('Phase 5 — simple Taxes step 2: GSTR-2B from the portal (test mode)', () => {
+  it('a month with no GSTR-2B: sign in with the code, then get it — the accountant screen\'s own fetch; none for an imported month', async () => {
+    taxes = { ...REGULAR, supplierBills: [{ month: '2026-09', imported: false, matched: 0, categories: [] }, { month: '2026-08', imported: true, matched: 4, categories: [] }] }
+    renderUi(<TaxesScreen />)
+    fireEvent.click(await screen.findByTestId('taxes-2b-signin'))
+    fireEvent.change(await screen.findByTestId('taxes-2b-signin-otp'), { target: { value: '575757' } })
+    fireEvent.click(screen.getByTestId('taxes-2b-signin-submit'))
+    await waitFor(() => expect(calls('gateway:signIn')).toEqual([{ otp: '575757' }]))
+    expect(screen.queryByTestId('taxes-2b-fetch-2026-08')).toBeNull()
+    fireEvent.click(await screen.findByTestId('taxes-2b-fetch-2026-09'))
+    await waitFor(() => expect(calls('gateway:2b:fetch')).toEqual([{ period: '092026' }]))
+    // The step re-reads the taxes (the statement is stored where step 2 reads it).
+    await waitFor(() => expect(calls('simple:taxes').length).toBeGreaterThan(1))
+    expect(bannedWordsIn(document.body.textContent ?? '')).toEqual([])
+  })
+
+  it('not offered for the running period (no GSTR-2B yet)', async () => {
+    taxes = { ...REGULAR, period: { ...SEP, soFar: true }, supplierBills: [{ month: '2026-09', imported: false, matched: 0, categories: [] }] }
+    renderUi(<TaxesScreen />)
+    await screen.findByTestId('taxes-2b-2026-09')
+    expect(screen.queryByTestId('taxes-2b-portal')).toBeNull()
+  })
 })
 
 describe('simple Taxes step 3 — send it to the GST portal (test mode)', () => {

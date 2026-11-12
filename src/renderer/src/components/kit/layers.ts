@@ -68,6 +68,26 @@ export function registerEscapeLayer(): () => void {
 const consumesEscape = (t: EventTarget | null): boolean => t instanceof Element && t.closest('[data-consumes-escape]') !== null
 
 /**
+ * Phase 5 — ONE ⌘↵ / Ctrl+Enter rule in both modes: it presses the save of what is on top.
+ * The button is the one marked `data-save-shortcut` (a screen marks its Save so), else — inside a
+ * dialog / drawer — its one primary button. More than one candidate (or none, or disabled) = the
+ * key does nothing, never a guess. A field or picker that handles ⌘↵ itself (preventDefault) goes
+ * first: the rule listens in the bubble phase.
+ */
+export function saveActionIn(root: ParentNode, opts: { primary: boolean }): HTMLButtonElement | null {
+  const usable = (b: HTMLButtonElement): boolean =>
+    !b.disabled && b.getAttribute('aria-disabled') !== 'true' && !b.closest('[hidden], [aria-hidden="true"], [data-no-save-shortcut]')
+  const marked = Array.from(root.querySelectorAll<HTMLButtonElement>('button[data-save-shortcut]')).filter(usable)
+  if (marked.length > 0) return marked.length === 1 ? marked[0]! : null
+  if (!opts.primary) return null
+  const primaries = Array.from(root.querySelectorAll<HTMLButtonElement>('button.t-btn-primary')).filter(usable)
+  return primaries.length === 1 ? primaries[0]! : null
+}
+
+/** ⌘↵ / Ctrl+Enter, nothing else held. */
+export const isSaveChord = (e: KeyboardEvent): boolean => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey
+
+/**
  * Registers `ref` as a dialog layer while mounted: pushes it on the stack, traps Tab inside it,
  * routes Esc (when it is the top layer and no popover/field claims Esc) to `onEscape`, moves focus
  * in on mount (unless a child autoFocus already took it) and restores focus on unmount.
@@ -141,9 +161,20 @@ export function useDialogLayer(ref: RefObject<HTMLElement | null>, onEscape: () 
         }
       }
     }
+    // Phase 5: ⌘↵ in the top dialog presses its save (saveActionIn) — after its own fields had it.
+    const onSave = (e: KeyboardEvent): void => {
+      if (!isTop() || e.defaultPrevented || !isSaveChord(e)) return
+      const el = ref.current
+      const button = el ? saveActionIn(el, { primary: true }) : null
+      if (!button) return
+      e.preventDefault()
+      button.click()
+    }
     window.addEventListener('keydown', onKey, true)
+    window.addEventListener('keydown', onSave)
     return () => {
       window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('keydown', onSave)
       const i = layerStack.indexOf(id)
       if (i >= 0) layerStack.splice(i, 1)
       layerElements.delete(id)
@@ -163,8 +194,9 @@ export function layerCount(): number {
 // before anything below it sees the key (a form's "Esc asks before discarding", the app's
 // "Esc goes back") — the order is dialog → panel → form → screen. A dialog layer, an open
 // popover / picker list (aria-expanded), a field that clears itself, or an overlay marked
-// `data-esc-layer` (the ⌘K palette — not a dialog layer) keeps its Esc. The full
-// app's AI panel never registers, so accountant mode keeps its keys exactly as they were.
+// `data-esc-layer` (the ⌘K palette — not a dialog layer) keeps its Esc. Phase 5: the full app's
+// docked panels (the Ask / AI panel, the drill drawer) register too — Esc backs out one layer in
+// both modes; their DOM and focus are unchanged there.
 
 const panelStack: { close: () => void }[] = []
 

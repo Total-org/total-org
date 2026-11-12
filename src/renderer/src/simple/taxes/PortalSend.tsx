@@ -178,3 +178,64 @@ export function PortalSend({ x }: { x: Regular }): React.JSX.Element | null {
     </div>
   )
 }
+
+/**
+ * Phase 5 — the gateway first-class in simple mode too: step 2's months with no GSTR-2B yet can
+ * get it from the portal here (the accountant GSTR-2B screen's `gateway:2b:fetch`, unchanged —
+ * stored where the checks read it; a test fetch never replaces a statement brought in from a
+ * file). Sign-in shares the step-3 session. Not for the running period (no 2B yet).
+ */
+export function Portal2bFetch({ months, label }: { months: readonly string[]; label: (month: string) => string }): React.JSX.Element | null {
+  const t = useT()
+  const push = useToasts((s) => s.push)
+  const queryClient = useQueryClient()
+  const { data: status } = useQuery({ queryKey: STATUS_KEY, queryFn: api.gateway.status })
+  const [busy, setBusy] = useState(false)
+  const [codeOpen, setCodeOpen] = useState(false)
+  if (months.length === 0 || !status) return null
+  const hint = status.testHints ? t('simple.taxes.portal.codeHint', { otp: status.testHints.otp }) : null
+  const run = async (f: () => Promise<unknown>): Promise<void> => {
+    setBusy(true)
+    try {
+      await f()
+    } catch (err) {
+      push('error', plainError(err, t))
+    } finally {
+      setBusy(false)
+      await queryClient.invalidateQueries({ queryKey: STATUS_KEY })
+    }
+  }
+  const askCode = (): Promise<void> => run(async () => { await api.gateway.requestOtp(SIGNIN); setCodeOpen(true) })
+  const fetch = (month: string): Promise<void> =>
+    run(async () => {
+      const r = await api.gateway.fetch2b(gstPeriodOf(`${month}-01`))
+      const name = label(month)
+      if (r.keptImported) push('warning', t('simple.taxes.portal.kept2b', { month: name }))
+      else if (r.test) push('success', t('simple.taxes.portal.fetched2bTest', { month: name, count: r.documents }))
+      else push('success', t('simple.taxes.portal.fetched2b', { month: name, count: r.documents }))
+      await queryClient.invalidateQueries({ queryKey: TAXES_KEY })
+    })
+  return (
+    <div className="mt-2" data-testid="taxes-2b-portal">
+      {status.testMode && <p className="text-small text-muted">{t('simple.taxes.portal.testNote')}</p>}
+      {!status.signedIn ? (
+        codeOpen ? (
+          <CodeEntry testId="taxes-2b-signin" button={t('simple.taxes.portal.useCode')} hint={hint} busy={busy} onResend={() => void askCode()}
+            onSubmit={(otp) => void run(async () => { await api.gateway.signIn(otp); setCodeOpen(false) })} />
+        ) : (
+          <Button size="sm" data-testid="taxes-2b-signin" disabled={busy} onClick={() => void askCode()}>
+            {t('simple.taxes.portal.signIn2b')}
+          </Button>
+        )
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {months.map((m) => (
+            <Button key={m} size="sm" data-testid={`taxes-2b-fetch-${m}`} disabled={busy} onClick={() => void fetch(m)}>
+              {t('simple.taxes.portal.fetch2b', { month: label(m) })}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

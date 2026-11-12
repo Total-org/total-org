@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The same keys in both modes, and approvals and the GST portal everywhere** (#256, Phase 5 polish).
+⌘↵ (Ctrl+Enter on Windows) now saves in every dialog (it presses the dialog's main button) and on
+the settings-style screens that have one Save. In the full app, Esc closes the side panel (Ask, the
+AI conversation) before it backs out of the screen, as it already did in simple mode. The full
+app's Dashboard now says when proposals wait for your approval and opens the approval queue, and
+simple Taxes can fetch a month's GSTR-2B from the portal (test mode) right in step 2. No figure
+changes.
+
 **Total opens faster, and Home no longer jumps** (#253, Phase 5 speed). On a big business
 (100,000 entries) Home is on screen and usable about 0.5 s sooner (launch → Home shown 1.47 →
 0.93 s; every figure in 3.05 → 2.60 s in the full app, 2.90 → 2.45 s in simple mode). Opening a

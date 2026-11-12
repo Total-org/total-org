@@ -805,6 +805,8 @@ function ThreadList({
                 aria-label="Conversation title"
                 value={renaming.title}
                 data-testid="input-ai-thread-title"
+                // Its Esc cancels the rename (kit/layers.ts) — never closes the panel around it.
+                data-consumes-escape=""
                 onChange={(e) => setRenaming({ id: t.id, title: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void saveRename()
