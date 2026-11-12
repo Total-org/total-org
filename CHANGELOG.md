@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**A warning for advances on goods** (#PR, WP 2d). A regular business pays GST on goods when it
+**A warning for advances on goods** (#259, WP 2d). A regular business pays GST on goods when it
 invoices, not when the customer pays in advance (Notification 66/2017-Central Tax). The GSTR-1
 checks now warn when an advance in Table 11A comes from a customer you sell goods to, going by the
 HSN codes on that customer's earlier bills, or on your own bills if they have none yet. The warning
