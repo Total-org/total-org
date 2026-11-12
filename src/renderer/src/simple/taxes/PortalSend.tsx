@@ -206,7 +206,7 @@ export function Portal2bFetch({ months, label }: { months: readonly string[]; la
     }
   }
   const askCode = (): Promise<void> => run(async () => { await api.gateway.requestOtp(SIGNIN); setCodeOpen(true) })
-  const fetch = (month: string): Promise<void> =>
+  const getMonth = (month: string): Promise<void> =>
     run(async () => {
       const r = await api.gateway.fetch2b(gstPeriodOf(`${month}-01`))
       const name = label(month)
@@ -230,7 +230,7 @@ export function Portal2bFetch({ months, label }: { months: readonly string[]; la
       ) : (
         <div className="flex flex-wrap gap-2">
           {months.map((m) => (
-            <Button key={m} size="sm" data-testid={`taxes-2b-fetch-${m}`} disabled={busy} onClick={() => void fetch(m)}>
+            <Button key={m} size="sm" data-testid={`taxes-2b-fetch-${m}`} disabled={busy} onClick={() => void getMonth(m)}>
               {t('simple.taxes.portal.fetch2b', { month: label(m) })}
             </Button>
           ))}
