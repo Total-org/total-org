@@ -1649,6 +1649,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.updates.checkNow': 'Abhi jaanchein',
   'simple.updates.checking': 'Jaanch ho rahi hai…',
   'simple.updates.upToDate': 'Aapke paas sabse naya version ({version}) hai.',
+  'simple.updates.unverified': 'Total {version} mila, par ise asli release ke roop mein jaancha nahi ja saka, isliye yeh nahi diya gaya. Baad mein phir koshish karein.',
   'simple.updates.failed': 'Update nahi jaanche ja sake. Apna internet dekhein.',
   'simple.updates.dev': 'Yeh copy source se chal rahi hai, isliye update karne ko kuch nahi hai.',
   'simple.updates.ownerOnly': 'Ise sirf malik badal sakta hai.',

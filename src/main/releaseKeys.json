@@ -1,0 +1,6 @@
+{
+  "comment": "Audit A4 (SEC-5): public keys that sign Total's release manifests (total-manifest.json). The private key lives only in the GitHub secret RELEASE_MANIFEST_KEY of Total-org/total-org. To rotate: add the new key here, ship a release signed with the OLD key, then sign with the new one and drop the old entry.",
+  "keys": [
+    { "id": "total-release-2026-11", "spki": "MCowBQYDK2VwAyEAu/sLnbIOK6Jc4gJxxEktJ56bD+NZWzGc2OFXBibgyCQ=" }
+  ]
+}

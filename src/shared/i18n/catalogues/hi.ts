@@ -1654,6 +1654,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.updates.checkNow': 'अभी जाँचें',
   'simple.updates.checking': 'जाँच हो रही है…',
   'simple.updates.upToDate': 'आपके पास नवीनतम वर्शन ({version}) है।',
+  'simple.updates.unverified': 'Total {version} मिला, पर इसे असली रिलीज़ के रूप में जाँचा नहीं जा सका, इसलिए यह नहीं दिया गया। बाद में फिर कोशिश करें।',
   'simple.updates.failed': 'अपडेट नहीं जाँचे जा सके। अपना इंटरनेट देखें।',
   'simple.updates.dev': 'यह कॉपी सोर्स से चल रही है, इसलिए अपडेट करने को कुछ नहीं है।',
   'simple.updates.ownerOnly': 'इसे सिर्फ़ मालिक बदल सकता है।',

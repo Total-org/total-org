@@ -33,7 +33,9 @@ export const UPDATE_ACTIONS = ['download', 'install', 'installOnQuit', 'skip'] a
 export type UpdateAction = (typeof UPDATE_ACTIONS)[number]
 
 export interface UpdateCheckResult {
-  status: 'dev' | 'available' | 'up-to-date' | 'error'
+  /** 'unverified' (audit A4): a newer version exists but its signed release manifest is missing or
+   *  does not verify, so it is not offered. */
+  status: 'dev' | 'available' | 'up-to-date' | 'unverified' | 'error'
   current: string
   latest?: string
 }

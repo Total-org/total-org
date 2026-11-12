@@ -7,8 +7,14 @@
  * Nothing is downloaded or installed without a user action: `autoDownload` and
  * `autoInstallOnAppQuit` stay false (the latter flips only on "Install when I quit").
  * With "Check for updates automatically" off, launch makes no request at all; "Check now" still works.
+ *
+ * Audit A4 (SEC-5): a version is offered only when its release's signed manifest verifies
+ * (`verifyRelease`, releaseManifest.ts), an engine download becomes "ready" only when the file's
+ * SHA-512 is in that manifest, and a hand download opens the installer the manifest names on GitHub
+ * — never a URL from the site's answer.
  */
 import { bareVersion, isNewerVersion, type UpdateAction, type UpdateCheckResult, type UpdateNotice, type UpdateSettings, type UpdatesView } from '@shared/updates'
+import { assetWithHash, type ReleaseManifest } from './releaseManifest'
 
 /** The slice of electron-updater's autoUpdater this flow uses. */
 export interface UpdateEngine {
@@ -24,7 +30,6 @@ export interface UpdateEngine {
 
 export interface LatestInfo {
   version: string
-  downloadUrl: string
 }
 
 /** electron-updater sends a random per-install id (`x-user-staging-id`, kept in userData/.updaterId) with
@@ -43,8 +48,9 @@ export function makeFetchLatest(
     try {
       const res = await fetchImpl(opts.siteLatestUrl)
       if (res.ok) {
-        const data = (await res.json()) as { version?: string; downloadUrl?: string }
-        if (data.version) return { version: data.version, downloadUrl: data.downloadUrl ?? opts.siteLatestUrl.replace('/api/latest', '/api/download') }
+        // Only the version is read: what is downloaded comes from the signed manifest (A4).
+        const data = (await res.json()) as { version?: string }
+        if (typeof data.version === 'string' && data.version) return { version: data.version }
       }
     } catch (err) {
       // Site unreachable — try GitHub directly.
@@ -55,9 +61,9 @@ export function makeFetchLatest(
         headers: { Accept: 'application/vnd.github+json' }
       })
       if (!res.ok) return null
-      const release = (await res.json()) as { tag_name?: string; html_url?: string }
-      if (!release.tag_name) return null
-      return { version: release.tag_name, downloadUrl: release.html_url ?? opts.releasesUrl }
+      const release = (await res.json()) as { tag_name?: string }
+      if (typeof release.tag_name !== 'string' || !release.tag_name) return null
+      return { version: release.tag_name }
     } catch (err) {
       opts.log('warn', 'updater', { error: String(err) })
       return null
@@ -72,8 +78,15 @@ export interface UpdaterDeps {
   releasesUrl: string
   readSettings(): UpdateSettings
   writeSettings(patch: Partial<UpdateSettings>): UpdateSettings
-  /** Site / GitHub version lookup (the only request besides electron-updater's feed). */
+  /** Site / GitHub version lookup. */
   fetchLatest(): Promise<LatestInfo | null>
+  /** The release's signed manifest, verified (null = missing or does not verify — the version is not offered). */
+  verifyRelease(version: string): Promise<ReleaseManifest | null>
+  /** The page / file a hand download opens for a verified release (the installer on GitHub), or null. */
+  installerUrl(manifest: ReleaseManifest): string | null
+  /** SHA-512 (hex) of a downloaded file. */
+  hashFile(path: string): Promise<string>
+  /** Opens only allow-listed update URLs (the wiring checks; SEC-10). */
   openExternal(url: string): void
   publish(notice: UpdateNotice | null): void
   log(level: 'warn' | 'info', message: string, extra?: Record<string, unknown>): void
@@ -84,7 +97,8 @@ export interface UpdaterDeps {
 
 export function createUpdater(deps: UpdaterDeps) {
   let notice: UpdateNotice | null = null
-  let siteUrl: string | null = null
+  /** Verified manifests by bare version (a version is offered only once its manifest is here). */
+  const verified = new Map<string, ReleaseManifest>()
   let fallbackDone = false
   /** The version the user chose "Install when I quit" for (its re-armed download must not re-show "ready"). */
   let onQuitVersion: string | null = null
@@ -99,6 +113,34 @@ export function createUpdater(deps: UpdaterDeps) {
   }
 
   const isSkipped = (version: string): boolean => deps.readSettings().skippedVersion === bareVersion(version)
+
+  async function verifiedFor(version: string): Promise<ReleaseManifest | null> {
+    const v = bareVersion(version)
+    const known = verified.get(v)
+    if (known) return known
+    let m: ReleaseManifest | null = null
+    try {
+      m = await deps.verifyRelease(v)
+    } catch (err) {
+      deps.log('warn', 'updater', { error: String(err) })
+    }
+    if (m && m.version === v) {
+      verified.set(v, m)
+      return m
+    }
+    deps.log('warn', 'update-unverified', { version: v })
+    return null
+  }
+
+  /** What a hand download opens: the verified installer of that version, else the release list. */
+  const pageFor = (version: string | undefined): string => {
+    const m = version ? verified.get(bareVersion(version)) : undefined
+    return (m && deps.installerUrl(m)) || deps.releasesUrl
+  }
+
+  const background = (p: Promise<unknown>): void => {
+    p.catch((err: unknown) => deps.log('warn', 'updater', { error: String(err) }))
+  }
 
   /** Show the "available" notice. `force` = the user asked (Check now), so a skipped version still shows. */
   const offer = (version: string, via: 'engine' | 'site', force: boolean): boolean => {
@@ -116,7 +158,7 @@ export function createUpdater(deps: UpdaterDeps) {
       const latest = await deps.fetchLatest()
       if (!latest) return { status: 'error', current }
       if (!isNewerVersion(latest.version, current)) return { status: 'up-to-date', current }
-      siteUrl = latest.downloadUrl
+      if (!(await verifiedFor(latest.version))) return { status: 'unverified', current, latest: latest.version }
       offer(latest.version, 'site', force)
       return { status: 'available', current, latest: latest.version }
     } catch (err) {
@@ -138,11 +180,31 @@ export function createUpdater(deps: UpdaterDeps) {
       deps.engine.autoInstallOnAppQuit = false
       deps.engine.requestHeaders = { ...(deps.engine.requestHeaders ?? {}), ...NEUTRAL_REQUEST_HEADERS }
       deps.engine.on('update-available', ((info: { version: string }) => {
-        offer(info.version, 'engine', false)
+        background(
+          verifiedFor(info.version).then((m) => {
+            if (m) offer(info.version, 'engine', false)
+          })
+        )
       }) as (arg: never) => void)
-      deps.engine.on('update-downloaded', ((info: { version: string }) => {
-        if (onQuitVersion === bareVersion(info.version)) return
-        set({ phase: 'ready', version: bareVersion(info.version), via: 'engine' })
+      deps.engine.on('update-downloaded', ((info: { version: string; downloadedFile?: string }) => {
+        const version = bareVersion(info.version)
+        background(
+          (async () => {
+            const m = await verifiedFor(version)
+            const ok = !!m && typeof info.downloadedFile === 'string' && !!assetWithHash(m, await deps.hashFile(info.downloadedFile))
+            if (!ok) {
+              // The file is not the one the signed manifest names: never install it, by any path.
+              deps.log('warn', 'update-unverified', { version, file: 'downloaded' })
+              deps.engine.autoInstallOnAppQuit = false
+              if (onQuitVersion === version) onQuitVersion = null
+              if (installVersion === version) installVersion = null
+              if (notice?.version === version && notice.phase !== 'available') set(null)
+              return
+            }
+            if (onQuitVersion === version) return
+            set({ phase: 'ready', version, via: 'engine' })
+          })()
+        )
       }) as (arg: never) => void)
       deps.engine.on('error', ((err: unknown) => {
         deps.log('warn', 'updater', { error: String(err) })
@@ -158,7 +220,7 @@ export function createUpdater(deps: UpdaterDeps) {
         }
         if (notice?.phase === 'downloading') {
           // The engine could not fetch it (typical for unsigned builds): hand over the release page.
-          deps.openExternal(siteUrl ?? deps.releasesUrl)
+          deps.openExternal(pageFor(notice.version))
           set(null)
           return
         }
@@ -196,11 +258,11 @@ export function createUpdater(deps: UpdaterDeps) {
             deps.log('warn', 'updater', { error: String(err) })
             // electron-updater also emits 'error' for the same failure (handled above); open the page once.
             if (notice?.phase !== 'downloading' || notice.version !== n.version) return
-            deps.openExternal(siteUrl ?? deps.releasesUrl)
+            deps.openExternal(pageFor(n.version))
             set(null)
           })
         } else {
-          deps.openExternal(siteUrl ?? deps.releasesUrl)
+          deps.openExternal(pageFor(n.version))
           set(null)
         }
       } else if (action === 'skip' && n && n.phase === 'available') {

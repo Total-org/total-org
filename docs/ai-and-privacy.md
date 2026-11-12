@@ -12,7 +12,7 @@ default (and can be switched off); the AI helper and live filing only after you 
 
 | What | When | Where it goes | Needs you to opt in? |
 |---|---|---|---|
-| Update check | About 5 seconds after launch, once per launch, packaged app only, and only while "Check for updates automatically" is on; also Settings, About (or How Total looks in simple mode), "Check for updates" / "Check now" | At launch: GitHub's release feed for `Total-org/total-org` (electron-updater); and, if that errors, `irminflow.com/api/latest` (`devjindal.tech/api/latest` in versions built before 8 Nov 2026 — it still answers), then `api.github.com`. "Check now" / "Check for updates" asks `irminflow.com/api/latest` (then `api.github.com`) only | It is on by default and you can turn it off: "Check for updates automatically" (app-wide, owner only where the business has users). With it off, Total makes no request at launch. Nothing is downloaded until you press "Download now". |
+| Update check | About 5 seconds after launch, once per launch, packaged app only, and only while "Check for updates automatically" is on; also Settings, About (or How Total looks in simple mode), "Check for updates" / "Check now" | At launch: GitHub's release feed for `Total-org/total-org` (electron-updater); and, if that errors, `irminflow.com/api/latest` (`devjindal.tech/api/latest` in versions built before 8 Nov 2026 — it still answers), then `api.github.com`. "Check now" / "Check for updates" asks `irminflow.com/api/latest` (then `api.github.com`) only. Whenever a NEWER version is found, its signed `total-manifest.json` from that GitHub release (audit A4) | It is on by default and you can turn it off: "Check for updates automatically" (app-wide, owner only where the business has users). With it off, Total makes no request at launch. Nothing is downloaded until you press "Download now". |
 | AI helper | Only after you accept the data notice and add your own key (none for a model on this computer) | The AI service you chose (Settings → AI): OpenAI (`https://api.openai.com/v1`, the default), OpenRouter, Groq, Google Gemini's OpenAI-compatible endpoint, a custom https address — or Ollama / LM Studio on this computer (localhost only, nothing leaves it) | Yes |
 | Live e-invoice / e-way bill filing | Only when you press a live-filing button after entering credentials | The NIC API address you typed in | Yes |
 | Opening a link | When you click a help link, a reminder's "Open in WhatsApp", "Email…" on a statement, or "Support" | Your browser or mail app, not Total | Only on click |
@@ -69,8 +69,16 @@ Code: `src/main/updater.ts`, started from `src/main/index.ts`. Only the packaged
    which keeps answering) for the newest version, and if the site does not answer,
    `https://api.github.com/repos/Total-org/total-org/releases/latest`. "Check now" (simple Settings) and
    "Check for updates" (Settings, About) go straight to these two. Only if the version is newer
-   does the same notice appear; "Download now" then opens the release page or download link in
-   your browser and you install the new version yourself. If a download or an install through
+   does the same notice appear — and only after Total has fetched that release's
+   `total-manifest.json` from GitHub (`github.com/Total-org/total-org/releases/download/v<version>/`)
+   and checked its Ed25519 signature against the key built into the app (audit A4; the private key
+   is a secret of the release workflow): a version whose manifest is missing or does not verify is
+   not offered ("could not be checked as a genuine release"). A file electron-updater downloads is
+   installed only when its SHA-512 is in that manifest. "Download now" then opens that version's
+   installer on GitHub (the file the manifest names — never an address from the site's answer) in
+   your browser and you install the new version yourself; every page the updater opens must be an
+   https page of this repository's GitHub releases or of the site (anything else opens the release
+   list instead). If a download or an install through
    electron-updater fails (an unsigned macOS build cannot replace itself), the notice turns into
    the same browser download; "Install when I quit" is offered only after electron-updater itself
    finished a download. How far an unsigned macOS build gets before it fails is **unverified**

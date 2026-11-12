@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, readFileSync, writeFileSync, statSync, truncateSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { createCipheriv, randomBytes, scryptSync } from 'crypto'
 import { encryptFile, decryptFile, MAGIC } from './crypt'
 
 function tmpDir(): string {
@@ -82,5 +83,43 @@ describe('encryptFile / decryptFile', () => {
     await expect(decryptFile(notEncPath, outPath, 'whatever')).rejects.toThrow(
       'Wrong passphrase or corrupted file'
     )
+  })
+
+  it('new exports are TOTALBK2 with scrypt N = 2^17, r = 8, p = 1 in the header (audit A4 / SEC-9)', async () => {
+    const dir = tmpDir()
+    writeFileSync(join(dir, 'src.bin'), Buffer.from('books'))
+    await encryptFile(join(dir, 'src.bin'), join(dir, 'out.totalbak'), 'a long passphrase')
+    const head = readFileSync(join(dir, 'out.totalbak')).subarray(0, 11)
+    expect(head.subarray(0, 8).toString('utf8')).toBe('TOTALBK2')
+    expect([...head.subarray(8, 11)]).toEqual([17, 8, 1])
+  })
+
+  it('an export from before (TOTALBK1, scrypt N = 2^14, built here by hand) still imports', async () => {
+    const dir = tmpDir()
+    const content = Buffer.from('an old .totalbak made before audit A4')
+    const salt = randomBytes(16)
+    const iv = randomBytes(12)
+    const key = scryptSync('old passphrase', salt, 32, { N: 16384, r: 8, p: 1 })
+    const c = createCipheriv('aes-256-gcm', key, iv)
+    const body = Buffer.concat([c.update(content), c.final()])
+    writeFileSync(join(dir, 'old.totalbak'), Buffer.concat([Buffer.from('TOTALBK1'), salt, iv, body, c.getAuthTag()]))
+    await decryptFile(join(dir, 'old.totalbak'), join(dir, 'old.db'), 'old passphrase')
+    expect(readFileSync(join(dir, 'old.db')).equals(content)).toBe(true)
+    await expect(decryptFile(join(dir, 'old.totalbak'), join(dir, 'x.db'), 'wrong')).rejects.toThrow('Wrong passphrase or corrupted file')
+  })
+
+  it('a lowered cost written into the header fails (the header is authenticated)', async () => {
+    const dir = tmpDir()
+    writeFileSync(join(dir, 'src.bin'), Buffer.from('books'))
+    // Encrypted at the minimum cost (fast); then the header claims another cost.
+    await encryptFile(join(dir, 'src.bin'), join(dir, 'out.totalbak'), 'a long passphrase', { logN: 14, r: 8, p: 1 })
+    await decryptFile(join(dir, 'out.totalbak'), join(dir, 'ok.db'), 'a long passphrase')
+    const bytes = readFileSync(join(dir, 'out.totalbak'))
+    bytes[8] = 15
+    writeFileSync(join(dir, 'tampered.totalbak'), bytes)
+    await expect(decryptFile(join(dir, 'tampered.totalbak'), join(dir, 'x.db'), 'a long passphrase')).rejects.toThrow('Wrong passphrase or corrupted file')
+    bytes[8] = 30 // a forged huge cost is refused before scrypt runs
+    writeFileSync(join(dir, 'huge.totalbak'), bytes)
+    await expect(decryptFile(join(dir, 'huge.totalbak'), join(dir, 'y.db'), 'a long passphrase')).rejects.toThrow('Wrong passphrase or corrupted file')
   })
 })

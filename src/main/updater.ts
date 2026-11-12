@@ -17,6 +17,11 @@
  * platform (`?platform=win|mac`), and TOTAL_NO_UPDATE_CHECK=1 (scripted runs against a packaged
  * build — the Windows CI smoke) turns the launch check off.
  *
+ * Audit A4: every version is checked against its release's signed manifest (total-manifest.json,
+ * Ed25519, key pinned in releaseKeys.json — releaseManifest.ts) before it is offered; an engine
+ * download is installed only when its SHA-512 is in that manifest; a hand download opens the
+ * manifest's installer on GitHub; every URL handed to the OS passes `allowedUpdateUrl` (SEC-10).
+ *
  * The app stays fully offline otherwise: this runs only in packaged builds and never blocks.
  */
 import { app, BrowserWindow, shell } from 'electron'
@@ -27,7 +32,9 @@ import { type UpdateAction, type UpdateCheckResult, type UpdatesView } from '@sh
 import { dataRoot } from './paths'
 import { readUpdateSettings, writeUpdateSettings } from './services/appSettings'
 import { createUpdater, makeFetchLatest, type Updater } from './updaterCore'
-import { downloadUrlFor, updateCheckDisabled } from '@shared/updateText'
+import { updateCheckDisabled } from '@shared/updateText'
+import { allowedUpdateUrl } from '@shared/externalLinks'
+import { installerFor, MANIFEST_ASSET, releaseAssetUrl, sha512File, verifyManifest, type ReleaseManifest } from './releaseManifest'
 
 const { autoUpdater } = electronUpdater
 
@@ -41,6 +48,27 @@ const fetchLatest = makeFetchLatest((url, init) => fetch(url, init), {
   releasesUrl: RELEASES_URL,
   log: (level, message, extra) => log(level, message, extra)
 })
+
+/** The release's signed manifest from GitHub (never the site), verified; null + a log line otherwise. */
+async function verifyRelease(version: string): Promise<ReleaseManifest | null> {
+  const res = await fetch(releaseAssetUrl(GITHUB_REPO, version, MANIFEST_ASSET))
+  if (!res.ok) {
+    log('warn', 'update-unverified', { version, reason: `manifest ${res.status}` })
+    return null
+  }
+  const check = verifyManifest(await res.text(), version)
+  if (!check.ok) {
+    log('warn', 'update-unverified', { version, reason: check.reason })
+    return null
+  }
+  return check.manifest
+}
+
+function openUpdatePage(url: string): void {
+  const safe = allowedUpdateUrl(url)
+  if (!safe) log('warn', 'update-url-refused', { url: url.slice(0, 200) })
+  void shell.openExternal(safe ?? RELEASES_URL)
+}
 
 /** A corrupt app-settings.json reads as the defaults; say so in the log once per run (it is read often). */
 let corruptLogged = false
@@ -68,7 +96,13 @@ function build(): Updater {
     readSettings,
     writeSettings: (patch) => writeUpdateSettings(dataRoot(), patch, actor, app.getVersion(), onCorrupt),
     fetchLatest,
-    openExternal: (url) => void shell.openExternal(downloadUrlFor(url, process.platform)),
+    verifyRelease,
+    installerUrl: (m) => {
+      const asset = installerFor(m, process.platform)
+      return asset ? releaseAssetUrl(GITHUB_REPO, m.version, asset.name) : null
+    },
+    hashFile: sha512File,
+    openExternal: openUpdatePage,
     publish,
     log: (level, message, extra) => log(level, message, extra)
   })
