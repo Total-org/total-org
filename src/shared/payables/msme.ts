@@ -1,4 +1,3 @@
-import { addDaysISO, daysBetweenISO } from '../dates'
 /**
  * MSME payment rules (WP 4.3) — pure. The s.15 payment deadline, s.16 interest (INDICATIVE), the
  * Income-tax s.43B(h) disallowance figure and the MSME Form 1 half-years. The bank rate comes in
@@ -6,6 +5,7 @@ import { addDaysISO, daysBetweenISO } from '../dates'
  * hard-coded here. Every rule cites its text next to the code that applies it; the source list
  * with dates and the UNVERIFIED items is `MSME_SOURCES` in ./msmeSources.ts.
  */
+import { addDaysISO, daysBetweenISO } from '../dates'
 
 // ---------------------------------------------------------------------------------------------
 // Supplier classification
