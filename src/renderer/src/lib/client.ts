@@ -1122,7 +1122,7 @@ export const api = {
     gstr1: (from: string, to: string, period: string) => call<Gstr1Result>('gst:gstr1', { from, to, period }),
     gstr3b: (from: string, to: string, period: string) => call<Gstr3bView>('gst:gstr3b', { from, to, period }),
     /** Audit A8 / UX-4: the return period due next ('YYYY-MM', the Compliance card's); null unless regular. */
-    duePeriod: () => call<{ period: string; quarterly: boolean; soFar: boolean } | null>('gst:duePeriod'),
+    duePeriod: () => call<{ period: string; from: string; to: string; quarterly: boolean; soFar: boolean } | null>('gst:duePeriod'),
     exportGstr1: (from: string, to: string, period: string) =>
       call<{ jsonPath: string; csvPath: string }>('gst:exportGstr1', { from, to, period }),
     exportGstr3b: (from: string, to: string, period: string) =>

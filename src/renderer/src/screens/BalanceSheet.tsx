@@ -11,6 +11,7 @@ import { csvReport, flattenNodes, printReport } from '../lib/reportExport'
 import type { ReportColumn as PdfColumn, ReportRow as PdfRow } from '../lib/client'
 import { toDisplayDate, todayISO } from '@shared/dates'
 import { reportEndOn } from '@shared/reportPeriod'
+import { useAiScreenContext } from '../lib/aiContext'
 import { formatPaise } from '@shared/money'
 
 const EXPORT_COLUMNS: PdfColumn[] = [
@@ -26,6 +27,8 @@ export function BalanceSheetScreen(): React.JSX.Element {
   // Audit A8 / UX-10: as on today while the period holds it, else the period end.
   const [asOn, setAsOn] = useState(() => reportEndOn(sessionFrom, sessionTo, todayISO()))
   useEffect(() => setAsOn(reportEndOn(sessionFrom, sessionTo, todayISO())), [sessionFrom, sessionTo])
+  // The assistant reads the as-on date shown here (review of #249).
+  useAiScreenContext('balance-sheet', { to: asOn })
   // keepPreviousData: editing the on-screen as-on date changes the query key — keep the previous
   // figures rendered (with a subtle hint) instead of unmounting the screen into "Loading…",
   // which would drop focus from the very DateInput being edited.

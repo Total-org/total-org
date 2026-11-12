@@ -70,6 +70,11 @@ describe('recentParties (UX-3)', () => {
     // A purchase never names a customer here, nor a sale a supplier.
     expect(purchases).not.toContain(ledger('Krishna Enterprises'))
     expect(sales).not.toContain(ledger('Bharat Steel Suppliers'))
+
+    // The walk is bounded to the newest vouchers by id: with a window of one, only the purchase
+    // posted last is read — the purchase side has its supplier, the sales side nothing.
+    expect(recentParties(db, 'purchase', 10, 500, 1)).toEqual([ledger('Bharat Steel Suppliers')])
+    expect(recentParties(db, 'sales', 10, 500, 1)).toEqual([])
   })
 })
 

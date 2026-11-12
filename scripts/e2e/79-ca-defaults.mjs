@@ -64,8 +64,13 @@ await scenario('79-ca-defaults', async (h) => {
   await h.goto('trial-balance')
   const tb = await h.invoke('report:trialBalance', { asOn: today })
   await page.waitForSelector('[data-testid="rows-trial-balance"] tr.dt-row', { timeout: 15000 })
-  if (await page.locator('[data-testid="trial-balance-up-to-today"]').count()) {
+  const fyEnd = `${Number(today.slice(0, 4)) + (Number(today.slice(5, 7)) >= 4 ? 1 : 0)}-03-31`
+  if (today !== fyEnd) {
+    // Before the year's last day the note must be there (review of #249: never optional).
+    await page.waitForSelector('[data-testid="trial-balance-up-to-today"]', { timeout: 5000 })
     assert(/after today/.test(await page.textContent('[data-testid="trial-balance-up-to-today"]')), 'the trial balance says it stops at today')
+  } else {
+    assertEq(await page.locator('[data-testid="trial-balance-up-to-today"]').count(), 0, 'on the year end itself there is nothing to say')
   }
   const rowsShown = await page.locator('[data-testid="rows-trial-balance"] tr.dt-row[data-row-id]').count()
   assert(rowsShown > 0 && tb.rows.length > 0, 'the trial balance shows rows')
@@ -77,11 +82,10 @@ await scenario('79-ca-defaults', async (h) => {
 
   await h.goto('balance-sheet')
   await page.waitForSelector('[data-testid="input-bs-ason"]', { timeout: 15000 })
-  const fyEnd = `${Number(today.slice(0, 4)) + (Number(today.slice(5, 7)) >= 4 ? 1 : 0)}-03-31`
-  const asOnText = await page.inputValue('[data-testid="input-bs-ason"]')
-  const shown = new Date(`${today}T00:00:00`)
-  const day = String(shown.getDate())
-  assert(asOnText.includes(day) || today === fyEnd, `the balance sheet is as on today (${asOnText} vs ${today})`)
+  // The DateInput shows the Tally style dd-Mon-yy (shared/dates.ts toDisplayDate): today, exactly.
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const display = `${today.slice(8, 10)}-${MON[Number(today.slice(5, 7)) - 1]}-${today.slice(2, 4)}`
+  assertEq(await page.inputValue('[data-testid="input-bs-ason"]'), display, 'the balance sheet is as on today')
   assert(await page.locator('[data-testid="input-statement-compare"]').count(), 'Compare periods is in the balance sheet header')
 
   // ---- 4. UX-4: the GST returns open on the period being filed

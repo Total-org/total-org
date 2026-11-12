@@ -7,7 +7,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { BalanceSheet, ProfitAndLoss, TrialBalance } from '@shared/reports'
 import type { Group, Ledger } from '@shared/domain'
-import { todayISO } from '@shared/dates'
 import { TrialBalanceScreen } from '../screens/TrialBalance'
 import { BalanceSheetScreen } from '../screens/BalanceSheet'
 import { ProfitLossScreen } from '../screens/ProfitLoss'
@@ -15,6 +14,7 @@ import { Gstr3bScreen } from '../screens/GstReturns'
 import { PartyPicker } from '../components/pickers'
 import { screenOptionsKey } from '../components/ScreenOptions'
 import { useNav, useSession } from '../state/stores'
+import { screenContextFor, useAiScreenParams } from '../lib/aiContext'
 
 const invoke = vi.fn()
 const SLOW = { timeout: 10_000 }
@@ -51,9 +51,12 @@ const LEDGERS: Ledger[] = [
   l(1, 'Bharat Steel', 5), l(2, 'Cash', 3), l(3, 'CGST Output', 6, 'cgst'), l(4, 'Kumar Retail', 2), l(5, 'Sales', 7), l(6, 'Zenith Traders', 2)
 ]
 
-let today = todayISO()
-let fy = { from: `${Number(today.slice(0, 4)) - (Number(today.slice(5, 7)) < 4 ? 1 : 0)}-04-01`, to: '' }
-fy = { ...fy, to: `${Number(fy.from.slice(0, 4)) + 1}-03-31` }
+// The clock is pinned to 7 Nov 2026 (review of #249: literal dates, never re-derived from the rule).
+const fy = { from: '2026-04-01', to: '2027-03-31' }
+const pinClock = (iso: string): void => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(`${iso}T10:00:00`))
+}
 
 function renderScreen(ui: React.JSX.Element): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -62,7 +65,7 @@ function renderScreen(ui: React.JSX.Element): void {
 const calls = (channel: string): unknown[] => invoke.mock.calls.filter(([c]) => c === channel).map(([, p]) => p)
 
 beforeEach(() => {
-  today = todayISO()
+  pinClock('2026-11-07')
   localStorage.clear()
   invoke.mockReset()
   invoke.mockImplementation(async (channel: string, payload?: unknown) => {
@@ -74,7 +77,7 @@ beforeEach(() => {
       case 'report:profitLoss':
         return { ok: true, data: PNL }
       case 'gst:duePeriod':
-        return { ok: true, data: { period: `${fy.from.slice(0, 4)}-05`, quarterly: false, soFar: false } }
+        return { ok: true, data: { period: '2026-05', quarterly: false, soFar: false } }
       case 'master:groups:list':
         return { ok: true, data: GROUPS }
       case 'master:ledgers:list':
@@ -91,13 +94,31 @@ beforeEach(() => {
     useNav.setState({ go: vi.fn() })
   })
 })
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe('UX-10 — reports dated today', () => {
   it('the trial balance is as on today inside the working period, and says so', async () => {
     renderScreen(<TrialBalanceScreen />)
-    await waitFor(() => expect(calls('report:trialBalance')).toContainEqual({ asOn: today === fy.to ? fy.to : today }), SLOW)
-    if (today !== fy.to) expect(screen.getByTestId('trial-balance-up-to-today').textContent).toMatch(/entries dated after today are not included/)
+    await waitFor(() => expect(calls('report:trialBalance')).toContainEqual({ asOn: '2026-11-07' }), SLOW)
+    expect(calls('report:trialBalance')).not.toContainEqual({ asOn: '2027-03-31' })
+    expect(screen.getByTestId('trial-balance-up-to-today').textContent).toMatch(/entries dated after today are not included/)
+    // The assistant is told the same date ("Explain this", the screen's data).
+    expect(useAiScreenParams.getState().byScreen['trial-balance']).toEqual({ to: '2026-11-07' })
+  })
+
+  it('on the last day of the year, and after it, the year end itself (no note)', async () => {
+    pinClock('2027-03-31')
+    renderScreen(<TrialBalanceScreen />)
+    await waitFor(() => expect(calls('report:trialBalance')).toContainEqual({ asOn: '2027-03-31' }), SLOW)
+    expect(screen.queryByTestId('trial-balance-up-to-today')).toBeNull()
+    cleanup()
+    pinClock('2027-05-02')
+    renderScreen(<TrialBalanceScreen />)
+    await waitFor(() => expect(calls('report:trialBalance')).toContainEqual({ asOn: '2027-03-31' }), SLOW)
+    expect(screen.queryByTestId('trial-balance-up-to-today')).toBeNull()
   })
 
   it('"Stop at today" off reads the period end; a past year is read whole', async () => {
@@ -125,13 +146,15 @@ describe('UX-10 — reports dated today', () => {
   })
 
   it('the balance sheet is as on today and the P&L runs to today; Compare periods is in the header', async () => {
-    const end = today === fy.to ? fy.to : today
+    const end = '2026-11-07'
     renderScreen(<BalanceSheetScreen />)
     await waitFor(() => expect(calls('report:balanceSheet')).toContainEqual({ asOn: end, comparePrior: undefined }), SLOW)
     expect(await screen.findByTestId('input-statement-compare', undefined, SLOW)).toBeTruthy()
+    expect(useAiScreenParams.getState().byScreen['balance-sheet']).toEqual({ to: end })
     cleanup()
     renderScreen(<ProfitLossScreen />)
     await waitFor(() => expect(calls('report:profitLoss')).toContainEqual({ from: fy.from, to: end, comparePrior: undefined }), SLOW)
+    expect(useAiScreenParams.getState().byScreen['profit-loss']).toEqual({ from: fy.from, to: end })
     // A link that asks for exact dates keeps them.
     cleanup()
     renderScreen(<ProfitLossScreen from={fy.from} to={fy.to} />)
@@ -142,10 +165,25 @@ describe('UX-10 — reports dated today', () => {
 describe('UX-4 — GST returns open on the month being filed', () => {
   it('GSTR-3B asks the service which period is due and computes only that month', async () => {
     renderScreen(<Gstr3bScreen />)
-    const may = `${fy.from.slice(0, 4)}-05`
+    const may = '2026-05'
     await waitFor(() => expect(calls('gst:gstr3b')).toContainEqual({ from: `${may}-01`, to: `${may}-31`, period: `05${may.slice(0, 4)}` }), SLOW)
     expect(calls('gst:gstr3b')).toHaveLength(1)
     expect((screen.getByTestId('input-gstr3b-month') as HTMLSelectElement).value).toBe(may)
+  })
+
+  it('a quarterly filer opens on the quarter\'s last month and is told the return covers the quarter', async () => {
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) =>
+      channel === 'gst:duePeriod'
+        ? { ok: true, data: { period: '2026-09', from: '2026-07-01', to: '2026-09-30', quarterly: true, soFar: false } }
+        : base(channel, payload)
+    )
+    renderScreen(<Gstr3bScreen />)
+    await waitFor(() => expect((screen.getByTestId('input-gstr3b-month') as HTMLSelectElement).value).toBe('2026-09'), SLOW)
+    expect(screen.getByTestId('gst-due-quarter').textContent).toBe('Quarterly return Jul–Sep 2026 · one month at a time')
+    // Another month outside that quarter: no note.
+    fireEvent.change(screen.getByTestId('input-gstr3b-month'), { target: { value: '2026-11' } })
+    await waitFor(() => expect(screen.queryByTestId('gst-due-quarter')).toBeNull(), SLOW)
   })
 
   it('a stored "This month" choice is kept', async () => {
@@ -153,7 +191,7 @@ describe('UX-4 — GST returns open on the month being filed', () => {
     renderScreen(<Gstr3bScreen />)
     await waitFor(() => expect(calls('gst:gstr3b').length).toBeGreaterThan(0), SLOW)
     expect(calls('gst:duePeriod')).toHaveLength(0)
-    expect((screen.getByTestId('input-gstr3b-month') as HTMLSelectElement).value).toBe(today.slice(0, 7))
+    expect((screen.getByTestId('input-gstr3b-month') as HTMLSelectElement).value).toBe('2026-11')
   })
 })
 
@@ -179,5 +217,16 @@ describe('UX-3 — the party picker per voucher type', () => {
   it('a purchase puts suppliers first', async () => {
     renderScreen(<PartyPicker side="purchase" value={null} onPick={() => {}} placeholder="Party ledger" />)
     await waitFor(async () => expect((await options())[0]).toMatch(/^Bharat Steel/), SLOW)
+  })
+})
+
+describe('the AI context follows the dates a screen shows (review of #249)', () => {
+  it('registered from / to replace the working period; other screens keep it', () => {
+    expect(screenContextFor({ name: 'trial-balance' }, '2026-04-01', '2027-03-31', { to: '2026-11-07' })).toMatchObject({ from: '2026-04-01', to: '2026-11-07' })
+    expect(screenContextFor({ name: 'profit-loss' }, '2026-04-01', '2027-03-31', { from: '2026-10-01', to: '2026-10-31' })).toMatchObject({ from: '2026-10-01', to: '2026-10-31' })
+    const banking = screenContextFor({ name: 'banking' }, '2026-04-01', '2027-03-31', { ledgerId: 7 })
+    expect(banking).toMatchObject({ from: '2026-04-01', to: '2027-03-31', params: { ledgerId: 7 } })
+    // A malformed value is never taken as a date (nor sent as a param).
+    expect(screenContextFor({ name: 'trial-balance' }, '2026-04-01', '2027-03-31', { to: 'soon' })).toMatchObject({ to: '2027-03-31' })
   })
 })

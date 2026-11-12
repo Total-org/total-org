@@ -6,6 +6,7 @@ import { OptionToggle, OptionsPeriod, OptionsTable, useScreenOptions } from '../
 import { DataTable, defineColumns, useTableView } from '../components/table'
 import { toDisplayDate, todayISO } from '@shared/dates'
 import { reportEndOn } from '@shared/reportPeriod'
+import { useAiScreenContext } from '../lib/aiContext'
 import type { TrialBalanceRow } from '@shared/reports'
 import { LedgerLink } from '../components/links'
 import { PROFIT_HIDDEN_MESSAGE } from '@shared/profitRedaction'
@@ -47,6 +48,8 @@ export function TrialBalanceScreen({ asOn, ledgerIds }: { asOn?: string; ledgerI
   const end = opts.options.upToToday ? reportEndOn(periodFrom, periodTo, todayISO()) : periodTo
   const to = asOn ?? end
   const cutAtToday = asOn == null && to !== periodTo
+  // The assistant reads the date shown here ("Explain this", the screen's data) — review of #249.
+  useAiScreenContext('trial-balance', { to })
   const only = ledgerIds ? new Set(ledgerIds) : null
   // Audit A8 / UX-10: "Group-wise" in the header groups the ledgers by their group (subtotals per
   // group) — the table's own Group by, one click away and remembered with the table's view.

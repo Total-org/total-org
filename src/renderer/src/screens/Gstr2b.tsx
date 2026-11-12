@@ -243,7 +243,7 @@ const BUCKET_LABEL = (b: Recon2bBucket): string => BUCKETS.find((x) => x.key ===
 
 export function Gstr2bScreen(): React.JSX.Element {
   const opts = useScreenOptions('gstr2b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
-  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
+  const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   const nav = useNav()
   const toast = useToasts()
   const [imported, setImported] = useState<Imported | null>(null)
@@ -350,7 +350,7 @@ export function Gstr2bScreen(): React.JSX.Element {
             />
           ) : undefined
         }
-        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr2b-month" />}
+        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr2b-month" quarter={dueQuarter} />}
         secondary={
           <>
             <Gateway2bFetch

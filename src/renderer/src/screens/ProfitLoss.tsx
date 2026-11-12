@@ -10,6 +10,7 @@ import { csvReport, flattenNodes, printReport } from '../lib/reportExport'
 import type { ReportColumn as PdfColumn, ReportRow as PdfRow } from '../lib/client'
 import { toDisplayDate, todayISO } from '@shared/dates'
 import { reportEndOn } from '@shared/reportPeriod'
+import { useAiScreenContext } from '../lib/aiContext'
 import { formatPaise } from '@shared/money'
 
 const EXPORT_COLUMNS: PdfColumn[] = [
@@ -35,6 +36,8 @@ export function ProfitLossScreen({ from: askedFrom, to: askedTo }: { from?: stri
     setFrom(sessionFrom)
     setTo(reportEndOn(sessionFrom, sessionTo, todayISO()))
   }, [sessionFrom, sessionTo])
+  // The assistant reads the range shown here (review of #249).
+  useAiScreenContext('profit-loss', { from, to })
   // keepPreviousData: editing the on-screen dates changes the query key — keep the previous
   // figures rendered (with a subtle hint) instead of unmounting the screen into "Loading…",
   // which would drop focus from the very DateInput being edited.

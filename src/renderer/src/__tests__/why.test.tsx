@@ -2,7 +2,7 @@
 // sentence explain*.ts computes from what the service returned, and its link says what it opens and
 // opens THAT figure (the P&L for the line's dates, the trial balance as on today limited to cash /
 // bank, Outstandings on the side, GSTR-1 / GSTR-3B for the period, TDS / payroll …). No banned word.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CompanyInfo } from '@shared/domain'
@@ -25,7 +25,6 @@ import { Gstr1Screen } from '../screens/GstReturns'
 import { BillsToPay } from '../simple/people/BillsToPay'
 import { RegistersScreen } from '../screens/Registers'
 import { billsToPayTotals, type BillsToPay as BillsToPayData } from '@shared/simple/people'
-import { todayISO } from '@shared/dates'
 
 const t = translator('en')
 const TODAY = '2026-10-13'
@@ -294,7 +293,10 @@ describe('Taxes: the three figures, each date and TDS have a "Why?" (WP 10.2)', 
 
 describe('the P&L opens on the dates a "Why?" asks for (WP 10.2)', () => {
   const asked = (): unknown[] => invoke.mock.calls.filter(([c]) => c === 'report:profitLoss').map(([, p]) => p)
-  it('with from / to it shows that period (the session period is left alone); without them, the session period as before', async () => {
+  it('with from / to it shows that period (the session period is left alone); without them, the session period to today', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-07T10:00:00'))
+    onTestFinished(() => void vi.useRealTimers())
     renderUi(<ProfitLossScreen from="2026-10-01" to="2026-10-13" />)
     await waitFor(() => expect(asked()).toContainEqual({ from: '2026-10-01', to: '2026-10-13' }))
     expect(asked()).not.toContainEqual(expect.objectContaining({ from: '2026-04-01' }))
@@ -302,10 +304,8 @@ describe('the P&L opens on the dates a "Why?" asks for (WP 10.2)', () => {
     cleanup()
     invoke.mockClear()
     renderUi(<ProfitLossScreen />)
-    // Audit A8 / UX-10: the session period, stopping at today while it holds today.
-    const today = todayISO()
-    const to = today >= '2026-04-01' && today < '2027-03-31' ? today : '2027-03-31'
-    await waitFor(() => expect(asked()).toContainEqual(expect.objectContaining({ from: '2026-04-01', to })))
+    // Audit A8 / UX-10: the session period, stopping at today (7 Nov) while it holds today.
+    await waitFor(() => expect(asked()).toContainEqual(expect.objectContaining({ from: '2026-04-01', to: '2026-11-07' })))
   })
 })
 

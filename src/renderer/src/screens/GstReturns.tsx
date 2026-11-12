@@ -7,7 +7,7 @@ import { GatewayReturnPanel } from './gst/GatewayPanel'
 import { AmountInput, Banner, Button, DrawerSection, EmptyState, Money, Page, PageHeader, Panel, Select, SkeletonRows, Spinner, TabBar } from '../components/ui'
 import { OptionChoice, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
-import { todayISO } from '@shared/dates'
+import { toMonthLabel, todayISO } from '@shared/dates'
 import { formatPaise } from '@shared/money'
 import { posLabel } from '@shared/gst/states'
 import { b2clLabelForPeriod, type Gstr1Result, type Gstr3bResult } from '@shared/gst/returns'
@@ -56,15 +56,20 @@ export function MonthBar({
   months,
   value,
   onChange,
-  testId = 'input-month'
+  testId = 'input-month',
+  quarter
 }: {
   months: MonthChoice[]
   value: string
   onChange: (key: string) => void
   /** data-testid (lib/testids.ts — `input-<screen>-month`). */
   testId?: string
+  /** Review of #249: a quarterly filer's return being filed ('YYYY-MM-DD' range, `useMonth().dueQuarter`)
+   *  — said beside the month while it lies inside it, so one month is never read as the quarter. */
+  quarter?: { from: string; to: string } | null
 }): React.JSX.Element {
-  return (
+  const inQuarter = quarter != null && value >= quarter.from.slice(0, 7) && value <= quarter.to.slice(0, 7)
+  const select = (
     <Select value={value} onChange={(e) => onChange(e.target.value)} className="w-48" data-testid={testId} aria-label="Return period">
       {months.map((m) => (
         <option key={m.key} value={m.key}>
@@ -72,6 +77,15 @@ export function MonthBar({
         </option>
       ))}
     </Select>
+  )
+  if (!inQuarter) return select
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-hint text-muted" data-testid="gst-due-quarter">
+        Quarterly return {toMonthLabel(quarter.from.slice(0, 7))}–{toMonthLabel(quarter.to.slice(0, 7), 'long')} · one month at a time
+      </span>
+      {select}
+    </div>
   )
 }
 
@@ -119,6 +133,8 @@ export function useMonth(openOn: OpenOn = 'current'): {
   monthKey: string
   setMonthKey: (k: string) => void
   pending: boolean
+  /** A quarterly filer's period being filed (for MonthBar's note); null otherwise. */
+  dueQuarter: { from: string; to: string } | null
 } {
   const months = useMonths()
   const due = useQuery({ queryKey: ['gstDuePeriod'], queryFn: api.gst.duePeriod, enabled: openOn === 'due', staleTime: 60_000, retry: false })
@@ -126,7 +142,8 @@ export function useMonth(openOn: OpenOn = 'current'): {
   const pending = openOn === 'due' && due.isPending
   const [monthKey, setMonthKey] = useDefaultMonth(months, openOn, due.data?.period)
   const month = pending ? null : (months.find((m) => m.key === monthKey) ?? months[0] ?? null)
-  return { months, month, monthKey, setMonthKey, pending }
+  const dueQuarter = openOn === 'due' && due.data?.quarterly ? { from: due.data.from, to: due.data.to } : null
+  return { months, month, monthKey, setMonthKey, pending, dueQuarter }
 }
 
 export function NoMonths({ pending = false }: { pending?: boolean } = {}): React.JSX.Element {
@@ -266,7 +283,7 @@ function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: Ope
 export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
   const features = useFeatures()
   const opts = useScreenOptions('gstr1', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
-  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
+  const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -329,7 +346,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
         title="GSTR-1 · Outward supplies"
         subtitle={<CaCheck place="gstr1.screen" />}
         tabs={<GstReturnTabs current="gstr1" />}
-        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" />}
+        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" quarter={dueQuarter} />}
         actions={
           <Button
             variant="primary"
@@ -553,7 +570,7 @@ function ManualAdjustments({ period }: { period: string }): React.JSX.Element {
 /** `initialMonth` (WP 8.6, 'YYYY-MM'): opened from the simple Home's GST tile on its period. */
 export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
   const opts = useScreenOptions('gstr3b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
-  const { months, month, monthKey, setMonthKey, pending } = useMonth(opts.options.openOn)
+  const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -627,7 +644,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         title="GSTR-3B · Summary return"
         subtitle={<CaCheck place="gstr3b.screen" />}
         tabs={<GstReturnTabs current="gstr3b" />}
-        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" />}
+        controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" quarter={dueQuarter} />}
         actions={
           <Button variant="primary" data-testid="btn-gstr3b-export" onClick={() => void doExport()} disabled={exportRefused || !info?.gstin} disabledTitle={exportRefused ? CAPABILITY_REFUSED_TEXT.canExport : undefined}>
             Export JSON
