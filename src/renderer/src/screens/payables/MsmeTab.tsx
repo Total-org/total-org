@@ -20,6 +20,7 @@ import { useToasts } from '../../state/stores'
 import { pct, usePayablesAsOn } from './common'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../../lib/capabilities'
 import { CaCheck } from '../../components/CaCheck'
+import { MsmeAcceptanceCell } from './MsmeAcceptanceCell'
 
 const BASIS = { agreed: 'Agreed', agreed_capped: 'Agreed > 45 d: capped', no_agreement: 'No agreement: 15 d' } as const
 
@@ -28,7 +29,8 @@ const DUES_COLUMNS = defineColumns<MsmeBillRow>([
   { id: 'category', header: 'Category', kind: 'enum', value: (r) => r.category, width: 90, options: [{ value: 'micro', label: 'Micro' }, { value: 'small', label: 'Small' }], text: (r) => MSME_CATEGORY_LABELS[r.category] },
   { id: 'udyam', header: 'Udyam no.', kind: 'text', value: (r) => r.udyamNo ?? '', width: 170, defaultHidden: true, className: 'num' },
   { id: 'bill', header: 'Bill', kind: 'text', value: (r) => r.number, width: 100, cell: (r) => <VoucherLink voucherId={r.voucherId} label={<span className="num">{r.number}</span>} /> },
-  { id: 'date', header: 'Accepted', kind: 'date', value: (r) => r.date, className: 'text-muted' },
+  { id: 'date', header: 'Accepted', kind: 'date', value: (r) => r.acceptedOn, width: 170, cell: (r) => <MsmeAcceptanceCell row={r} /> },
+  { id: 'billDate', header: 'Bill date', kind: 'date', value: (r) => r.date, className: 'text-muted', defaultHidden: true },
   { id: 'basis', header: 'Period', kind: 'text', value: (r) => `${BASIS[r.s15.basis]} (${r.s15.days} d)`, width: 170, defaultHidden: true },
   { id: 'payBy', header: 's.15 pay by', kind: 'date', value: (r) => r.s15.payBy },
   {
@@ -49,7 +51,7 @@ const DISALLOW_LABEL = { disallowed: 'Disallowed', at_risk: 'At risk (period run
 const DISALLOW_COLUMNS = defineColumns<MsmeBill43Bh>([
   { id: 'party', header: 'Supplier', kind: 'text', value: (r) => r.partyName, minWidth: 150, hideable: false, cell: (r) => <LedgerLink ledgerId={r.ledgerId} name={r.partyName} /> },
   { id: 'bill', header: 'Bill', kind: 'text', value: (r) => r.number, width: 100, cell: (r) => <VoucherLink voucherId={r.voucherId} label={<span className="num">{r.number}</span>} /> },
-  { id: 'date', header: 'Accepted', kind: 'date', value: (r) => r.date, className: 'text-muted' },
+  { id: 'date', header: 'Accepted', kind: 'date', value: (r) => r.acceptedOn, className: 'text-muted' },
   { id: 'payBy', header: 's.15 pay by', kind: 'date', value: (r) => r.payBy },
   { id: 'pending', header: 'Unpaid at year end', kind: 'money', value: (r) => r.pendingAtFyEnd, width: 150, aggregate: 'sum' },
   { id: 'gst', header: 'GST (ITC) out', kind: 'money', value: (r) => r.gstExcluded || null, width: 120, aggregate: 'sum', className: 'text-muted' },

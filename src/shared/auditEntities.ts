@@ -78,6 +78,7 @@ export const AUDIT_ENTITIES = [
   'manufacture',
   'migration',
   'msme_bank_rate',
+  'msme_acceptance',
   'nic_credentials',
   'opening_batch',
   'opening_bills',

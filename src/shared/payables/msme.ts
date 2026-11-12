@@ -104,9 +104,9 @@ export interface S15Deadline {
  * Day counting excludes the day of acceptance (General Clauses Act 1897 s.9(1): where "from" is
  * used, the first day of the series is excluded).
  *
- * `acceptedOn` is the bill (voucher) date in this app — the day of deemed acceptance when no
- * objection is raised (s.2(b) Explanation). Goods accepted on an earlier GRN, or an objection
- * raised and later removed, are not modelled: adjust the bill date / agreed days if it matters.
+ * `acceptedOn` is the bill's recorded day of acceptance (WP 2d, table `msme_acceptance`: the day
+ * goods were delivered / services rendered, or the day a written objection was removed — s.2(b)
+ * Explanation), else the bill (voucher) date, as before.
  */
 export function s15Deadline(acceptedOn: string, agreedCreditDays: number | null): S15Deadline {
   if (agreedCreditDays != null && agreedCreditDays >= 0) {
