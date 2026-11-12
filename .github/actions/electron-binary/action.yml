@@ -18,8 +18,18 @@
 #   3. runs Electron's own installer (the `install-electron` bin = node_modules/electron/install.js,
 #      the documented "install on demand" step) so the binary is unpacked once, here, and not raced
 #      by parallel test workers. With DEBUG=@electron/get:index its log says "Cache hit" (no
-#      download) or "Cache miss" + "Downloading …".
+#      download) or "Cache miss" + "Downloading …";
+#   4. writes `SHASUMS256.txt-<version>` at the cache root from the npm-pinned
+#      node_modules/electron/checksums.json. electron-builder packages through @electron/get with
+#      no inline checksums, which re-fetches SHASUMS256.txt from GitHub releases on EVERY build,
+#      cache hit or not; a seeded file there is read as inline checksums instead, so the zip is
+#      still verified but offline (https://www.electron.build/tutorials/offline-air-gapped-builds,
+#      app-builder-lib `resolveSeededChecksums`, electron-builder #10039). Written on every run,
+#      not taken from the cache, so its trust root stays the lockfile.
 # A miss downloads exactly as before and the post-job step saves the folder for the next run.
+# Known gap: the macOS electron-builder cache is filled only by release-mac (no main CI job
+# packages for macOS), so the first release after an electron-builder bump, or a hand-pushed tag
+# (its cache is saved under the tag's own ref), still downloads the dmg tools from GitHub.
 # Nothing here changes the app; only where CI gets the same checksummed zip from.
 name: Electron binary (cached)
 description: Restore the Electron (and electron-builder) download caches and install the Electron binary.
@@ -83,6 +93,7 @@ runs:
       env:
         INSTALL_IN: ${{ inputs.install-in }}
         CACHE_HIT: ${{ steps.electron.outputs.cache-hit }}
+        ELECTRON_CACHE_ROOT: ${{ steps.plan.outputs.electron-path }}
         DEBUG: '@electron/get:index'
       run: |
         set -euo pipefail
@@ -90,4 +101,14 @@ runs:
         for dir in $INSTALL_IN; do
           (cd "$dir" && node node_modules/electron/install.js)
           echo "$dir: electron $(cd "$dir" && node -p "require('./node_modules/electron/package.json').version") at $(cat "$dir/node_modules/electron/path.txt")"
+          # Offline checksums for electron-builder's packaging download (see step 4 above).
+          (cd "$dir" && node -e '
+            const fs = require("fs"), path = require("path");
+            const { version } = require("./node_modules/electron/package.json");
+            const sums = require("./node_modules/electron/checksums.json");
+            const file = path.join(process.env.ELECTRON_CACHE_ROOT, "SHASUMS256.txt-" + version);
+            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(file, Object.entries(sums).map(([name, sha]) => sha + " *" + name + "\n").join(""));
+            console.log("seeded " + file + " (" + Object.keys(sums).length + " checksums)");
+          ')
         done

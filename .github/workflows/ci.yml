@@ -233,6 +233,9 @@ jobs:
 
       - name: NSIS installer + unpacked app (no publish)
         run: npx electron-builder --win --publish never
+        env:
+          # The log shows the Electron zip comes from the cache with no SHASUMS256.txt fetch.
+          DEBUG: '@electron/get:index'
 
       # electron-updater downloads the file latest.yml names; the release must carry exactly that
       # asset (a space in the name is renamed by GitHub on upload — the 0.11.0 mismatch).

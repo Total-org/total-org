@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-- **CI gets Electron from its own cache** (#PR). Plain words: nothing in the app changes. For
+- **CI gets Electron from its own cache** (#247). Plain words: nothing in the app changes. For
   developers: every CI / release job that runs Electron restores the Electron download (and, where it
   packages, electron-builder's tools) from the GitHub Actions cache, keyed by OS and the exact
   versions in package-lock.json, and installs the binary once right after `npm ci`
