@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Under the hood: `ipc.ts` split by area** (#252, audit A12). Nothing changes for users. The
+3,756-line `src/main/ipc.ts` keeps the company lifecycle, backups, sign-in and security; every other
+area's channels now live in their own `src/main/ipc<Area>.ts` (simple flows, vouchers, masters, trade,
+inventory, reports, GST, TDS / TCS, bank reconciliation, printing, payroll, import / export, NIC, edit
+log, agent bridge), moved, not rewritten. *For developers:* every channel's role / capability gate is
+pinned in `src/main/__fixtures__/ipcChannels.json` (`ipcChannels.dbtest.ts`) — a new channel adds its
+row; `scripts/ipc-handlers-diff.mjs` compares handlers' source with a git ref.
+
 **The first ten minutes** (#248, audit A7). "Try with sample data" now opens a sample shop that
 makes sense: its day-one cash, bank, stock and old bills are entered, every product has a selling
 price, stock never goes below zero (restocks come before the sales that need them, so goods sold
