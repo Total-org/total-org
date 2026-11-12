@@ -253,9 +253,16 @@ describe('simple Home (WP 8.6)', () => {
     expect(card.textContent).toContain('Nothing recorded yet')
     expect(screen.queryByTestId('simple-tile-receivables')).toBeNull()
     expect(screen.queryByTestId('simple-tile-money-in')).toBeNull()
+    // Audit A7 / UX-15: "Make your first bill" is the main action; business details the second,
+    // opening the plain Business details screen (UX-1), not the full Company details form.
+    expect(screen.getByTestId('simple-home-empty-first-bill').textContent).toBe('Make your first bill')
+    fireEvent.click(screen.getByTestId('simple-home-empty-first-bill'))
+    await waitFor(() => expect(lastScreen()).toEqual({ name: 'simple-sell' }))
     expect(screen.getByTestId('simple-home-empty-next').textContent).toBe('Add your business details')
     fireEvent.click(screen.getByTestId('simple-home-empty-next'))
-    await waitFor(() => expect(lastScreen()).toEqual({ name: 'company-info' }))
+    await waitFor(() => expect(lastScreen()).toEqual({ name: 'simple-business' }))
+    fireEvent.click(screen.getByTestId('simple-setup-company'))
+    await waitFor(() => expect(lastScreen()).toEqual({ name: 'simple-business' }))
     // The GST number does not apply: it is left out, not shown as done; the count leaves it out too.
     expect(screen.queryByTestId('simple-setup-gstin')).toBeNull()
     expect(screen.getByTestId('simple-home-setup-progress').textContent).toBe('0 of 5 setup steps done')

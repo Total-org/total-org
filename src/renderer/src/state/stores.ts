@@ -83,6 +83,7 @@ export type Screen =
   | { name: 'simple-looks' }
   // WP 10.8: Settings → Backups in the simple shell.
   | { name: 'simple-backups' }
+  | { name: 'simple-business' }
   | { name: 'simple-features' }
   // WP 7.2: Settings → Lock and safety, People & roles (simple/SecuritySettings, simple/PeopleRoles).
   | { name: 'simple-security' }

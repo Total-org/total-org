@@ -11,6 +11,8 @@ const load_simple_SimpleLooks = () => import('./simple/SimpleLooks')
 export const SimpleLooks = lazyScreen(load_simple_SimpleLooks, 'SimpleLooks')
 const load_simple_SimpleBackups = () => import('./simple/SimpleBackups')
 export const SimpleBackups = lazyScreen(load_simple_SimpleBackups, 'SimpleBackups')
+const load_simple_SimpleBusiness = () => import('./simple/SimpleBusiness')
+export const SimpleBusiness = lazyScreen(load_simple_SimpleBusiness, 'SimpleBusiness')
 const load_simple_SimpleFeatures = () => import('./simple/SimpleFeatures')
 export const SimpleFeatures = lazyScreen(load_simple_SimpleFeatures, 'SimpleFeatures')
 const load_simple_ai_AiHelper = () => import('./simple/ai/AiHelper')
@@ -176,6 +178,7 @@ export const SCREEN_CHUNKS: { readonly [N in Screen['name']]?: readonly LazyComp
   'simple-section': [SimpleSection],
   'simple-looks': [SimpleLooks],
   'simple-backups': [SimpleBackups],
+  'simple-business': [SimpleBusiness],
   'simple-features': [SimpleFeatures],
   'simple-security': [SecuritySettings],
   'simple-people-roles': [PeopleRoles],
@@ -269,6 +272,7 @@ export const SIMPLE_VIEW_CHUNKS: Readonly<Record<string, LazyComponent<never>>> 
   'SimpleSection': SimpleSection,
   'SimpleLooks': SimpleLooks,
   'SimpleBackups': SimpleBackups,
+  'SimpleBusiness': SimpleBusiness,
   'SimpleFeatures': SimpleFeatures,
   'ai/AiHelper': AiHelper,
   'Openings': Openings,

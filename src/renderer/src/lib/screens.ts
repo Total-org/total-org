@@ -846,9 +846,6 @@ export const SCREENS: ScreenDef[] = [
     name: 'company-info',
     modes: ['accountant'],
     simpleSection: 'settings',
-    simpleEntries: [
-      { id: 'business', label: 'simple.settings.business' }
-    ],
     keywords: ['company details', 'gstin', 'pan'],
     title: 'Company details',
     screen: { name: 'company-info' },
@@ -935,6 +932,21 @@ export const SCREENS: ScreenDef[] = [
     title: 'Backups',
     keywords: ['backup', 'restore', 'copy'],
     screen: null, // simple shell only
+    navSection: null,
+    invalidates: []
+  },
+  // Audit A7 / UX-1: Settings → Business details in plain words (name, address, phone / e-mail,
+  // GSTIN, PAN, the logo and bank details on bills); the full Company details form behind it.
+  {
+    name: 'simple-business',
+    modes: ['simple'],
+    simpleView: 'SimpleBusiness',
+    helpKey: 'settings',
+    simpleSection: 'settings',
+    simpleEntries: [{ id: 'business', label: 'simple.settings.business', screen: { name: 'simple-business' } }],
+    title: 'Business details',
+    keywords: ['business details', 'company details', 'address', 'logo', 'gstin', 'pan', 'bank details'],
+    screen: null, // simple shell only (its accountant home is Company details)
     navSection: null,
     invalidates: []
   },

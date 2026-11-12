@@ -14,6 +14,7 @@ import {
   SimpleSection,
   SimpleLooks,
   SimpleBackups,
+  SimpleBusiness,
   SimpleFeatures,
   AiHelper,
   Openings,
@@ -219,6 +220,7 @@ export default function App(): React.JSX.Element {
           {screen.name === 'simple-section' && <SimpleSection key={screen.section} section={screen.section} />}
           {screen.name === 'simple-looks' && <SimpleLooks />}
           {screen.name === 'simple-backups' && <SimpleBackups />}
+          {screen.name === 'simple-business' && <SimpleBusiness />}
           {screen.name === 'simple-features' && <SimpleFeatures />}
           {screen.name === 'simple-security' && <SecuritySettings />}
           {screen.name === 'simple-people-roles' && <PeopleRoles />}
