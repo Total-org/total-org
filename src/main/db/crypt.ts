@@ -34,8 +34,17 @@ const V1_KDF: BackupKdf = { logN: 14, r: 8, p: 1 }
 
 const WRONG_PASSPHRASE = 'Wrong passphrase or corrupted file'
 
-/** A cost an import accepts (a forged header can't make scrypt take minutes or gigabytes). */
-const kdfInRange = (k: BackupKdf): boolean => k.logN >= 14 && k.logN <= 20 && k.r >= 1 && k.r <= 16 && k.p >= 1 && k.p <= 4
+/** A `TOTALBK<n>` file of a format this version does not know — made by a newer Total. */
+export class NewerBackupFormatError extends Error {
+  constructor() {
+    super('This backup was made by a newer version of Total. Update Total on this computer, then open it again.')
+    this.name = 'NewerBackupFormatError'
+  }
+}
+
+/** The only costs an import accepts: what Total writes (2^17) and the minimum (2^14, tests and
+ *  the old format's cost) — a crafted header can't make scrypt take gigabytes or minutes. */
+const kdfInRange = (k: BackupKdf): boolean => (k.logN === 14 || k.logN === 17) && k.r === 8 && k.p === 1
 
 function deriveKey(passphrase: string, salt: Buffer, k: BackupKdf): Promise<Buffer> {
   const N = 2 ** k.logN
@@ -114,6 +123,8 @@ export async function decryptFile(srcPath: string, destPath: string, passphrase:
   } else if (magic.equals(MAGIC_V1)) {
     headerLen = HEADER_LEN_V1
     kdf = V1_KDF
+  } else if (/^TOTALBK\d$/.test(magic.toString('latin1'))) {
+    throw new NewerBackupFormatError()
   } else {
     throw new Error(WRONG_PASSPHRASE)
   }

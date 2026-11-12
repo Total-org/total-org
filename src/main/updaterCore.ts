@@ -191,7 +191,13 @@ export function createUpdater(deps: UpdaterDeps) {
         background(
           (async () => {
             const m = await verifiedFor(version)
-            const ok = !!m && typeof info.downloadedFile === 'string' && !!assetWithHash(m, await deps.hashFile(info.downloadedFile))
+            let ok = false
+            try {
+              ok = !!m && typeof info.downloadedFile === 'string' && !!assetWithHash(m, await deps.hashFile(info.downloadedFile))
+            } catch (err) {
+              // A file that can't be read is not verified (fail closed: install-on-quit is disarmed).
+              deps.log('warn', 'updater', { error: String(err) })
+            }
             if (!ok) {
               // The file is not the one the signed manifest names: never install it, by any path.
               deps.log('warn', 'update-unverified', { version, file: 'downloaded' })

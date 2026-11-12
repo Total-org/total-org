@@ -42,11 +42,15 @@ export type ManifestCheck = { ok: true; manifest: ReleaseManifest; keyId: string
 const HEX = (len: number): RegExp => new RegExp(`^[0-9a-f]{${len}}$`)
 const MAX_MANIFEST_BYTES = 256 * 1024
 
+/** The signer (scripts/release/manifest.mjs `ASSET_NAME` / `MAX_ASSETS`) refuses the same — tested. */
+export const ASSET_NAME = /^[\w.-]{1,200}$/
+export const MAX_ASSETS = 200
+
 function readAssets(raw: unknown): ManifestAsset[] | null {
-  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 200) return null
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ASSETS) return null
   const out: ManifestAsset[] = []
   for (const a of raw as Record<string, unknown>[]) {
-    if (!a || typeof a.name !== 'string' || !/^[\w.-]{1,200}$/.test(a.name)) return null
+    if (!a || typeof a.name !== 'string' || !ASSET_NAME.test(a.name)) return null
     if (!Number.isSafeInteger(a.size) || (a.size as number) < 0) return null
     if (typeof a.sha256 !== 'string' || !HEX(64).test(a.sha256)) return null
     if (typeof a.sha512 !== 'string' || !HEX(128).test(a.sha512)) return null

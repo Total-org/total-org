@@ -29,6 +29,7 @@ function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: s
   const published: (UpdateNotice | null)[] = []
   const opened: string[] = []
   const fetchLatest = vi.fn(async () => (opts.latest === undefined ? null : opts.latest))
+  let hashThrows = false
   const verifyRelease = vi.fn(async (v: string) => ((opts.signed ?? (() => true))(v) ? manifestFor(v) : null))
   const deps: UpdaterDeps = {
     engine,
@@ -39,7 +40,10 @@ function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: s
     fetchLatest,
     verifyRelease,
     installerUrl: (m) => `https://example.test/dl/${m.assets[0]!.name}`,
-    hashFile: async () => opts.fileHash ?? GOOD_HASH,
+    hashFile: async () => {
+      if (hashThrows) throw new Error('EBUSY')
+      return opts.fileHash ?? GOOD_HASH
+    },
     openExternal: (u) => void opened.push(u),
     publish: (n) => void published.push(n),
     log: () => {},
@@ -52,7 +56,7 @@ function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: s
     await flush()
     await flush()
   }
-  return { u, engine, emit, timers, published, opened, fetchLatest, verifyRelease, settings: () => settings }
+  return { u, engine, emit, timers, published, opened, fetchLatest, verifyRelease, settings: () => settings, hashFails: () => void (hashThrows = true) }
 }
 
 describe('update consent flow', () => {
@@ -269,6 +273,27 @@ describe('signed release manifest (audit A4)', () => {
     expect(t.engine.autoInstallOnAppQuit).toBe(true)
     await t.emit('update-downloaded', { version: '0.13.0' }) // no file to check = not verified
     expect(t.engine.autoInstallOnAppQuit).toBe(false)
+  })
+
+  it('a hash that cannot be computed fails closed: install-on-quit disarmed, no stuck "downloading"', async () => {
+    const t = setup()
+    t.u.init()
+    await t.emit('update-available', { version: '0.13.0' })
+    t.u.act('download')
+    await t.emit('update-downloaded', { version: '0.13.0', downloadedFile: '/tmp/a.exe' })
+    t.u.act('installOnQuit')
+    expect(t.engine.autoInstallOnAppQuit).toBe(true)
+    t.hashFails()
+    await t.emit('update-downloaded', { version: '0.13.0', downloadedFile: '/tmp/a.exe' })
+    expect(t.engine.autoInstallOnAppQuit).toBe(false)
+
+    const f = setup()
+    f.hashFails()
+    f.u.init()
+    await f.emit('update-available', { version: '0.13.0' })
+    f.u.act('download')
+    await f.emit('update-downloaded', { version: '0.13.0', downloadedFile: '/tmp/a.exe' })
+    expect(f.u.view().notice).toBeNull()
   })
 
   it('a download event without a file is not verified', async () => {

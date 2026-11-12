@@ -6,8 +6,8 @@ import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 // @ts-expect-error — plain .mjs release script (no types)
-import { buildManifest, signManifest, checkManifest, releaseKeys as scriptKeys } from '../../scripts/release/manifest.mjs'
-import { assetWithHash, installerFor, releaseAssetUrl, RELEASE_KEYS, sha512File, verifyManifest, type ReleaseKey } from './releaseManifest'
+import { buildManifest, signManifest, checkManifest, releaseKeys as scriptKeys, ASSET_NAME as SCRIPT_ASSET_NAME, MAX_ASSETS as SCRIPT_MAX_ASSETS } from '../../scripts/release/manifest.mjs'
+import { ASSET_NAME, MAX_ASSETS, assetWithHash, installerFor, releaseAssetUrl, RELEASE_KEYS, sha512File, verifyManifest, type ReleaseKey } from './releaseManifest'
 
 function testKey(id = 'test-key'): { pem: string; keys: ReleaseKey[] } {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
@@ -77,6 +77,19 @@ describe('release manifest', () => {
     const { pem, keys } = testKey()
     const text = signManifest(buildManifest(V, FILES.filter((f) => !f.name.endsWith('.exe'))), pem, keys)
     expect(checkManifest(text, V, keys)).toMatchObject({ ok: false, reason: expect.stringMatching(/Windows installer/) })
+  })
+
+  it('the signer refuses exactly what the app would refuse (never a signed release nobody is offered)', () => {
+    expect(SCRIPT_ASSET_NAME.source).toBe(ASSET_NAME.source)
+    expect(SCRIPT_MAX_ASSETS).toBe(MAX_ASSETS)
+    const { pem, keys } = testKey()
+    for (const name of ['Total-1.0.0+build.zip', 'Total Setup 1.0.0.exe', 'notes (draft).md', 'टोटल.zip'])
+      expect(() => buildManifest(V, [...FILES, { name, bytes: Buffer.from('x') }]), name).toThrow(/would refuse/)
+    const many = Array.from({ length: MAX_ASSETS + 1 }, (_, i) => ({ name: `f${i}.bin`, bytes: Buffer.from([i % 256]) }))
+    expect(() => buildManifest(V, many)).toThrow(/1–200/)
+    // Whatever the signer does accept, the app verifies.
+    const ok = [...FILES, { name: 'Total-1.0.0_build-2.zip', bytes: Buffer.from('y') }]
+    expect(verifyManifest(signManifest(buildManifest(V, ok), pem, keys), V, keys).ok).toBe(true)
   })
 
   it('a manifest never lists itself', () => {

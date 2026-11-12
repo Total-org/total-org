@@ -29,11 +29,19 @@ export function releaseKeys() {
 
 const hashOf = (bytes, algo) => createHash(algo).update(bytes).digest('hex')
 
+/** What the app's reader accepts (src/main/releaseManifest.ts `readAssets`) — a manifest it would
+ *  refuse is never signed, or the release would be published and then offered to nobody. */
+export const ASSET_NAME = /^[\w.-]{1,200}$/
+export const MAX_ASSETS = 200
+
 /** The manifest text for `version` over [{ name, bytes }] (sorted by name). */
 export function buildManifest(version, files, created = new Date().toISOString()) {
   const v = String(version).replace(/^v/, '')
-  const assets = files
-    .filter((f) => f.name !== MANIFEST_ASSET)
+  const listed = files.filter((f) => f.name !== MANIFEST_ASSET)
+  const bad = listed.filter((f) => !ASSET_NAME.test(f.name)).map((f) => f.name)
+  if (bad.length) throw new Error(`asset names the app would refuse (letters, digits, _ . - only): ${bad.join(', ')}`)
+  if (listed.length === 0 || listed.length > MAX_ASSETS) throw new Error(`a manifest lists 1–${MAX_ASSETS} assets, not ${listed.length}`)
+  const assets = listed
     .map((f) => ({ name: f.name, size: f.bytes.length, sha256: hashOf(f.bytes, 'sha256'), sha512: hashOf(f.bytes, 'sha512') }))
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   return JSON.stringify({ format: 1, product: 'Total', version: v, tag: `v${v}`, created, assets })

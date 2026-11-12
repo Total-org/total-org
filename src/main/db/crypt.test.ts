@@ -118,8 +118,14 @@ describe('encryptFile / decryptFile', () => {
     bytes[8] = 15
     writeFileSync(join(dir, 'tampered.totalbak'), bytes)
     await expect(decryptFile(join(dir, 'tampered.totalbak'), join(dir, 'x.db'), 'a long passphrase')).rejects.toThrow('Wrong passphrase or corrupted file')
-    bytes[8] = 30 // a forged huge cost is refused before scrypt runs
+    bytes[8] = 20 // a forged huge cost (2^20 = 1 GiB of scrypt memory) is refused before scrypt runs
     writeFileSync(join(dir, 'huge.totalbak'), bytes)
     await expect(decryptFile(join(dir, 'huge.totalbak'), join(dir, 'y.db'), 'a long passphrase')).rejects.toThrow('Wrong passphrase or corrupted file')
+  })
+
+  it('a TOTALBK file of a format this version does not know says "update Total", not "wrong passphrase"', async () => {
+    const dir = tmpDir()
+    writeFileSync(join(dir, 'future.totalbak'), Buffer.concat([Buffer.from('TOTALBK3'), Buffer.alloc(80, 1)]))
+    await expect(decryptFile(join(dir, 'future.totalbak'), join(dir, 'x.db'), 'whatever')).rejects.toThrow(/newer version of Total/)
   })
 })
