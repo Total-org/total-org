@@ -7,7 +7,7 @@ import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
 import { useNav } from '../state/stores'
 import { Page } from '../components/ui'
-import { Button, SkeletonTiles, Why } from '../components/kit'
+import { Button, Skeleton, Why } from '../components/kit'
 import { OpeningsHomeCard } from './OpeningsHomeCard'
 import { ApprovalsHomeCard } from './queue/ApprovalsHomeCard'
 import { useCanWrite, ViewerBackupNote } from './ViewerNote'
@@ -79,15 +79,46 @@ export function SimpleHome(): React.JSX.Element {
           </Button>
         </section>
       )}
-      {!home && !homeQ.isError && (
-        <div className="mt-5">
-          <SkeletonTiles count={3} />
-        </div>
-      )}
+      {!home && !homeQ.isError && <HomeSkeleton />}
       {home && <HomeBody home={home} />}
       {/* WP 10.3: the first-run tour (once per company + user after setup; Help runs it again). */}
       <HomeTour />
     </Page>
+  )
+}
+
+/** Phase 5 (skeletons, no layout shift): while `simple:home` loads, the tile grid HomeBody draws —
+ *  the wide cash tile, four tiles, the profit row and the attention card — as placeholders of the
+ *  tiles' usual size, so the page has its shape at once and the figures land in place. */
+const SKELETON_TILE_SPANS = [
+  'md:col-span-2 xl:row-span-2', // i18n-technical: cash and bank, the wide tile
+  '', // money in today
+  '', // money out today
+  '', // customers owe you
+  '', // you owe suppliers
+  '', // GST
+  'md:col-span-1 xl:col-span-3' // i18n-technical: profit
+]
+
+function HomeSkeleton(): React.JSX.Element {
+  return (
+    <div aria-hidden="true" data-testid="simple-home-skeleton">
+      <ul className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {SKELETON_TILE_SPANS.map((span, i) => (
+          <li key={i} className={`${cardCls} flex min-h-[7.25rem] flex-col ${span}`}>
+            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="mt-3 h-6 w-1/2" />
+            <Skeleton className="mt-auto h-3 w-1/4" />
+          </li>
+        ))}
+      </ul>
+      <section className={`${cardCls} mt-5 flex flex-col gap-3`}>
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-2/3" />
+        <Skeleton className="h-3 w-1/2" />
+        <Skeleton className="h-3 w-3/5" />
+      </section>
+    </div>
   )
 }
 

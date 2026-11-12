@@ -1,7 +1,9 @@
 // Path-parameterized, Electron-free backup primitives (dbtest-able; better-sqlite3 objects are
 // passed in from callers that already opened them with the Electron ABI).
 import Database from 'better-sqlite3-multiple-ciphers'
-import { existsSync, readdirSync, statSync, unlinkSync, copyFileSync, renameSync, rmSync, openSync, fsyncSync, closeSync } from 'fs'
+import { existsSync, readdirSync, statSync, unlinkSync, copyFileSync, renameSync, rmSync, openSync, fsyncSync, closeSync, constants as fsConstants } from 'fs'
+import { copyFile } from 'fs/promises'
+import { execFile } from 'child_process'
 import { join, basename, dirname } from 'path'
 import type { DB } from './connection'
 import { keyOfHandle, openDb, removeDbFiles } from './encryption'
@@ -53,10 +55,87 @@ export function tagOf(file: string): string {
 }
 
 /**
- * Live (WAL-safe) snapshot of an open database into `dest`, using better-sqlite3's native
- * online backup API. Captures uncheckpointed WAL content, unlike a raw file copy.
+ * Live (WAL-safe) snapshot of an open database into `dest`. First choice: a FILE copy under a
+ * pinned read (`pinnedFileCopy` — an APFS clone on macOS, so ~ms for any size, off the main
+ * thread elsewhere); when that can't be used, better-sqlite3's native online backup API (or
+ * VACUUM INTO for an encrypted file). Either way the copy holds every committed change,
+ * uncheckpointed WAL content included, as of the moment the call starts.
  */
 export async function snapshotTo(db: DB, dest: string): Promise<void> {
+  // Phase 5 speed: the page-by-page online backup of a 100k company held company:open for
+  // ~0.8–1.7 s; the pinned copy is the same database in a few ms.
+  if (await pinnedFileCopy(db, dest)) return
+  await onlineSnapshotTo(db, dest)
+}
+
+/**
+ * Phase 5 speed: snapshot by copying the database FILE while a second connection holds a read
+ * transaction on it. In WAL mode the main file changes only when a checkpoint copies WAL frames
+ * into it, and a checkpoint never writes past the read mark of an open reader — so once a
+ * checkpoint has moved EVERY frame into the file (nothing else needed from the WAL) and the pin
+ * is taken, the file stays exactly that state until the pin ends, while the app goes on writing
+ * (into the WAL). Both steps are synchronous on main, so no write can slip in between. The copy
+ * is an APFS clone on macOS (`cloneFile`), else a plain copy in libuv's thread pool, written beside
+ * `dest` and renamed over it like the other paths. The copy is the same file the online backup
+ * writes (same pages, same key for an encrypted business — WAL flag in the header included).
+ * Returns false — nothing written — when it does not apply: not a file database, not WAL mode, a
+ * reader on an older snapshot kept the checkpoint from finishing, or the pin could not be taken;
+ * the caller then takes the online snapshot as before. A failed COPY throws (as the online
+ * backup would).
+ */
+export async function pinnedFileCopy(db: DB, dest: string): Promise<boolean> {
+  const src = db.name
+  if (!src || db.memory || !existsSync(src)) return false
+  let pin: DB | null = null
+  try {
+    if (String(db.pragma('journal_mode', { simple: true })).toLowerCase() !== 'wal') return false
+    const [cp] = db.pragma('wal_checkpoint(PASSIVE)') as Array<{ busy: number; log: number; checkpointed: number }>
+    if (!cp || cp.busy !== 0 || cp.log !== cp.checkpointed) return false
+    pin = openDb(src, { readonly: true, fileMustExist: true, key: keyOfHandle(db) })
+    pin.exec('BEGIN')
+    pin.prepare('SELECT count(*) FROM sqlite_master').get()
+  } catch {
+    try {
+      pin?.close()
+    } catch {
+      // the pin was never usable
+    }
+    return false
+  }
+  const tmp = `${dest}.copy-tmp`
+  try {
+    removeDbFiles(tmp)
+    if (!(await cloneFile(src, tmp))) await copyFile(src, tmp, fsConstants.COPYFILE_FICLONE)
+    renameSync(tmp, dest)
+    return true
+  } catch (err) {
+    removeDbFiles(tmp)
+    throw err
+  } finally {
+    try {
+      pin.exec('ROLLBACK')
+    } catch {
+      // closing ends the read anyway
+    }
+    pin.close()
+  }
+}
+
+/** macOS: clone `src` to `dest` (APFS clonefile through /bin/cp -c — libuv's copyfile does not
+ *  clone on macOS): a few ms for any size. false (nothing left behind) elsewhere or when the
+ *  volume can't clone; the caller then copies the bytes. */
+export function cloneFile(src: string, dest: string): Promise<boolean> {
+  if (process.platform !== 'darwin') return Promise.resolve(false)
+  return new Promise((resolve) => {
+    execFile('/bin/cp', ['-c', src, dest], (err) => {
+      if (err) rmSync(dest, { force: true })
+      resolve(!err)
+    })
+  })
+}
+
+/** The snapshot without the pinned copy: the online backup API, or VACUUM INTO when encrypted. */
+export async function onlineSnapshotTo(db: DB, dest: string): Promise<void> {
   // WP 7.2: SQLite's online backup cannot write into an unkeyed target from an encrypted source;
   // VACUUM INTO copies with the source's key (the backup is encrypted like the books are).
   // VACUUM INTO refuses a target that exists (a second backup in the same second has the same

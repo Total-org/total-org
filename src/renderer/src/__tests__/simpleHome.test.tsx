@@ -236,6 +236,30 @@ describe('simple Home (WP 8.6)', () => {
     expect(within(failed).getByTestId('viewer-backup-note')).toBeTruthy()
   })
 
+  it('Phase 5: while simple:home loads, the tile grid is drawn as a skeleton — then the tiles take its place', async () => {
+    let answer: (v: unknown) => void = () => {}
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'simple:home') return new Promise((r) => { answer = r })
+      if (channel === 'simple:homeAttention') return Promise.resolve({ ok: true, data: { period: '2026-09', items: [], anomaliesSkipped: false } })
+      return Promise.resolve({ ok: true, data: null })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <SimpleHome />
+      </QueryClientProvider>
+    )
+    const skeleton = await screen.findByTestId('simple-home-skeleton')
+    expect(skeleton.getAttribute('aria-hidden')).toBe('true')
+    // Cash (wide) + money in / out + customers / suppliers / GST + profit, then the attention card.
+    expect(skeleton.querySelectorAll('li')).toHaveLength(7)
+    expect(skeleton.querySelector('li')?.className).toMatch(/md:col-span-2 xl:row-span-2/)
+    expect(screen.queryByTestId('simple-tile-cash')).toBeNull()
+    await act(async () => answer({ ok: true, data: home() }))
+    expect(await screen.findByTestId('simple-tile-cash')).toBeTruthy()
+    expect(screen.queryByTestId('simple-home-skeleton')).toBeNull()
+  })
+
   it('an empty company: one "Nothing recorded yet" card with the next setup step; the GST number step is never ticked for an unregistered business', async () => {
     renderHome(
       home({

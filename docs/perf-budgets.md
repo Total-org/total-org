@@ -31,6 +31,7 @@ npm run perf -- --vouchers 500000             # the manual 500k run (~30 min of 
 npm run perf -- --data <dir> --profile home   # one case, statement by statement, with query plans
 npm run perf -- --data <dir> --open-steps     # the company:open sequence, step by step
 npm run build && node scripts/perf-launch.mjs --data /tmp/perf100k [--simple] [--trace] [--boot]
+TOTAL_SOURCEMAP=1 npx electron-vite build   # renderer source maps, to see what fills a chunk
 ```
 
 The perf commands never touch `~/Documents/total` (they refuse it).
@@ -58,7 +59,7 @@ noisy by ±20 %; the A/B tables below interleave before / after runs on copies o
 | Save: sales invoice with 5 lines; receipt against 3 bills | `vouchers.saveVoucher` | 300 ms | 300 ms |
 | Company open: integrity check | `checkIntegrity` | 1 s | 3 s |
 | Backup (online snapshot + quick_check of the copy) | `snapshotTo` + `quickCheckOk` | 3 s | 10 s |
-| **launch**: app launch → Home interactive (built app, Playwright, 100k) | `scripts/perf-launch.mjs` | 2 s target, not met — see Launch (renderer boot after lazy screens, PR #135: startup bundle 5.7 → 2.7 MB, DOMContentLoaded 0.90 → 0.67 s) | — |
+| **launch**: app launch → Home shown and usable (its layout drawn, figures loading in skeletons; built app, Playwright, 100k) | `scripts/perf-launch.mjs` | 2 s — **met**: 0.93 s (every figure in: 2.6 s) — see Launch, Phase 5 | — |
 
 Why the budgets differ from the proposal (100k ≤ 1 s per report, ≤ 300 ms save, ≤ 200 ms search;
 500k ≤ 3 s per report):
@@ -356,6 +357,69 @@ article carries `data-loading` and the "shown in English" note waits), and `useH
 `out/renderer/assets`: entry `index-*.js` 1,445,394 B → 1,376,759 B (−68.6 kB, −4.7 %; gzipped
 346.3 kB → 329.9 kB); new chunks `hiFiles-*.js` 56.0 kB and `hinglishFiles-*.js` 15.0 kB.
 Measured 17 Oct 2026, `npm run build` on main at #145 then on the branch.
+
+### Phase 5: launch under 2 s, skeletons, no layout shift (PR #NNN)
+
+Measured 12 Nov 2026 on the 100k seed, built app, laptop load average 2–3; before = origin/main
+(5bfab013) built the same way in a scratch worktree, before / after alternated, 3 pairs per mode.
+**Home shown** = the Home screen drawn and usable (its tiles / cards there, figures still in
+skeletons); **Home complete** = nothing loading. Both moments are now taken in the page by a
+MutationObserver — Playwright's `waitForSelector` polls on animation frames, which an unfocused
+window throttles, so it saw Home up to a second late (the figures above this section were taken
+that way).
+
+| launch (100k), median of 3 | Before | After |
+|---|---:|---:|
+| Gateway: launch → company list | 0.81 s | 0.65 s |
+| **Gateway: launch → Home shown** | **1.47 s** | **0.93 s** |
+| Gateway: launch → Home complete | 3.05 s | 2.60 s |
+| Simple Home: launch → company list | 0.68 s | 0.66 s |
+| **Simple Home: launch → Home shown** | **1.48 s** | **0.95 s** |
+| Simple Home: launch → Home complete | 2.90 s | 2.45 s |
+| `company:open` (first open of the session, `--trace`) | 0.78 s | 0.28 s |
+| Gateway: layout shift while loading (CLS) | 0.080 | 0.000 |
+| Simple Home: layout shift while loading (CLS) | 0.0033 | 0.0010 |
+
+Where the time went (`--trace` now lists main's start-up steps — `src/main/bootTrace.ts`, kept on
+`globalThis.__totalBootMarks` because they happen before a driver can read stdout — and the
+renderer's DOMContentLoaded / first render / first paint), and what changed — no figure changed
+(`reportEquality` / `searchFts` fixtures untouched and green):
+
+- **The open's backup** (`company:open/snapshot` 0.78 s → 0.05 s, i.e. the open is now bounded by the
+  integrity quick_check, ~0.27 s): `snapshotTo` copies the database FILE under a pinned read
+  (`db/backup.ts` `pinnedFileCopy`): a PASSIVE checkpoint that moves every WAL frame into the file,
+  then a second read-only connection opens a read transaction — in WAL mode the file changes only
+  by checkpoints, and a checkpoint never writes past an open reader's mark, so the file stays that
+  state while the app goes on writing into the WAL. The copy is an APFS clone on macOS
+  (`cloneFile`, `/bin/cp -c` — libuv's copyfile does not clone on macOS: ENOSYS for
+  FICLONE_FORCE, a byte copy for FICLONE) and a byte copy in libuv's thread pool elsewhere. Same
+  pages, same key (an encrypted business's copy is encrypted with it), same WAL flag in the header
+  as the online backup wrote. It declines (and the online backup runs as before) when the
+  checkpoint can't finish (a reader on an older snapshot, e.g. a whole-file check still reading),
+  outside WAL mode or for a memory database. Every backup path benefits (manual, scheduled, quit).
+- **Main start-up**: the window is created BEFORE `registerIpc` (same synchronous `whenReady`
+  callback, so no IPC message can be handled before the handlers exist) — its renderer process
+  loads while main registers its ~440 handlers; `openai` (~60 ms to require) and `electron-updater`
+  (~45 ms) are required on first use (`ai/provider.ts` `sdk()`, `updater.ts`), not at load;
+  `app.dock.setIcon` with the 1024 px PNG (80–110 ms on main before the window existed) is skipped
+  in a packaged Mac app (its bundle icon is `total.icns`) and done after the window shows otherwise.
+- **Skeletons of the loaded size**: the Gateway's cards hold their loaded height while loading
+  (`DashCard` `loadingHeight`: the chart cards, Ageing, Recent entries, Cash & bank, Books — heights
+  measured on Perf Traders; cards sized by how many rows the books give are left alone), and the
+  kit `StatTile` draws its loading value in the figure's own line box (an invisible digit under the
+  skeleton) and its footer placeholder as a no-break space (a plain space collapsed the line). Simple
+  Home draws its tile grid (wide cash tile, five tiles, profit row, attention card) instead of three
+  small boxes; a person's page shows its shape instead of a blank page. The one shift left on simple
+  Home is the attention card re-ordering its rows by priority when `simple:homeAttention` arrives.
+
+What is left between launch and "Home complete": `dashboard:all` (~1.3 s in the CLI, ~1.6 s in the
+app) / `simple:home` + `simple:homeAttention` on the main thread — about 90 statements, already
+tuned in WP 7.1; the next step would be running Home's read in a worker thread on its own read
+connection (main stays free while it runs), not more indexes. A second `company:open` within a
+couple of seconds of the first waits for the first open's backup quick_check to stop (a native
+SQLite call a worker cannot abort mid-way) — the script's "company:open alone" column shows it;
+a real session does not reopen that fast. Electron itself takes ~0.2–0.5 s before main's first
+line runs.
 
 ## CI
 

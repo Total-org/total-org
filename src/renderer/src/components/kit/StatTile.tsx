@@ -82,7 +82,12 @@ export function StatTile({
       <span className="block truncate text-small font-medium text-muted">{label}</span>
       <span id={valueId} className={`mt-1 block ${size === 'lg' ? 'min-h-[22px]' : ''}`}>
         {loading ? (
-          <Skeleton className="mt-1 h-4 w-24" />
+          // Phase 5 (no layout shift): the skeleton sits in a line box of the figure's own size, so
+          // the tile does not grow when the figure arrives.
+          <span aria-hidden="true" className={`num relative block font-semibold leading-tight tracking-tight ${size === 'lg' ? 'text-brand' : 'text-subtitle'}`}>
+            <span className="invisible">0</span>
+            <Skeleton className="absolute top-1/2 left-0 h-4 w-24 -translate-y-1/2" />
+          </span>
         ) : error ? (
           <span role="alert" className="text-small text-danger" title={error}>
             {labels.unavailable}
@@ -98,7 +103,7 @@ export function StatTile({
         </span>
       )}
       {(sparkline || reserveSparkline) && <span className="mt-1 block h-7">{ready && sparkline}</span>}
-      {footer !== undefined && <span className="mt-0.5 block truncate text-caption text-muted">{ready && footer ? footer : ' '}</span>}
+      {footer !== undefined && <span className="mt-0.5 block truncate text-caption text-muted">{ready && footer ? footer : '\u00a0'}</span>}
     </>
   )
   const valueText = ready && aiOn && explain !== false ? nodeText(value).trim() : ''

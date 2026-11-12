@@ -46,6 +46,7 @@ export default defineConfig({
   renderer: {
     plugins: [react(), tailwindcss()],
     build: {
+      sourcemap: !!process.env.TOTAL_SOURCEMAP,
       rollupOptions: {
         output: {
           // Screens are dynamic imports (src/renderer/src/lazyScreens.ts), so each is its own chunk and

@@ -7,8 +7,10 @@ import { migrate } from './migrate'
 import { seedCompany } from './seed'
 import { TEST_INFO, postSimpleVoucher, testFileDb } from './testdb'
 import {
-  snapshotTo, listBackupsIn, pruneBackupsIn, tagOf, backupStamp, restoreCompanyDb, rollbackRestore
+  snapshotTo, listBackupsIn, pruneBackupsIn, tagOf, backupStamp, restoreCompanyDb, rollbackRestore, pinnedFileCopy, cloneFile
 } from './backup'
+import { isEncryptedFile, keyOfHandle, openDb, rekeyFile } from './encryption'
+import { newDataKey } from './keyEnvelope'
 
 function tmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'total-backup-'))
@@ -49,6 +51,116 @@ describe('snapshotTo', () => {
     snapDb.close()
     expect(snapCount).toBe(liveCount)
 
+    db.close()
+  })
+})
+
+// Phase 5 speed: the snapshot is a copy of the FILE taken under a pinned read (an APFS clone on
+// macOS). It must hold exactly the books as of the call — never a write made while it copies.
+describe('pinnedFileCopy (the snapshot as a pinned file copy)', () => {
+  const walCompany = (): { dir: string; dbPath: string; db: ReturnType<typeof testFileDb> } => {
+    const dir = tmpDir()
+    const dbPath = join(dir, 'company.db')
+    const db = testFileDb(dbPath)
+    db.pragma('journal_mode = WAL')
+    migrate(db)
+    seedCompany(db, TEST_INFO)
+    return { dir, dbPath, db }
+  }
+  const count = (path: string, key?: Buffer): number => {
+    const r = key ? openDb(path, { readonly: true, key }) : new Database(path, { readonly: true })
+    try {
+      expect((r.pragma('quick_check') as Array<{ quick_check: string }>)[0]?.quick_check).toBe('ok')
+      return (r.prepare('SELECT COUNT(*) AS n FROM vouchers').get() as { n: number }).n
+    } finally {
+      r.close()
+    }
+  }
+
+  it('copies the books as of the call: WAL-only entries in, entries saved while it copies out', async () => {
+    const { dir, db } = walCompany()
+    for (let i = 0; i < 3; i++) postSimpleVoucher(db, { date: '2025-04-10', amount: 10000 * (i + 1), kind: 'receipt' })
+    const dest = join(dir, 'snap.db')
+    const copying = pinnedFileCopy(db, dest)
+    // The checkpoint and the pin ran synchronously; these saves land while the copy is under way
+    // (the WAL can't be checkpointed into the file past the pin, even by a full checkpoint).
+    for (let i = 0; i < 4; i++) postSimpleVoucher(db, { date: '2025-04-11', amount: 500 * (i + 1), kind: 'payment' })
+    db.pragma('wal_checkpoint(PASSIVE)')
+    expect(await copying).toBe(true)
+    expect(count(dest)).toBe(3)
+    expect(existsSync(`${dest}.copy-tmp`)).toBe(false)
+    // The pin is gone: the live file checkpoints in full again, and the books hold all 7.
+    const [cp] = db.pragma('wal_checkpoint(PASSIVE)') as Array<{ log: number; checkpointed: number }>
+    expect(cp?.log).toBe(cp?.checkpointed)
+    expect((db.prepare('SELECT COUNT(*) AS n FROM vouchers').get() as { n: number }).n).toBe(7)
+    db.close()
+  })
+
+  it('a second snapshot in the same second replaces the first, as the online backup does', async () => {
+    const { dir, db } = walCompany()
+    const dest = join(dir, 'snap.db')
+    postSimpleVoucher(db, { date: '2025-04-10', amount: 10000, kind: 'receipt' })
+    await snapshotTo(db, dest)
+    postSimpleVoucher(db, { date: '2025-04-10', amount: 20000, kind: 'receipt' })
+    await snapshotTo(db, dest)
+    expect(count(dest)).toBe(2)
+    db.close()
+  })
+
+  it('declines (nothing written) while a reader on an older snapshot keeps the checkpoint from finishing; snapshotTo then takes the online backup', async () => {
+    const { dir, dbPath, db } = walCompany()
+    postSimpleVoucher(db, { date: '2025-04-10', amount: 10000, kind: 'receipt' })
+    db.pragma('wal_checkpoint(TRUNCATE)')
+    const reader = new Database(dbPath, { readonly: true })
+    reader.exec('BEGIN')
+    reader.prepare('SELECT COUNT(*) FROM vouchers').get()
+    postSimpleVoucher(db, { date: '2025-04-11', amount: 20000, kind: 'receipt' })
+    const dest = join(dir, 'snap.db')
+    expect(await pinnedFileCopy(db, dest)).toBe(false)
+    expect(existsSync(dest)).toBe(false)
+    await snapshotTo(db, dest)
+    expect(count(dest)).toBe(2)
+    reader.exec('ROLLBACK')
+    reader.close()
+    db.close()
+  })
+
+  it('cloneFile: an exact copy on macOS (false elsewhere, and when it cannot clone — nothing left behind)', async () => {
+    const dir = tmpDir()
+    const src = join(dir, 'a.bin')
+    writeFileSync(src, Buffer.from('total clone test'))
+    const ok = await cloneFile(src, join(dir, 'b.bin'))
+    expect(ok).toBe(process.platform === 'darwin')
+    if (ok) expect(readFileSync(join(dir, 'b.bin')).toString()).toBe('total clone test')
+    expect(await cloneFile(src, join(dir, 'missing-folder', 'c.bin'))).toBe(false)
+    expect(existsSync(join(dir, 'missing-folder', 'c.bin'))).toBe(false)
+  })
+
+  it('declines a database that is not in WAL mode', async () => {
+    const dir = tmpDir()
+    const db = testFileDb(join(dir, 'company.db'))
+    migrate(db)
+    expect(await pinnedFileCopy(db, join(dir, 'snap.db'))).toBe(false)
+    db.close()
+  })
+
+  it('an encrypted business: the copy is encrypted with the same key and reads back whole', async () => {
+    const dir = tmpDir()
+    const dbPath = join(dir, 'company.db')
+    const seed = testFileDb(dbPath)
+    migrate(seed)
+    seedCompany(seed, TEST_INFO)
+    seed.close()
+    const key = newDataKey()
+    rekeyFile(dbPath, null, key)
+    const db = openDb(dbPath, { key })
+    db.pragma('journal_mode = WAL')
+    expect(keyOfHandle(db)?.equals(key)).toBe(true)
+    postSimpleVoucher(db, { date: '2025-04-10', amount: 10000, kind: 'receipt' })
+    const dest = join(dir, 'snap.db')
+    expect(await pinnedFileCopy(db, dest)).toBe(true)
+    expect(isEncryptedFile(dest)).toBe(true)
+    expect(count(dest, key)).toBe(1)
     db.close()
   })
 })

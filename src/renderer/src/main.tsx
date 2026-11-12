@@ -33,6 +33,8 @@ installPcShortcutLabels()
 // loaded BEFORE the first render (bounded by PRELOAD_TIMEOUT_MS), so the window never shows
 // English first. An English user waits for nothing (no chunk is requested).
 void preloadCatalogues().then(() => {
+  // scripts/perf-launch.mjs --trace reads this mark (ms since the page's navigation started).
+  performance.mark('total:first-render')
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
