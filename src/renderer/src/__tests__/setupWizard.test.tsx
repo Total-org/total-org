@@ -224,6 +224,11 @@ describe('company-select', () => {
     act(() => useNav.setState({ stack: [{ name: 'gateway' }] }))
     render(withClient(<CompanySelect />))
     await waitFor(() => expect(screen.getByTestId('setup-wizard')).toBeTruthy())
+    // Audit A7 / UX-21: the accountant ways in wait behind one line until asked for.
+    expect(screen.getByTestId('setup-accountant-ways').hidden).toBe(true)
+    expect(screen.getByTestId('btn-setup-accountant-ways').getAttribute('aria-expanded')).toBe('false')
+    click('btn-setup-accountant-ways')
+    expect(screen.getByTestId('setup-accountant-ways').hidden).toBe(false)
     expect(screen.getByTestId('btn-company-create')).toBeTruthy()
     expect(screen.getByTestId('btn-company-demo-full')).toBeTruthy()
     click('btn-company-demo')
