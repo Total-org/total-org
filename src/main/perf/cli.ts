@@ -186,7 +186,7 @@ export async function perfOpenSteps(opts: { data: string }): Promise<{ step: str
   const db = await time('openCompanyDb (migrate + ANALYZE)', () => openCompanyDb(PERF_SLUG))
   try {
     const probe = join(mkdtempSync(join(tmpdir(), 'total-perf-snap-')), 'snap.db')
-    await time('  of which: online snapshot (db.backup)', () => snapshotTo(db, probe))
+    await time('  of which: the snapshot (snapshotTo: pinned file copy, else the online backup)', () => snapshotTo(db, probe))
     await time('  of which: quick_check of the snapshot', () => quickCheckOk(probe))
     rmSync(probe, { force: true })
     // To-do §4: company:open waits for the snapshot half only; the rest runs after the reply.

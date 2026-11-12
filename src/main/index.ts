@@ -1,3 +1,4 @@
+import { bootMark } from './bootTrace'
 import { e2eToday } from './e2eClock'
 import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron'
 import { join } from 'path'
@@ -20,6 +21,8 @@ import { appMenuTemplate, applyWindowPolicy, hardenSession, mainWindowWebPrefere
 import { configureTrustedRenderer } from './ipcSender'
 import { dataFolderLabel } from '@shared/updateText'
 import { MOVED_NOTE } from './services/dataRootMove'
+
+bootMark('main modules loaded')
 
 // Hermetic scripted runs (smoke/e2e/CI, TOTAL_DATA_DIR set): keep Electron's userData —
 // localStorage (theme, sidebar sections, report columns), caches, the single-instance lock —
@@ -121,6 +124,8 @@ function warnIfMovedFolderMissing(): void {
   })
 }
 
+let dockIconSet = false
+
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
   const win = new BrowserWindow({
@@ -136,7 +141,18 @@ function createWindow(): void {
     webPreferences: mainWindowWebPreferences({ preload: join(__dirname, '../preload/index.js'), e2eToday, devTools: !app.isPackaged })
   })
 
-  win.on('ready-to-show', () => win.show())
+  win.webContents.once('dom-ready', () => bootMark('renderer DOM ready'))
+  win.on('ready-to-show', () => {
+    bootMark('window ready to show')
+    win.show()
+    // Phase 5 speed: decoding the 1024 px PNG held main for ~80–110 ms before the window existed.
+    // A packaged Mac app shows its bundle icon (resources/total.icns) without it; an unpackaged
+    // run (dev, e2e) still gets the Total icon, once the window is up.
+    if (process.platform === 'darwin' && !app.isPackaged && !dockIconSet) {
+      dockIconSet = true
+      setTimeout(() => app.dock?.setIcon(appIconPath), 0)
+    }
+  })
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -155,11 +171,11 @@ if (gotSingleInstanceLock) {
   })
 
   app.whenReady().then(() => {
+    bootMark('app ready')
     initLogging()
     configureI18n({ dev: !app.isPackaged })
     log('info', 'app-start', { version: app.getVersion(), platform: process.platform, dataRoot: dataRootChoice().source })
     electronApp.setAppUserModelId('com.irminlabs.total')
-    if (process.platform === 'darwin') app.dock?.setIcon(appIconPath)
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     // WP 7.2 / D7: one policy for every web contents (the main window, the hidden PDF window):
     // no new windows, no navigation away from the app, no webviews (windowPolicy.ts).
@@ -176,8 +192,14 @@ if (gotSingleInstanceLock) {
       fileUrl: pathToFileURL(join(__dirname, '../renderer/index.html')).href,
       ...(devUrl ? { devOrigin: devUrl } : {})
     })
+    // Phase 5 speed: the window (its renderer process starts and loads in parallel) is created
+    // BEFORE the IPC handlers are registered. Safe: this whole callback is synchronous, so no IPC
+    // message can be handled before registerIpc below has run.
+    bootMark('creating the window')
+    createWindow()
     ensureDataTree()
     registerIpc()
+    bootMark('ipc registered')
     startBackupScheduler(getCurrentCompany)
     // WP 6.4: opened attachment copies left by a crash (> 1 day old) — this session's go on quit.
     try {
@@ -186,7 +208,6 @@ if (gotSingleInstanceLock) {
     } catch {
       // housekeeping only
     }
-    createWindow()
     warnIfSyncedFolder()
     warnIfMovedFolderMissing()
     initUpdater()

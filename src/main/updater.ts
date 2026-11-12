@@ -25,7 +25,7 @@
  * The app stays fully offline otherwise: this runs only in packaged builds and never blocks.
  */
 import { app, BrowserWindow, shell } from 'electron'
-import electronUpdater from 'electron-updater'
+import { createRequire } from 'module'
 import { log } from './log'
 import { GITHUB_REPO, SITE_URL } from '@shared/product'
 import { type UpdateAction, type UpdateCheckResult, type UpdatesView } from '@shared/updates'
@@ -36,7 +36,10 @@ import { updateCheckDisabled } from '@shared/updateText'
 import { allowedUpdateUrl } from '@shared/externalLinks'
 import { installerFor, MANIFEST_ASSET, releaseAssetUrl, sha512File, verifyManifest, type ReleaseManifest } from './releaseManifest'
 
-const { autoUpdater } = electronUpdater
+// Phase 5 speed: electron-updater (~45 ms to load) is required when the updater is first built —
+// the launch check runs after the window is up — not when the app starts.
+const requireHere = createRequire(typeof __filename === 'string' ? __filename : `${process.cwd()}/index.js`)
+const autoUpdaterEngine = (): unknown => (requireHere('electron-updater') as { autoUpdater: unknown }).autoUpdater
 
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases/latest`
 /** The marketing site proxies release info for the private repo (see site/app/api/latest). */
@@ -90,7 +93,7 @@ function publish(notice: unknown): void {
 
 function build(): Updater {
   updater ??= createUpdater({
-    engine: autoUpdater as never,
+    engine: autoUpdaterEngine() as never,
     currentVersion: app.getVersion(),
     releasesUrl: RELEASES_URL,
     readSettings,

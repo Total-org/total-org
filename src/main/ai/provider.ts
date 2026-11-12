@@ -23,9 +23,15 @@
 // - cancellation through an AbortSignal;
 // - an explicit endpoint (OPENAI_* environment variables are never read);
 // - error messages with the API key (and anything key-shaped) redacted.
-import OpenAI from 'openai'
+import { createRequire } from 'module'
+import type OpenAI from 'openai'
 import { AiCapabilityError, CAPABILITY_MESSAGES, capabilityRefusal, type AiApiStyle, type AiCapabilities, type AiCapabilityNeed, type ResolvedAiProvider } from '@shared/aiProviders'
 import { AiAbortError, AiProviderError, ZERO_USAGE, type AiProvider, type ChatHandlers, type ChatItem, type ChatRequest, type ChatResult, type ChatToolCall, type ChatUsage } from './types'
+
+// Phase 5 speed: the SDK takes ~60 ms to load — required on first use, not when the app starts.
+const requireHere = createRequire(typeof __filename === 'string' ? __filename : `${process.cwd()}/index.js`)
+let sdkModule: typeof OpenAI | null = null
+const sdk = (): typeof OpenAI => (sdkModule ??= (requireHere('openai') as { default: typeof OpenAI }).default)
 
 /** Just the slice of the SDK client this adapter uses — tests inject a fake with the same shape. */
 export interface OpenAiLike {
@@ -263,8 +269,8 @@ function statusOf(err: unknown): number | null {
  *  model, bad request) are not. */
 export function isRetryable(err: unknown): boolean {
   if (err instanceof AiProviderError) return err.retryable
-  if (err instanceof OpenAI.APIUserAbortError) return false
-  if (err instanceof OpenAI.APIConnectionError) return true
+  if (err instanceof sdk().APIUserAbortError) return false
+  if (err instanceof sdk().APIConnectionError) return true
   const s = statusOf(err)
   if (s === null) return false
   return s === 408 || s === 409 || s === 429 || s >= 500
@@ -278,8 +284,8 @@ function plainMessage(err: unknown): string {
   if (s === 401) return 'The provider rejected the API key (401). Check the key in Settings → AI.'
   if (s === 404) return `The provider does not know this model or endpoint (404): ${raw}`
   if (s === 429) return `The provider is rate-limiting this key (429): ${raw}`
-  if (err instanceof OpenAI.APIConnectionTimeoutError) return 'The provider did not answer in time.'
-  if (err instanceof OpenAI.APIConnectionError) return 'Could not reach the provider (network error).'
+  if (err instanceof sdk().APIConnectionTimeoutError) return 'The provider did not answer in time.'
+  if (err instanceof sdk().APIConnectionError) return 'Could not reach the provider (network error).'
   return raw
 }
 
@@ -318,7 +324,7 @@ export class OpenAiProvider implements AiProvider {
     this.random = opts.random ?? Math.random
     this.client =
       opts.client ??
-      (new OpenAI({
+      (new (sdk())({
         apiKey: opts.apiKey,
         baseURL: opts.baseURL ?? OPENAI_BASE_URL,
         organization: null,
@@ -345,7 +351,7 @@ export class OpenAiProvider implements AiProvider {
         return await attempt(state)
       } catch (err) {
         if (signal?.aborted || err instanceof AiAbortError) throw new AiAbortError()
-        if (!(err instanceof AiProviderError) && (err instanceof OpenAI.APIUserAbortError || (err as Error)?.name === 'AbortError')) throw new AiAbortError()
+        if (!(err instanceof AiProviderError) && (err instanceof sdk().APIUserAbortError || (err as Error)?.name === 'AbortError')) throw new AiAbortError()
         if (state.streamed || n >= this.maxRetries || !isRetryable(err)) this.fail(err)
         const wait = Math.min(8000, this.backoffMs * 2 ** n) * (1 + this.random() * 0.25)
         await this.sleep(Math.round(wait), signal)

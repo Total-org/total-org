@@ -20,6 +20,23 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Total opens faster, and Home no longer jumps** (#253, Phase 5 speed). On a big business
+(100,000 entries) Home is on screen and usable about 0.5 s sooner (launch → Home shown 1.47 →
+0.93 s; every figure in 3.05 → 2.60 s in the full app, 2.90 → 2.45 s in simple mode). Opening a
+business no longer waits for a page-by-page copy of its books — the automatic backup taken on open
+is now an instant copy of the file (on a Mac) or a copy made off the main thread, holding exactly
+the same books. The window appears before the app has finished setting up, and two libraries
+(the AI service's and the updater's) load only when they are first needed. While Home loads, its
+tiles and cards are drawn as grey placeholders of their real size, so nothing moves when the
+figures arrive (the full app's dashboard used to jump by a sixth of the screen); simple Home shows
+its whole layout at once, and a person's page shows its shape instead of a blank page.
+*For accountants:* no figure changes (the report and search fixtures are unchanged).
+*For developers:* `snapshotTo` copies the file under a pinned read (`pinnedFileCopy`, `cloneFile`)
+and falls back to the online backup; `perf-launch.mjs --trace` prints main's start-up steps
+(`src/main/bootTrace.ts`) and the renderer's timings, and reports launch → Home shown;
+`DashCard` takes `loadingHeight`; `TOTAL_SOURCEMAP=1` builds renderer source maps for bundle
+analysis.
+
 **Updates are checked as genuine before they are offered** (#251, audit A4). Every release now
 carries a signed list of its files (`total-manifest.json`, Ed25519). Total offers a new version only
 when that list verifies against the key built into the app, installs a downloaded update only when

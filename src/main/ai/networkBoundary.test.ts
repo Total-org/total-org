@@ -25,7 +25,10 @@ const code = (p: string): string =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
 const isTest = (p: string): boolean => /\.(test|dbtest)\.tsx?$/.test(p) || p.includes('__tests__')
-const IMPORTS_OPENAI = /(?:from\s+['"]openai(?:\/[^'"]*)?['"]|require\(\s*['"]openai(?:\/[^'"]*)?['"]\s*\)|import\(\s*['"]openai)/
+// Any require-like call counts too (Phase 5: provider.ts loads the SDK with a createRequire()
+// function on first use — `requireHere('openai')`), so a copy of that pattern (or a direct
+// `createRequire(…)('openai')`) elsewhere is caught.
+const IMPORTS_OPENAI = /(?:from\s+['"]openai(?:\/[^'"]*)?['"]|(?:\b\w*[Rr]equire\w*|\))\(\s*['"]openai(?:\/[^'"]*)?['"]\s*\)|import\(\s*['"]openai)/
 const NETWORK_API = /(?<![\w.])fetch\s*\(|XMLHttpRequest|new\s+WebSocket\b|new\s+EventSource\b|sendBeacon\s*\(/
 
 describe('renderer has no network and no AI SDK', () => {
@@ -65,6 +68,14 @@ describe('renderer has no network and no AI SDK', () => {
 })
 
 describe('inside main, only the provider adapter imports openai', () => {
+  it('the import check sees a lazy require of the SDK as an import', () => {
+    expect(IMPORTS_OPENAI.test("const x = requireHere('openai')")).toBe(true)
+    expect(IMPORTS_OPENAI.test("createRequire(__filename)('openai')")).toBe(true)
+    // A preset id passed to an ordinary function is not an import.
+    expect(IMPORTS_OPENAI.test("presetKeySecret('openai')")).toBe(false)
+    expect(IMPORTS_OPENAI.test("const r = createRequire(f); r('x'); lazyRequire(\"openai/resources\")")).toBe(true)
+  })
+
   it('src/main/ai/provider.ts is the single importer', () => {
     const files = walk(join(ROOT, 'src', 'main'), /\.ts$/).filter((p) => !isTest(p))
     const importers = files.filter((p) => IMPORTS_OPENAI.test(readFileSync(p, 'utf8'))).map((p) => relative(ROOT, p).split('\\').join('/'))
