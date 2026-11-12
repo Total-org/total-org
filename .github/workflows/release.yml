@@ -39,6 +39,7 @@ permissions:
 jobs:
   release-mac:
     runs-on: macos-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,6 +120,7 @@ jobs:
     # parallel jobs each create their own release for the tag (learned the hard way).
     needs: release-mac
     runs-on: windows-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -199,6 +201,7 @@ jobs:
   sign-and-publish:
     needs: release-win
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:

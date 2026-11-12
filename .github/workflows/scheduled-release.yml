@@ -61,6 +61,7 @@ env:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
@@ -167,6 +168,7 @@ jobs:
     needs: [preflight, upgrade]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
@@ -210,6 +212,7 @@ jobs:
       needs.decide.outputs.release == 'true' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run))
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     outputs:
@@ -274,6 +277,7 @@ jobs:
   verify:
     needs: [decide, release]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       issues: write
@@ -305,6 +309,7 @@ jobs:
     needs: [decide, bump, release, verify]
     if: failure() && needs.decide.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
