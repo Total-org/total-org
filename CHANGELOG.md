@@ -24,6 +24,8 @@ Things to know about the version numbers:
 matrix) makes books with 0.10.0, 0.11.0, 0.12.0 and 0.12.1, opens them with the current code and
 lists every report figure that differs, in one table. Nothing in the app changes.
 
+## [0.12.2] - 2026-11-13
+
 **A warning for advances on goods** (#259, WP 2d). A regular business pays GST on goods when it
 invoices, not when the customer pays in advance (Notification 66/2017-Central Tax). The GSTR-1
 checks now warn when an advance in Table 11A comes from a customer you sell goods to, going by the
