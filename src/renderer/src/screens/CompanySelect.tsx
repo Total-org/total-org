@@ -112,12 +112,16 @@ export function CompanySelect(): React.JSX.Element {
 
   // Audit A8 / UX-12: a company picked in the ⌘O switcher opens here, through this screen's own
   // path (passphrase, integrity check …), as if clicked.
+  // Runs when the list is known AND when a pick arrives — the switch leaves its slug after the
+  // company has closed (this screen may already be up), so it never depends on the cache being
+  // emptied in between (review of #250).
+  const pendingSlug = useCompanySwitch((s) => s.pendingSlug)
   useEffect(() => {
-    if (!registry) return
+    if (!registry || !pendingSlug) return
     const slug = useCompanySwitch.getState().take()
     if (slug && registry.companies.some((c) => c.slug === slug)) void open(slug)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list is known
-  }, [registry])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open() is this screen's own, recreated each render
+  }, [registry, pendingSlug])
 
   const { active, setActive } = useKeyNav(companies.length, (i) => {
     const c = companies[i]
@@ -178,6 +182,8 @@ export function CompanySelect(): React.JSX.Element {
             placeholder={t('common.companies.filter')}
             aria-label={t('common.companies.filter')}
             data-testid="input-company-filter"
+            // A long list: type to find straight away (↑↓ / Enter work from here).
+            autoFocus
           />
         )}
         <div className="overflow-hidden rounded-xl border border-line bg-panel">

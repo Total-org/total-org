@@ -98,7 +98,8 @@ import {
 } from './lazyScreens'
 import { HomePrefetch } from './components/HomePrefetch'
 import { useScreenView } from './lib/mode'
-import { useCompanySwitch } from './lib/companySwitch'
+import { switcherMayOpen, useCompanySwitch } from './lib/companySwitch'
+import { layerCount } from './components/kit/layers'
 import { CompanySwitcher } from './components/CompanySwitcher'
 import { useAlwaysFullRedirect } from './lib/handoff'
 import { FOCUS_SEARCH_EVENT } from './lib/searchEvents'
@@ -147,11 +148,17 @@ export default function App(): React.JSX.Element {
       }
       // Audit A8 / UX-12: ⌘O — switch company (the full app; an open, unlocked company).
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        const sw = useCompanySwitch.getState()
+        // ⌘O again closes it; otherwise only where switcherMayOpen allows (no dialog open …).
+        if (sw.open) {
+          e.preventDefault()
+          sw.setOpen(false)
+          return
+        }
         const st = useSession.getState()
-        if (!st.slug || st.locked || integrityWarning || simpleView) return
+        if (!switcherMayOpen({ slug: st.slug, locked: st.locked, integrityWarning: !!integrityWarning, simpleScreen: simpleView, layers: layerCount() + (paletteOpen ? 1 : 0) })) return
         e.preventDefault()
-        setPaletteOpen(false)
-        useCompanySwitch.getState().setOpen(!useCompanySwitch.getState().open)
+        sw.setOpen(true)
         return
       }
       // WP 10.3: ⌘/ (anywhere) and ? (no box focused) — the help panel on this screen's article,

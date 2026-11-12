@@ -6,11 +6,17 @@
 import { useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GST_STATES } from '@shared/gst/states'
-import { toDisplayDateTime } from '@shared/dates'
+import { toDisplayDate } from '@shared/dates'
 import { api } from '../lib/client'
 import { filterCompanies, orderCompanies, useCompanySwitch } from '../lib/companySwitch'
 import { switchCompany, useSession, useToasts } from '../state/stores'
 import { Modal, inputCls } from './ui'
+
+/** The local calendar day ('YYYY-MM-DD') of a stored UTC timestamp — 00:30 IST is still that day. */
+function localDay(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 export function CompanySwitcher(): React.JSX.Element | null {
   const open = useCompanySwitch((s) => s.open)
@@ -99,7 +105,7 @@ function SwitcherDialog(): React.JSX.Element {
                 {c.gstin ? ` · ${c.gstin}` : ' · Unregistered'}
               </span>
             </span>
-            <span className="num shrink-0 text-caption text-muted">{c.lastOpenedAt ? `opened ${toDisplayDateTime(new Date(c.lastOpenedAt)).split(' ')[0]}` : 'not opened yet'}</span>
+            <span className="num shrink-0 text-caption text-muted">{c.lastOpenedAt ? `opened ${toDisplayDate(localDay(c.lastOpenedAt))}` : 'not opened yet'}</span>
           </div>
         ))}
         {shown.length === 0 && (

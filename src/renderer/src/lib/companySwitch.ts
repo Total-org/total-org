@@ -27,6 +27,14 @@ export function filterCompanies<C extends Pick<CompanySummary, 'name' | 'gstin'>
   })
 }
 
+/** When ⌘O may open the switcher: an open, unlocked company with no integrity warning, on a
+ *  full-app screen (a simple screen has no ⌘O), and no dialog open — a dialog owns the keyboard,
+ *  and its unsaved answers (a Modal's `dirty`) are not part of the unsaved-changes question the
+ *  switch asks (review of #250). Pure. */
+export function switcherMayOpen(s: { slug: string | null; locked: boolean; integrityWarning: boolean; simpleScreen: boolean; layers: number }): boolean {
+  return s.slug != null && !s.locked && !s.integrityWarning && !s.simpleScreen && s.layers === 0
+}
+
 interface CompanySwitchState {
   open: boolean
   /** A company picked in the switcher, waiting for the company list to open it. */

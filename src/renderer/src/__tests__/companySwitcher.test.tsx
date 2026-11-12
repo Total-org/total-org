@@ -8,7 +8,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CompanyInfo, CompanySummary } from '@shared/domain'
 import { CompanySwitcher } from '../components/CompanySwitcher'
 import { CompanySelect } from '../screens/CompanySelect'
-import { filterCompanies, orderCompanies, useCompanySwitch } from '../lib/companySwitch'
+import { filterCompanies, orderCompanies, switcherMayOpen, useCompanySwitch } from '../lib/companySwitch'
+import { Modal } from '../components/ui'
+import { layerCount } from '../components/kit/layers'
 import { useNav, useSession } from '../state/stores'
 
 const invoke = vi.fn()
@@ -143,5 +145,59 @@ describe('the company list screen', () => {
     await waitFor(() => expect(calls('company:open')).toContainEqual({ slug: 'nova' }), SLOW)
     fireEvent.change(box, { target: { value: 'nothing like it' } })
     expect(screen.getByTestId('company-filter-none')).toBeTruthy()
+  })
+})
+
+describe('when ⌘O may open the switcher (review of #250)', () => {
+  const ok = { slug: 'kumar', locked: false, integrityWarning: false, simpleScreen: false, layers: 0 }
+  it('only an open, unlocked company on a full-app screen with no warning and no dialog', () => {
+    expect(switcherMayOpen(ok)).toBe(true)
+    expect(switcherMayOpen({ ...ok, slug: null })).toBe(false)
+    expect(switcherMayOpen({ ...ok, locked: true })).toBe(false)
+    expect(switcherMayOpen({ ...ok, integrityWarning: true })).toBe(false)
+    expect(switcherMayOpen({ ...ok, simpleScreen: true })).toBe(false)
+    expect(switcherMayOpen({ ...ok, layers: 1 })).toBe(false)
+  })
+
+  it('a dialog with unsaved answers counts as open — so ⌘O never drops what was typed in it', () => {
+    render(
+      <Modal title="Pay heads" onClose={() => {}} dirty>
+        <input defaultValue="12.5" />
+      </Modal>
+    )
+    expect(layerCount()).toBeGreaterThan(0)
+    expect(switcherMayOpen({ ...ok, layers: layerCount() })).toBe(false)
+  })
+})
+
+describe('a pick that needs a passphrase (review of #250)', () => {
+  it('asks for it, exactly as a click on the list does', async () => {
+    invoke.mockImplementation(async (channel: string) =>
+      channel === 'company:list'
+        ? { ok: true, data: { companies: COMPANIES } }
+        : channel === 'company:remembered'
+          ? { ok: true, data: [] }
+          : channel === 'company:open'
+            ? { ok: false, error: 'This business is locked with a passphrase', code: 'passphrase_required' }
+            : { ok: false, error: `unmocked channel ${channel}` }
+    )
+    act(() => {
+      useSession.setState({ slug: null, info: null })
+      useCompanySwitch.setState({ open: false, pendingSlug: 'mehta' })
+    })
+    renderUi(<CompanySelect />)
+    await waitFor(() => expect(calls('company:open')).toContainEqual({ slug: 'mehta' }), SLOW)
+    expect(await screen.findByTestId('passphrase-prompt', undefined, SLOW)).toBeTruthy()
+    expect(useSession.getState().slug).toBeNull()
+    expect(useCompanySwitch.getState().pendingSlug).toBeNull()
+  })
+
+  it('a pick that arrives after the list is up still opens (no reliance on a cache reset)', async () => {
+    act(() => useSession.setState({ slug: null, info: null }))
+    renderUi(<CompanySelect />)
+    await waitFor(() => expect(screen.getByText('Kumar Retail')).toBeTruthy(), SLOW)
+    expect(calls('company:open')).toHaveLength(0)
+    act(() => useCompanySwitch.getState().request('alpha'))
+    await waitFor(() => expect(calls('company:open')).toContainEqual({ slug: 'alpha' }), SLOW)
   })
 })
