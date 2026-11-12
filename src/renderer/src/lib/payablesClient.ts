@@ -3,7 +3,7 @@ import { call } from './client'
 import type { BankRateRow } from '@shared/payables/msme'
 import type { PaymentRunInput } from '@shared/payables/schemas'
 import type {
-  MsmeDueSummary, MsmeReport, PayablesPlan, PaymentRun, PaymentRunPreview, SupplierReconResult, SupplierStatement
+  MsmeAcceptance, MsmeAcceptanceBasis, MsmeDueSummary, MsmeReport, PayablesPlan, PaymentRun, PaymentRunPreview, SupplierReconResult, SupplierStatement
 } from '@shared/payables/types'
 
 export interface MsmeReportQuery {
@@ -26,6 +26,8 @@ export const payablesApi = {
   saveBankRate: (data: { fromDate: string; rateBp: number; source: string }, id?: number) =>
     call<BankRateRow>('payables:bankRateSave', { id, data }),
   deleteBankRate: (id: number) => call<null>('payables:bankRateDelete', { id }),
+  setMsmeAcceptance: (q: { voucherId: number; acceptedOn: string | null; basis: MsmeAcceptanceBasis; note: string }) =>
+    call<MsmeAcceptance | null>('payables:msmeAcceptanceSet', q),
   supplierStatement: (ledgerId: number, from: string, to: string) =>
     call<SupplierStatement>('payables:supplierStatement', { ledgerId, from, to }),
   supplierRecon: (q: { ledgerId: number; from: string; to: string; csvText: string; amountPaise?: number; dateDays?: number }) =>

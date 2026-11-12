@@ -33,7 +33,7 @@ const row = (over: Partial<PayablePlanRow>): PayablePlanRow => ({
   key: '7|101|MC-1', ledgerId: 7, partyName: 'Micro Castings', voucherId: 101, number: 'MC-1', supplierRef: 'INV-9', date: '2026-09-01',
   amount: 1_000_000, pending: 1_000_000, dueDate: '2026-10-31', msme: { category: 'micro', udyamNo: 'UDYAM-MH-33-0012345', covered: true, registeredFrom: null, agreedCreditDays: null },
   s15: { payBy: '2026-09-16', interestFrom: '2026-09-17', days: 15, basis: 'no_agreement' }, payBy: '2026-09-16', bucket: 'overdue', daysToPay: -21,
-  discount: null, interestIndicative: 9_876, ...over
+  discount: null, interestIndicative: 9_876, acceptedOn: '2026-09-01', ...over
 })
 
 const PLAN: PayablesPlan = {
@@ -144,6 +144,7 @@ describe('Payables → MSME', () => {
       key: '7|101|MC-1', ledgerId: 7, partyName: 'Micro Castings', category: 'micro', udyamNo: 'UDYAM-MH-33-0012345', pan: 'AAAPM1234C', voucherId: 101,
       number: 'MC-1', supplierRef: null, date: '2026-09-01', amount: 1_000_000, pending: 1_000_000,
       s15: { payBy: '2026-09-16', interestFrom: '2026-09-17', days: 15, basis: 'no_agreement' }, bucket: 'late_1_30', daysLate: 21, ageDays: 36,
+      acceptedOn: '2026-09-01', acceptance: null,
       interest: { paise: 9_876, rateBp: 1725, months: 0, days: 21 }
     }],
     buckets: { within: 0, late_1_30: 1_000_000, late_31_60: 0, late_61_plus: 0 },
@@ -173,6 +174,27 @@ describe('Payables → MSME', () => {
     expect(bodyRows('msme-form1')[0]!.textContent).toContain('AAAPM1234C')
     fireEvent.click(screen.getByTestId('btn-msme-form1-csv'))
     await waitFor(() => expect(calls('payables:msmeForm1Csv')).toHaveLength(1))
+  })
+
+  it('WP 2d: Change opens the day-of-acceptance dialog; Save sends the day; a viewer sees no Change', async () => {
+    handlers['payables:msmeReport'] = () => report
+    handlers['payables:bankRates'] = () => []
+    handlers['payables:msmeAcceptanceSet'] = (p) => ({ ...(p as object) })
+    renderScreen(<PayablesScreen tab="msme" />)
+    await waitFor(() => expect(bodyRows('msme-dues')).toHaveLength(1))
+    fireEvent.click(screen.getByTestId('btn-msme-acceptance-101'))
+    const dialog = await screen.findByTestId('msme-acceptance-dialog')
+    expect(within(dialog).queryByTestId('btn-msme-acceptance-clear')).toBeNull()
+    fireEvent.change(within(dialog).getByTestId('input-msme-acceptance-basis'), { target: { value: 'objection_removed' } })
+    fireEvent.change(within(dialog).getByTestId('input-msme-acceptance-note'), { target: { value: 'letter of 3 Sep' } })
+    fireEvent.click(within(dialog).getByTestId('btn-msme-acceptance-save'))
+    await waitFor(() => expect(calls('payables:msmeAcceptanceSet')).toEqual([{ voucherId: 101, acceptedOn: '2026-09-01', basis: 'objection_removed', note: 'letter of 3 Sep' }]))
+    cleanup()
+    useSession.setState({ user: { id: 2, name: 'View', role: 'viewer' } } as never)
+    renderScreen(<PayablesScreen tab="msme" />)
+    await waitFor(() => expect(bodyRows('msme-dues')).toHaveLength(1))
+    expect(screen.queryByTestId('btn-msme-acceptance-101')).toBeNull()
+    useSession.setState({ user: null } as never)
   })
 })
 

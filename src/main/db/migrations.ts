@@ -3682,5 +3682,18 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_ai_plan_items_plan ON ai_plan_items(plan_id);
   CREATE INDEX idx_ai_plan_items_draft ON ai_plan_items(draft_id) WHERE draft_id IS NOT NULL;
+  `,
+  // WP 2d — MSME acceptance (last; number by position): the MSMED Act s.15 period runs from the day
+  // of acceptance / deemed acceptance (s.2(b) Explanation: the day goods were delivered or services
+  // rendered, or the day a written objection was removed). The app used the bill date; a bill whose
+  // acceptance differs can now carry it. One row per bill voucher; no row = the bill date, exactly
+  // as before (nothing existing is read differently).
+  `
+  CREATE TABLE msme_acceptance (
+    voucher_id INTEGER PRIMARY KEY REFERENCES vouchers(id) ON DELETE CASCADE,
+    accepted_on TEXT NOT NULL CHECK (length(accepted_on) = 10),
+    basis TEXT NOT NULL CHECK (basis IN ('delivered', 'objection_removed')),
+    note TEXT NOT NULL DEFAULT ''
+  );
   `
 ]

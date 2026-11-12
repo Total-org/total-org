@@ -10,7 +10,7 @@ import type { DB } from './db/connection'
 import type { CompanyInfo } from '@shared/domain'
 import type { Role } from './services/roles'
 import {
-  bankRateSaveSchema, msmeDueSchema, msmeReportSchema, payablesPlanSchema, paymentRunIdSchema, paymentRunSchema, runExportSchema,
+  bankRateSaveSchema, msmeAcceptanceSetSchema, msmeDueSchema, msmeReportSchema, payablesPlanSchema, paymentRunIdSchema, paymentRunSchema, runExportSchema,
   supplierReconSchema, supplierStatementSchema
 } from '@shared/payables/schemas'
 import * as payables from './services/payables'
@@ -57,6 +57,8 @@ export function registerPayablesIpc(handle: Handle, company: () => Company): voi
     const { csv, filename, rows } = payables.msmeForm1Csv(c.db, q)
     return { ...writeExport(c, filename, csv, 'msme_form1_csv', { asOn: q.asOn, formPeriodDate: q.formPeriodDate ?? null, rows }), rows }
   }, 'viewer')
+  // WP 2d: a bill's MSME day of acceptance (the s.15 period runs from it) — accountant+.
+  handle('payables:msmeAcceptanceSet', (p) => payables.setMsmeAcceptance(db(), msmeAcceptanceSetSchema.parse(p)))
   handle('payables:bankRates', () => payables.listBankRates(db()), 'viewer')
   // The s.16 rate table is reference data like the TDS / statutory rate masters: owner-edited.
   handle('payables:bankRateSave', (p) => {
