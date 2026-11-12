@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { GST_STATES } from '@shared/gst/states'
+import { issuesOf, mapError, type CaughtError } from '@shared/errors/map'
 import {
   MAX_LOGO_BYTES, businessDraft, businessErrors, businessInfoPayload, infoChanged, isRegistered, templateWithBill,
   type BusinessDraft, type BusinessField
@@ -17,6 +18,9 @@ const FULL_FORM = { name: 'company-info' } as const // i18n-technical
 const BILLS_PRINTING = { name: 'settings', tab: 'invoice' } as const // i18n-technical
 
 const LOGO_TYPES = 'image/png,image/jpeg,image/webp,image/svg+xml' // i18n-technical: file input filter
+
+/** The fields a refusal can be placed on (company:updateInfo's payload paths). */
+const FIELDS = ['name', 'address', 'phone', 'email', 'gstin', 'pan'] as const // i18n-technical: field paths
 
 const cardCls = 'rounded-xl border border-line bg-panel p-panel shadow-elev-1'
 
@@ -98,10 +102,23 @@ export function SimpleBusiness(): React.JSX.Element {
       return
     }
     setBusy(true)
+    // Review: a refusal goes under its field in plain words (WP 8.5 mapError); what has no field
+    // is said, with which part was already saved.
+    let businessSaved = false
+    const refused = (e: unknown): void => {
+      const err = e as CaughtError
+      const m = mapError(err, { simple: true, t, fields: FIELDS })
+      const placed = Object.keys(m.fields).length > 0
+      if (placed) setErrors(m.fields as Partial<Record<BusinessField, string>>)
+      if (businessSaved) toast.push('error', t('simple.business.billPartFailed'))
+      else if (m.general && issuesOf(err).length > 0) toast.push('error', t('simple.business.saveFailed', { reason: m.general }))
+      else if (!placed) toast.push('error', t('simple.business.saveFailedPlain'))
+    }
     try {
       if (infoChanged(info, draft)) {
         const updated = await api.company.updateInfo(businessInfoPayload(info, draft))
         if (slug) setCompany(slug, updated)
+        businessSaved = true
       }
       const next = template ? templateWithBill(template, draft) : null
       if (next) {
@@ -112,7 +129,7 @@ export function SimpleBusiness(): React.JSX.Element {
       await queryClient.invalidateQueries({ queryKey: ['simple', 'home'] }) // i18n-technical
       toast.push('success', t('simple.business.saved'))
     } catch (e) {
-      toast.push('error', t('simple.business.saveFailed', { reason: (e as Error).message }))
+      refused(e)
     } finally {
       setBusy(false)
     }

@@ -36,9 +36,13 @@ describe('audit A7 / UX-9: GST on Home starts with a fresh business’s first en
     })
     const attention = simpleHomeAttention(db, company, TODAY)
     expect(attention.items.filter((i) => i.source === 'close')).toEqual([])
-    // The Taxes screen still offers the earlier months (nil returns are the owner's to file).
+    // Review: the Taxes screen (and Ask Total, which answers through it) opens on Home's period —
+    // ₹90 collected — and still offers the earlier months (nil returns are the owner's to file).
     const taxes = simpleTaxes(db, company, {}, TODAY)
-    expect(taxes.kind === 'regular' && taxes.periods.map((p) => p.period)).toContain('2026-10')
+    if (taxes.kind !== 'regular') throw new Error('regular expected')
+    expect(taxes.period).toMatchObject({ period: '2026-11', soFar: true })
+    expect(taxes.figures.collected).toBe(9000)
+    expect(taxes.periods.map((p) => p.period)).toContain('2026-10')
   })
 
   it('fresh with nothing recorded yet: no month-end checks at all', () => {

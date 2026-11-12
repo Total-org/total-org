@@ -26,7 +26,10 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   'company:list': r('reads the company registry'),
   'company:current': QUERY,
   'company:create': a('company'),
-  'company:createDemo': a('company', 'ledger', 'stockItem', 'voucher'),
+  // Audit A7: `{ mode: 'simple' }` builds the sample shop through the simple flows' services —
+  // price list rows (quickCreateItem), opening bills + batch (applyOpenings) and
+  // one simple_intent row per posted entry (postIntent).
+  'company:createDemo': a('company', 'ledger', 'stockItem', 'voucher', 'priceLevel', 'priceRate', 'opening_bills', 'opening_batch', 'simple_intent'),
   // WP 8.3: the setup wizard — company + preset accounts / units + features / gstProfile / ui.
   'simple:setup': a('company', 'ledger', 'unit'),
   // WP 8.7: the opening setup — accounts' / items' openings through the masters services, the

@@ -18,8 +18,9 @@ const INFO: CompanyInfo = {
 }
 const CLASSIC = printTemplateSchema.parse({ id: 'classic', name: 'Classic', builtIn: true })
 
-function mount(info: CompanyInfo = INFO, user: unknown = null): ReturnType<typeof vi.fn> {
+function mount(info: CompanyInfo = INFO, user: unknown = null, refuse: Record<string, unknown> = {}): ReturnType<typeof vi.fn> {
   const invoke = vi.fn(async (channel: string, payload?: unknown) => {
+    if (refuse[channel]) return { ok: false, ...(refuse[channel] as object) }
     if (channel === 'template:list') return { ok: true, data: { templates: [], defaults: { sales: 'classic' } } }
     if (channel === 'template:get') return { ok: true, data: CLASSIC }
     if (channel === 'template:save') return { ok: true, data: (payload as { template: unknown }).template }
@@ -102,6 +103,29 @@ describe('Business details (audit A7 / UX-1)', () => {
     await screen.findByTestId('input-business-name')
     expect(screen.queryByTestId('input-business-gstin')).toBeNull()
     expect(screen.getByTestId('simple-business-gst').textContent).toContain('not registered for GST')
+  })
+
+  it('review: a refusal from main lands under its field in plain words; a bill-part failure says the business part was saved', async () => {
+    const invoke = mount(INFO, null, {
+      'company:updateInfo': { error: 'email: Invalid email address', code: 'invalid_input', issues: [{ code: 'zod.invalid_format', field: 'email', message: 'Invalid email address' }] }
+    })
+    await screen.findByTestId('input-business-name')
+    type('input-business-email', 'ram@shop.in')
+    fireEvent.click(screen.getByTestId('btn-business-save'))
+    const under = await screen.findByTestId('field-error-email')
+    expect(under.textContent).not.toMatch(/Invalid email address/)
+    expect(useToasts.getState().toasts.some((x) => x.text.includes('Invalid email address'))).toBe(false)
+    expect(invoke.mock.calls.some(([c]) => c === 'template:save')).toBe(false)
+    cleanup()
+    useToasts.setState({ toasts: [] })
+    mount(INFO, null, { 'template:save': { error: 'disk full' } })
+    await screen.findByTestId('input-business-name')
+    type('input-business-phone', '9822012345')
+    type('input-business-bank-name', 'SBI')
+    type('input-business-bank-account', '1234')
+    type('input-business-bank-ifsc', 'SBIN0000001')
+    fireEvent.click(screen.getByTestId('btn-business-save'))
+    await waitFor(() => expect(useToasts.getState().toasts.map((x) => x.text)).toContain('Your business details are saved, but the logo and bank details could not be saved. Try again, or set them in Bills & printing.'))
   })
 
   it('the rest of the company form is one click away', async () => {

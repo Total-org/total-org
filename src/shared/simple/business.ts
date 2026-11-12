@@ -9,6 +9,7 @@ import type { CompanyInfo } from '../domain'
 import type { PrintTemplate } from '../printTemplates'
 import type { CompanyCreateInput } from '../schemas'
 import type { MessageKey } from '../i18n'
+import { z } from 'zod'
 import { validateGstin } from '../gst/validate'
 
 /** The designer's limit for a logo (Settings → Bills & printing). */
@@ -58,7 +59,9 @@ export function businessDraft(info: CompanyInfo, template: PrintTemplate | null)
 
 const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** The server's own check (companyCreateSchema's `.email()`), so a typed address is never
+ *  accepted here and refused by company:updateInfo. */
+const EMAIL = z.string().email()
 
 /** A registered business (regular or composition) keeps a GSTIN; this screen never changes how
  *  the business is registered. */
@@ -69,7 +72,7 @@ export function businessErrors(d: BusinessDraft, info: CompanyInfo): Partial<Rec
   if (!d.name.trim()) e.name = 'errors.setup.nameNeeded'
   if (d.address.trim().length > 500) e.address = 'errors.business.addressTooLong'
   if (d.phone.trim().length > 20) e.phone = 'errors.business.phoneTooLong'
-  if (d.email.trim() && !EMAIL_RE.test(d.email.trim())) e.email = 'errors.business.emailInvalid'
+  if (d.email.trim() && !EMAIL.safeParse(d.email.trim()).success) e.email = 'errors.business.emailInvalid'
   if (isRegistered(info)) {
     const g = d.gstin.trim().toUpperCase()
     if (!g) e.gstin = 'errors.business.gstinNeeded'

@@ -17,6 +17,12 @@ describe('simple Business details (audit A7 / UX-1)', () => {
     expect(businessErrors(d, INFO)).toEqual({})
   })
 
+  it('review: the e-mail check is the server’s own (a one-letter ending is refused here, not by main)', () => {
+    const d = businessDraft(INFO, TPL)
+    expect(businessErrors({ ...d, email: 'ram@shop.c' }, INFO)).toEqual({ email: 'errors.business.emailInvalid' })
+    expect(businessErrors({ ...d, email: 'ram@shop.in' }, INFO)).toEqual({})
+  })
+
   it('the registration type, state and TAN always go back as the books hold them', () => {
     const d = { ...businessDraft(INFO, TPL), name: ' Asha Design Studio ', gstin: '27AAPFU0939F1ZV' }
     expect(businessInfoPayload(INFO, d)).toEqual({
