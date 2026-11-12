@@ -13,6 +13,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('28-trade-returns', async (h) => {
   await h.createDemoCompany()
@@ -37,7 +38,7 @@ await scenario('28-trade-returns', async (h) => {
     if (!shotsDir) return
     for (const want of ['light', 'dark']) {
       if ((await theme()) !== want) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(250)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${want}.png`) })
     }
     if ((await theme()) !== 'light') await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())

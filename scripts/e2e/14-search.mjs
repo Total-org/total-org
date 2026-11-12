@@ -3,6 +3,7 @@
 // "See all" from the palette into a paged kind tab; recent searches / recently opened records
 // on an empty palette. Screenshots of palette + results in both themes.
 import { scenario, assert } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 /** Paise → Indian-grouped whole rupees ("1,40,506") — test-side formatting only. */
 function indian(paise) {
@@ -17,7 +18,7 @@ async function setTheme(h, theme) {
   await h.page.evaluate((t) => {
     document.documentElement.dataset.theme = t
   }, theme)
-  await h.page.waitForTimeout(400) // let colour transitions settle before a screenshot
+  await waitForSettled(h.page)
 }
 
 await scenario('14-search', async (h) => {

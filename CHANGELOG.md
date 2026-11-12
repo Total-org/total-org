@@ -61,11 +61,16 @@ only https pages of the site or of Total's GitHub releases. New encrypted backup
 a stronger passphrase key (scrypt N = 2^17); older ones still open. A new `.totalbak` opens only in
 this version of Total or later — update Total on the other computer first.
 
+**Under the hood: code-health checks, part 3** (#257, audit A11). Nothing changes for users.
+The end-to-end tests no longer wait fixed times (86 sleeps): each waits for what it needs, so a
+busy test machine can't make them flaky, and a new test fails if a sleep comes back. *For
+developers:* `h.frames()`, `h.ipcDrained()`, `until()` in the harness; `scripts/lib/noSleeps.test.ts`.
+
 **Under the hood: code-health checks, part 2** (#256, audit A11). Nothing changes for users. CI
 now runs ESLint: the React hook rules on the screens and a check that no promise is left unhandled
 by accident. Every place a rule is switched off says why. *For developers:* `npm run lint`,
-`eslint.config.mjs`; the Gateway's Alt+F7 shortcut now sees the Manufacture feature being turned
-on or off while the Gateway is open (a missing hook dependency the lint found).
+`eslint.config.mjs`. The Gateway's key handler now lists `features.manufacturing` (the lint's find;
+it already re-bound through `shortcuts`, so nothing changed for users — #257 adds the test).
 
 **Under the hood: code-health checks, part 1** (#254, audit A11). Nothing changes for users. A new
 test fails when a query reads entries without leaving out the ones in the bin (unless it says why it

@@ -13,6 +13,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 process.env.TOTAL_AI_MOCK = '1'
 
@@ -20,7 +21,7 @@ await scenario('39-ai-chat', async (h) => {
   await h.createCompanyUI('AI Chat Co')
   const extraShots = process.env.WP52_SHOTS
   const shot = async (name) => {
-    await h.page.waitForTimeout(250)
+    await waitForSettled(h.page)
     await h.shot(name)
     if (extraShots) {
       fs.mkdirSync(extraShots, { recursive: true })
@@ -31,7 +32,7 @@ await scenario('39-ai-chat', async (h) => {
     const now = await h.page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
     if (now !== theme) await h.page.evaluate(() => document.querySelector('[data-testid="btn-theme"]').click())
     await h.page.waitForFunction((t) => (document.documentElement.dataset.theme ?? 'light') === t, theme)
-    await h.page.waitForTimeout(300)
+    await waitForSettled(h.page)
   }
   /** Both themes; `prepare` re-applies a hover (the theme toggle moves the mouse focus). */
   const bothThemes = async (name, prepare = async () => {}) => {
@@ -101,7 +102,7 @@ await scenario('39-ai-chat', async (h) => {
   await h.page.waitForSelector(rentDebit, { state: 'attached', timeout: 15000 })
   const hoverRent = async () => {
     await h.page.hover(`${rentRow} td.dt-explainable`)
-    await h.page.waitForTimeout(200)
+    await waitForSettled(h.page)
   }
   await bothThemes('01-tb-explain-hover', hoverRent)
 

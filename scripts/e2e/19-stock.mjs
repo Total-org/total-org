@@ -4,6 +4,7 @@
 // reorder report lists an item below its level with max(0, 2R − closing). Screenshots of the new
 // screens in both themes (copied to /tmp/wp23 by hand for review).
 import { scenario, assert, assertEq, PICKER_OPTION, localToday } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('19-stock', async (h) => {
   await h.createDemoCompany()
@@ -134,7 +135,7 @@ await scenario('19-stock', async (h) => {
   await h.waitScreen('stock-reports')
   await h.fill(`input-labels-copies-${phone.id}`, '3')
   await h.page.waitForSelector('[data-testid="labels-preview"] iframe', { timeout: 10000 })
-  await h.page.waitForTimeout(400)
+  await waitForSettled(h.page)
   await h.shot('05-labels-light')
   await h.click('tab-stock-reports-serials')
   await h.page.waitForSelector('[data-testid="rows-stock-reports-serials"] tr.dt-row', { timeout: 10000 })
@@ -152,7 +153,7 @@ await scenario('19-stock', async (h) => {
   await pick('picker-transfer-from', 'Annex')
   await pick('picker-transfer-to', 'Main Store')
   await h.page.locator('[data-testid="input-transfer-qty"]').first().fill('1')
-  await h.page.waitForTimeout(300)
+  await waitForSettled(h.page)
   await h.shot('08-stock-journal-dark')
   await h.click('stock-journal-mode-adjust')
   await h.page.waitForSelector('[data-testid="rows-stock-lines"]', { timeout: 5000 })
@@ -168,7 +169,7 @@ await scenario('19-stock', async (h) => {
   await h.click('tab-stock-reports-labels')
   await h.fill(`input-labels-copies-${phone.id}`, '2')
   await h.page.waitForSelector('[data-testid="labels-preview"] iframe', { timeout: 10000 })
-  await h.page.waitForTimeout(400)
+  await waitForSettled(h.page)
   await h.shot('12-labels-dark')
 
   // The line detail row in a sales invoice (dark).

@@ -62,7 +62,7 @@ const DASH = {
 const MSME = { asOn: today, dueThisWeek: 1250000, dueThisWeekBills: 2, overdue: 0, overdueBills: 0 }
 const PROMISED = { count: 1, amount: 500000, overdueCount: 0, weekFrom: today, weekTo: today }
 
-function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures>; waiting?: number } = {}): void {
+function setup(opts: { series?: DashboardSeries | { fail: string }; features?: Partial<CompanyFeatures>; waiting?: number } = {}): QueryClient {
   invoke.mockImplementation(async (channel: string) => {
     switch (channel) {
       // Launch to Home: the Gateway's four reads come as ONE dashboard:all, each part a section.
@@ -93,6 +93,15 @@ function setup(opts: { series?: DashboardSeries | { fail: string }; features?: P
       <Gateway />
     </QueryClientProvider>
   )
+  return client
+}
+
+/** The features answer has arrived AND rendered (TanStack notifies on a setTimeout(0) scheduler). */
+async function featuresRendered(client: QueryClient): Promise<void> {
+  await waitFor(() => expect(client.getQueryState(['features'])?.status).toBe('success'))
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0))
+  })
 }
 
 beforeEach(() => {
@@ -150,13 +159,32 @@ describe('Gateway dashboard', () => {
     expect(go).toHaveBeenLastCalledWith({ name: 'masters' })
   })
 
-  it('Alt+F7 opens Manufacture only while manufacturing is on (WP 8.3: setup can turn it off)', async () => {
-    setup({ features: { manufacturing: false } })
+  it('Alt+F7 follows Manufacture being turned on while the Gateway is open', async () => {
+    const opts = { features: { manufacturing: false } as Partial<CompanyFeatures> }
+    const client = setup(opts)
     await waitFor(() => screen.getByTestId('tile-cash'))
-    // Let the features query settle (useFeatures shows the defaults while it loads).
+    await featuresRendered(client)
+    go.mockClear()
+    fireEvent.keyDown(window, { key: 'F7', altKey: true })
+    expect(go).not.toHaveBeenCalledWith({ name: 'manufacture' })
+    opts.features = { manufacturing: true }
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 30))
+      await client.invalidateQueries()
     })
+    // The refetched flag reaches the key handler once React re-renders (the handler re-binds with
+    // `shortcuts` / `features.manufacturing`).
+    await waitFor(() => {
+      go.mockClear()
+      fireEvent.keyDown(window, { key: 'F7', altKey: true })
+      expect(go).toHaveBeenCalledWith({ name: 'manufacture' })
+    })
+  })
+
+  it('Alt+F7 opens Manufacture only while manufacturing is on (WP 8.3: setup can turn it off)', async () => {
+    const client = setup({ features: { manufacturing: false } })
+    await waitFor(() => screen.getByTestId('tile-cash'))
+    // useFeatures shows the defaults while it loads.
+    await featuresRendered(client)
     go.mockClear()
     fireEvent.keyDown(window, { key: 'F7', altKey: true })
     expect(go).not.toHaveBeenCalledWith({ name: 'manufacture' })

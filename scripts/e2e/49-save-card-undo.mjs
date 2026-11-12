@@ -4,6 +4,7 @@
 // computed; Undo moves it to the bin (one undo group, audited) and All entries no longer shows
 // it. Light and dark screenshots of the field error, the card and the undo result.
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('49-save-card-undo', async (h) => {
   const page = h.page
@@ -38,10 +39,10 @@ await scenario('49-save-card-undo', async (h) => {
     if ((await page.evaluate(() => document.documentElement.dataset.theme)) === want) return
     await h.click('btn-theme')
     await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
-    await page.waitForTimeout(400) // let the colour transition finish before a screenshot
+    await waitForSettled(page)
   }
   const both = async (name) => {
-    await page.waitForTimeout(400)
+    await waitForSettled(page)
     await theme('light')
     await h.shot(`${name}-light`)
     await theme('dark')

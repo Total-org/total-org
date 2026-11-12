@@ -10,7 +10,8 @@
 // list and the amount-only bill; WP92_SHOTS=<dir> copies them for the visual review.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { scenario, assert, assertEq, PICKER_OPTION, until } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 // The plan §1 banned list (shared/simple/bannedWords.ts), as its patterns match it.
 const BANNED = [
@@ -39,7 +40,7 @@ await scenario('53-sell', async (h) => {
         await h.click('btn-theme')
         await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
       }
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP92_SHOTS
       if (dir) {
@@ -181,11 +182,10 @@ await scenario('53-sell', async (h) => {
   await attached(h, '[data-testid="simple-sale"][data-bill]')
   assertEq(await text('simple-sale-due'), 'Paid in full.', 'the bill view says it is paid')
   await h.click('btn-bill-print')
-  let paths = []
-  for (let i = 0; i < 40 && paths.length === 0; i++) {
-    await page.waitForTimeout(250)
-    paths = await openedPaths()
-  }
+  const paths = await until(async () => {
+    const p = await openedPaths()
+    return p.length ? p : null
+  }, { timeout: 10000, what: 'the bill PDF opened' })
   assert(paths.length === 1 && paths[0].endsWith('.pdf') && fs.statSync(paths[0]).size > 1000, `Print opened the bill PDF (${paths.join(', ')})`)
 
   // A13: the counter's speed lives in Make a bill — a scanner types the barcode + Enter into the

@@ -13,7 +13,8 @@ import * as path from 'node:path'
 import * as zlib from 'node:zlib'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { scenario, assert, assertEq, PICKER_OPTION, until } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 // The plan §1 banned list + its Hindi / Hinglish spellings (shared/simple/bannedWords.ts).
 const BANNED = [
@@ -49,7 +50,7 @@ await scenario('64-hindi', async (h) => {
   const shoot = async (name, keep = false) => {
     for (const want of ['light', 'dark']) {
       await setTheme(want)
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       if (review && keep) {
         fs.mkdirSync(review, { recursive: true })
@@ -153,11 +154,10 @@ await scenario('64-hindi', async (h) => {
   await noBanned('the save card (Hindi)')
   await shoot('04-save-card-hindi')
   await h.click('btn-save-card-print')
-  let opened = []
-  for (let i = 0; i < 60 && opened.length === 0; i++) {
-    await page.waitForTimeout(250)
-    opened = await h.app.evaluate(() => globalThis.__opened ?? [])
-  }
+  const opened = await until(async () => {
+    const o = await h.app.evaluate(() => globalThis.__opened ?? [])
+    return o.length ? o : null
+  }, { timeout: 15000, what: 'the bill PDF opened' })
   assert(opened.length === 1 && opened[0].endsWith('.pdf'), `Print made the bill PDF (${opened.join(', ')})`)
   const reader = await pdfTextReader()
   try {
@@ -185,7 +185,7 @@ await scenario('64-hindi', async (h) => {
   assertEq(await page.$('[data-testid="help-in-english"]'), null, 'no "shown in English" note on a translated article')
   await h.fill('help-search', 'उधार')
   await page.waitForFunction(() => (document.querySelector('[data-testid="help-panel"]')?.textContent ?? '').length > 0)
-  await page.waitForTimeout(400)
+  await waitForSettled(page)
   await shoot('05-help-hindi')
   await h.click('btn-help')
   await page.waitForSelector('[data-testid="help-panel"]', { state: 'detached', timeout: 5000 })

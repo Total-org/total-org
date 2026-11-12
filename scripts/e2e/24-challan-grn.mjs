@@ -8,6 +8,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, localToday, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('24-challan-grn', async (h) => {
   await h.createDemoCompany()
@@ -28,7 +29,7 @@ await scenario('24-challan-grn', async (h) => {
     for (const theme of ['light', 'dark']) {
       const now = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
       if (now !== theme) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(200)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${theme}.png`) })
     }
     const now = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
@@ -118,7 +119,7 @@ await scenario('24-challan-grn', async (h) => {
       f.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:9999;background:#fff;border:0'
       document.body.appendChild(f)
     }, html)
-    await page.waitForTimeout(500)
+    await waitForSettled(page)
     await page.screenshot({ path: path.join(shotsDir, '02b-challan-print.png') })
     await page.evaluate(() => document.getElementById('e2e-print-preview')?.remove())
   }
@@ -133,7 +134,7 @@ await scenario('24-challan-grn', async (h) => {
   await page.waitForSelector('[data-testid="drawer-add-from"] [data-testid="input-add-from-pick"]', { timeout: 10000 })
   const boltRow = page.locator('[data-testid="drawer-add-from"] tr.dt-row', { hasText: 'E2E Bolt' })
   await boltRow.locator('[data-testid="input-add-from-pick"]').check()
-  await page.waitForTimeout(150)
+  await waitForSettled(page)
   await both('03-add-from-drawer')
   await h.click('btn-add-from-insert')
   await page.waitForSelector('[data-testid="chip-line-source"]', { timeout: 5000 })

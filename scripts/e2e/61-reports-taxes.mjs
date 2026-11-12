@@ -16,6 +16,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 const BANNED = [
   /\bvouchers?\b/i, /\bledgers?\b/i, /\bjournals?\b/i, /\bcontras?\b/i, /\b(?:Dr|Cr)\b/, /\bparticulars?\b/i, /\bnarrations?\b/i, /\bsundry\b/i,
@@ -36,7 +37,7 @@ await scenario('61-reports-taxes', async (h) => {
         await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
       }
       if (selector) await page.locator(selector).first().scrollIntoViewIfNeeded()
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP99_SHOTS
       if (dir && REVIEW.has(name)) {
@@ -56,7 +57,7 @@ await scenario('61-reports-taxes', async (h) => {
       }
       if (!(await page.$(`[data-testid="${id}-sentence"]`))) await h.click(id)
       await attached(h, `[data-testid="${id}-sentence"]`)
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP102_SHOTS
       if (dir) {

@@ -77,7 +77,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   const nav = useNav()
   const toast = useToasts()
   const t = useT()
-  const { clearCompany } = useSession()
   const from = useSession((s) => s.from)
   const regType = useSession((s) => s.info?.gstRegistrationType)
   const user = useSession((s) => s.user)
@@ -199,8 +198,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
         }
       }
     ]
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- clearCompany kept so the command list rebuilds with the session
-  }, [nav, toast, clearCompany])
+  }, [nav, toast])
 
   const matching = useMemo(() => {
     const q = searchText.trim().toLowerCase()

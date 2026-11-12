@@ -11,6 +11,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { scenario, assert, assertEq } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 process.env.TOTAL_AI_MOCK = '1'
 
@@ -18,7 +19,7 @@ await scenario('43-ai-memory', async (h) => {
   await h.createCompanyUI('AI Memory Co')
   const extraShots = process.env.WP56_SHOTS
   const shot = async (name) => {
-    await h.page.waitForTimeout(250)
+    await waitForSettled(h.page)
     await h.shot(name)
     if (extraShots) {
       fs.mkdirSync(extraShots, { recursive: true })
@@ -29,7 +30,7 @@ await scenario('43-ai-memory', async (h) => {
     const now = await h.page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
     if (now !== theme) await h.page.evaluate(() => document.querySelector('[data-testid="btn-theme"]').click())
     await h.page.waitForFunction((t) => (document.documentElement.dataset.theme ?? 'light') === t, theme)
-    await h.page.waitForTimeout(300)
+    await waitForSettled(h.page)
   }
   const bothThemes = async (name, prepare = async () => {}) => {
     await setTheme('light')
@@ -43,7 +44,7 @@ await scenario('43-ai-memory', async (h) => {
   const memoryRows = () => h.page.$$eval('[data-testid="rows-ai-memory"] tr[data-status]', (els) => els.map((e) => ({ status: e.getAttribute('data-status'), source: e.getAttribute('data-source'), text: e.textContent })))
   const showMemory = async () => {
     await h.page.evaluate(() => document.querySelector('[data-testid="ai-memory"]')?.scrollIntoView({ block: 'start' }))
-    await h.page.waitForTimeout(200)
+    await waitForSettled(h.page)
   }
   const waitAnswers = (n) =>
     h.page.waitForFunction(

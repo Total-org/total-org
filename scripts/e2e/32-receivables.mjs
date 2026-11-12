@@ -10,6 +10,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION, localToday } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 await scenario('32-receivables', async (h) => {
   await h.createDemoCompany()
@@ -36,7 +37,7 @@ await scenario('32-receivables', async (h) => {
     if (!shotsDir) return
     for (const want of ['light', 'dark']) {
       if ((await theme()) !== want) await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
-      await page.waitForTimeout(250)
+      await waitForSettled(page)
       await page.screenshot({ path: path.join(shotsDir, `${name}-${want}.png`) })
     }
     if ((await theme()) !== 'light') await page.evaluate(() => document.querySelector('[data-testid="btn-theme"]')?.click())
@@ -50,7 +51,7 @@ await scenario('32-receivables', async (h) => {
       f.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:9999;background:#fff;border:0'
       document.body.appendChild(f)
     }, html)
-    await page.waitForTimeout(500)
+    await waitForSettled(page)
     await page.screenshot({ path: path.join(shotsDir, `${name}.png`) })
     await page.evaluate(() => document.getElementById('e2e-print-preview')?.remove())
   }
@@ -222,8 +223,9 @@ await scenario('32-receivables', async (h) => {
   await both('07-invoice-credit-hold')
   const salesBefore = await count('sales')
   await h.click('btn-save-voucher')
-  await bodyHas('is on credit hold')
-  await page.waitForTimeout(500)
+  // The banner already says "on credit hold"; only the save gate sets the party field's error —
+  // once it shows, the save handler has returned without sending the voucher.
+  await page.waitForFunction(() => /on credit hold/.test(document.querySelector('[data-testid="field-error-party"]')?.textContent ?? ''), null, { timeout: 8000 })
   assertEq(await count('sales'), salesBefore, 'the invoice is blocked')
   // The server refuses it too (the banner is not the only gate).
   const direct = await page.evaluate(([p, t, s, d]) => window.total.invoke('voucher:save', {

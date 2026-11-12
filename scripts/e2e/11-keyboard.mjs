@@ -75,7 +75,7 @@ await scenario('11-keyboard', async (h) => {
   await h.page.keyboard.press('Control+F9')
   await h.page.waitForSelector('[data-testid="tab-voucher-entry-debit_note"][aria-selected="true"]', { timeout: 5000 })
   await h.page.keyboard.press('Alt+F8')
-  await h.page.waitForTimeout(300)
+  await h.frames()
   assert((await selected('debit_note')) === 'true', 'Alt+F8 with Orders & challans off leaves the voucher type alone')
   assert((await h.page.locator('[data-testid="tab-voucher-entry-delivery_note"]').count()) === 0, 'no delivery challan tab while the feature is off')
   await h.shot('05-ctrl-f9-debit-note')

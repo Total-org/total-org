@@ -19,6 +19,9 @@ import { DataTable, defineColumns } from '../components/table'
 import { LedgerLink, TradeDocLink } from '../components/links'
 import { TradeStatusBadge, useTradeDocActions } from './trade/tradeDocShared'
 
+/** One shared empty list, so a `?? NONE` fallback keeps its identity across renders (hook deps). */
+const NONE: never[] = []
+
 const STATUSES = ['open', 'partly_fulfilled', 'fulfilled', 'expired', 'closed', 'cancelled'] as const
 
 const PLURAL: Record<TradeDocKind, string> = { quotation: 'Quotations', sales_order: 'Sales orders', purchase_order: 'Purchase orders' }
@@ -86,8 +89,7 @@ export function TradeDocListScreen({ kind }: { kind: TradeDocKind }): React.JSX.
     queryKey: ['tradeDocs', kind, from, to, showBinned],
     queryFn: () => api.tradeDocs.list({ kind, from, to, includeBinned: showBinned })
   })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new [] only while the query has no data; the memo then recomputes an empty list
-  const rows = data ?? []
+  const rows = data ?? NONE
   const actions = useTradeDocActions()
   const title = PLURAL[kind]
   const one = TRADE_DOC_TITLES[kind].toLowerCase()

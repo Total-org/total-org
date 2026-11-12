@@ -17,6 +17,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { scenario, assert, assertEq, PICKER_OPTION } from '../lib/harness.mjs'
+import { waitForSettled } from '../lib/a11y.mjs'
 
 // The plan §1 banned list (shared/simple/bannedWords.ts), as its patterns match it.
 const BANNED = [
@@ -34,7 +35,7 @@ await scenario('62-handoff', async (h) => {
         await h.click('btn-theme')
         await page.waitForFunction((w) => document.documentElement.dataset.theme === w, want)
       }
-      await page.waitForTimeout(400)
+      await waitForSettled(page)
       const file = await h.shot(`${name}-${want}`)
       const dir = process.env.WP910_SHOTS
       if (dir) {
@@ -179,7 +180,7 @@ await scenario('62-handoff', async (h) => {
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await h.click('btn-sell-accountant-view-more')
   await attached(h, '[data-testid="btn-sell-accountant-view-always"]')
-  await page.waitForTimeout(400)
+  await waitForSettled(page)
   const menuShot = await h.shot('06-always-menu-dark')
   if (process.env.WP910_SHOTS) fs.copyFileSync(menuShot, path.join(process.env.WP910_SHOTS, '06-always-menu-dark.png'))
   await h.click('btn-sell-accountant-view-always')
