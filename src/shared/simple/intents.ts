@@ -144,6 +144,10 @@ export const purchaseIntentSchema = z
     /** "Does the bill show GST?" — false books no tax; for a company that can't claim GST, true
      *  folds the bill's GST into the cost (WP 8.0). Omitted = true. */
     gstOnBill: z.boolean().optional(),
+    /** WP 2d: the GST on this bill can't be taken back (CGST Act s.17(5) — food and drinks, a car
+     *  for people, club membership, personal use …). The input tax is still booked, marked blocked
+     *  (GSTR-3B 4(A)(5) + 4(B)(1)). Omitted = false. Only meaningful when GST is booked. */
+    itcBlocked: z.boolean().optional(),
     payment: paymentSchema.optional(),
     dueDate: dateIn.optional(),
     number: z.string().trim().min(1).max(40).optional()
@@ -290,7 +294,7 @@ interface NBase { clientId: string; date: string; narration: string; number: str
 
 export type NormalIntent =
   | (NBase & { kind: 'sale'; customerId: number | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; payment: NPayment | null; dueDate: string | null })
-  | (NBase & { kind: 'purchase'; supplierId: number; billNo: string | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; gstOnBill: boolean; payment: NPayment | null; dueDate: string | null })
+  | (NBase & { kind: 'purchase'; supplierId: number; billNo: string | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; gstOnBill: boolean; itcBlocked: boolean; payment: NPayment | null; dueDate: string | null })
   | (NBase & { kind: 'money_in'; amount: number; into: NMoneyAccount; customerId: number | null; bills: NBill[] | null; advance: boolean; sourceId: number | null; supplierId: number | null; onAccount: boolean })
   | (NBase & { kind: 'money_out'; amount: number; from: NMoneyAccount; supplierId: number | null; bills: NBill[] | null; advance: boolean; payeeId: number | null; drawings: boolean; customerId: number | null; onAccount: boolean })
   | (NBase & { kind: 'move_money'; amount: number; fromId: number; toId: number; reference: string | null })
@@ -378,7 +382,7 @@ export function normaliseIntent(raw: unknown, today: string): NormalIntent {
       const common = { items: nItems(i.items), amount: nAmount(i.amount), accountId: i.accountId ?? null, payment: nPayment(i.payment), dueDate: i.dueDate ? readDate(i.dueDate, today, 'dueDate') : null }
       return i.kind === 'sale'
         ? { ...b, kind: 'sale', customerId: i.customerId ?? null, ...common }
-        : { ...b, kind: 'purchase', supplierId: i.supplierId, billNo: optText(i.billNo), gstOnBill: i.gstOnBill ?? true, ...common }
+        : { ...b, kind: 'purchase', supplierId: i.supplierId, billNo: optText(i.billNo), gstOnBill: i.gstOnBill ?? true, itcBlocked: i.itcBlocked ?? false, ...common }
     }
     case 'money_in': {
       const n = (i.customerId != null ? 1 : 0) + (i.sourceId != null ? 1 : 0) + (i.supplierId != null ? 1 : 0)
@@ -873,6 +877,8 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   const defaultAccount = sale ? ctx.defaults.salesId : ctx.defaults.purchaseId
   const charges = chargesGstOn(ctx.invoice, date)
   const gstOnBill = n.kind === 'purchase' ? n.gstOnBill : true
+  // WP 2d: only a bill that books input tax can have it blocked (s.17(5)).
+  const itcBlocked = n.kind === 'purchase' && n.itcBlocked && charges && gstOnBill
   const facts: IntentFacts = { ...emptyFacts(n.kind), partyName: party.name, walkIn, side: sale ? 'customer' : 'supplier' }
 
   let bill: MappedEntry
@@ -907,7 +913,8 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
       narration: n.narration,
       billName,
       billDueDate: due ?? '',
-      reference: billNo
+      reference: billNo,
+      ...(itcBlocked ? { itcBlocked: true } : {})
     }
     const built = invoiceEntry(ctx, 'bill', kind, type, state, 'items')
     bill = built.entry
@@ -930,7 +937,8 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
     facts.tax = lines.gst.total - lines.gst.taxable
     bill = accountingEntry(ctx, 'bill', kind, type, {
       date, number, rows: lines.rows, narration: n.narration, reference: billNo,
-      billRefs: [{ kind: 'new', name: billName, amount: total, dueDate: due }]
+      billRefs: [{ kind: 'new', name: billName, amount: total, dueDate: due }],
+      ...(itcBlocked ? { itcBlocked: true } : {})
     })
   }
 

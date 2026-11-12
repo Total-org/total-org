@@ -289,7 +289,7 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
               <FieldError name={F.gstBill} error={errors.get(F.gstBill)} />
               {form.gstBill && (
                 <>
-                  <p className="mt-2 text-small text-muted">{t('simple.money.gstBillHint')}</p>
+                  {!form.gstBlocked && <p className="mt-2 text-small text-muted">{t('simple.money.gstBillHint')}</p>}
                   <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
                     <Field label={t('simple.money.billSupplier')} name={F.billSupplier} error={errors.get(F.billSupplier)}>
                       <TypeAhead
@@ -316,6 +316,22 @@ export function MoneyOut({ party, amount, bill, billId, date, bankId, reference,
                     />
                     <FieldError name={F.gstRate} error={errors.get(F.gstRate)} />
                   </div>
+                  {(form.gstRate ?? 0) > 0 && (
+                    <div className="mt-3">
+                      <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.gstBlockedQuestion')}<CaCheck place="simple.gstBlocked" date={form.date} /></span>
+                      <p className="mb-2 text-small text-muted">{t('simple.buy.gstBlockedWhat')}</p>
+                      <Choices
+                        label={t('simple.buy.gstBlockedQuestion')}
+                        value={form.gstBlocked ? 'no' : 'yes'} // i18n-technical
+                        options={[
+                          { value: 'yes', label: t('simple.buy.gstBlockedYes') }, // i18n-technical
+                          { value: 'no', label: t('simple.buy.gstBlockedNo') } // i18n-technical
+                        ]}
+                        onPick={(v) => update({ gstBlocked: v === 'no' })} // i18n-technical
+                        testId="money-gst-blocked"
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </Card>

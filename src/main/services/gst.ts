@@ -644,7 +644,7 @@ export function rcmInwardByVoucher(
 /**
  * ITC itemised for GSTR-3B Table 4: booked input-tax lines on purchases/purchase-side debit
  * notes are assigned per voucher to IMPG (import — party state 96/97), blocked (4D — party
- * itc_eligibility='blocked') or OTH; RCM parties' vouchers are skipped here (their credit is
+ * itc_eligibility='blocked', or the voucher marked blocked under s.17(5), WP 2d) or OTH; RCM parties' vouchers are skipped here (their credit is
  * ISRC, computed from master rates in rcmInwardSummary). Outward debit notes are excluded —
  * their tax lines are OUTPUT tax, not ITC (they used to be silently subtracted).
  */
@@ -682,7 +682,7 @@ export function bookedItcByVoucher(
                     ELSE 0
                   END) AS amount,
               p.state_code AS partyState, COALESCE(p.rcm, 0) AS partyRcm,
-              COALESCE(p.itc_eligibility, 'eligible') AS itcEligibility
+              CASE WHEN v.itc_blocked = 1 THEN 'blocked' ELSE COALESCE(p.itc_eligibility, 'eligible') END AS itcEligibility
        FROM voucher_lines vl
        JOIN vouchers v ON v.id = vl.voucher_id
        JOIN voucher_types vt ON vt.id = v.voucher_type_id

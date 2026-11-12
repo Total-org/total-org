@@ -206,6 +206,8 @@ export function buildBooksWorkbook(db: DB, info: CompanyInfo, appVersion: string
   const voucherRows: Row[] = []
   for (const v of vouchers) {
     const vm: DbRow = JSON.parse(extras(v, VOUCHER_CANON) ?? '{}')
+    // WP 2d: the blocked-ITC mark rides only when set (an unmarked voucher's cell is as before).
+    if (vm.itc_blocked === 0) delete vm.itc_blocked
     const t = tradeFacts.get(v.id as number)
     if (t) Object.assign(vm, { 'trade.purpose': t.purpose }, t.closed_at ? { 'trade.closed_at': t.closed_at, 'trade.close_reason': t.close_reason } : {})
     for (const w of wh.get(v.id as number) ?? []) vm[`${w.kind}.is_manual`] = w.is_manual

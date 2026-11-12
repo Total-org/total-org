@@ -98,6 +98,12 @@ function richCompany(): { db: DB; prevFy: number } {
     inventory: [{ stockItemId: phone.id, godownId: null, qtyMilli: 2000, ratePaise: 50000, amount: 100000, direction: 'in', serials: ['SN-1', 'SN-2'] }],
     billRefs: [{ kind: 'new', name: 'BS-9', amount: 100000, dueDate: `${prevFy + 1}-06-04` }]
   })
+  // WP 2d: a bill marked blocked (s.17(5)) — the mark rides through export / import.
+  const caterer = createLedger(db, { name: 'Annapurna Caterers', groupId: groupId(db, 'Sundry Creditors'), pan: null })
+  saveVoucher(db, {
+    ...base, voucherTypeId: vt(db, 'purchase'), date: `${prevFy + 1}-05-05`, partyLedgerId: caterer.id, itcBlocked: true,
+    lines: [{ ledgerId: rent.id, drCr: 'dr', amount: 20000, costAllocations: [] }, { ledgerId: caterer.id, drCr: 'cr', amount: 20000, costAllocations: [] }]
+  })
   // Order → challan → invoice (the invoice line does not move stock: it moved on the challan).
   const krishna = L(db, 'Krishna Enterprises')
   const so = saveTradeDoc(db, {

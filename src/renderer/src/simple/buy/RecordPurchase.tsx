@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Ledger } from '@shared/domain'
+import { CaCheck } from '../../components/CaCheck'
 import { gstRegistrationOf } from '@shared/gst/registration'
 import { formatPaise } from '@shared/money'
 import { toPlainDate } from '@shared/dates'
@@ -450,6 +451,27 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                   ))}
                 </div>
                 <FieldError name="gstOnBill" error={errors.get(F.gstOnBill)} />
+                {form.gstOnBill && (
+                  <div className="mt-3" data-testid="buy-gst-blocked-question">
+                    <span className="mb-1.5 block text-small font-medium text-muted">{t('simple.buy.gstBlockedQuestion')}<CaCheck place="simple.gstBlocked" date={form.date} /></span>
+                    <p className="mb-2 text-small text-muted">{t('simple.buy.gstBlockedWhat')}</p>
+                    <div role="radiogroup" aria-label={t('simple.buy.gstBlockedQuestion')} className="flex flex-wrap gap-2">
+                      {[false, true].map((blocked) => (
+                        <button
+                          key={String(blocked)}
+                          type="button"
+                          role="radio"
+                          aria-checked={!!form.gstBlocked === blocked}
+                          data-testid={`buy-gst-blocked-${blocked ? 'no' : 'yes'}`}
+                          onClick={() => update({ gstBlocked: blocked })}
+                          className={choice(!!form.gstBlocked === blocked)}
+                        >
+                          {blocked ? t('simple.buy.gstBlockedNo') : t('simple.buy.gstBlockedYes')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {form.mode === 'items' && !form.gstOnBill && ctx && productsNeedGst(form, ctx) && (
                   <button type="button" className="mt-1 text-detail t-link" data-testid="btn-buy-as-amount" onClick={() => setMode(AMOUNT_MODE)}>
                     {t('simple.buy.recordAsAmount')}
@@ -548,7 +570,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                     <dd className="num text-right" data-testid="buy-taxable" data-paise={totals?.taxable ?? 0}>
                       {formatPaise(totals?.taxable ?? 0, { symbol: true })}
                     </dd>
-                    <dt>{t('simple.buy.gstClaim')}</dt>
+                    <dt>{form.gstBlocked ? t('simple.buy.gstNoClaim') : t('simple.buy.gstClaim')}</dt>
                     <dd className="num text-right" data-testid="buy-tax" data-paise={totals?.tax ?? 0}>
                       {formatPaise(totals?.tax ?? 0, { symbol: true })}
                     </dd>

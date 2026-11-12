@@ -143,6 +143,8 @@ export function AccountingEntry({
   // 'new' bill ref, which is exactly what gst.extractAdvances counts. Optional = memorandum.
   const [advanceReceipt, setAdvanceReceipt] = useState(initial?.advanceReceipt ?? false)
   const [optionalVoucher, setOptionalVoucher] = useState(initial?.optional ?? false)
+  // WP 2d: blocked input tax (s.17(5)) on a purchase / debit note; undefined = not stated (kept).
+  const [itcBlocked, setItcBlocked] = useState<boolean | undefined>(initial?.itcBlocked)
 
   // ---------- per-line cost-centre allocation ----------
   const { data: ccList } = useQuery({ queryKey: ['costCentres'], queryFn: api.cc.list })
@@ -404,9 +406,10 @@ export function AccountingEntry({
         ? { sectionId: tcs.sectionId, baseAmount: tcs.baseAmount, tdsAmount: tcs.tdsAmount, isManual: tcs.isManual, autoPayable: tcs.pending }
         : null,
       reference: draftReference,
+      ...(itcBlocked !== undefined && (kind === 'purchase' || kind === 'debit_note') ? { itcBlocked } : {}),
       original: initial?.original ? { ...initial.original, inventory: stockLines } : null
     }),
-    [date, voucherId, alterNumber, numberField.forPayload, rows, narration, instrumentNo, billRefs, advanceReceipt, optionalVoucher, tds, tcs, initial, stockLines, draftReference]
+    [date, voucherId, alterNumber, numberField.forPayload, rows, narration, instrumentNo, billRefs, advanceReceipt, optionalVoucher, tds, tcs, initial, stockLines, draftReference, itcBlocked, kind]
   )
   useEffect(() => {
     onHandoffState?.({ ...formState, number: numberField.touched ? formState.number : '' }, { rows: rows.map((r) => r.pending ?? null) })
@@ -936,6 +939,12 @@ export function AccountingEntry({
           />
           Optional (memorandum) voucher — never counts toward the books
         </label>
+        {(kind === 'purchase' || kind === 'debit_note') && (
+          <label className="flex items-center gap-2" title="CGST Act s.17(5): food and drinks, a car for people (and its insurance / repairs), club or gym membership, staff holiday travel, building work on your own premises, personal use, gifts and free samples …">
+            <input type="checkbox" data-testid="input-itc-blocked" checked={!!itcBlocked} onChange={(e) => setItcBlocked(e.target.checked)} />
+            GST credit blocked (s.17(5)) — the input tax goes to GSTR-3B 4(A)(5) and is reversed in 4(B)(1)
+          </label>
+        )}
       </div>
 
       <div className="mt-5 flex justify-between">

@@ -34,6 +34,7 @@ export const CA_PLACES = {
   'simple.ratePicker': 'Every simple GST rate picker (new product, bill, purchase, money out, return, bank line)',
   'simple.returns.total': 'Returns → the return\'s total',
   'simple.hsnField': 'New product → HSN / SAC code',
+  'simple.gstBlocked': 'Record a purchase / Money out → "Can you claim this GST back?" (s.17(5))',
   'gateway.compliance': 'Gateway → Compliance card, GST returns row',
   'gateway.tds': 'Gateway → Compliance card, TDS row',
   'gstr1.screen': 'GSTR-1 screen header',
@@ -400,6 +401,15 @@ export const CA_POINTS = [
     covers: [],
     questions: [6, 24],
     places: ['simple.taxes.tds', 'tds.screen']
+  },
+  {
+    // WP 2d (review of #263): a bill marked "can't claim" keeps its Input GST lines (an asset) —
+    // 4(A)(5) + 4(B)(1) only reverse it in the return — and the s.17(5) exceptions are the user's call.
+    id: 'gst-blocked-credit',
+    rule: 'CGST Act s.17(5); Circular 170/02/2022-GST (GSTR-3B 4(A)(5) / 4(B)(1))',
+    covers: [],
+    questions: [57],
+    places: ['simple.gstBlocked']
   },
   {
     id: 'tds-return-layouts',

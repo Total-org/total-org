@@ -121,7 +121,7 @@ function rule37Bills(db: DB, key: string): Rule37Bill[] {
        FROM vouchers v
        JOIN voucher_types vt ON vt.id = v.voucher_type_id
        JOIN ledgers p ON p.id = v.party_ledger_id
-       WHERE vt.kind = 'purchase' AND COALESCE(p.rcm, 0) = 0 AND COALESCE(p.itc_eligibility, 'eligible') <> 'blocked'
+       WHERE vt.kind = 'purchase' AND COALESCE(p.rcm, 0) = 0 AND COALESCE(p.itc_eligibility, 'eligible') <> 'blocked' AND v.itc_blocked = 0
          AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
        ORDER BY v.date, v.id`
     )

@@ -422,6 +422,13 @@ function buyParty(id: number | null, ctx: CarryContext): number {
   return id != null && ctx.ledgers.get(id)?.cls === 'creditor' ? id : refuse('party')
 }
 
+/** WP 2d (review of #263): the editor's "GST credit blocked" box, carried into the form's "Can you
+ *  claim this GST back?" answer — the editor's when it states one, else the form's own. */
+const blockedFrom = (c: { itcBlocked?: boolean }, kept: boolean | undefined): { gstBlocked?: boolean } => {
+  const v = c.itcBlocked ?? kept
+  return v === undefined ? {} : { gstBlocked: v }
+}
+
 function buyItems(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: Dropped): BuyForm {
   const o = (input.original as Inv).state
   const c = (input.current as Inv).state
@@ -431,7 +438,7 @@ function buyItems(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: D
   const supplierId = buyParty(c.partyId, ctx)
   // The supplier's bill number is the bill's name in the editor (mapIntent: billName = billNo).
   const billNo = c.billName.trim() !== o.billName.trim() ? c.billName.trim() : base.billNo
-  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode: 'items', note: c.narration }
+  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode: 'items', note: c.narration, ...blockedFrom(c, base.gstBlocked) }
   const bctx = buyCtx(ctx)
   const complete = (l: BuyLine): boolean => l.itemId != null && qtyMilliOf(l.qtyText) != null && l.rate != null
   const { lines, unchanged, incomplete } = readLines(o, c, base.lines, complete)
@@ -473,7 +480,7 @@ function buyAmount(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: 
   // Another expense account: the bill becomes "an expense" on that account.
   const mode = now.accountId === was.accountId ? base.mode : now.accountId === ctx.defaults.purchaseId ? 'amount' : 'expense'
   const categoryId = mode === 'expense' ? now.accountId : base.categoryId
-  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode, categoryId, note: c.narration }
+  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode, categoryId, note: c.narration, ...blockedFrom(c, base.gstBlocked) }
   const bctx = buyCtx(ctx)
   const g = buyGst(head, bctx)
   const supply = supplyOf(ctx, supplierId, 'purchase')
@@ -708,7 +715,8 @@ function expenseBill(input: CarryInput<'simple-money-out'>, ctx: CarryContext, d
     billNo: billNoFrom(o, c, base.billNo),
     gstRate: rate,
     amount: now.total,
-    note: c.narration
+    note: c.narration,
+    ...blockedFrom(c, base.gstBlocked)
   }
 }
 

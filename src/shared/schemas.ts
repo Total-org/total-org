@@ -324,6 +324,9 @@ export const voucherInputSchema = z.object({
   posOverride: stateCodeSchema.nullable().default(null),
   currencyCode: z.string().trim().length(3).transform((s) => s.toUpperCase()).nullable().default(null),
   exchangeRate: z.number().positive().max(100000).nullable().default(null),
+  /** WP 2d: the input tax on this purchase / debit note is blocked (CGST Act s.17(5)). Absent =
+   *  keep what an altered voucher has (a new one: not blocked). */
+  itcBlocked: z.boolean().optional(),
   /** Post-dated: kept out of the books until the date arrives (auto-matures on company open). */
   postDated: z.boolean().optional(),
   /** Optional (memorandum) voucher: never counts toward the books. */

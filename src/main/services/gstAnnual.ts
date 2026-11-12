@@ -97,7 +97,8 @@ export function fyMonths(fyStartYear: number): { from: string; to: string; perio
 export function itcDocsFor(db: DB, company: CompanyInfo, from: string, to: string): Gstr9ItcDoc[] {
   const head = db.prepare(
     `SELECT v.id, v.number, v.date, vt.kind, v.party_ledger_id AS partyLedgerId, p.name AS partyName,
-            ${partySnapSql(db).state} AS partyState, COALESCE(p.itc_eligibility, 'eligible') AS itcEligibility
+            ${partySnapSql(db).state} AS partyState,
+            CASE WHEN v.itc_blocked = 1 THEN 'blocked' ELSE COALESCE(p.itc_eligibility, 'eligible') END AS itcEligibility
      FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id LEFT JOIN ledgers p ON p.id = v.party_ledger_id
      WHERE v.id = ?`
   )

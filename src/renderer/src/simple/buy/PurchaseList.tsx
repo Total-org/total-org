@@ -205,7 +205,7 @@ function PurchaseBillView({ billId }: { billId: number }): React.JSX.Element {
         <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-6 gap-y-0.5 text-detail">
           {bill.tax > 0 && (
             <>
-              <dt className="text-muted">{t('simple.buy.gstClaim')}</dt>
+              <dt className="text-muted">{bill.itcBlocked ? t('simple.buy.gstNoClaim') : t('simple.buy.gstClaim')}</dt>
               <dd className="num text-right text-muted" data-testid="simple-purchase-tax">{money(bill.tax)}</dd>
             </>
           )}

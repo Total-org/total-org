@@ -3683,7 +3683,7 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX idx_ai_plan_items_plan ON ai_plan_items(plan_id);
   CREATE INDEX idx_ai_plan_items_draft ON ai_plan_items(draft_id) WHERE draft_id IS NOT NULL;
   `,
-  // WP 2d — MSME acceptance (last; number by position): the MSMED Act s.15 period runs from the day
+  // WP 2d — MSME acceptance (number by position): the MSMED Act s.15 period runs from the day
   // of acceptance / deemed acceptance (s.2(b) Explanation: the day goods were delivered or services
   // rendered, or the day a written objection was removed). The app used the bill date; a bill whose
   // acceptance differs can now carry it. One row per bill voucher; no row = the bill date, exactly
@@ -3695,5 +3695,13 @@ export const MIGRATIONS: string[] = [
     basis TEXT NOT NULL CHECK (basis IN ('delivered', 'objection_removed')),
     note TEXT NOT NULL DEFAULT ''
   );
+  `,
+  // WP 2d — blocked input tax credit per bill (last; number by position): CGST Act s.17(5) blocks
+  // credit by WHAT was bought (food, a car for people, club membership, personal use …), not by
+  // supplier. A purchase / debit note can now be marked; its booked input tax then goes to the
+  // blocked bucket exactly as a blocked supplier's does (GSTR-3B 4(A)(5) + 4(B)(1), Circular 170).
+  // Default 0 = every existing voucher reads as before.
+  `
+  ALTER TABLE vouchers ADD COLUMN itc_blocked INTEGER NOT NULL DEFAULT 0 CHECK (itc_blocked IN (0, 1));
   `
 ]
