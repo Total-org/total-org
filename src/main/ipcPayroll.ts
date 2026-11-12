@@ -33,7 +33,7 @@ export function registerPayrollIpc(handle: IpcHandle, { requireCompany }: IpcCon
     const c = requireCompany()
     const path = await payroll.payslipPdf(c.db, c.info, c.slug, runId, employeeId)
     auditExport(c.db, 'payslip', { runId, employeeId, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
   // pay heads + per-employee assignments (lane Y, task Y1)

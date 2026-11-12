@@ -84,7 +84,7 @@ export function registerPrintingIpc(handle: IpcHandle, { requireCompany }: IpcCo
     const c = requireCompany()
     const path = await invoice.invoicePdf(c.db, c.info, c.slug, voucherId)
     auditExport(c.db, 'invoice_pdf', { voucherId, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
   // ---------- batch invoice printing (lane Q, task Q2 #98) ----------
@@ -169,7 +169,7 @@ export function registerPrintingIpc(handle: IpcHandle, { requireCompany }: IpcCo
     const c = requireCompany()
     const path = await printTemplates.templateTestPdf(c.db, c.info, c.slug, template, kind)
     auditExport(c.db, 'print_test_pdf', { templateId: template.id, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
   handle('template:export', (p) => {
@@ -219,7 +219,7 @@ export function registerPrintingIpc(handle: IpcHandle, { requireCompany }: IpcCo
     const c = requireCompany()
     const path = await cheque.testGridPdf(c.db, c.info, c.slug, bankLedgerId)
     auditExport(c.db, 'cheque_test_grid', { bankLedgerId, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
   handle('cheque:advice', async (p) => {
@@ -227,7 +227,7 @@ export function registerPrintingIpc(handle: IpcHandle, { requireCompany }: IpcCo
     const c = requireCompany()
     const path = await cheque.paymentAdvicePdf(c.db, c.info, c.slug, voucherId)
     auditExport(c.db, 'payment_advice', { voucherId, path })
-    shell.openPath(path)
+    void shell.openPath(path)
     return { path }
   })
 }

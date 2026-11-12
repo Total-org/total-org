@@ -132,7 +132,7 @@ function People({ filter, setFilter }: { filter: PeopleFilter; setFilter: (f: Pe
           value: (r) => (r.creditDays != null ? t('simple.people.days', { days: r.creditDays }) : '')
         }
       ]),
-    [t] // eslint-disable-line react-hooks/exhaustive-deps
+    [t] // eslint-disable-line react-hooks/exhaustive-deps -- the columns change only with the language; cells read the row
   )
 
   const totals = data?.totals

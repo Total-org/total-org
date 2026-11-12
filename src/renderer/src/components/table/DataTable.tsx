@@ -487,7 +487,7 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
         return detailHeights.current.get(keyOf(it.row)) ?? detailHeightEstimate
       }),
     // heightsVersion: re-sum when a detail row reports a new height
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the comment above
     [items, rowH, isExpanded, keyOf, detailHeightEstimate, heightsVersion]
   )
   const layoutRef = useRef(layout)
@@ -500,6 +500,7 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
 
   // Self-correct the assumed row height from a real data row (fonts/zoom can shift it a pixel).
   const firstRowRef = useRef<HTMLTableRowElement | null>(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- measures after every render on purpose; sets state only when the row height changed
   useLayoutEffect(() => {
     if (!virtual) return
     const h = firstRowRef.current?.getBoundingClientRect().height ?? 0
@@ -531,7 +532,7 @@ export function DataTable<Row>(props: DataTableProps<Row>): React.JSX.Element {
   )
   useLayoutEffect(() => {
     if (virtual && scrollTarget.current !== null && scrollTarget.current < items.length) scrollToIndex(scrollTarget.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-scroll only when the layout changes
   }, [layout])
   const onScroll = (e: React.UIEvent<HTMLDivElement>): void => setScrollTop(e.currentTarget.scrollTop)
   // Hand scrolling (wheel, touch, scrollbar drag) releases the keyboard target. Scroll events

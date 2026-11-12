@@ -44,7 +44,7 @@ export function useReportConfig(
   // previous one's column choices since they share no localStorage key.
   useEffect(() => {
     setVisible(load())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the storage key changes
   }, [storageKey])
 
   const toggle = (key: string): void => {

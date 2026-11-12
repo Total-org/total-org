@@ -88,5 +88,5 @@ export function revealLogs(): void {
   } catch {
     // openPath will surface the error to the user if the dir truly can't exist.
   }
-  shell.openPath(logsDir())
+  void shell.openPath(logsDir())
 }

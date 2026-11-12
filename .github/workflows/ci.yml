@@ -33,6 +33,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # A11 / HEALTH-9: react-hooks (renderer) + no-floating-promises — eslint.config.mjs says why.
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests (pure engine, no DB)
         run: npm test
 

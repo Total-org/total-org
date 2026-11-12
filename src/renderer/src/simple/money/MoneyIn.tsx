@@ -93,12 +93,12 @@ export function MoneyIn({ party, amount, bill, billId, date, bankId, reference, 
     // Ticks are bill keys (entry + name): two open bills may share a name.
     const key = linkedBillKey(bills, bill, billId)
     setForm((f) => ({ ...f, ticks: key ? [key] : null }))
-  }, [bills]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bills]) // eslint-disable-line react-hooks/exhaustive-deps -- re-tick only when the open bills load; the link params are read on arrival
   const sources = { ownerId: setup?.ownerId ?? null }
   const defaults = setup?.defaultsIn ?? { cash: null, upi: null, card: null, bank: null }
   const alloc = useMemo(() => billAllocation(open, form.amount, form.ticks, form.advance), [open, form.amount, form.ticks, form.advance])
-  const clientErrors = useMemo(() => (setup ? moneyInErrors(form, open, defaults, sources) : {}), [form, open, setup]) // eslint-disable-line react-hooks/exhaustive-deps
-  const intent = useMemo(() => (setup ? moneyInIntentFrom(form, open, defaults, sources) : null), [form, open, setup]) // eslint-disable-line react-hooks/exhaustive-deps
+  const clientErrors = useMemo(() => (setup ? moneyInErrors(form, open, defaults, sources) : {}), [form, open, setup]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults and sources derive from setup (listed)
+  const intent = useMemo(() => (setup ? moneyInIntentFrom(form, open, defaults, sources) : null), [form, open, setup]) // eslint-disable-line react-hooks/exhaustive-deps -- defaults and sources derive from setup (listed)
 
   const errors = useFormErrors<MoneyInField>(
     { date: form.date, party: `${form.who}|${form.customerId}|${form.sourceId}|${form.supplierId}|${form.refundOther}`, amount: form.amount, into: `${form.how}|${form.accountId}`, bills: `${form.ticks?.join(',')}|${form.advance}|${form.amount}` },

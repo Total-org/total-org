@@ -56,7 +56,7 @@ export function useScreenOptions<T extends Record<string, unknown>>(
   const slug = useSession((s) => s.slug)
   const key = screenOptionsKey(slug, screen)
   const defaultsSig = JSON.stringify(defaults)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultsSig stands for the defaults' content
   const stableDefaults = useMemo(() => defaults, [defaultsSig])
   const load = useCallback((): T => {
     let raw: string | null = null
@@ -66,7 +66,7 @@ export function useScreenOptions<T extends Record<string, unknown>>(
       /* ignore */
     }
     return parseScreenOptions(raw, stableDefaults, allowed)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: re-read only when the key or the defaults change (behaviour kept, A11)
   }, [key, stableDefaults])
   const [options, setOptions] = useState<T>(load)
   // Each company keeps its own screen options.

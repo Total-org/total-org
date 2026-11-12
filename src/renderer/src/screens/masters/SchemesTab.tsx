@@ -149,7 +149,7 @@ function SchemeModal({ scheme, others, onClose }: { scheme: DiscountSchemeRow | 
   // The draft as the resolver would see it.
   const draft: DiscountScheme = useMemo(
     () => ({ id: scheme?.id ?? -1, name: name || 'This scheme', kind, appliesTo, targetId: input.targetId ?? null, fromDate: input.fromDate ?? null, toDate: input.toDate ?? null, priority: input.priority ?? 0, active, slabs: input.slabs as SchemeSlab[] }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- JSON.stringify(input) stands for input's content
     [JSON.stringify(input), scheme?.id]
   )
   const qtyMilli = Math.max(0, Math.round(Number(tryQty || '0') * 1000)) || 0

@@ -304,7 +304,7 @@ function ForecastTab({ options: o, set }: { options: Options; set: ReturnType<ty
   ]
   const result = useMemo(
     () => (base ? buildForecast({ asOn, unit: def.unit, count: def.count, openingCash: base.openingCash, flows: base.flows, scenario, minBalance: o.minBalance, exclude, includePdc: o.pdc, msmeDue: o.msmeDue }) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the options are listed field by field (exclude.join() for the list)
     [base, def.unit, def.count, scenario.collectionPct, scenario.orderPct, scenario.delayDays, o.minBalance, exclude.join(), o.pdc, o.msmeDue]
   )
   const rows = useMemo(() => (result ? periodViews(result.periods, result.contributions) : []), [result])

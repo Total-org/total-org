@@ -112,7 +112,7 @@ export function useMoneyFlow<F extends string>(opts: {
       window.clearTimeout(id)
       setPreviewing(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentKey stands for the intent's content (the object is new every render)
   }, [intentKey, ready, savedIds])
 
   const place = (err: unknown): void => {

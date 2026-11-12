@@ -100,7 +100,7 @@ export function useLinePricing<R extends PricedRow>(
       .catch(() => {
         for (const k of sigs.keys()) requested.current.delete(k) // retry on the next change
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx is listed field by field
   }, [rows, ctx.enabled, ctx.autoApply, ctx.partyId, ctx.date, ctx.supply, ctx.currency])
 
   return {

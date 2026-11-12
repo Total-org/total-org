@@ -106,6 +106,6 @@ export function useAiFieldHighlights(el: HTMLElement | null, fields: readonly st
       el.querySelectorAll('[data-ai-set]').forEach((n) => n.removeAttribute('data-ai-set'))
     }
     // `key` stands for `fields`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the comment above
   }, [el, key])
 }

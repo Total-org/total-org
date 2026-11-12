@@ -74,7 +74,7 @@ export function useNavSections(activeScreen: Screen['name']): {
   // Re-load when the company changes — each company keeps its own sidebar layout.
   useEffect(() => {
     setPrefs(load())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the storage key changes
   }, [storageKey])
 
   // Screens outside the sidebar (company details, ledger statement) keep the last auto-open.

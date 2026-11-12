@@ -106,7 +106,7 @@ export function CaptureScreen(): React.JSX.Element {
   const items = data?.items ?? []
   const refresh = (): Promise<void> => qc.invalidateQueries({ queryKey: ['captureQueue'] })
   const openDraft = (id: number): void => nav.go({ name: 'voucher-entry', aiDraftId: id })
-  const cols = useMemo(() => columns(openDraft), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const cols = useMemo(() => columns(openDraft), []) // eslint-disable-line react-hooks/exhaustive-deps -- openDraft only calls nav.go; the columns are built once
 
   const report = (r: { added: number[]; refused: string[] }): void => {
     if (r.added.length) toast.push('success', `${r.added.length} ${r.added.length === 1 ? 'file' : 'files'} queued — nothing is sent until you process the queue`)
