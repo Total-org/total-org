@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**GST you can't claim back (s.17(5))** (#PR, WP 2d). The law blocks the GST credit on some
+**GST you can't claim back (s.17(5))** (#263, WP 2d). The law blocks the GST credit on some
 purchases: food and drinks, a car that carries people (and its repairs and insurance), club or gym
 fees, staff holidays, building your own premises, personal use, and gifts or free samples. Record a
 purchase and Money out's GST bill now ask "Can you claim this GST back?". In the full app the
