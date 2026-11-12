@@ -20,6 +20,9 @@ export interface PostedRates {
   /** The posted tax matched no slab (of the voucher's date, or of any earlier / later period): the
    *  rate is the implied one (a warning). */
   offSlab: boolean
+  /** WP 2d: SEVERAL rate-less lines were given ONE rate from the posted tax — if they were at
+   *  different true rates the split per rate is a guess (a warning; optional, absent = false). */
+  blended?: boolean
 }
 
 /** Rounding the posted tax may carry beyond the per-line rounding: books whose tax ledgers round
@@ -102,7 +105,10 @@ export function resolvePostedRates(
     const slab = slabFor(target, rest)
     const targetTaxable = [...target].reduce((s, i) => s + lines[i]!.taxable, 0)
     const rate = slab ?? impliedRate(rest, targetTaxable)
-    return { rates: lines.map((l, i) => (target.has(i) ? rate : (l.rate ?? 0))), derived: true, offSlab: slab == null }
+    return {
+      rates: lines.map((l, i) => (target.has(i) ? rate : (l.rate ?? 0))), derived: true, offSlab: slab == null,
+      ...(target.size > 1 ? { blended: true } : {})
+    }
   }
   // The rated lines' master rates do not explain the posting: one slab over every taxable line that
   // is not a declared 0 % (round-off-sized lines beside bigger ones left out), else unchanged.

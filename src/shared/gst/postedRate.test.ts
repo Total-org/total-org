@@ -18,6 +18,18 @@ describe('resolvePostedRates', () => {
     expect(resolvePostedRates([{ taxable: 10000, rate: null }], 1200, 'intra', D)).toEqual({ rates: [12], derived: true, offSlab: false })
     expect(resolvePostedRates([{ taxable: 10000, rate: null }], 2800, 'inter', D)).toEqual({ rates: [28], derived: true, offSlab: false })
   })
+  it('WP 2d: several rate-less lines get ONE rate and say so (blended) — even when the blend lands on a slab', () => {
+    // ₹600 at 5 % (₹30) + ₹700 at 18 % (₹126) = ₹156 on ₹1,300 = exactly 12 %: a slab (of an earlier
+    // period), so it is not off-slab — only `blended` tells the split may be a guess.
+    expect(resolvePostedRates([{ taxable: 60000, rate: null }, { taxable: 70000, rate: null }], 15600, 'intra', D)).toEqual({
+      rates: [12, 12], derived: true, offSlab: false, blended: true
+    })
+    // ₹1,000 at 5 % + ₹1,000 at 18 % = ₹230 on ₹2,000 = 11.5 %: off-slab AND blended.
+    expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 23000, 'intra', D)).toMatchObject({ offSlab: true, blended: true })
+    // One rate-less line (beside a rated one, or with a sub-rupee round-off line) is never blended.
+    expect(resolvePostedRates([{ taxable: 100000, rate: 18 }, { taxable: 100000, rate: null }], 23000, 'intra', D)).not.toHaveProperty('blended')
+    expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 40, rate: null }], 18000, 'intra', D)).not.toHaveProperty('blended')
+  })
   it('keeps ledger rates; only the rate-less line takes the remainder (net of the rated lines\' tax)', () => {
     // 18% on 1,000 = 180 explained; 230 - 180 = 50 on the other 1,000 = 5%.
     const r = resolvePostedRates([{ taxable: 100000, rate: 18 }, { taxable: 100000, rate: null }], 23000, 'intra', D)
@@ -55,7 +67,7 @@ describe('resolvePostedRates', () => {
   it('several rate-less lines at different true rates get one blended rate, flagged when it fits no slab', () => {
     // 1,000 at 5% (50) + 1,000 at 18% (180) = 230 on 2,000 = 11.5%.
     expect(resolvePostedRates([{ taxable: 100000, rate: null }, { taxable: 100000, rate: null }], 23000, 'intra', D)).toEqual({
-      rates: [11.5, 11.5], derived: true, offSlab: true
+      rates: [11.5, 11.5], derived: true, offSlab: true, blended: true // WP 2d: the additive flag; rates unchanged
     })
   })
   it('a posting that matches no slab is reported at the implied rate and flagged', () => {
