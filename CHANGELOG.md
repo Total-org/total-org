@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Hindi and Hinglish say "beta"; Windows says "preview"** (Phase 6 prep). The language pickers
+**Hindi and Hinglish say "beta"; Windows says "preview"** (#264, Phase 6 prep). The language pickers
 (first-run setup, How Total looks in both modes) now show "हिन्दी (beta)" and "Hinglish (beta)" —
 in Hindi, "(बीटा)" — because a native speaker has not reviewed the text yet. Windows is called a
 preview in its help page, Settings → About and on the website: it is tested automatically on every
