@@ -229,7 +229,7 @@ export function CompanyInfoScreen(): React.JSX.Element {
         </div>
         <div className="flex justify-between">
           <Button onClick={() => nav.go({ name: 'import-tally' })}>Import from Tally (XML)</Button>
-          <Button variant="primary" onClick={() => void save()}>
+          <Button variant="primary" data-save-shortcut="" onClick={() => void save()}>
             Save details
           </Button>
         </div>

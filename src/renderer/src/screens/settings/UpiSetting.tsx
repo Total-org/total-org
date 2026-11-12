@@ -73,7 +73,7 @@ export function UpiSetting(): React.JSX.Element {
           />
         </Field>
         {owner && (
-          <Button variant="primary" data-testid="btn-upi-save" disabled={busy || !changed} onClick={() => void save()}>
+          <Button variant="primary" data-testid="btn-upi-save" data-save-shortcut="" disabled={busy || !changed} onClick={() => void save()}>
             {t('simple.upi.save')}
           </Button>
         )}

@@ -13,7 +13,7 @@ import { useNav, useToasts } from '../../state/stores'
 import { Button } from '../../components/ui'
 import { cardCls } from '../reports/parts'
 import { FiledForm } from './FiledForm'
-import { PortalSend } from './PortalSend'
+import { Portal2bFetch, PortalSend } from './PortalSend'
 
 type Regular = Extract<SimpleTaxes, { kind: 'regular' }>
 const closeScreen = (period: string): { name: 'checks'; tab: 'close'; period: string } => ({ name: 'checks', tab: 'close', period }) // i18n-technical
@@ -58,6 +58,7 @@ function Step({ n, title, done, children, testId }: { n: number; title: string; 
  */
 export function GstSteps({ x }: { x: Regular }): React.JSX.Element {
   const t = useT()
+  const monthLong = (m: string): string => toMonthLabel(m, 'long', t.lang) // i18n-technical
   const nav = useNav()
   const done = stepsDone(x)
   const count = [done.missing, done.supplier, done.files, done.filed, done.filed].filter(Boolean).length
@@ -124,6 +125,7 @@ export function GstSteps({ x }: { x: Regular }): React.JSX.Element {
               {t('simple.taxes.step2.import')}
             </Button>
           )}
+          {!x.period.soFar && <Portal2bFetch months={x.supplierBills.filter((m) => !m.imported).map((m) => m.month)} label={monthLong} />}
         </Step>
 
         <Step n={3} title={t('simple.taxes.gst.step3')} done={done.files} testId="taxes-step-3">
