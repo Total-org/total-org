@@ -219,9 +219,8 @@ export function taxFactsDiff(before: VoucherTaxFacts, after: VoucherTaxFacts): s
   if (p0.state !== p1.state) out.push(`party state ${show(p0.state)} → ${show(p1.state)}`)
   if (p0.exportType !== p1.exportType) out.push(`SEZ / export type ${show(p0.exportType)} → ${show(p1.exportType)}`)
   if ((p0.rcm ?? 0) !== (p1.rcm ?? 0)) out.push(`reverse charge ${p0.rcm ? 'on' : 'off'} → ${p1.rcm ? 'on' : 'off'}`)
-  // WP 2d: a debit note re-saved after its party moved side (or saved first since the side was
-  // recorded) changes which return it is in.
-  if ((p0.side ?? null) !== (p1.side ?? null)) out.push(`debit note party side ${p0.side ?? 'not recorded'} → ${p1.side ?? 'not recorded'}`)
+  // WP 2d: a debit note's recorded side is not listed here — saveVoucher says when a save actually
+  // moves the note between the outward notes and the purchase returns (review of #266).
   const lines = (label: string, a: LineTaxFacts[], b: LineTaxFacts[]): void => {
     if (a.length !== b.length) return
     a.forEach((l0, i) => {

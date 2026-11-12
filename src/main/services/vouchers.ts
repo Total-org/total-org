@@ -16,6 +16,7 @@ import { cashBankGroupIds } from './masters'
 import { getFeatures } from './config'
 import { openSalesOrderValue } from './tradeDocs'
 import { writeAudit } from './audit'
+import { outwardDebitNoteIds } from './gst'
 import { readTaxFacts, snapshotTaxFacts, TAX_FACT_KINDS, taxFactsDiff, writeTaxFacts, type VoucherTaxFacts } from './taxFacts'
 import { assertCashFinanceVoucherEditable, binCashFinancePartners, cashFinanceRestorePlan, restoreCashFinancePartners } from './cashFinanceGuards'
 import { ensureTdsPayableLedger, PENDING_PAYABLE_LEDGER, PENDING_TCS_PAYABLE_LEDGER, prepareVoucherTds, prepareVoucherWithholding } from './tds'
@@ -1036,6 +1037,10 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   })
 
   const beforeFacts = existingId ? readTaxFacts(db, existingId) : null
+  // WP 2d (review of #266): a debit note's place in the returns — outward (GSTR-1) or a purchase
+  // return — before an alteration, to say so if the save moves it (a side recorded for the first
+  // time on a note saved before, with or without a tax-fact snapshot).
+  const outwardBefore = existingId && before && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
   const voucherId = run()
   const after = getVoucher(db, voucherId)!
   // The audit row carries the tax-fact snapshot beside the voucher (only when there is one).
@@ -1048,6 +1053,15 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   if (existingId && beforeFacts && afterFacts && TAX_FACT_KINDS.has(vt.kind)) {
     const changed = taxFactsDiff(beforeFacts, afterFacts)
     if (changed.length) warnings.taxFactsChanged = [`${after.number}: saved again with today's GST details — its returns, e-documents and prints now follow them (${changed.join('; ')})`]
+  }
+  if (outwardBefore != null && vt.kind === 'debit_note') {
+    const outwardAfter = outwardDebitNoteIds(db, after.date, after.date).has(voucherId)
+    if (outwardAfter !== outwardBefore) {
+      const moved = outwardAfter
+        ? 'moves from the purchase returns (input tax credit) to GSTR-1 as an outward note — its party is now read as a customer'
+        : 'moves from GSTR-1 (outward notes) to the purchase returns (input tax credit) — its party is now read as a supplier'
+      warnings.taxFactsChanged = [...(warnings.taxFactsChanged ?? []), `${after.number}: this debit note ${moved}`]
+    }
   }
   if (hold && holdOverride) {
     writeAudit(db, 'credit_override', voucherId, 'create', null, {

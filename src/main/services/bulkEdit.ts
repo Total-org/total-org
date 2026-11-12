@@ -148,6 +148,9 @@ function saveWarnings(w: SaveVoucherWarnings): string[] {
   if (w.creditLimitExceeded) out.push(`Over the credit limit of ${w.creditLimitExceeded.ledgerName}`)
   if (w.linkDates?.length) out.push(...w.linkDates)
   if (w.frozenRepricing?.length) out.push(...w.frozenRepricing)
+  // WP 2d (review of #266): a re-save on today's GST facts — incl. a debit note moving between the
+  // outward notes and the purchase returns — is said in the batch result too.
+  if (w.taxFactsChanged?.length) out.push(...w.taxFactsChanged)
   return out
 }
 

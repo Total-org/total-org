@@ -20,6 +20,7 @@ import { askTotal } from '../assist/answer'
 import { getVoucher, saveVoucher } from './vouchers'
 import { voucherToPayload } from '@shared/voucherEdit'
 import { outwardDebitNoteIds } from './gst'
+import { readTaxFacts, taxFactsFrom, writeTaxFacts } from './taxFacts'
 
 const INFO: CompanyInfo = { ...TEST_INFO, name: 'Groups Co', gstin: null, stateCode: '27', gstRegistrationType: 'unregistered' }
 const TODAY = '2025-08-14'
@@ -183,10 +184,24 @@ describe('parties under imported group names (Trade Receivables / Trade Payables
     for (const t of [seeded, imported]) t.db.prepare('UPDATE vouchers SET snap_party_side = NULL').run()
     expect(outwardDebitNoteIds(seeded.db, '2025-08-01', '2025-08-31').has(s)).toBe(true)
     expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
-    // Saving that old note again records the side — and says so (the review of #172 warning).
+    // Review of #266: a note saved BEFORE the tax-fact snapshots (#172) has no snapshot at all.
+    imported.db.prepare('UPDATE vouchers SET snap_tax_facts = NULL, snap_party_gstin = NULL, snap_party_state = NULL, snap_party_export_type = NULL, snap_party_rcm = NULL').run()
+    imported.db.prepare('UPDATE voucher_lines SET snap_gst_rate = NULL, snap_cess_rate = NULL, snap_hsn = NULL').run()
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
+    // Saving it again records the side, moves it — and says so.
     const v = getVoucher(imported.db, i)!
     const again = saveVoucher(imported.db, { ...voucherToPayload(v) }, i)
-    expect(again.warnings?.taxFactsChanged?.[0]).toContain('debit note party side not recorded → debtor')
+    expect(again.warnings?.taxFactsChanged).toEqual([expect.stringContaining('this debit note moves from the purchase returns (input tax credit) to GSTR-1 as an outward note')])
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
+    // The seeded twin's note is outward either way: recording its side moves nothing and says nothing.
+    seeded.db.prepare('UPDATE vouchers SET snap_tax_facts = NULL, snap_party_side = NULL').run()
+    expect(saveVoucher(seeded.db, { ...voucherToPayload(getVoucher(seeded.db, s)!) }, s).warnings?.taxFactsChanged).toBeUndefined()
+    // An import / undo restores the side exactly (writeTaxFacts), and an image without one clears it.
+    const facts = readTaxFacts(imported.db, i)!
+    expect(facts.party.side).toBe('debtor')
+    writeTaxFacts(imported.db, i, taxFactsFrom(JSON.parse(JSON.stringify({ ...facts, party: { ...facts.party, side: undefined } }))))
+    expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(false)
+    writeTaxFacts(imported.db, i, taxFactsFrom(JSON.parse(JSON.stringify(facts))))
     expect(outwardDebitNoteIds(imported.db, '2025-08-01', '2025-08-31').has(i)).toBe(true)
   })
 
