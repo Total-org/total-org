@@ -5,7 +5,6 @@ import { useAskTotal } from './AskTotal'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
-import { onboardingScreen } from '../lib/onboarding'
 import { useNav } from '../state/stores'
 import { Page } from '../components/ui'
 import { Button, SkeletonTiles, Why } from '../components/kit'
@@ -14,7 +13,7 @@ import { ApprovalsHomeCard } from './queue/ApprovalsHomeCard'
 import { useCanWrite, ViewerBackupNote } from './ViewerNote'
 import { HomeTour } from './help/Tour'
 import { PlainIcon } from './icons'
-import { HOME_TASKS, accountScreen, attentionScreen, deadlineScreen, homeReportScreen, type HomeReport } from './homeTasks'
+import { HOME_TASKS, accountScreen, attentionScreen, deadlineScreen, homeReportScreen, homeSetupScreen, type HomeReport } from './homeTasks'
 import { onboardingFromDashSetup, type OnboardingChecklist, type OnboardingStepId } from '@shared/onboarding'
 import { todayISO, toPlainDate } from '@shared/dates'
 import type { MessageKey } from '@shared/i18n'
@@ -519,13 +518,14 @@ function Attention({ home }: { home: SimpleHomeData }): React.JSX.Element | null
   )
 }
 
-/** A company with nothing recorded: one card, with the next setup step as the way in. A
- *  continuing business that has not entered its day-one figures yet sees only the openings card
- *  (WP 8.7, above) — that is its first step, never offered twice. */
+/** A company with nothing recorded: one card. Audit A7 / UX-15: "Make your first bill" is its main
+ *  action; the next setup step (business details first) is the second. A continuing business that
+ *  has not entered its day-one figures yet sees only the openings card (WP 8.7, above) — that is
+ *  its first step, never offered twice. */
 function EmptyHome({ checklist }: { checklist: OnboardingChecklist }): React.JSX.Element | null {
   const t = useT()
   const nav = useNav()
-  const next = checklist.steps.find((s) => !s.done && STEP_LABEL[s.id])
+  const next = checklist.steps.find((s) => !s.done && !s.skipped && STEP_LABEL[s.id] && s.id !== 'voucher')
   // Same query (and cache) as OpeningsHomeCard.
   const { data: openings } = useQuery({ queryKey: ['openings'], queryFn: api.openings.get }) // i18n-technical
   if (openings && !openings.appliedAt && openings.startedFresh === false) return null
@@ -533,14 +533,16 @@ function EmptyHome({ checklist }: { checklist: OnboardingChecklist }): React.JSX
     <section className={`${cardCls} mt-5`} data-testid="simple-home-empty">
       <h2 className="text-title font-semibold text-ink">{t('simple.home.emptyTitle')}</h2>
       <p className="mt-1 text-detail text-muted">{t('simple.home.emptyBody')}</p>
-      <Button
-        className="mt-4"
-        variant="primary"
-        data-testid="simple-home-empty-next"
-        onClick={() => nav.go(next ? onboardingScreen(checklist, next.id) : HOME_TASKS[0]!.screen)}
-      >
-        {next ? t(STEP_LABEL[next.id]!.label) /* i18n-technical: keyed by step id */ : t(HOME_TASKS[0]!.label) /* i18n-technical: keyed in homeTasks.ts */}
-      </Button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button variant="primary" data-testid="simple-home-empty-first-bill" onClick={() => nav.go(HOME_TASKS[0]!.screen)}>
+          {t('simple.setupSteps.voucher.label')}
+        </Button>
+        {next && (
+          <Button variant="secondary" data-testid="simple-home-empty-next" onClick={() => nav.go(homeSetupScreen(checklist, next.id))}>
+            {t(STEP_LABEL[next.id]!.label) /* i18n-technical: keyed by step id */}
+          </Button>
+        )}
+      </div>
     </section>
   )
 }
@@ -610,7 +612,7 @@ function Setup({ checklist: all }: { checklist: OnboardingChecklist }): React.JS
                     type="button"
                     data-testid={`simple-setup-${step.id}`}
                     data-done="false"
-                    onClick={() => nav.go(onboardingScreen(checklist, step.id))}
+                    onClick={() => nav.go(homeSetupScreen(checklist, step.id))}
                     className="flex w-full items-start gap-3 border-b border-line/50 px-4 py-2 text-left hover:bg-panel2 focus-visible:bg-panel2"
                   >
                     {body}

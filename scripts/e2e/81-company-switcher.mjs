@@ -1,4 +1,4 @@
-// Scenario 80 — A8 part 2 (audit 2026-11 UX-12): switching company without the round trip.
+// Scenario 81 — A8 part 2 (audit 2026-11 UX-12): switching company without the round trip.
 //   1. The accountant demo company is open; ⌘O opens the switcher: no other company yet, so it
 //      says so and offers "All businesses…", which closes the books on the company list.
 //   2. The company list: Demo Traders (opened last) is first, and "Set up your business" is not
@@ -10,7 +10,7 @@ import { scenario, assert, assertEq } from '../lib/harness.mjs'
 
 const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
 
-await scenario('80-company-switcher', async (h) => {
+await scenario('81-company-switcher', async (h) => {
   const { page } = h
   await h.createDemoCompany()
   const openSwitcher = async () => {

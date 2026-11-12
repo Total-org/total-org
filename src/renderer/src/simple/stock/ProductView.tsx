@@ -177,7 +177,7 @@ export function ProductView({ itemId }: { itemId: number }): React.JSX.Element {
             <h1 className="font-serif text-heading font-semibold tracking-tight text-ink">{p.name}</h1>
             <p className="mt-1 text-detail text-muted">{t('simple.stock.asOn', { date: toPlainDate(p.asOn, t.lang) })}</p>
           </div>
-          <LevelChip level={p.level} />
+          <LevelChip level={p.level} qtyMilli={p.qtyMilli} />
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 text-body sm:grid-cols-2">

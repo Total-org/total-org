@@ -2,6 +2,8 @@ import type { MessageKey } from '@shared/i18n'
 import type { HomeAttentionItem, SimpleHomeData } from '@shared/simple/home'
 import type { Deadline } from '@shared/compliance'
 import type { Screen } from '../state/stores'
+import type { OnboardingChecklist } from '@shared/onboarding'
+import { onboardingScreen } from '../lib/onboarding'
 
 export type HomeTaskId = 'sale' | 'purchase' | 'money-in' | 'money-out'
 
@@ -19,6 +21,16 @@ export const HOME_TASKS: readonly { id: HomeTaskId; label: MessageKey; screen: S
   { id: 'money-in', label: 'simple.home.moneyIn', screen: { name: 'simple-money-in' } }, // i18n-technical
   { id: 'money-out', label: 'simple.home.moneyOut', screen: { name: 'simple-money-out' } } // i18n-technical
 ]
+
+/** Audit A7 / UX-1: where Home's setup steps go — the simple screen where there is one (business
+ *  details and the GST number → Business details, the first bill → Make a bill, a backup →
+ *  Backups); the rest open the full app as before. */
+export function homeSetupScreen(checklist: OnboardingChecklist, stepId: string): Screen {
+  if (stepId === 'company' || stepId === 'gstin') return { name: 'simple-business' } // i18n-technical
+  if (stepId === 'voucher') return HOME_TASKS[0]!.screen
+  if (stepId === 'backup') return { name: 'simple-backups' } // i18n-technical
+  return onboardingScreen(checklist, stepId)
+}
 
 export type HomeReport = 'day' | 'receivables' | 'payables' | 'cash' | 'profit' | 'gst' | 'backups'
 

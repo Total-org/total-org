@@ -54,6 +54,7 @@ export function SetupWizard({
   const [stepIdx, setStepIdx] = useState(0)
   const [errors, setErrors] = useState<Partial<Record<keyof SetupDraft, SetupErrorKey>>>({})
   const [tally, setTally] = useState(false)
+  const [moreWays, setMoreWays] = useState(false)
   const [accountant, setAccountant] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
@@ -215,18 +216,32 @@ export function SetupWizard({
             </Button>
             <p className="mt-1 text-hint text-muted">{t('simple.setup.sampleHint')}</p>
           </div>
-          <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-small text-muted">
-            <span>{t('simple.setup.forAccountants')}</span>
-            <button type="button" className="underline-offset-2 hover:text-ink hover:underline" data-testid="btn-company-create" onClick={onFullForm}>
-              {t('simple.setup.fullForm')}
-            </button>
-            <button type="button" className="underline-offset-2 hover:text-ink hover:underline" data-testid="btn-company-demo-full" disabled={sampleLoading} onClick={onSampleFull}>
-              {t('simple.setup.sampleFull')}
-            </button>
-            <button type="button" className="underline-offset-2 hover:text-ink hover:underline" data-testid="btn-company-import-backup" onClick={onImportBackup}>
-              {t('simple.setup.importBackup')}
-            </button>
-          </p>
+          {/* Audit A7 / UX-21: one quiet line for the other ways in, opened on request — a shop
+              owner sees the wizard and the sample, not four exits. */}
+          <button
+            type="button"
+            className="text-small text-muted underline-offset-2 hover:text-ink hover:underline"
+            aria-expanded={moreWays}
+            aria-controls="setup-accountant-ways"
+            data-testid="btn-setup-accountant-ways"
+            onClick={() => setMoreWays((v) => !v)}
+          >
+            {t('simple.setup.accountantWays')}
+          </button>
+          <div id="setup-accountant-ways" hidden={!moreWays} className="text-center" data-testid="setup-accountant-ways">
+            <p className="mb-1 text-caption font-semibold uppercase tracking-wide text-muted">{t('simple.setup.forAccountants')}</p>
+            <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-small">
+              <button type="button" className="t-link" data-testid="btn-company-create" onClick={onFullForm}>
+                {t('simple.setup.fullForm')}
+              </button>
+              <button type="button" className="t-link" data-testid="btn-company-demo-full" disabled={sampleLoading} onClick={onSampleFull}>
+                {t('simple.setup.sampleFull')}
+              </button>
+              <button type="button" className="t-link" data-testid="btn-company-import-backup" onClick={onImportBackup}>
+                {t('simple.setup.importBackup')}
+              </button>
+            </p>
+          </div>
         </div>
       )}
     </div>

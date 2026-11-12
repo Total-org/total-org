@@ -26,12 +26,20 @@ const LEVEL_CLS: Record<StockLevel, string> = {
   out: 'border-danger/50 bg-danger-soft text-danger'
 }
 
-export function LevelChip({ level }: { level: StockLevel }): React.JSX.Element | null {
+/** Audit A7 / UX-2: a product below zero is not "out of stock" — more was sold than the books
+ *  show bought or counted, so its chip says that (the note above the list says what it means). */
+export function LevelChip({ level, qtyMilli }: { level: StockLevel; qtyMilli?: number }): React.JSX.Element | null {
   const t = useT()
   if (level === 'ok') return null
-  const label = t(LEVEL_TEXT[level]) // i18n-technical: typed key table
+  const oversold = qtyMilli != null && qtyMilli < 0
+  const label = oversold ? t('simple.stock.level.oversold') : t(LEVEL_TEXT[level]) // i18n-technical: typed key table
   return (
-    <span className={`inline-block rounded-full border px-2 py-0.5 text-caption ${LEVEL_CLS[level]}`} data-testid="stock-level" data-level={level}>
+    <span
+      className={`inline-block rounded-full border px-2 py-0.5 text-caption ${LEVEL_CLS[level]}`}
+      data-testid="stock-level"
+      data-level={level}
+      {...(oversold ? { 'data-oversold': 'true' } : {})}
+    >
       {label}
     </span>
   )
@@ -65,6 +73,7 @@ function StockTable({ initialFilter }: { initialFilter?: 'low' }): React.JSX.Ele
   const all = data?.rows ?? []
   const rows = onlyLow ? all.filter((r) => needsReorder(r.level)) : all
   const empty = !isLoading && data != null && all.length === 0
+  const oversold = all.filter((r) => r.qtyMilli < 0).length
 
   const columns = useMemo(
     () =>
@@ -79,8 +88,8 @@ function StockTable({ initialFilter }: { initialFilter?: 'low' }): React.JSX.Ele
         { id: 'price', header: t('simple.stock.col.price'), kind: 'money', value: (r) => r.sellingPrice, explainable: false }, // i18n-technical
         {
           id: 'level', header: t('simple.stock.col.level'), kind: 'text', groupable: false, filterable: false, // i18n-technical
-          value: (r) => (r.level === 'ok' ? '' : t(LEVEL_TEXT[r.level])), // i18n-technical: typed key table
-          cell: (r) => <LevelChip level={r.level} />
+          value: (r) => (r.level === 'ok' ? '' : r.qtyMilli < 0 ? t('simple.stock.level.oversold') : t(LEVEL_TEXT[r.level])), // i18n-technical: typed key table
+          cell: (r) => <LevelChip level={r.level} qtyMilli={r.qtyMilli} />
         }
       ]),
     [t]
@@ -123,6 +132,12 @@ function StockTable({ initialFilter }: { initialFilter?: 'low' }): React.JSX.Ele
           help="stock-and-count" // i18n-technical
         />
       ) : (
+      <>
+      {oversold > 0 && (
+        <p role="note" className="mb-3 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-detail text-ink" data-testid="simple-stock-oversold">
+          {t('simple.stock.oversoldNote', { count: oversold })}
+        </p>
+      )}
       <section className="rounded-xl border border-line bg-panel shadow-elev-1">
         <DataTable
           testId="simple-stock"
@@ -147,6 +162,7 @@ function StockTable({ initialFilter }: { initialFilter?: 'low' }): React.JSX.Ele
           onRowActivate={(r) => nav.go({ name: 'simple-stock', itemId: r.itemId })} // i18n-technical
         />
       </section>
+      </>
       )}
       {creating && (
         <NewProductDialog
