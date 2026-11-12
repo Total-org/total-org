@@ -20,13 +20,21 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**The same keys in both modes, and approvals and the GST portal everywhere** (#256, Phase 5 polish).
+**The same keys in both modes, and approvals and the GST portal everywhere** (#258, Phase 5 polish).
 ⌘↵ (Ctrl+Enter on Windows) now saves in every dialog (it presses the dialog's main button) and on
 the settings-style screens that have one Save. In the full app, Esc closes the side panel (Ask, the
 AI conversation) before it backs out of the screen, as it already did in simple mode. The full
 app's Dashboard now says when proposals wait for your approval and opens the approval queue, and
 simple Taxes can fetch a month's GSTR-2B from the portal (test mode) right in step 2. No figure
 changes.
+
+**"Accountant view" now carries the whole job** (#255, Phase 5 polish). A sale or purchase paid
+now, or a return refunded now, used to leave the payment behind when you opened the full editor
+("add it under Money in"). Now, once the bill is saved there, Total offers "Record the ₹X received"
+and opens the receipt (or payment) already filled in and set against that bill. Changes made in
+the full editor for a stock count or for made goods now come back to the simple screen with "Back to
+simple", like the other flows. For accountants: no figure changes — the second step is the same
+receipt / payment simple:post saves (tested entry for entry).
 
 **Total opens faster, and Home no longer jumps** (#253, Phase 5 speed). On a big business
 (100,000 entries) Home is on screen and usable about 0.5 s sooner (launch → Home shown 1.47 →

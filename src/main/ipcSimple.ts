@@ -118,7 +118,7 @@ export function registerSimpleIpc(handle: IpcHandle, { requireCompany, canSeePro
     return simpleHandoff.carryBackForm(c.db, c.info, p as unknown as simpleHandoff.CarryBackRequest, p.today ?? todayISO())
   }, 'viewer')
   handle('simple:handoffTarget', (payload) => {
-    const q = z.object({ voucherId: z.number().int().positive().optional(), ledgerId: z.number().int().positive().optional() }).strict().parse(payload)
+    const q = z.object({ voucherId: z.number().int().positive().optional(), ledgerId: z.number().int().positive().optional(), open: z.boolean().optional() }).strict().parse(payload)
     return simpleHandoff.handoffFacts(requireCompany().db, q)
   }, 'viewer')
   // simple:post's post (also Phase 3b's approval queue for an Ask Total offer).

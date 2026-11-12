@@ -475,6 +475,8 @@ export async function openHandoff(a: {
   force: boolean
   go: (screen: Screen, opts?: { force?: boolean }) => void
   onNotCarried: () => void
+  /** Phase 5: the second step of a two-step hand-off — the bill the first step saved. */
+  afterBill?: string
 }): Promise<void> {
   try {
     const sent = { ...a.intent, clientId: a.clientId ?? HANDOFF_CLIENT_ID } as SimpleIntentInput
@@ -488,7 +490,8 @@ export async function openHandoff(a: {
       entry,
       others: rest.map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })),
       missing: r.missing,
-      ...(r.addedOnSave?.length ? { addedOnSave: r.addedOnSave } : {})
+      ...(r.addedOnSave?.length ? { addedOnSave: r.addedOnSave } : {}),
+      ...(a.afterBill != null ? { afterBill: a.afterBill } : {})
     }
     a.go({ name: 'voucher-entry', handoff, draftId: nextDraftId() }, { force: true })
   } catch {
