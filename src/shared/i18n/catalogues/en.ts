@@ -125,7 +125,7 @@ export const en = {
   'common.caCheck.point.nicLive': 'Total’s live e-invoice link has never run against the real NIC portal. The 24-hour cancel windows and the 8-hour extension window are counted as Total reads the pages.',
   'common.caCheck.point.tdsDepositDate': 'TDS is due by the 7th of the next month (30 April for March). This is the 1962 rule; the 2026 rules were read only in copies.',
   'common.caCheck.point.tdsRatesRounding': 'TDS is rounded to the nearest rupee (the Act may want ₹10). The base of section 194Q and some sections (194N, senior citizens, years before 2026) are as seeded, not confirmed.',
-  'common.caCheck.point.gstBlockedCredit': 'GST you say you can’t claim stays in your GST accounts and is reversed only in the return — it is not added to the cost. The exceptions (a car dealer, a restaurant buying food to sell …) are your call. Not confirmed.',
+  'common.caCheck.point.gstBlockedCredit': 'GST you say you can’t claim is moved into the cost by a small entry beside the bill, and the return shows it taken and reversed. The exceptions (a car dealer, a restaurant buying food to sell …) are your call. Not confirmed.',
   'common.caCheck.point.tdsThresholdReturns': 'A purchase return (debit note) does not lower a supplier’s yearly TDS limit here — every bill counts. Not confirmed.',
   'common.caCheck.point.tdsReturnLayouts': 'The 26Q reason codes and the Form 16A layout follow practice, not the current notification.',
   'common.caCheck.point.tdsLateInterest': 'Interest on late TDS counts each calendar month or part of one, the first and the last both. Bills of an earlier year are not followed. Not confirmed in the official text.',
