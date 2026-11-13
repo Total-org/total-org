@@ -11,17 +11,17 @@ Follows the [first audit](2026-11-audit.md) (7 November, `main` 0614071a). Since
 - **UX:** `npm ci` + `npm run build` once, then the BUILT app was driven by a scratch Playwright driver over `scripts/lib/harness.mjs` (scratch `TOTAL_DATA_DIR`, test secrets, never `~/Documents/total`). Two runs: (A) first run → "Try with sample data" → every simple section, Stock, People, Reports, Taxes, Make a bill, Money in, Ask Total, Help, ⌘K, Business details, dark theme, 1024×700 → switch to the full app → Gateway (light and dark), sales voucher, GSTR-1, GSTR-3B, trial balance, P&L, Outstandings, Checks, Settings, ⌘O switcher, the Ask panel; (B) the wizard ("starting fresh", regular GST) → empty Home → Taxes → first bill → Home after the bill → Money out, Record a purchase, Help, dark Make a bill, How Total looks. The repo's own `sweepInPage` / `layoutInPage` and the banned-word list ran on every screen. 51 screenshots are in `~/.claude/total-orch/shots-audit2/` (not in the repo).
 - **Product:** the screen registry and features against the first audit's comparison (Tally Prime, Vyapar, myBillBook, Zoho Books, Busy); no new vendor research.
 
-**Bottom line.** **Most of the first audit is done.** Of its 69 findings, 39 are fixed, 10 partly, 17 not, and 3 were accepted as they are (counted in §1). All ten of its "top 10" are done. The exceptions are optional or waiting on the owner: the preload allowlist (SEC-18) and notarisation (part of SEC-5). Every money finding the owner asked for (COR-1 Outstandings, the SEZ / export tax) is fixed with hand-worked tests. The new Electron hardening, the lock / user-switch clearing and the site fixes hold up when the code is read. The IPC surface is clean:
+**Bottom line.** **Most of the first audit is done.** Of its 69 findings, 39 are fixed, 10 partly, 17 not, and 3 were accepted or left unchanged by choice (counted in §1). Of its "top 10", nine are done in full. #3 (Electron hardening) is done except the optional preload allowlist (SEC-18) and the print HTML's CSP `<meta>` (SEC-14). Notarisation (SEC-5) was never part of the top 10; it waits for the Apple Developer ID. Every money finding the owner asked for (COR-1 Outstandings, the SEZ / export tax) is fixed with hand-worked tests. The new Electron hardening, the lock / user-switch clearing and the site fixes hold up when the code is read. The IPC surface is clean:
 - 665 handlers; every one parses its payload or takes none;
 - every write channel is mapped in `AUDIT_COVERAGE`;
 - every role equals the pinned fixture;
 - no viewer channel writes the books.
 
 **Nothing critical, and no high-severity finding.** What is left for 1.0:
-- **Update integrity is only half solved.** The new signed manifest is checked fail-closed by the app, but the signing key is a repo secret that a tag push or any merged PR can use (SEC2-1). On macOS the bytes the user actually installs are never checked (SEC2-2). A packaged build probably still accepts `--remote-debugging-port` (SEC2-3, to confirm).
+- **Update integrity is only half solved.** The new signed manifest is checked fail-closed by the app, but the signing key is a repository secret that anyone who can push to the repository can reach (SEC2-1). On macOS the bytes the user actually installs are never checked (SEC2-2). A packaged build probably still accepts `--remote-debugging-port` (SEC2-3, to confirm).
 - **One new GST figure bug.** A debit note keeps the "blocked credit" mark it had when it was saved, so changing a purchase's mark afterwards puts GSTR-3B Table 4 out by the note's tax (COR2-1).
 - **Ask Total answers a narrow question with a broad figure.** "Sales of office chair this year" gives the whole year's sales (UX-14, still open, worse example).
-- **The simple-polish package (A9) was never started**: Taxes hub, the ⌘K footer, the test-GSP card, the data-folder label.
+- **Five items of the simple-polish package (A9) were never picked up**: the Taxes hub, the ⌘K footer, the test-GSP card, the data-folder label, and Ask Total's narrow questions. The UI-overhaul PRs fixed the rest of A9, but A9 itself has no PR and no `to-do.md` line.
 - **The #207 golden-fixture bugs left open**, of which the e-invoice eligibility ones are cheap to fix.
 
 ---
@@ -61,7 +61,7 @@ Legend: ✅ fixed · ◐ partly · ✗ not fixed · ↺ regressed. "PR" is where
 - Every role equals `__fixtures__/ipcChannels.json`, and every fixture row exists.
 - 0 non-viewer or ungated channels lack an `AUDIT_COVERAGE` entry, and no coverage key is stale.
 - One handler takes a payload without a visible parse: `receivables:setConfig` (`ipcReceivables.ts:41`). It parses in the service, as on 7 Nov.
-- 11 viewer channels have a write mapping. All are exports (`canExport`-gated), `session:lock`, or AI chat rows (`ai:send`, `ai:regenerate`, `ai:thread:rename`). Draft and plan tools inside `ai:send` are role-gated per tool, and `plan_task` re-classifies the user's own message (`ai/tools/planTools.ts:30-33`).
+- 11 viewer channels have a write mapping. They are 7 exports (all `canExport`-gated except `counter:print`), `session:lock`, and 3 AI chat channels (`ai:send`, `ai:regenerate`, `ai:thread:rename`). Draft and plan tools inside `ai:send` are role-gated per tool, and `plan_task` re-classifies the user's own message (`ai/tools/planTools.ts:30-33`).
 
 ### 1.2 Correctness & code health
 
@@ -76,11 +76,11 @@ Legend: ✅ fixed · ◐ partly · ✗ not fixed · ↺ regressed. "PR" is where
 | HEALTH-2 private date helpers | ◐ #260 | About 25 copies replaced by `dates.ts:172-181` `addDaysISO` / `daysBetweenISO`, each byte-equivalent (no behaviour change). The inline maths listed in to-do §6 is left (e.g. `outstanding.ts:45`, `ai/tools/screenTools.ts:63`). |
 | HEALTH-3 side / bank by group name | ✗ | `voucher/hooks.ts:65,70`, `services/counter.ts:94` (to-do §6: changes defaults for imported charts). |
 | HEALTH-4 god modules | ◐ #252 | `ipc.ts` 3,677 → 1,669 lines, 432 → 50 handlers, split into `ipc<Area>.ts`. Still large: `intents.ts` 1,489, `gst.ts` 1,265, `InvoiceEntry.tsx` 1,233, `client.ts` 1,570, `screens.ts` 1,571. |
-| HEALTH-5 test gaps | ◐ #233 / #254 / #260 | Added: the A1 positive-`against` cases, the tested tick helper, `services/notDeletedLint.test.ts` (+ `sqlStrings.testutil.ts`). Open: the unit-test CI job still runs in UTC (no `TZ` in `ci.yml` `test`; only the e2e steps have `TZ: Asia/Kolkata`, `:131,:173`); `gstItcReversal`, `gstRcm`, `gstAnnual`, `bankImport`, `tallyImport` still have no test file of their own. |
+| HEALTH-5 test gaps | ◐ #233 / #254 / #260 | Added: the A1 positive-`against` cases, the tested tick helper, `services/notDeletedLint.test.ts` (+ `sqlStrings.testutil.ts`). Open: the unit-test CI job still runs in UTC (no `TZ` in `ci.yml` `test`; only the e2e steps have `TZ: Asia/Kolkata`, `:131,:173`); `gstItcReversal`, `gstRcm` and `gstAnnual` still have no test file of their own; they are reached only through the `gstExpansion` / `itcBlocked` / `taxFacts` dbtests. (The first audit's claim about `bankImport` / `tallyImport` was wrong: `tallyimport.dbtest.ts` and six `tally*.dbtest.ts` files test the Tally import, and `bankingDepth` / `simpleBank` / `simpleBankRollback` dbtests drive `bankImport`.) |
 | HEALTH-6 four rounding rules | ✗ | Unchanged; deferred for the owner's figure sign-off (to-do §6). |
 | HEALTH-7 e2e sleeps, no e2e on PRs | ✅ #257 | 0 `waitForTimeout` in `scripts/` (enforced by `scripts/lib/noSleeps.test.ts`); PRs run e2e `01 03 06 48 53 55` (`ci.yml:127-128`); every job has `timeout-minutes`. CI is still Node 22 (the local machine runs 26). |
 | HEALTH-8 main-thread SQLite, slow launch | ◐ #253 | Window created before `registerIpc` (`index.ts:199-201`); `openai` / `electron-updater` required on first use; launch → Home shown 0.93 s at 100k (`docs/perf-budgets.md:62`). Reports still run on the main process; nothing moved to a worker. Measured here (scratch data dir, this laptop, Playwright attach included): first launch 3.1 s to `window.total`, second 1.4 s; sample company → Home 0.8 s; wizard finish → Home 0.3 s. |
-| HEALTH-9 no linter | ✅ #256 | `eslint.config.mjs`, `npm run lint` in CI (`ci.yml:23`); every one of the 74 `eslint-disable`s in `src/` (outside the frozen fixtures) gives its reason (`shared/eslintReasons.test.ts`). `edocs.ts:110,114` keep `any` (the retype was not done).
+| HEALTH-9 no linter | ✅ #256 | `eslint.config.mjs`, `npm run lint` in CI (`ci.yml:37-38`); every one of the 74 `eslint-disable`s in `src/` (outside the frozen fixtures) gives its reason (`shared/eslintReasons.test.ts`). `edocs.ts:110,114` keep `any` (the retype was not done).
 
 ### 1.3 UI & UX
 
@@ -90,7 +90,7 @@ Legend: ✅ fixed · ◐ partly · ✗ not fixed · ↺ regressed. "PR" is where
 | UX-2 sample company looks broken | ✅ #248 | Run A: "Day-one figures entered", 6 products all ≥ 0 with selling prices (A4 Paper 19 Box ₹4,180 … stock worth ₹2,03,030), November cost of goods ₹72,810, profit ₹2,229.70. Simple Stock says "Sold more than recorded" for a product below zero (`LevelChip`). |
 | UX-3 sales party picker lists every ledger | ✅ #249 | `shared/voucherEdit/partyList.ts` `partyPickerLedgers`; the picker no longer opens on arrival (run A, `A-42`). |
 | UX-4 GST returns open on the running month | ✅ #249 | Run A on 13 Nov: GSTR-1 opens on **October 2026** (`A-44-gstr1.png`), the period `gst:duePeriod` names. |
-| UX-5 section pages are link farms; Taxes is hand-offs | ✗ | Run A/B, Taxes section: "GST to pay — GSTR-3B →", "GST on your sales — GSTR-1 [Full app]", "Check supplier bills … [Full app]" — no figure, no due date, even on a fresh company (`B-05-taxes-empty.png`). The other hubs are unchanged lists. Work package A9 was never started and has no line in `to-do.md`. |
+| UX-5 section pages are link farms; Taxes is hand-offs | ✗ | Run A/B, Taxes section: "GST to pay — GSTR-3B →", "GST on your sales — GSTR-1 [Full app]", "Check supplier bills … [Full app]" — no figure, no due date, even on a fresh company (`B-05-taxes-empty.png`). The other hubs are unchanged lists. A9's remaining items have no PR and no line in `to-do.md` (PROC2-1). |
 | UX-6 amounts and sentences in monospace | ✅ #223 | `app.css:301-305` `.num` is Geist with `tabular-nums`; mono only for codes. |
 | UX-7 autofocused pickers open over the form | ✅ #232 | Make a bill / Money in / sales voucher: the field has focus, the list stays closed (`A-24`, `A-25`, `A-42`). |
 | UX-8 crowded simple header | ◐ #226 | Theme is now a moon / sun icon; the period chip is gone from entry screens; on Make a bill "Accountant view" sits in the page header. Still: Home's header keeps 7 controls (period, Accountant view, ⋯, Ask Total, Help, theme, Search) and the business name still starts ~96 px right of the sidebar's logo (`A-02`). The full app's theme chip is still labelled with its target ("Dark" while light, `A-44`). |
@@ -118,7 +118,7 @@ Legend: ✅ fixed · ◐ partly · ✗ not fixed · ↺ regressed. "PR" is where
 | PROD-3 hidden features | ✅ #243 | Interest on overdue bills, the fixed-asset register and payroll PF / ESI / PT cut; old books read as before (`cutFeaturesRead.dbtest.ts`). |
 | PROD-4 too many analysis screens | ✅ #245 | One Checks screen; item demand and three-way match only with orders on (`lib/screens.ts:311-329`). |
 | PROD-5 accountant help | ✗ (deferred) | Help is still simple-mode only (`to-do.md` §6, WP 10.3). |
-| PROD-6 payroll | — unchanged | Still a feature flag (off for wizard companies); salary is a Money out category. |
+| PROD-6 payroll | — accepted (unchanged) | Still a feature flag (off for wizard companies); salary is a Money out category. |
 | PROD-7 / PROD-8 share the bill, UPI QR | ✅ #239 | `invoice:share`, `upi:set`, QR on the A4 print and receipt. |
 | PROD-9 live e-invoice / e-way | — accepted | Sandbox only (owner); the "test mode" wording is shown (but see UX-19). |
 | PROD-10 phone / second device | — accepted | Offline by design. |
@@ -145,22 +145,25 @@ Severity: critical = exploitable now, data loss / exfiltration / RCE · high · 
 
 ### 2.1 Security & privacy
 
-#### SEC2-1 — Medium (high impact) — The release-signing key is online: anyone who can push a tag or merge a PR can sign a release
+#### SEC2-1 — Medium (high impact) — The release-signing key is online: anyone who can push to the repository can reach it and sign a release
 - **Evidence:**
   - `.github/workflows/release.yml:9-12` runs on any pushed `v*` tag.
   - The `sign-and-publish` job (`:201-228`) has no `environment:` with required reviewers. It checks out the workflow's own ref, which on a tag push is the tag's tree. It then runs *that tree's* `scripts/release/manifest.mjs` with `RELEASE_MANIFEST_KEY` in its environment, under `actions/setup-node@v4` (a mutable tag, not a SHA).
   - `.github/` has no CODEOWNERS, and CLAUDE.md says main has no branch protection. Agents may merge their own PRs, and a merge on main is released automatically at the next 12-hour slot.
-- **Failing scenario:** a leaked write token (or a merged malicious PR) pushes `v0.99.0` built from changed code. `release.yml` builds it and signs it with the real key, every app built since A4 verifies it, and users install it. That is SEC-5's own scenario. #251 protects against a Vercel compromise and against assets swapped after signing, but not against a repository compromise.
-- **Fix:**
-  - Sign on the owner's machine with a key that never reaches GitHub (`manifest.mjs sign`), or move the secret into a protected Environment with the owner as required reviewer, plus tag protection for `v*`.
-  - Pin actions by SHA.
-  - Add a CODEOWNERS file covering `.github/`, `scripts/release/`, `package*.json` and `src/main/releaseKeys.json`.
-  - Costs the fully automatic 12-hour release (owner question Q1).
+  - **More widely:** `RELEASE_MANIFEST_KEY` is a *repository* secret. GitHub gives it to any workflow run in the repository (forks aside), including one started by a push to any branch. On top of that, `release.yml:25-30` also has `workflow_dispatch`, and the sign job's checkout has no `ref:`. So "Run workflow" on a feature branch runs that branch's `manifest.mjs` with the key. No tag, PR or merge is needed.
+- **Failing scenario:** a leaked write token (or a merged malicious PR) pushes `v0.99.0` built from changed code. `release.yml` builds it and signs it with the real key, every app built since A4 verifies it, and users install it. That is SEC-5's own scenario. The same token could instead push a branch with a workflow that prints the secret, or dispatch Release on that branch, and take the key itself.
+- **What #251 does protect against:** a Vercel compromise, and assets swapped after signing, but **only on the electron-updater path** (`updaterCore.ts:196`). The hand-download path is SEC2-2. It does not protect against a repository compromise.
+- **Fix — only two things close it:**
+  - (a) sign on the owner's machine with a key that never reaches GitHub (`manifest.mjs sign`); or
+  - (b) move the secret OUT of the repository secrets into an **Environment** secret, with the owner as required reviewer AND deployments restricted to `v*` tags.
+  - Defence in depth on top of either: tag protection for `v*`, SHA-pinned actions, and a CODEOWNERS file covering `.github/`, `scripts/release/`, `package*.json` and `src/main/releaseKeys.json`. On their own these do not close it.
+  - Both (a) and (b) cost the fully automatic 12-hour release (owner question Q1).
 
-#### SEC2-2 — Medium — On macOS, the installer the user downloads by hand is never checked against the signed manifest
-- **Evidence:** for the hand-download path (the only working update path on unsigned macOS builds), `updater.ts:103-106` / `updaterCore.ts:136-139` open the GitHub URL of the installer the manifest names, and the browser downloads it. The SHA-512 check exists only on the electron-updater path (`updaterCore.ts:189-213`).
+#### SEC2-2 — Medium — The installer downloaded by hand (always on macOS; on Windows when the engine path fails) is never checked against the signed manifest
+- **Evidence:** for the hand-download path, `updater.ts:103-106` / `updaterCore.ts:136-139` open the GitHub URL of the installer the manifest names, and the browser downloads it. This is the only working update path on unsigned macOS builds. On win32, `installerFor` (`releaseManifest.ts:92`) picks `Total-Setup-<v>.exe` whenever an engine download or install fails and the notice falls back to the release page. The SHA-512 check exists only on the electron-updater path (`updaterCore.ts:189-213`).
 - **Failing scenario:** after a release is signed, someone with write access runs `gh release upload v0.12.5 Total-0.12.5.dmg --clobber`. The manifest still verifies, so the app offers the update and opens that URL, and the user installs the replaced DMG.
-- **Fix:** download the DMG in main, check its SHA-512 against `manifest.assets`, then reveal the verified file in Finder. On a mismatch, show a plain error and never open the page.
+- **Fix:** download the installer in main, check its SHA-512 against `manifest.assets`, then reveal the verified file. On a mismatch, show a plain error and never open the page.
+- **Order of fixes:** while SEC2-1 stands, an attacker with write access can simply sign a new release, so this finding matters once SEC2-1 is fixed. A cheap stop-gap for this `--clobber` swap and for SEC2-4's draft-asset swap is GitHub's immutable-releases setting.
 
 #### SEC2-3 — Medium (to confirm on a packaged build) — A shipped build probably accepts `--remote-debugging-port`, which reopens what SEC-1 / SEC-6 closed
 - **Evidence:**
@@ -205,9 +208,9 @@ Severity: critical = exploitable now, data loss / exfiltration / RCE · high · 
 - **Fix:** derive a debit note's bucket when reading, from its originals (return links / reference / bills set against), splitting the tax by each original's mark. Failing that, when a purchase's mark changes and it has debit notes, warn and offer to update them. The feature merged on 13 Nov (#263), so few books carry it, but the fix moves 3B figures for those that do (owner question Q2).
 
 #### COR2-2 — Low — A data import in "update" mode clears the blocked mark when the file doesn't carry it
-- **Evidence:** `services/dataImport.ts:1045` (`voucherInputFor`, shared by every voucher import) states `itcBlocked: vm.itc_blocked === 1` for every purchase and debit note. The review of #263 chose this on purpose ("the workbook is the truth"). But generic Excel / Busy files and Books workbooks exported before #263 have no such cell.
+- **Evidence:** `services/dataImport.ts:1045` (`voucherInputFor`, shared by every voucher import) states `itcBlocked: vm.itc_blocked === 1` for every purchase and debit note. The review of #263 chose this on purpose ("the workbook is the truth"). The export writes the key only for MARKED vouchers (`booksExport.ts:210`), so in a current workbook an absent key means "not marked". But a Books workbook exported before #263 has no such cell anywhere, and neither does any other file the user maps onto purchases with "update" (the Busy mapping was not traced).
 - **Failing scenario:** re-importing an older Books export with "Update matched entries" (opt-in; the default is skip) unmarks every blocked bill. A filed month's 4(A)(5) / 4(B)(1) / 4(C) then move, and the import summary does not say so (the undo restores them).
-- **Fix:** state the mark only when the voucher JSON cell has the key (`'itc_blocked' in vm`). Absent means keep.
+- **Fix:** tell old files apart at the WORKBOOK level: when no voucher in the file carries the key, the file predates #263, so keep the marks (say so in the summary). Alternatively, have the export write `itc_blocked: 0` explicitly for every purchase and debit note, then treat "absent" as keep. In that case update the books-fidelity expectation by hand. A per-row "absent = keep" would wrongly stop a current workbook from clearing a mark.
 
 #### COR2-3 — Low (plausible; a CA point) — A simple return of an SEZ / LUT bill saved before #244 leaves that bill's IGST owing
 - **Evidence:** `shared/simple/intents.ts:781` and `:1232-1233` tax the note by the party's *current* flag (`partyTaxClass` → zero tax). `loadOriginal` reads the bill's posted supply only for its rates (`simplePost.ts:183-187`), and `runningAmountRest` (`:1365`) then gives up on "empty the bill". The accountant credit-note editor does the same through `computeInvoice` → `billTaxClass`.
@@ -228,7 +231,7 @@ Severity: critical = exploitable now, data loss / exfiltration / RCE · high · 
   - `shared/simple/explain.ts:165` `gstLine` then always renders `simple.home.gstSoFar` = "So far this quarter: {amount}" (`en.ts:336`; hi "इस तिमाही में अब तक", hinglish "Is quarter mein ab tak"), and never says the date even though the row carries `gstr3bDue`.
   - e2e 80 asserts `soFar` and the period but not the words.
 - **Failing scenario:** the owner reads that GST is counted by quarter (wrong for them) and sees no date, though the first audit's fix direction was "₹90 collected this month — due 20 Dec".
-- **Fix:** in `gstLine`, use `gstPeriodLabel` (it already has `gstMonthSoFar` / `gstQuarterSoFar`) plus `gstr3bDue`: "November so far: ₹90 — due 20 Dec". Test the words in all three languages.
+- **Fix:** add a monthly so-far branch to `gstLine`, worded from `r.period` (the `gstMonthSoFar` key fits) plus `gstr3bDue`: "November so far: ₹90 — due 20 Dec". `gstPeriodLabel` alone won't do it: it returns at `explain.ts:157` for every non-quarterly row before it reaches `gstMonthSoFar`. Test the words in all three languages.
 
 #### UX2-2 — Low — "Add your first customer or supplier" is ticked by the walk-in cash sale
 - **Evidence:** run B: after one cash sale to the walk-in customer, the setup list says "Add your first customer or supplier (done)". `dashboard.ts:227` counts every non-system ledger without a `simple_category`, and the walk-in "Cash sale" ledger made by `ensureWalkIn` is one.
@@ -244,8 +247,8 @@ Severity: critical = exploitable now, data loss / exfiltration / RCE · high · 
 
 ### 2.4 Process
 
-#### PROC2-1 — Low — Package A9 (simple polish) has no owner and no tracking line
-- **Evidence:** the first audit's §5 lists A9 (UX-5, UX-14, UX-17, UX-19, UX-22 and others). Every other package A1–A13 has its PR; A9 has none, and `to-do.md` has no line for it. That is why UX-5 / 14 / 17 / 19 / 22 are all still open (§1.3).
+#### PROC2-1 — Low — What is left of package A9 (simple polish) has no owner and no tracking line
+- **Evidence:** the first audit's §5 gives A9's scope as UX-5, 6, 7, 8, 13, 14, 16, 17, 19, 20 and 22. The UI-overhaul PRs fixed UX-6 / 7 / 13 / 16 / 20 (#223, #232, #234, #235, #237) and part of UX-8 (#226). A9 itself has no PR, and `to-do.md` has no line for it, so the remaining five (UX-5 / 14 / 17 / 19 / 22) were never picked up (§1.3).
 - **Fix:** add A9 to `to-do.md` with the five remaining items, and treat UX-14 as correctness (it gives wrong figures), not polish.
 
 ### 2.5 Checked and fine (new code)
@@ -285,8 +288,8 @@ Severity: critical = exploitable now, data loss / exfiltration / RCE · high · 
 
 | # | What | Severity | Findings | Effort | Figures? |
 |---|---|---|---|---|---|
-| 1 | **Take the signing key off GitHub's automatic path.** Sign offline, or use a protected Environment with the owner as reviewer and `v*` tag protection. Add CODEOWNERS for the release machinery, pin actions by SHA, and set `persist-credentials: false` in the release jobs. | Medium (high impact) | SEC2-1, SEC2-4, SEC-5 | S–M | No |
-| 2 | **Check the macOS download before the user installs it**: download in main, compare the SHA-512 with the signed manifest, reveal only the verified DMG. Match the engine path by asset name too. | Medium | SEC2-2, SEC2-5 | M | No |
+| 1 | **Take the signing key out of reach of every repository push.** Either sign offline, or make it an Environment secret (not a repository secret) with the owner as required reviewer and deployments limited to `v*` tags. Then, as defence in depth: tag protection, CODEOWNERS for the release machinery, SHA-pinned actions, `persist-credentials: false` in the release jobs. | Medium (high impact) | SEC2-1, SEC2-4, SEC-5 | S–M | No |
+| 2 | **Check the hand-downloaded installer before the user installs it** (macOS always, Windows on fallback): download in main, compare the SHA-512 with the signed manifest, reveal only the verified file. Match the engine path by asset name too. | Medium | SEC2-2, SEC2-5 | M | No |
 | 3 | **Refuse `--remote-debugging-port` / `-pipe` in packaged builds** (confirm first with one packaged launch). | Medium | SEC2-3 | S | No |
 | 4 | **Ask Total: never answer a narrower question with a broader figure.** When the question names an item, an account or a thing the intent drops, resolve it (search service) or say "I can't split by X yet". | Medium (wrong figures to a beginner) | UX-14 | S–M | No |
 | 5 | **Blocked GST credit on debit notes follows the purchase**, read-time derivation, with a before/after report. | Medium | COR2-1 (+ COR2-2) | M | **Yes** (books using #263 only) |
@@ -309,7 +312,7 @@ Plain words; the recommended answer is first. None of these were asked: the owne
 
 | # | Question | Options (recommended first) | Why it matters |
 |---|---|---|---|
-| Q1 | **Who may sign a release?** Today any tag push or merged PR is signed automatically (SEC2-1). | **(a) A protected GitHub "release" environment: each release waits for your one click in GitHub; the 12-hour schedule stays, it just pauses for you** · (b) You sign on your Mac with a key that never goes to GitHub (strongest; every release waits for you) · (c) Keep as is | (a) keeps the schedule and stops a stolen token from shipping an update to every user; (b) is stronger but slower. |
+| Q1 | **Who may sign a release?** Today anyone who can push to the repository can reach the signing key, with or without a tag (SEC2-1). | **(a) Move the key into a protected GitHub "release" environment that only `v*` tags may use: each release waits for your one click in GitHub, and the 12-hour schedule stays (it just pauses for you)** · (b) You sign on your Mac with a key that never goes to GitHub (strongest; every release waits for you) · (c) Keep as is | (a) keeps the schedule and stops a stolen token from taking the key or shipping a signed update to every user, but only if the key moves INTO that environment. (b) is stronger but slower. |
 | Q2 | **A debit note's "can't claim GST" mark: follow its purchase, even for notes already saved?** (COR2-1) | **(a) Yes: work it out from the purchase when reading, with a before/after report for your sign-off (only books that used the mark since 13 Nov change)** · (b) Only for new notes, plus a warning when a purchase's mark changes · (c) Leave it | Today GSTR-3B Table 4 can be off by the note's tax after a purchase is re-marked. |
 | Q3 | **Which total goes into GSTR-1 and the e-invoice for a bill rounded down?** (COR-3, golden B2B-06) | **(a) The printed (rounded) total, as on the bill, with an upgrade report and a CA check** · (b) Keep the unrounded total | It decides B2CL vs B2CS at the limit, and what the e-invoice says. Filed months could move. |
 | Q4 | **Returning an SEZ / export bill made before the 8 Nov fix (#244): should the credit note take back the IGST that bill charged?** (COR2-3) | **(a) Yes, the note follows its bill (ask the CA to confirm)** · (b) No, notes follow today's rule | Otherwise ₹180 on a ₹1,000 bill stays owing after a full return. |
