@@ -299,10 +299,33 @@ function originalInvoices(db: DB, company: CompanyInfo, notes: { id: number; dat
   return out
 }
 
+/**
+ * WP 2d (owner, 13 Nov): a document's lines less its discount (s.15(3)(a)), shared pro rata by
+ * their value — largest remainders, integer paise, never below nil (a discount above the lines'
+ * value takes them all). No discount = the lines as they are.
+ */
+export function lessDiscount(amounts: readonly number[], discount: number): number[] {
+  const total = amounts.reduce((s, a) => s + Math.max(0, a), 0)
+  if (discount <= 0 || total <= 0) return [...amounts]
+  const take = BigInt(Math.min(discount, total))
+  const big = BigInt(total)
+  // Exact (BigInt): value × discount can pass 2^53 paise on a large bill.
+  const parts = amounts.map((a) => BigInt(Math.max(0, a)) * take)
+  const floors = parts.map((x) => x / big)
+  let left = take - floors.reduce((s, x) => s + x, 0n)
+  const order = parts.map((x, i) => [x % big, i] as const).sort((a, b) => (a[0] === b[0] ? a[1] - b[1] : a[0] > b[0] ? -1 : 1))
+  for (const [, i] of order) {
+    if (left <= 0n) break
+    floors[i]! += 1n
+    left--
+  }
+  return amounts.map((a, i) => a - Number(floors[i]!))
+}
+
 /** WP 2d: what the extraction noticed without changing a document — the ids of vouchers whose
  *  several rate-less lines were given ONE rate from the posted tax that another mix of slabs
  *  explains too (gstValidate's `blended_rate`). */
-export interface OutwardExtractionNotes { blended: number[] }
+export interface OutwardExtractionNotes { blended: number[]; discounted?: number[] }
 
 /**
  * Extract outward GST documents (sales + credit notes + outward debit notes) for a period.
@@ -364,6 +387,13 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
       for (const e of JSON.parse(r.ids) as { role?: string; voucherId: number }[]) if (e.role === 'note' && noteIds.has(e.voucherId)) simpleReturnNotes.add(e.voucherId)
     }
   }
+  // WP 2d (owner, 13 Nov): a discount booked on an income / expense account on the OTHER side of an
+  // outward document (CGST Act s.15(3)(a): a discount recorded on the invoice is not part of the
+  // value) is taken off the document's taxable value — `discountBy`, lines of ₹1 or more (round offs
+  // are not discounts), read with the rest per chunk. GST_SOURCES.s15.
+  const discountGroupIds = descendantIdsByName(db, [...INCOME_GROUPS, 'Direct Expenses', 'Indirect Expenses'])
+  const kindOfDoc = new Map(vouchers.map((v) => [v.id, v.kind]))
+  const discountBy = new Map<number, number>()
   const docIds = vouchers.map((v) => v.id)
   for (let i = 0; i < docIds.length; i += 500) {
     const chunk = docIds.slice(i, i + 500)
@@ -386,6 +416,15 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
       else invBy.set(voucherId, [r])
     }
     for (const r of db.prepare(`SELECT voucher_id AS id, SUM(amount) AS t FROM voucher_lines WHERE voucher_id IN (${marks}) AND dr_cr = 'dr' GROUP BY voucher_id`).all(...chunk) as { id: number; t: number }[]) totalBy.set(r.id, r.t)
+    for (const r of db
+      .prepare(
+        `SELECT vl.voucher_id AS id, vl.dr_cr AS drCr, vl.amount, l.group_id AS groupId FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id
+         WHERE vl.voucher_id IN (${marks}) AND l.tax_type IS NULL AND vl.amount >= 100`
+      )
+      .all(...chunk) as { id: number; drCr: 'dr' | 'cr'; amount: number; groupId: number }[]) {
+      const other = kindOfDoc.get(r.id) === 'credit_note' ? 'cr' : 'dr'
+      if (r.drCr === other && discountGroupIds.has(r.groupId)) discountBy.set(r.id, (discountBy.get(r.id) ?? 0) + r.amount)
+    }
     for (const r of db
       .prepare(
         `SELECT te.voucher_id AS id, SUM(te.tds_amount) AS t FROM tds_entries te JOIN tds_sections ts ON ts.id = te.section_id
@@ -488,13 +527,17 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
         }
       }
 
+      // WP 2d: this document's discount, taken off its lines pro rata (never below nil).
+      const discount = discountBy.get(v.id) ?? 0
+      if (discount > 0) notes?.discounted?.push(v.id)
       if (inv.length > 0) {
-        for (const line of inv) {
+        const net = lessDiscount(inv.map((l) => l.amount), discount)
+        for (const [n, line] of inv.entries()) {
           // Normalise the unit's UQC through the alias mapper; genuinely unknown codes are
           // kept as-is so the validation panel can flag them (never silently 'OTH').
           const mapped = toUqc(line.uqc)
           const uqc = mapped.fallback ? line.uqc : mapped.uqc
-          collect(line.amount, rated ? (line.gstRate ?? 0) : 0, rated ? (line.cessRate ?? 0) : 0, line.hsn, line.itemName, uqc, line.qtyMilli)
+          collect(net[n]!, rated ? (line.gstRate ?? 0) : 0, rated ? (line.cessRate ?? 0) : 0, line.hsn, line.itemName, uqc, line.qtyMilli)
         }
       } else {
         const lines = lineStmt.all(v.id) as {
@@ -502,7 +545,9 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
         }[]
         // Sales side: credit lines on sales/debit notes, debit lines on credit notes.
         const salesSide = v.kind === 'credit_note' ? 'dr' : 'cr'
-        const salesLines = lines.filter((l) => l.drCr === salesSide && salesGroupIds.has(l.groupId))
+        const grossLines = lines.filter((l) => l.drCr === salesSide && salesGroupIds.has(l.groupId))
+        const netAmounts = lessDiscount(grossLines.map((l) => l.amount), discount)
+        const salesLines = grossLines.map((l, n) => ({ ...l, amount: netAmounts[n]! }))
         // A voucher that posts tax is reported at the rate the posted tax implies on rate-less lines.
         const resolved =
           rated && !zeroTax
@@ -546,7 +591,10 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
         rate: b.rate, taxable: b.taxable, cgst: b.cgst, sgst: b.sgst, igst: b.igst, cess: b.cess
       }))
 
-      const invoiceValue = totalBy.get(v.id) ?? 0
+      // The voucher's debit side; less a discount booked on the other side (WP 2d) — the buyer is
+      // charged the value after it (a sale: the discount is one of the debits; a credit note: the
+      // party is credited the note less the discount).
+      const invoiceValue = (totalBy.get(v.id) ?? 0) - Math.min(discount, totalBy.get(v.id) ?? 0)
 
       return {
         voucherId: v.id,
@@ -1142,7 +1190,7 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
  *  e-invoice doc-no warning (#140) runs while the switch is on OR the profile says e-invoicing
  *  is required on the period's last day (to-do §4). */
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
-  const notes: OutwardExtractionNotes = { blended: [] }
+  const notes: OutwardExtractionNotes = { blended: [], discounted: [] }
   const docs = extractOutwardDocs(db, company, from, to, notes)
   const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
@@ -1152,7 +1200,7 @@ export function gstValidate(db: DB, company: CompanyInfo, from: string, to: stri
   })
   const goods = goodsAdvanceIssue(db, company, from, to)
   const blended = blendedRateIssue(notes.blended)
-  const discount = salesDiscountIssue(db, docs)
+  const discount = salesDiscountIssue(notes.discounted ?? [])
   const marks = blockedNoteIssue(db, from, to)
   return [...issues, ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : []), ...(marks ? [marks] : [])]
 }
@@ -1179,43 +1227,22 @@ export function blockedNoteIssue(db: DB, from: string, to: string): GstIssue | n
 }
 
 /**
- * WP 2d — a warning, never a figure: an outward document (sales invoice / credit note / outward
- * debit note) with a line on an income or expense account on the OTHER side — typically a discount
- * debited to an account under Sales Accounts, or to "Discount given" / Tally's "Discount Allowed"
- * under Indirect Expenses (review of #269). extractOutwardDocs reads only the sales-side lines, so its value
- * is reported BEFORE that discount (CGST Act s.15(3)(a): a discount shown on the invoice reduces the
- * value; GST_SOURCES.s15). Whether to net it changes filed months — the owner's decision (to-do §4
- * GST). Lines under ₹1 are round offs, not discounts.
+ * WP 2d — a note on the GSTR-1 checks: outward documents with a discount booked on an income /
+ * expense account on the OTHER side (`notes.discounted` — the extraction's own `discountBy`). Since
+ * the owner's decision of 13 Nov the discount is taken off their taxable value (s.15(3)(a), GST_SOURCES.s15)
+ * in GSTR-1 / 3B / 9; their e-invoice and print still carry the value before it.
  */
-export function salesDiscountIssue(db: DB, docs: readonly GstDoc[]): GstIssue | null {
-  if (docs.length === 0) return null
-  const pnl = descendantIdsByName(db, [...INCOME_GROUPS, 'Direct Expenses', 'Indirect Expenses'])
-  // The documents' non-tax lines of ₹1 or more, read in chunks of 500 (never one query per bill).
-  const lines = new Map<number, { groupId: number; drCr: 'dr' | 'cr' }[]>()
-  const all = docs.map((d) => d.voucherId)
-  for (let i = 0; i < all.length; i += 500) {
-    const chunk = all.slice(i, i + 500)
-    for (const r of db
-      .prepare(
-        `SELECT vl.voucher_id AS voucherId, l.group_id AS groupId, vl.dr_cr AS drCr FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id
-         WHERE vl.voucher_id IN (${chunk.map(() => '?').join(',')}) AND l.tax_type IS NULL AND vl.amount >= 100`
-      )
-      .all(...chunk) as { voucherId: number; groupId: number; drCr: 'dr' | 'cr' }[]) lines.set(r.voucherId, [...(lines.get(r.voucherId) ?? []), r])
-  }
-  const ids = docs.filter((d) => {
-    const other = d.kind === 'credit_note' ? 'cr' : 'dr'
-    return (lines.get(d.voucherId) ?? []).some((l) => l.drCr === other && pnl.has(l.groupId))
-  }).map((d) => d.voucherId)
-  if (ids.length === 0) return null
-  const n = ids.length
+export function salesDiscountIssue(voucherIds: readonly number[]): GstIssue | null {
+  if (voucherIds.length === 0) return null
+  const n = voucherIds.length
   return {
     code: 'sales_discount_line',
     severity: 'warning',
     message:
-      `${n} document${n === 1 ? '' : 's'} with an income or expense account on the other side (for example a discount debited to an account under Sales Accounts or to "Discount given"). ` +
-      'GSTR-1 reports the value BEFORE that line — a discount shown on the invoice reduces the taxable value (s.15(3)(a) CGST Act). ' +
+      `${n} document${n === 1 ? '' : 's'} with a discount booked on an income or expense account (for example under Sales Accounts, or "Discount given"). ` +
+      'The discount is taken off the taxable value in the returns (s.15(3)(a) CGST Act); the e-invoice and the print still show the value before it. ' +
       'Check these with your CA; for new bills, give the discount on the item line, or book the sale at the value after the discount.',
-    voucherIds: ids
+    voucherIds: [...voucherIds]
   }
 }
 

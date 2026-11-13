@@ -20,6 +20,16 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Discounts booked on an account now come off the GST value** (#PR, WP 2d, owner's decision
+13 Nov). A sales bill, or a credit or debit note, with a discount booked on an income or expense
+account (for example "Discount given", or an account under Sales Accounts) now reports its value
+after the discount in GSTR-1, GSTR-3B and GSTR-9 (CGST Act s.15(3)(a)). *For accountants*: this
+changes the figures of such bills in every month, including months already filed. The owner
+approved this. A bill that charged GST on the value before the discount now shows a difference in
+the GSTR-1 checks, which is right because it charged too much. The e-invoice and the print still
+show the value before the discount; that is question 58 for your CA. Bills with the discount on
+the item line were always right and do not change.
+
 **GST you can't claim back now counts as cost** (#277, WP 2d, owner's decision 13 Nov). When Record a
 purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
 entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and

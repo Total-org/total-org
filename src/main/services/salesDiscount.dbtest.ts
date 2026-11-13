@@ -1,17 +1,18 @@
 // WP 2d — a discount debited to an account under Sales Accounts on a sales bill: GSTR-1 reports the
-// value before it (only the sales-side lines are read). A warning (`sales_discount_line`); no figure moves.
+// value before it — since the owner's decision of 13 Nov it is taken off (s.15(3)(a)); the warning
+// (`sales_discount_line`) says the e-invoice / print still show the value before it.
 import { describe, expect, it } from 'vitest'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import { createLedger } from './masters'
 import { saveVoucher } from './vouchers'
-import { extractOutwardDocs, gstValidate } from './gst'
+import { extractOutwardDocs, gstValidate, lessDiscount } from './gst'
 import type { DrCr } from '@shared/domain'
 
 const FROM = '2026-07-01'
 const TO = '2026-07-31'
 
 describe('discount booked on a Sales account (WP 2d)', () => {
-  it('warns about the bill; the document is as before (value before the discount); a round off under ₹1 is not a discount', () => {
+  it('takes the discount off the taxable value (owner, 13 Nov) and says so; a round off under ₹1 is not a discount', () => {
     const db = seededDb()
     const groupId = (name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
     const vt = (db.prepare("SELECT id FROM voucher_types WHERE kind = 'sales'").get() as { id: number }).id
@@ -69,7 +70,27 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     const issue = gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')
     expect(issue).toMatchObject({ severity: 'warning', voucherIds: [withDiscount.id, onExpense.id, noteWithIncome.id] })
     expect(issue!.message).toContain('s.15(3)(a)')
-    // As before: the document carries the ₹1,000 sales line (the discount is not netted).
-    expect(extractOutwardDocs(db, TEST_INFO, FROM, TO).find((d) => d.voucherId === withDiscount.id)!.items[0]!.taxable).toBe(100000)
+    // Owner, 13 Nov: the discount is taken off — ₹900 taxable, ₹81 + ₹81 (the bill posted GST on ₹900:
+    // the value now ties — no val_mismatch).
+    const docs = extractOutwardDocs(db, TEST_INFO, FROM, TO)
+    expect(docs.find((d) => d.voucherId === withDiscount.id)!.items).toEqual([{ rate: 18, taxable: 90000, cgst: 8100, sgst: 8100, igst: 0, cess: 0 }])
+    expect(docs.find((d) => d.voucherId === withDiscount.id)!.validation!.valDiff).toBe(0)
+    // Tax on the gross (₹1,000 + ₹180 − ₹100 = ₹1,080 charged): ₹900 at 18 % is ₹1,062 — ₹18 over: the value check says so.
+    expect(docs.find((d) => d.voucherId === onExpense.id)!.items[0]!.taxable).toBe(90000)
+    expect(docs.find((d) => d.voucherId === onExpense.id)!.validation!.valDiff).toBe(1800)
+    // The credit note's ₹50 income line comes off its ₹100: ₹50 taxable.
+    expect(docs.find((d) => d.voucherId === noteWithIncome.id)!.items[0]!.taxable).toBe(5000)
+  })
+
+  it('lessDiscount shares a discount pro rata by value, in whole paise (largest remainders), never below nil', () => {
+    // ₹100 off ₹600 + ₹400: ₹60 + ₹40.
+    expect(lessDiscount([60_000, 40_000], 10_000)).toEqual([54_000, 36_000])
+    // ₹1 off three equal ₹1 lines: 33.33… each → 34 / 33 / 33 paise (the first remainder wins the extra paisa).
+    expect(lessDiscount([100, 100, 100], 100)).toEqual([66, 67, 67])
+    // More discount than value: every line to nil.
+    expect(lessDiscount([5_000, 5_000], 20_000)).toEqual([0, 0])
+    // None: unchanged. Large values stay exact (BigInt): ₹1,00,00,000 lines, ₹33,33,333.33 off.
+    expect(lessDiscount([7, 9], 0)).toEqual([7, 9])
+    expect(lessDiscount([1_000_000_000, 2_000_000_000], 333_333_333).reduce((a, b) => a + b, 0)).toBe(3_000_000_000 - 333_333_333)
   })
 })

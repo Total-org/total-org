@@ -421,6 +421,14 @@ export const CA_POINTS = [
     places: ['tds.screen']
   },
   {
+    // WP 2d (owner, 13 Nov): a discount booked on an account is taken off the GST value (s.15(3)(a)).
+    id: 'gst-discount-net',
+    rule: 'CGST Act s.15(3)(a) — a discount recorded in the invoice is not part of the value',
+    covers: [],
+    questions: [58],
+    places: ['gstr1.screen']
+  },
+  {
     id: 'tds-return-layouts',
     rule: 'Form 26Q, Form 16A (TRACES utility)',
     covers: [],
