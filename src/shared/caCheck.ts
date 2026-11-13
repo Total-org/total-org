@@ -426,7 +426,7 @@ export const CA_POINTS = [
     rule: 'CGST Act s.15(3)(a) — a discount recorded in the invoice is not part of the value',
     covers: [],
     questions: [58],
-    places: ['gstr1.screen']
+    places: ['gstr1.screen', 'gstr3b.outward', 'gstr9.screen', 'simple.taxes.collected', 'simple.home.gst']
   },
   {
     id: 'tds-return-layouts',
