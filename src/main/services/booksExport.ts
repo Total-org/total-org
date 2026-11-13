@@ -203,6 +203,8 @@ export function buildBooksWorkbook(db: DB, info: CompanyInfo, appVersion: string
     'SELECT e.voucher_id, s.code, s.kind, e.base_amount, e.tds_amount, e.is_manual FROM tds_entries e JOIN tds_sections s ON s.id = e.section_id'
   ))
   const tradeFacts = new Map(all<{ voucher_id: number; purpose: string; closed_at: string | null; close_reason: string | null }>('SELECT * FROM trade_voucher_details').map((t) => [t.voucher_id, t]))
+  // WP 2d (owner, 13 Nov): a bill's recorded MSME day of acceptance rides in its voucher cell.
+  const acceptance = new Map(all<{ voucher_id: number; accepted_on: string; basis: string; note: string }>('SELECT voucher_id, accepted_on, basis, note FROM msme_acceptance').map((a) => [a.voucher_id, a]))
   const voucherRows: Row[] = []
   for (const v of vouchers) {
     const vm: DbRow = JSON.parse(extras(v, VOUCHER_CANON) ?? '{}')
@@ -211,6 +213,8 @@ export function buildBooksWorkbook(db: DB, info: CompanyInfo, appVersion: string
     const t = tradeFacts.get(v.id as number)
     if (t) Object.assign(vm, { 'trade.purpose': t.purpose }, t.closed_at ? { 'trade.closed_at': t.closed_at, 'trade.close_reason': t.close_reason } : {})
     for (const w of wh.get(v.id as number) ?? []) vm[`${w.kind}.is_manual`] = w.is_manual
+    const a = acceptance.get(v.id as number)
+    if (a) Object.assign(vm, { 'msme.accepted_on': a.accepted_on, 'msme.basis': a.basis }, a.note ? { 'msme.note': a.note } : {})
     const head: Row = {
       key: `V${v.id}`, type: v.type, date: v.date as string, number: v.number as string, party: v.party, narration: v.narration as string | null,
       reference: v.reference as string | null, placeOfSupply: v.pos_override as string | null, currency: v.currency_code as string | null,

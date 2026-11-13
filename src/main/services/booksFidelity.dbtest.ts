@@ -15,7 +15,8 @@ import { createDemoCompany } from './demo'
 import { buildBooksWorkbook } from './booksExport'
 import { xlsxBytes } from './xlsxFile'
 import { parseImportFile, planSteps } from './importFiles'
-import { runImport, type ImportOptions } from './dataImport'
+import { runImport, undoImport, type ImportOptions } from './dataImport'
+import { setMsmeAcceptance } from './payables'
 import { createGodown, createGroup, createLedger, createStockItem, getLedger, updateLedger } from './masters'
 import { getLockDate, getVoucher, saveVoucher } from './vouchers'
 import { saveTradeDoc } from './tradeDocs'
@@ -113,6 +114,14 @@ function richCompany(): { db: DB; prevFy: number } {
     lines: [{ ledgerId: imported.id, drCr: 'dr', amount: 10000, costAllocations: [] }, { ledgerId: rent.id, drCr: 'cr', amount: 10000, costAllocations: [] }]
   })
   expect((db.prepare("SELECT COUNT(*) AS n FROM vouchers WHERE snap_party_side = 'debtor'").get() as { n: number }).n).toBe(1)
+  // WP 2d (owner, 13 Nov): a micro supplier's bill with a recorded MSME day of acceptance — it rides in
+  // the voucher cell (msme.*) and comes back in msme_acceptance.
+  const micro = createLedger(db, { name: 'Micro Castings', groupId: groupId(db, 'Sundry Creditors'), pan: null, msmeRegistered: true, msmeCategory: 'micro', udyamNo: 'UDYAM-MH-33-0012345' })
+  const mBill = saveVoucher(db, {
+    ...base, voucherTypeId: vt(db, 'purchase'), date: `${prevFy + 1}-05-10`, partyLedgerId: micro.id,
+    lines: [{ ledgerId: rent.id, drCr: 'dr', amount: 30000, costAllocations: [] }, { ledgerId: micro.id, drCr: 'cr', amount: 30000, costAllocations: [] }]
+  })
+  setMsmeAcceptance(db, { voucherId: mBill.id, acceptedOn: `${prevFy + 1}-05-02`, basis: 'delivered', note: 'GRN 7' }, `${prevFy + 1}-06-01`)
   // Order → challan → invoice (the invoice line does not move stock: it moved on the challan).
   const krishna = L(db, 'Krishna Enterprises')
   const so = saveTradeDoc(db, {
@@ -191,6 +200,16 @@ describe('Books workbook fidelity', () => {
     ).all()
     expect(nicFacts(dst)).toEqual(nicFacts(src))
     expect((nicFacts(dst) as { irn_cancelled_at: string }[])[0]!.irn_cancelled_at).toBe(`${prevFy + 1}-05-08 15:40:00`)
+
+    // WP 2d: the MSME day of acceptance came back (also in the dump above).
+    expect(dst.prepare('SELECT accepted_on AS a, basis, note FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-02`, basis: 'delivered', note: 'GRN 7' }])
+    // An import that updates the bill puts the workbook's day back; its undo restores the day it had.
+    dst.prepare("UPDATE msme_acceptance SET accepted_on = ?, basis = 'objection_removed', note = ''").run(`${prevFy + 1}-05-20`)
+    const upd = importBooks(dst, bytes, { duplicate: 'update' })
+    expect(dst.prepare('SELECT accepted_on AS a, basis FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-02`, basis: 'delivered' }])
+    undoImport(dst, upd.batchId!)
+    expect(dst.prepare('SELECT accepted_on AS a, basis FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-20`, basis: 'objection_removed' }])
+    dst.prepare("UPDATE msme_acceptance SET accepted_on = ?, basis = 'delivered', note = 'GRN 7'").run(`${prevFy + 1}-05-02`)
 
     // A second import changes nothing (Source IDs match; both receipts "1" are found in their own FY).
     const again = importBooks(dst, bytes, { duplicate: 'skip' })

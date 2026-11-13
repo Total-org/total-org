@@ -1085,8 +1085,33 @@ function afterVoucherSave(ctx: Ctx, voucherId: number, d: VoucherDraft, post: Po
     for (const k of edoc) ctx.db.prepare(`UPDATE vouchers SET ${k} = ? WHERE id = ?`).run(String(vm[k]), voucherId)
     writeAudit(ctx.db, 'voucher', voucherId, 'update', null, Object.fromEntries(edoc.map((k) => [k, vm[k]])))
   }
+  restoreMsmeAcceptance(ctx.db, voucherId, msmeAcceptanceOf(vm))
   if (vm.is_year_end_close === 1 || vm.is_year_end_close === true) ctx.deferred.closingJournals.push({ voucherId, line: d.lines[0] ?? 0, label })
   if (str(vm['trade.closed_at'])) ctx.deferred.noteClosures.push({ voucherId, reason: str(vm['trade.close_reason']) })
+}
+
+/** WP 2d (owner, 13 Nov): a Books workbook voucher cell's MSME day of acceptance (null = none). */
+function msmeAcceptanceOf(vm: Record<string, unknown>): MsmeAcceptanceFacts | null {
+  const on = str(vm['msme.accepted_on'])
+  if (!on || !/^\d{4}-\d{2}-\d{2}$/.test(on)) return null
+  return { acceptedOn: on, basis: vm['msme.basis'] === 'objection_removed' ? 'objection_removed' : 'delivered', note: str(vm['msme.note']) ?? '' }
+}
+
+type MsmeAcceptanceFacts = { acceptedOn: string; basis: 'delivered' | 'objection_removed'; note: string }
+
+/** Put a voucher's MSME day of acceptance back exactly as an import / undo carries it (history —
+ *  never re-checked against today's lock or supplier, as the voucher itself is restored); null =
+ *  none. Audited when it changes. */
+function restoreMsmeAcceptance(db: DB, voucherId: number, a: MsmeAcceptanceFacts | null): void {
+  const before = db.prepare('SELECT accepted_on AS acceptedOn, basis, note FROM msme_acceptance WHERE voucher_id = ?').get(voucherId) as MsmeAcceptanceFacts | undefined
+  if (JSON.stringify(before ?? null) === JSON.stringify(a)) return
+  if (a == null) db.prepare('DELETE FROM msme_acceptance WHERE voucher_id = ?').run(voucherId)
+  else
+    db.prepare(
+      `INSERT INTO msme_acceptance (voucher_id, accepted_on, basis, note) VALUES (?, ?, ?, ?)
+       ON CONFLICT (voucher_id) DO UPDATE SET accepted_on = excluded.accepted_on, basis = excluded.basis, note = excluded.note`
+    ).run(voucherId, a.acceptedOn, a.basis, a.note)
+  writeAudit(db, 'msme_acceptance', voucherId, before == null ? 'create' : a == null ? 'delete' : 'update', before ? { voucherId, ...before } : null, a ? { voucherId, ...a } : null)
 }
 
 /** The live record an import of this row duplicates: first by Source ID (within the exporting
@@ -1146,9 +1171,10 @@ function applyVouchers(ctx: Ctx, drafts: VoucherDraft[]): void {
         const before = getVoucher(ctx.db, dup)!
         const { input, post } = voucherInputFor(ctx, d, vt, d.number ?? undefined)
         const beforeFacts = readTaxFacts(ctx.db, dup)
+        const beforeAcceptance = ctx.db.prepare('SELECT accepted_on AS acceptedOn, basis, note FROM msme_acceptance WHERE voucher_id = ?').get(dup) as MsmeAcceptanceFacts | undefined
         saveVoucher(ctx.db, input, dup, { adoptLineUids: true, historicImport: true, taxFacts: post.taxFacts })
         afterVoucherSave(ctx, dup, d, post, label)
-        track(ctx, 'voucher', dup, 'update', beforeFacts ? { ...before, taxFacts: beforeFacts } : before, line, sourceKey)
+        track(ctx, 'voucher', dup, 'update', { ...before, ...(beforeFacts ? { taxFacts: beforeFacts } : {}), ...(beforeAcceptance ? { msmeAcceptance: beforeAcceptance } : {}) }, line, sourceKey)
         outcome(ctx, line, label, 'update')
         return
       }
@@ -1612,7 +1638,12 @@ export function undoImport(db: DB, batchId: number): UndoResult {
             } else if (it.entity === 'ledger') masters.updateLedger(db, it.entity_id, ledgerInputSchema.parse(before))
             else if (it.entity === 'fx_ledger_currency') restoreForeignOpening(db, before as ForeignOpeningRow)
             else if (it.entity === 'stockItem') masters.updateStockItem(db, it.entity_id, stockItemInputSchema.parse(itemInputFromRow(before as StockItemRowDb)))
-            else if (it.entity === 'voucher') saveVoucher(db, voucherToInput(before as Voucher), it.entity_id, { historicImport: true, taxFacts: taxFactsFrom((before as { taxFacts?: unknown }).taxFacts) })
+            else if (it.entity === 'voucher') {
+              saveVoucher(db, voucherToInput(before as Voucher), it.entity_id, { historicImport: true, taxFacts: taxFactsFrom((before as { taxFacts?: unknown }).taxFacts) })
+              // WP 2d: the MSME day of acceptance the voucher had before the import (none = none).
+              const a = (before as { msmeAcceptance?: Record<string, unknown> }).msmeAcceptance
+              restoreMsmeAcceptance(db, it.entity_id, a ? msmeAcceptanceOf({ 'msme.accepted_on': a.acceptedOn, 'msme.basis': a.basis, 'msme.note': a.note }) : null)
+            }
             else if (it.entity === 'bank_date') setBankDate(db, it.entity_id, (before as { bankDate: string | null }).bankDate)
             else if (it.entity === 'group') masters.updateGroup(db, it.entity_id, { name: before.name, parentId: before.parentId })
             else if (it.entity === 'godown') masters.updateGodown(db, it.entity_id, before)
