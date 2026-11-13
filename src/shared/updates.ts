@@ -23,8 +23,9 @@ export interface UpdateNotice {
   /** Without a leading "v". */
   version: string
   via: 'engine' | 'site'
-  /** Only on 'failed'. */
-  reason?: 'download' | 'unverified'
+  /** Only on 'failed': 'download' (the internet), 'save' (the disk / folder), 'unverified' (the file did
+   *  not match and was deleted), 'noInstaller' (the release names no installer for this computer). */
+  reason?: 'download' | 'save' | 'unverified' | 'noInstaller'
 }
 
 export interface UpdatesView {

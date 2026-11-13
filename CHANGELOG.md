@@ -22,8 +22,8 @@ Things to know about the version numbers:
 
 **Updates downloaded by hand are checked before you open them** (#270, second audit SEC2-2 / SEC2-5). On a Mac (and on
 Windows when the built-in updater fails), "Download now" used to open the new installer in your browser. Total now
-downloads it itself into your Downloads folder and keeps it only when it matches the signed release list; then it
-offers "Open it" and "Show in folder". A file that does not match is deleted and never opened. The built-in updater
+downloads it itself and keeps it only when it matches the signed release list; then it offers "Open it" and
+"Show in folder". A file that does not match is deleted and never opened. The built-in updater
 also accepts only the file meant for this computer, not any other signed file of the release.
 
 **Total no longer starts with a remote-debugging switch** (#270, second audit SEC2-3). A program on the same computer

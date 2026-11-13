@@ -154,7 +154,11 @@ export function UpdateNotice(): React.JSX.Element | null {
           <p className="text-detail text-ink" role="alert" data-testid="update-failed">
             {notice.reason === 'unverified'
               ? t('simple.updates.mismatch', { version: notice.version })
-              : t('simple.updates.downloadFailed', { version: notice.version })}
+              : notice.reason === 'noInstaller'
+                ? t('simple.updates.unverified', { version: notice.version })
+                : notice.reason === 'save'
+                  ? t('simple.updates.saveFailed', { version: notice.version })
+                  : t('simple.updates.downloadFailed', { version: notice.version })}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {canAct && (

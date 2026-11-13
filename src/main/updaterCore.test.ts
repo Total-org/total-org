@@ -18,7 +18,7 @@ const manifestFor = (version: string): ReleaseManifest => ({
   ]
 })
 /** What the fake checked download does: keep the file, report a mismatch, or fail on the network. */
-type HandResult = 'ok' | 'mismatch' | 'network' 
+type HandResult = 'ok' | 'mismatch' | 'network' | 'disk' | 'manual'
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
 
 function setup(
@@ -42,6 +42,8 @@ function setup(
   const shown: string[] = []
   const removed: string[] = []
   const downloads: string[] = []
+  /** With hand 'manual': each download waits here until the test settles it. */
+  const pending: { name: string; resolve(p: string): void; reject(e: Error): void }[] = []
   let hand: HandResult = opts.hand ?? 'ok'
   let fileHash = opts.fileHash ?? GOOD_HASH
   const fetchLatest = vi.fn(async () => (opts.latest === undefined ? null : opts.latest))
@@ -60,6 +62,8 @@ function setup(
       downloads.push(asset.name)
       if (hand === 'mismatch') throw new InstallerMismatch('SHA-512 differs')
       if (hand === 'network') throw new Error('ECONNRESET')
+      if (hand === 'disk') throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      if (hand === 'manual') return new Promise<string>((resolve, reject) => pending.push({ name: asset.name, resolve, reject }))
       return `/Downloads/${asset.name}`
     },
     hashFile: async () => {
@@ -90,6 +94,7 @@ function setup(
     shown,
     removed,
     downloads,
+    pending,
     fetchLatest,
     verifyRelease,
     settings: () => settings,
@@ -449,7 +454,46 @@ describe('the checked hand download (audit 2 SEC2-2)', () => {
     t.u.act('download')
     await flush()
     expect(t.downloads).toEqual([])
-    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'unverified' })
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'noInstaller' })
+  })
+
+  it('a disk / folder error is told apart from the internet (review of #270)', async () => {
+    const t = await checked({ hand: 'disk' })
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'save' })
+  })
+
+  it('an older download that ends after a newer one started never replaces it (review of #270)', async () => {
+    const t = setup({ latest: { version: '0.13.0' }, hand: 'manual' })
+    await t.u.checkNow()
+    t.u.act('download') // 0.13.0, still running
+    await flush()
+    // A newer release is found and downloaded while 0.13.0 is still coming in.
+    t.fetchLatest.mockResolvedValueOnce({ version: '0.13.1' })
+    await t.u.checkNow()
+    expect(t.u.view().notice).toEqual({ phase: 'available', version: '0.13.1', via: 'site' })
+    t.u.act('download')
+    await flush()
+    expect(t.pending.map((p) => p.name)).toEqual(['Total-Setup-0.13.0.exe', 'Total-Setup-0.13.1.exe'])
+    t.pending[1]!.resolve('/D/Total-Setup-0.13.1.exe')
+    await flush()
+    t.pending[0]!.resolve('/D/Total-Setup-0.13.0.exe')
+    await flush()
+    expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.1', via: 'site' })
+    expect(t.removed).toEqual(['/D/Total-Setup-0.13.0.exe'])
+    t.u.act('showInstaller')
+    expect(t.shown).toEqual(['/D/Total-Setup-0.13.1.exe'])
+  })
+
+  it('an older download that fails late leaves a newer notice alone', async () => {
+    const t = setup({ latest: { version: '0.13.0' }, hand: 'manual' })
+    await t.u.checkNow()
+    t.u.act('download')
+    await flush()
+    t.fetchLatest.mockResolvedValueOnce({ version: '0.13.1' })
+    await t.u.checkNow()
+    t.pending[0]!.reject(new Error('ECONNRESET'))
+    await flush()
+    expect(t.u.view().notice).toEqual({ phase: 'available', version: '0.13.1', via: 'site' })
   })
 
   it('skip still works on a failed notice; actions out of phase do nothing', async () => {

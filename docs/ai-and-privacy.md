@@ -78,12 +78,18 @@ Code: `src/main/updater.ts`, started from `src/main/index.ts`. Only the packaged
    (the setup exe on Windows, the mac zip on macOS — audit 2 SEC2-5). "Download now" then makes
    Total itself download that version's installer from GitHub (the DMG built for this Mac, or
    `Total-Setup-<version>.exe` — the file the manifest names, never an address from the site's
-   answer; GitHub's redirect to its file host is followed) into your Downloads folder. It is kept
-   only when its size and SHA-512 equal the manifest's (audit 2 SEC2-2); then the notice offers
-   "Open it" (the file is checked again first) and "Show in folder", and you install the new
-   version yourself. A file that does not match is deleted and never opened ("did not match the
-   signed release"); a download that fails says so and offers "Try again". No browser page is
-   opened for a download any more. If a download or an install through
+   answer; GitHub's redirect to its file host is followed) into a folder Total owns (`updates` in
+   Total's app data, emptied at launch and before every download — not your Downloads folder, so
+   macOS asks no permission and no half-finished file is left there). It gives up only when no data
+   arrives for 2 minutes (a slow line is fine). It is kept only when its size and SHA-512 equal the
+   manifest's (audit 2 SEC2-2); then the notice offers "Open it" (the file is checked again first)
+   and "Show in folder", and you install the new version yourself. A file that does not match is
+   deleted and never opened ("did not match the signed release"); a failed download says whether
+   the internet or the disk was the problem and offers "Try again". No browser page is opened for a
+   download any more. **On purpose**, a file Total writes itself carries no `com.apple.quarantine`
+   flag on macOS (no "Mark of the Web" on Windows), so the checked DMG's app opens without the
+   `xattr -cr` step and the setup without SmartScreen: the SHA-512 check against the signed manifest
+   is what stands in for Gatekeeper / SmartScreen here. Don't add a quarantine flag to "fix" it. If a download or an install through
    electron-updater fails (an unsigned macOS build cannot replace itself), the notice turns into
    the same checked download; "Install when I quit" is offered only after electron-updater itself
    finished a download. How far an unsigned macOS build gets before it fails is **unverified**

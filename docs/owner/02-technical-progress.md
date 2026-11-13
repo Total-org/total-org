@@ -197,8 +197,9 @@ off). Nothing downloads or installs without a click: the notice offers Download 
 this version, then Restart to update / Install when I quit.
 
 **Builds are unsigned.** There is no Apple Developer ID yet, so macOS calls the app "damaged"
-until you clear the quarantine flag (section 7), and updates on Mac go through the download page
-instead of installing in place. Windows shows a SmartScreen warning ("More info → Run anyway").
+until you clear the quarantine flag (section 7). Updates on Mac don't install in place: Total
+downloads the new installer itself, checks it against the signed release list, and then offers
+"Open it" (second audit SEC2-2, #270). Windows shows a SmartScreen warning ("More info → Run anyway").
 Both disappear once the builds are signed.
 
 ---

@@ -21,13 +21,14 @@
  * Ed25519, key pinned in releaseKeys.json — releaseManifest.ts) before it is offered; an engine
  * download is installed only when its SHA-512 is in that manifest — and is an asset this platform
  * installs (SEC2-5). Audit 2 SEC2-2: a hand download is no longer a browser download — main fetches
- * the manifest's installer from GitHub into Downloads, keeps it only when its size + SHA-512 match
+ * the manifest's installer from GitHub into a folder Total owns (userData/updates), keeps it only when its size + SHA-512 match
  * (installerDownload.ts), and only then offers "Open it" / "Show in folder".
  *
  * The app stays fully offline otherwise: this runs only in packaged builds and never blocks.
  */
 import { app, BrowserWindow, shell } from 'electron'
-import { rmSync } from 'fs'
+import { mkdirSync, rmSync } from 'fs'
+import { join } from 'path'
 import { createRequire } from 'module'
 import { log } from './log'
 import { GITHUB_REPO, SITE_URL } from '@shared/product'
@@ -70,8 +71,17 @@ async function verifyRelease(version: string): Promise<ReleaseManifest | null> {
   return check.manifest
 }
 
-/** An installer download may take a while on a slow line, but never for ever. */
-const INSTALLER_TIMEOUT_MS = 30 * 60_000
+/** Where the checked installer is kept: a folder Total owns (review of #270 — the user's Downloads asks
+ *  for macOS permission, and a partial file would be left there). Emptied at launch and before every
+ *  download, so nothing piles up. */
+const updatesDir = (): string => join(app.getPath('userData'), 'updates')
+
+function emptyUpdatesDir(): string {
+  const dir = updatesDir()
+  rmSync(dir, { recursive: true, force: true })
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
 
 function openChecked(path: string): void {
   void shell.openPath(path).then((error) => {
@@ -110,10 +120,10 @@ function build(): Updater {
     downloadInstaller: (m, asset) =>
       downloadVerifiedInstaller({
         // GitHub only (never the site): the release asset, redirects to GitHub's file host followed.
-        fetchImpl: (url) => fetch(url, { signal: AbortSignal.timeout(INSTALLER_TIMEOUT_MS) }),
+        fetchImpl: (url, signal) => fetch(url, { signal }),
         url: releaseAssetUrl(GITHUB_REPO, m.version, asset.name),
         asset,
-        dir: app.getPath('downloads')
+        dir: emptyUpdatesDir()
       }),
     hashFile: sha512File,
     openFile: openChecked,
@@ -156,5 +166,10 @@ export function initUpdater(): void {
   if (!app.isPackaged) return
   // WP 7.3: scripted runs against a packaged build (the Windows CI smoke) never check.
   if (updateCheckDisabled(process.env)) return
+  try {
+    rmSync(updatesDir(), { recursive: true, force: true })
+  } catch (err) {
+    log('warn', 'updater', { error: `clear updates folder: ${String(err)}` })
+  }
   build().init()
 }

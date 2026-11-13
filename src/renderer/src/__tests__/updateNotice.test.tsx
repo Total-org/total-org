@@ -127,6 +127,10 @@ describe('update notice', () => {
 
     act(() => push!({ ...site, phase: 'failed', reason: 'download' }))
     expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't download Total 0.13.0. Check your internet connection and try again.")
+    act(() => push!({ ...site, phase: 'failed', reason: 'save' }))
+    expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't save Total 0.13.0 on this computer. Check that there is free space, then try again.")
+    act(() => push!({ ...site, phase: 'failed', reason: 'noInstaller' }))
+    expect(screen.getByTestId('update-failed').textContent).toMatch(/could not be checked as a genuine release/)
   })
 
   it('a download in progress can be hidden', async () => {

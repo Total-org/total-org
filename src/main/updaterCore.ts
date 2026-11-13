@@ -110,6 +110,9 @@ export interface UpdaterDeps {
   setTimer?(fn: () => void, ms: number): unknown
 }
 
+/** File-system errors while saving the installer: a disk / folder problem, not the internet. */
+const SAVE_ERRORS = new Set(['EACCES', 'EPERM', 'ENOSPC', 'EDQUOT', 'EROFS', 'ENOENT', 'ENOTDIR', 'EISDIR', 'EBUSY'])
+
 export function createUpdater(deps: UpdaterDeps) {
   let notice: UpdateNotice | null = null
   /** Verified manifests by bare version (a version is offered only once its manifest is here). */
@@ -122,6 +125,8 @@ export function createUpdater(deps: UpdaterDeps) {
   let installVersion: string | null = null
   /** The installer Total downloaded and checked itself (SEC2-2), shown by the 'checked' notice. */
   let handFile: { version: string; path: string; asset: ManifestAsset } | null = null
+  /** Counts hand downloads: only the latest one may set the notice. */
+  let handRun = 0
   const timer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms))
 
   const set = (next: UpdateNotice | null): void => {
@@ -155,20 +160,31 @@ export function createUpdater(deps: UpdaterDeps) {
     const m = verified.get(v)
     const asset = m ? deps.installerFor(m) : null
     if (!m || !asset) {
+      // Nothing was downloaded: the release names no installer for this computer.
       deps.log('warn', 'update-unverified', { version: v, reason: 'no installer in the manifest' })
-      set({ phase: 'failed', version: v, via: 'site', reason: 'unverified' })
+      set({ phase: 'failed', version: v, via: 'site', reason: 'noInstaller' })
       return
     }
+    const run = ++handRun
     handFile = null
     set({ phase: 'downloading', version: v, via: 'site' })
+    // Review of #270: a download that ends after another started (or after a newer notice) changes nothing.
+    const current = (): boolean => run === handRun && notice?.phase === 'downloading' && notice.via === 'site' && notice.version === v
     try {
       const path = await deps.downloadInstaller(m, asset)
+      if (!current()) {
+        deps.removeFile(path)
+        return
+      }
       handFile = { version: v, path, asset }
       set({ phase: 'checked', version: v, via: 'site' })
     } catch (err) {
+      if (!current()) return
       const mismatch = err instanceof InstallerMismatch
+      const code = (err as { code?: unknown } | null)?.code
+      const reason = mismatch ? 'unverified' : typeof code === 'string' && SAVE_ERRORS.has(code) ? 'save' : 'download'
       deps.log('warn', mismatch ? 'update-unverified' : 'updater', { version: v, file: 'installer', error: String(err) })
-      set({ phase: 'failed', version: v, via: 'site', reason: mismatch ? 'unverified' : 'download' })
+      set({ phase: 'failed', version: v, via: 'site', reason })
     }
   }
 

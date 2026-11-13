@@ -5,7 +5,7 @@ import { createHash } from 'crypto'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { downloadVerifiedInstaller, InstallerMismatch } from './installerDownload'
+import { DownloadStalled, downloadVerifiedInstaller, InstallerMismatch } from './installerDownload'
 import type { ManifestAsset } from './releaseManifest'
 
 const GOOD = Buffer.from('the signed installer bytes '.repeat(5000))
@@ -61,6 +61,43 @@ describe('downloadVerifiedInstaller', () => {
     await expect(p).rejects.toThrow(/HTTP 404/)
     await expect(p).rejects.not.toBeInstanceOf(InstallerMismatch)
     expect(readdirSync(d)).toEqual([])
+  })
+
+  it('a body that stops sending is given up after the idle time, with no file left (review of #270)', async () => {
+    const d = dir()
+    const stalled = async (_url: string, signal: AbortSignal) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new Uint8Array(GOOD.subarray(0, 1000)))
+          signal.addEventListener('abort', () => c.error(signal.reason))
+        }
+      })
+      return new Response(body)
+    }
+    await expect(downloadVerifiedInstaller({ fetchImpl: stalled, url: 'u', asset: assetOf(GOOD), dir: d, idleMs: 50 })).rejects.toBeInstanceOf(DownloadStalled)
+    expect(readdirSync(d)).toEqual([])
+    // A request that never answers is given up too.
+    const silent = (_url: string, signal: AbortSignal) => new Promise<Response>((_r, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
+    await expect(downloadVerifiedInstaller({ fetchImpl: silent, url: 'u', asset: assetOf(GOOD), dir: d, idleMs: 50 })).rejects.toBeInstanceOf(DownloadStalled)
+  })
+
+  it('a slow body that keeps sending is not cut off', async () => {
+    const d = dir()
+    const slow = async () => {
+      let i = 0
+      const body = new ReadableStream<Uint8Array>({
+        async pull(c) {
+          await new Promise((r) => setTimeout(r, 20))
+          const part = GOOD.subarray(i, i + 30000)
+          i += 30000
+          if (part.length) c.enqueue(new Uint8Array(part))
+          else c.close()
+        }
+      })
+      return new Response(body)
+    }
+    const p = await downloadVerifiedInstaller({ fetchImpl: slow, url: 'u', asset: assetOf(GOOD), dir: d, idleMs: 60 })
+    expect(readFileSync(p).equals(GOOD)).toBe(true)
   })
 
   it('never writes outside the folder (a name with a path or a leading dot is refused)', async () => {
