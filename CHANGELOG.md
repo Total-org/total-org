@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The MSME day of acceptance travels with your books** (#275, WP 2d). The day you record on a micro or
+small supplier's bill (Payables → MSME → Accepted → Change) is now in the books export, and an import
+puts it back. Undoing an import puts back the day the bill had before. *For accountants*: no figure
+changes. A Books workbook exported before this version has no days in it, so importing one over your
+books with "update" uses the bill dates for those bills again. Imports from Busy, Zoho or Excel never
+touch a recorded day, or a bill's "can't claim this GST" mark. If you record a day after an import,
+undoing that import keeps it.
+
 ## [0.12.3] - 2026-11-13
 
 **Small fixes from the second audit** (#274, second audit #10):

@@ -28,7 +28,7 @@ import type { DB } from '../db/connection'
 import type { Voucher, VoucherKind } from '@shared/domain'
 import { ledgerInputSchema, stockItemInputSchema, type LedgerInput, type VoucherInput } from '@shared/schemas'
 import { toUqc } from '@shared/gst/uqc'
-import { fyOf } from '@shared/dates'
+import { fyOf, isValidISODate } from '@shared/dates'
 import { plainRupees } from '@shared/money'
 import {
   kindFromWord, defaultDirection, type CostCentreRow, type GroupRow, type ItemRow, type LedgerRow, type MoreFields, type PriceLevelRow, type RowError,
@@ -161,6 +161,9 @@ interface Ctx {
   renames: Map<NameTable, Map<string, string>>
   deferred: Deferred
   unknownFields: Set<string>
+  /** WP 2d (review of #275): a Total Books workbook — the only source whose voucher cells carry the
+   *  MSME day of acceptance and the s.17(5) mark; any other source leaves both as they are. */
+  books: boolean
 }
 
 function outcome(ctx: Ctx, line: number, label: string, action: OutcomeAction, message?: string): void {
@@ -1043,9 +1046,10 @@ function voucherInputFor(ctx: Ctx, d: VoucherDraft, vt: { id: number; kind: Vouc
       isOptional: d.isOptional || undefined,
       postDated: d.postDated || undefined,
       // WP 2d: a Books workbook carries a blocked-ITC bill (s.17(5)) in its voucher JSON cell.
-      // Stated for every purchase / debit note (the workbook is the truth — a row without the mark
-      // clears it on a matched voucher; review of #263).
-      ...(vt.kind === 'purchase' || vt.kind === 'debit_note' ? { itcBlocked: vm.itc_blocked === 1 } : {}),
+      // A Books workbook states it for every purchase / debit note (the workbook is the truth — a row
+      // without the mark clears it on a matched voucher; review of #263). Any other source can't carry
+      // it, so it states nothing and a matched voucher keeps its mark (review of #275).
+      ...(ctx.books && (vt.kind === 'purchase' || vt.kind === 'debit_note') ? { itcBlocked: vm.itc_blocked === 1 } : {}),
       lines,
       inventory,
       billRefs,
@@ -1085,8 +1089,42 @@ function afterVoucherSave(ctx: Ctx, voucherId: number, d: VoucherDraft, post: Po
     for (const k of edoc) ctx.db.prepare(`UPDATE vouchers SET ${k} = ? WHERE id = ?`).run(String(vm[k]), voucherId)
     writeAudit(ctx.db, 'voucher', voucherId, 'update', null, Object.fromEntries(edoc.map((k) => [k, vm[k]])))
   }
+  // WP 2d: only a Books workbook carries the day (any other source leaves a recorded day alone).
+  if (ctx.books) {
+    const a = msmeAcceptanceOf(vm, d.date)
+    if (a === 'invalid') ctx.step.warnings.push(`${label}: its MSME day of acceptance (${String(vm['msme.accepted_on'])}) is not a date within a year of the bill — left as it was`)
+    else restoreMsmeAcceptance(ctx.db, voucherId, a)
+  }
   if (vm.is_year_end_close === 1 || vm.is_year_end_close === true) ctx.deferred.closingJournals.push({ voucherId, line: d.lines[0] ?? 0, label })
   if (str(vm['trade.closed_at'])) ctx.deferred.noteClosures.push({ voucherId, reason: str(vm['trade.close_reason']) })
+}
+
+/** WP 2d (owner, 13 Nov): a Books workbook voucher cell's MSME day of acceptance (null = none). */
+function msmeAcceptanceOf(vm: Record<string, unknown>, billDate?: string): MsmeAcceptanceFacts | null | 'invalid' {
+  const on = str(vm['msme.accepted_on'])
+  if (!on) return null
+  const basis = vm['msme.basis']
+  if (!isValidISODate(on) || (basis !== 'delivered' && basis !== 'objection_removed')) return 'invalid'
+  // The same window the screen allows (payables.ts): a typo in the workbook's year is not stored.
+  if (billDate && Math.abs(Date.parse(`${on}T00:00:00Z`) - Date.parse(`${billDate}T00:00:00Z`)) > 365 * 86_400_000) return 'invalid'
+  return { acceptedOn: on, basis, note: str(vm['msme.note']) ?? '' }
+}
+
+type MsmeAcceptanceFacts = { acceptedOn: string; basis: 'delivered' | 'objection_removed'; note: string }
+
+/** Put a voucher's MSME day of acceptance back exactly as an import / undo carries it (history —
+ *  never re-checked against today's lock or supplier, as the voucher itself is restored); null =
+ *  none. Audited when it changes. */
+function restoreMsmeAcceptance(db: DB, voucherId: number, a: MsmeAcceptanceFacts | null): void {
+  const before = db.prepare('SELECT accepted_on AS acceptedOn, basis, note FROM msme_acceptance WHERE voucher_id = ?').get(voucherId) as MsmeAcceptanceFacts | undefined
+  if (JSON.stringify(before ?? null) === JSON.stringify(a)) return
+  if (a == null) db.prepare('DELETE FROM msme_acceptance WHERE voucher_id = ?').run(voucherId)
+  else
+    db.prepare(
+      `INSERT INTO msme_acceptance (voucher_id, accepted_on, basis, note) VALUES (?, ?, ?, ?)
+       ON CONFLICT (voucher_id) DO UPDATE SET accepted_on = excluded.accepted_on, basis = excluded.basis, note = excluded.note`
+    ).run(voucherId, a.acceptedOn, a.basis, a.note)
+  writeAudit(db, 'msme_acceptance', voucherId, before == null ? 'create' : a == null ? 'delete' : 'update', before ? { voucherId, ...before } : null, a ? { voucherId, ...a } : null)
 }
 
 /** The live record an import of this row duplicates: first by Source ID (within the exporting
@@ -1146,9 +1184,10 @@ function applyVouchers(ctx: Ctx, drafts: VoucherDraft[]): void {
         const before = getVoucher(ctx.db, dup)!
         const { input, post } = voucherInputFor(ctx, d, vt, d.number ?? undefined)
         const beforeFacts = readTaxFacts(ctx.db, dup)
+        const beforeAcceptance = ctx.db.prepare('SELECT accepted_on AS acceptedOn, basis, note FROM msme_acceptance WHERE voucher_id = ?').get(dup) as MsmeAcceptanceFacts | undefined
         saveVoucher(ctx.db, input, dup, { adoptLineUids: true, historicImport: true, taxFacts: post.taxFacts })
         afterVoucherSave(ctx, dup, d, post, label)
-        track(ctx, 'voucher', dup, 'update', beforeFacts ? { ...before, taxFacts: beforeFacts } : before, line, sourceKey)
+        track(ctx, 'voucher', dup, 'update', { ...before, ...(beforeFacts ? { taxFacts: beforeFacts } : {}), ...(beforeAcceptance ? { msmeAcceptance: beforeAcceptance } : {}) }, line, sourceKey)
         outcome(ctx, line, label, 'update')
         return
       }
@@ -1260,7 +1299,7 @@ export function runImport(db: DB, plan: PlanStep[], rawOpts: Partial<ImportOptio
     for (const s of plan) {
       const step: StepResult = { target: s.rows.target, sheet: s.sheet, created: 0, updated: 0, skipped: 0, errors: [...(s.errors ?? [])], warnings: [] }
       result.steps.push(step)
-      const ctx: Ctx = { db, opts, batchId, dryRun, outcomes: result.outcomes, truncated: 0, step, target: s.rows.target, cache, renames, deferred, unknownFields }
+      const ctx: Ctx = { db, opts, batchId, dryRun, outcomes: result.outcomes, truncated: 0, step, target: s.rows.target, cache, renames, deferred, unknownFields, books: meta.source === 'total-books' }
       lastCtx = ctx
       for (const e of s.errors ?? []) if (result.outcomes.length < OUTCOME_CAP) result.outcomes.push({ line: e.line, target: s.rows.target, label: e.field ?? '', action: 'error', message: e.message })
       applyStep(ctx, s.rows, result, booksFromDate)
@@ -1612,7 +1651,16 @@ export function undoImport(db: DB, batchId: number): UndoResult {
             } else if (it.entity === 'ledger') masters.updateLedger(db, it.entity_id, ledgerInputSchema.parse(before))
             else if (it.entity === 'fx_ledger_currency') restoreForeignOpening(db, before as ForeignOpeningRow)
             else if (it.entity === 'stockItem') masters.updateStockItem(db, it.entity_id, stockItemInputSchema.parse(itemInputFromRow(before as StockItemRowDb)))
-            else if (it.entity === 'voucher') saveVoucher(db, voucherToInput(before as Voucher), it.entity_id, { historicImport: true, taxFacts: taxFactsFrom((before as { taxFacts?: unknown }).taxFacts) })
+            else if (it.entity === 'voucher') {
+              saveVoucher(db, voucherToInput(before as Voucher), it.entity_id, { historicImport: true, taxFacts: taxFactsFrom((before as { taxFacts?: unknown }).taxFacts) })
+              // WP 2d: the MSME day of acceptance the voucher had before the import (none = none) —
+              // unless the user recorded one since (review of #275: undo leaves user edits alone).
+              const recordedSince = batch.last_audit_id !== null &&
+                !!db.prepare("SELECT 1 FROM audit_log WHERE entity = 'msme_acceptance' AND entity_id = ? AND id > ? LIMIT 1").get(it.entity_id, batch.last_audit_id)
+              const a = (before as { msmeAcceptance?: MsmeAcceptanceFacts }).msmeAcceptance
+              if (!recordedSince) restoreMsmeAcceptance(db, it.entity_id, a ?? null)
+              else res.kept.push({ entity: 'msme_acceptance', id: it.entity_id, reason: 'its MSME day of acceptance was recorded again after the import — kept' })
+            }
             else if (it.entity === 'bank_date') setBankDate(db, it.entity_id, (before as { bankDate: string | null }).bankDate)
             else if (it.entity === 'group') masters.updateGroup(db, it.entity_id, { name: before.name, parentId: before.parentId })
             else if (it.entity === 'godown') masters.updateGodown(db, it.entity_id, before)
