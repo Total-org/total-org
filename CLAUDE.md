@@ -23,6 +23,8 @@ src/renderer/   React + Tailwind v4 UI. Talks to main ONLY through the typed cli
                 shared DataTable every list screen uses (README there); components/links.tsx
                 holds LedgerLink/ItemLink/VoucherLink (name click = edit, row = statement).
                 src/renderer/src/simple/ holds the simple-mode components (banned-word + raw-string lint).
+docs/guide/     The short user guide (plain words, both modes); docs/architecture.md is the one-page map —
+                update them when a user-visible flow or the architecture changes.
 docs/superpowers/specs/  The revamp master plan (2026-10-07-total-revamp-roadmap.md), the Phase 8 plan
                 (2026-10-13-simple-for-everyone-plan.md) and the
                 trade-cycle design (2026-10-07-wp2.5-trade-cycle-design.md).
