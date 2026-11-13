@@ -7,7 +7,7 @@ import type { CompanyInfo, TradePurpose, VoucherTransport } from '@shared/domain
 import type { EdocListRow } from '@shared/reports'
 import type { VoucherTransportInput } from '@shared/schemas'
 import {
-  buildEInvoiceJson, buildEwbJson, ewbEligibility, ewbIssues, EWB_THRESHOLD_PAISE,
+  buildEInvoiceJson, buildEwbJson, einvoiceExclusion, ewbEligibility, ewbIssues, EWB_THRESHOLD_PAISE,
   type EdocCompany, type EdocInvoice, type EdocItem, type EdocShipTo, type EdocTransport
 } from '@shared/gst/edocs'
 import { computeGst, supplyTypeFor } from '@shared/gst/calc'
@@ -503,12 +503,13 @@ export function exportEInvoices(
   // output tax the books don't contain. Same outwardDebitNoteIds split as every sibling
   // path (listSalesInvoices, ewbInvoicesFor, GSTR-1 extraction).
   const outwardDbn = outwardDebitNoteIds(db, from, to)
-  // A GSTIN is required for domestic/SEZ buyers, but exports legitimately have none — the
-  // builder maps those to BuyerDtls.Gstin 'URP', so don't drop them here.
+  // `einvoiceExclusion` (shared/gst/edocs.ts): a GSTIN is required for domestic/SEZ buyers (exports
+  // map to 'URP'); bills of supply — a composition / unregistered seller's, or only nil / exempt
+  // lines — take no e-invoice (audit 2 #6).
   const invoices = extractEdocInvoices(db, company, from, to).filter(
     (i) =>
       (i.docType !== 'DBN' || (i.voucherId != null && outwardDbn.has(i.voucherId))) &&
-      (i.partyGstin || i.supTyp === 'EXPWP' || i.supTyp === 'EXPWOP')
+      einvoiceExclusion(i, company) == null
   )
   const json = buildEInvoiceJson(invoices, edocCompany(company))
   const path = opts.path ?? join(companyExportsDir(slug), eInvoiceFileName(period, r))

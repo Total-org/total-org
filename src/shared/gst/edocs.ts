@@ -5,6 +5,7 @@
  */
 
 import type { TradePurpose } from '../domain'
+import { registrationOn, type GstRegistrationFacts } from './registration'
 
 export interface EdocItem {
   name: string
@@ -487,4 +488,31 @@ export function ewbEligibility(inv: EdocInvoice, includeBelowThreshold = false):
     return { eligible: false, reason: `${inv.docType === 'CHL' ? 'Challan' : 'Invoice'} value at or below ₹50,000` }
   }
   return { eligible: true, reason: null }
+}
+
+/**
+ * Does this document go into the e-invoice export? (Audit 2 #6.) Rule 48(4) CGST Rules asks for an
+ * IRN on a TAX INVOICE (rule 46) and on credit / debit notes; a bill of supply (rule 49) is not one.
+ * So the export leaves out:
+ *  - every bill of a business whose registration on the bill's date is not regular — a composition
+ *    dealer issues bills of supply (s.31(3)(c)) and an unregistered business has no GSTIN to e-invoice
+ *    under (its JSON would carry no seller GSTIN);
+ *  - a bill of only nil-rated / exempt lines (every line 0 %, no tax posted) that is not zero-rated —
+ *    a bill of supply. SEZ / export bills without payment stay: they are zero-rated tax invoices.
+ *  - a domestic / SEZ document without the buyer's GSTIN (B2C — as before); exports carry 'URP'.
+ * Returns the reason a document is left out, or null when it goes in. Pure: the caller passes the
+ * company's registration facts.
+ */
+export function einvoiceExclusion(inv: EdocInvoice, registration: GstRegistrationFacts): string | null {
+  const reg = registrationOn(registration, inv.date)
+  if (reg === 'composition') return 'Composition dealer — bill of supply, no e-invoice'
+  if (reg === 'unregistered') return 'Not registered for GST — no e-invoice'
+  const exported = inv.supTyp === 'EXPWP' || inv.supTyp === 'EXPWOP'
+  if (!inv.partyGstin && !exported) return 'Buyer has no GSTIN'
+  const zeroRated = exported || inv.supTyp === 'SEZWP' || inv.supTyp === 'SEZWOP'
+  const noTax = inv.cgst === 0 && inv.sgst === 0 && inv.igst === 0 && inv.cess === 0
+  if (!zeroRated && noTax && inv.items.length > 0 && inv.items.every((i) => i.rate === 0 && i.cgst === 0 && i.sgst === 0 && i.igst === 0 && i.cess === 0)) {
+    return 'Only nil-rated / exempt lines — bill of supply, no e-invoice'
+  }
+  return null
 }

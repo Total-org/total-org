@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildEInvoiceJson, buildEwbJson, pinFromAddress, type EdocCompany, type EdocInvoice } from './gst/edocs'
+import { buildEInvoiceJson, buildEwbJson, einvoiceExclusion, pinFromAddress, type EdocCompany, type EdocInvoice } from './gst/edocs'
 
 const company: EdocCompany = {
   name: 'Demo Traders',
@@ -201,3 +201,34 @@ describe('e-invoice builder — docType and supply types', () => {
   })
 })
 
+
+describe('einvoiceExclusion (audit 2 #6: bills of supply take no e-invoice)', () => {
+  const regular = { gstRegistrationType: 'regular' as const }
+  const nil: EdocInvoice = {
+    ...invoice,
+    items: [{ ...invoice.items[0]!, rate: 0, cgst: 0, sgst: 0 }],
+    cgst: 0, sgst: 0, taxable: 9000000, total: 9000000
+  }
+  it('takes a regular seller\'s tax invoice to a registered buyer', () => {
+    expect(einvoiceExclusion(invoice, regular)).toBeNull()
+  })
+  it('leaves out a composition dealer\'s and an unregistered business\'s bills, by the registration on the bill date', () => {
+    expect(einvoiceExclusion(invoice, { gstRegistrationType: 'composition' })).toMatch(/Composition/)
+    expect(einvoiceExclusion(invoice, { gstRegistrationType: 'unregistered' })).toMatch(/Not registered/)
+    // Regular since 2026-09-01, composition before: the August bill is a bill of supply …
+    const since = { gstRegistrationType: 'regular' as const, gstRegistrationSince: '2026-09-01', gstPreviousRegistrationType: 'composition' as const }
+    expect(einvoiceExclusion(invoice, since)).toMatch(/Composition/)
+    // … a September one is a tax invoice.
+    expect(einvoiceExclusion({ ...invoice, date: '2026-09-02' }, since)).toBeNull()
+  })
+  it('leaves out a bill of only nil-rated lines, but keeps a mixed bill and zero-rated SEZ / export bills', () => {
+    expect(einvoiceExclusion(nil, regular)).toMatch(/nil-rated/)
+    expect(einvoiceExclusion({ ...invoice, items: [...invoice.items, nil.items[0]!] }, regular)).toBeNull()
+    expect(einvoiceExclusion({ ...nil, supTyp: 'SEZWOP' }, regular)).toBeNull()
+    expect(einvoiceExclusion({ ...nil, supTyp: 'EXPWOP', partyGstin: null }, regular)).toBeNull()
+  })
+  it('leaves out a domestic buyer without a GSTIN, as before', () => {
+    expect(einvoiceExclusion({ ...invoice, partyGstin: null }, regular)).toMatch(/GSTIN/)
+    expect(einvoiceExclusion({ ...invoice, partyGstin: null, supTyp: 'EXPWP' }, regular)).toBeNull()
+  })
+})

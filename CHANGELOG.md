@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The e-invoice file leaves out bills that are not tax invoices** (#PRNUM, second audit #6). The e-invoice export used
+to take every bill to a customer with a GSTIN — also a bill of only nil-rated goods, a composition dealer's bill
+and an unregistered business's sale (whose file then had no seller GSTIN and failed the official schema). These
+are bills of supply and take no e-invoice (rule 48(4) covers tax invoices and notes), so the export now leaves them
+out. For accountants: only the e-invoice JSON changes; GSTR-1 / 3B and every report are unchanged.
+
 **Updates downloaded by hand are checked before you open them** (#270, second audit SEC2-2 / SEC2-5). On a Mac (and on
 Windows when the built-in updater fails), "Download now" used to open the new installer in your browser. Total now
 downloads it itself and keeps it only when it matches the signed release list; then it offers "Open it" and
