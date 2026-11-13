@@ -415,7 +415,7 @@ export const CA_POINTS = [
     // WP 2d: purchase returns and the aggregate threshold (shared/tdsEligibility.ts header) — the
     // Act's "aggregate of the amounts credited or paid" read without the returns; not confirmed.
     id: 'tds-threshold-returns',
-    rule: 'ss.194C(5), 194J, 194H … Income-tax Act — "the aggregate of the amounts credited or paid"',
+    rule: 'ss.194C(5), 194J, 194H, 194Q … Income-tax Act 1961; Income-tax Act 2025 s.393 Table — "the aggregate of the amounts credited or paid"',
     covers: [],
     questions: [56],
     places: ['tds.screen']

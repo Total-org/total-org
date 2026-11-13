@@ -22,7 +22,7 @@ Things to know about the version numbers:
 
 **A warning for discounts booked on a Sales account** (#269, WP 2d). A discount shown on an invoice
 lowers its taxable value (CGST Act s.15(3)(a)). Total reads only a bill's sales lines, so a discount
-debited to an account under Sales Accounts is not taken off in GSTR-1. The GSTR-1 checks now name
+debited to an account under Sales Accounts, or to "Discount given", is not taken off in GSTR-1. The GSTR-1 checks now name
 these bills. *For accountants*: no figure changes. Whether to take such discounts off is a separate
 decision, because it would change months already filed.
 The TDS screen also gets a "Check with your CA" badge: a purchase return does not lower a supplier's

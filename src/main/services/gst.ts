@@ -1157,15 +1157,16 @@ export function gstValidate(db: DB, company: CompanyInfo, from: string, to: stri
 
 /**
  * WP 2d — a warning, never a figure: an outward document (sales invoice / credit note / outward
- * debit note) with a line on an income account on the OTHER side — typically a discount debited to
- * an account under Sales Accounts. extractOutwardDocs reads only the sales-side lines, so its value
+ * debit note) with a line on an income or expense account on the OTHER side — typically a discount
+ * debited to an account under Sales Accounts, or to "Discount given" / Tally's "Discount Allowed"
+ * under Indirect Expenses (review of #269). extractOutwardDocs reads only the sales-side lines, so its value
  * is reported BEFORE that discount (CGST Act s.15(3)(a): a discount shown on the invoice reduces the
  * value; GST_SOURCES.s15). Whether to net it changes filed months — the owner's decision (to-do §4
  * GST). Lines under ₹1 are round offs, not discounts.
  */
 export function salesDiscountIssue(db: DB, docs: readonly GstDoc[]): GstIssue | null {
   if (docs.length === 0) return null
-  const income = descendantIdsByName(db, INCOME_GROUPS)
+  const pnl = descendantIdsByName(db, [...INCOME_GROUPS, 'Direct Expenses', 'Indirect Expenses'])
   // The documents' non-tax lines of ₹1 or more, read in chunks of 500 (never one query per bill).
   const lines = new Map<number, { groupId: number; drCr: 'dr' | 'cr' }[]>()
   const all = docs.map((d) => d.voucherId)
@@ -1180,7 +1181,7 @@ export function salesDiscountIssue(db: DB, docs: readonly GstDoc[]): GstIssue | 
   }
   const ids = docs.filter((d) => {
     const other = d.kind === 'credit_note' ? 'cr' : 'dr'
-    return (lines.get(d.voucherId) ?? []).some((l) => l.drCr === other && income.has(l.groupId))
+    return (lines.get(d.voucherId) ?? []).some((l) => l.drCr === other && pnl.has(l.groupId))
   }).map((d) => d.voucherId)
   if (ids.length === 0) return null
   const n = ids.length
@@ -1188,9 +1189,9 @@ export function salesDiscountIssue(db: DB, docs: readonly GstDoc[]): GstIssue | 
     code: 'sales_discount_line',
     severity: 'warning',
     message:
-      `${n} document${n === 1 ? '' : 's'} with an income account on the other side (for example a discount debited to an account under Sales Accounts). ` +
+      `${n} document${n === 1 ? '' : 's'} with an income or expense account on the other side (for example a discount debited to an account under Sales Accounts or to "Discount given"). ` +
       'GSTR-1 reports the value BEFORE that line — a discount shown on the invoice reduces the taxable value (s.15(3)(a) CGST Act). ' +
-      'Check these with your CA; for new bills, give the discount on the item line instead.',
+      'Check these with your CA; for new bills, give the discount on the item line, or book the sale at the value after the discount.',
     voucherIds: ids
   }
 }

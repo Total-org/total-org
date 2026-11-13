@@ -22,8 +22,10 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     const roundOff = L({ name: 'Round Off', groupId: groupId('Indirect Incomes') })
     const cgst = L({ name: 'Output CGST', groupId: groupId('Duties & Taxes'), taxType: 'cgst' })
     const sgst = L({ name: 'Output SGST', groupId: groupId('Duties & Taxes'), taxType: 'sgst' })
-    const sale = (lines: { ledgerId: number; drCr: DrCr; amount: number }[]) =>
-      saveVoucher(db, { voucherTypeId: vt, date: '2026-07-05', partyLedgerId: buyer, lines: lines.map((l) => ({ ...l, costAllocations: [] })), inventory: [], billRefs: [], tds: null })
+    const discountGiven = L({ name: 'Discount given', groupId: groupId('Indirect Expenses') })
+    const cnType = (db.prepare("SELECT id FROM voucher_types WHERE kind = 'credit_note'").get() as { id: number }).id
+    const sale = (lines: { ledgerId: number; drCr: DrCr; amount: number }[], type = vt) =>
+      saveVoucher(db, { voucherTypeId: type, date: '2026-07-05', partyLedgerId: buyer, lines: lines.map((l) => ({ ...l, costAllocations: [] })), inventory: [], billRefs: [], tds: null })
     // ₹1,000 sale, ₹100 discount on the bill, GST on ₹900 = ₹81 + ₹81: party ₹1,062.
     const withDiscount = sale([
       { ledgerId: buyer, drCr: 'dr', amount: 106200 },
@@ -40,8 +42,32 @@ describe('discount booked on a Sales account (WP 2d)', () => {
       { ledgerId: cgst, drCr: 'cr', amount: 9000 },
       { ledgerId: sgst, drCr: 'cr', amount: 9000 }
     ])
+    // Review of #269: the same discount debited to "Discount given" (Indirect Expenses, the setup
+    // preset's account / Tally's "Discount Allowed"), tax on the gross: ₹1,000 + ₹180 − ₹100 = ₹1,080.
+    const onExpense = sale([
+      { ledgerId: buyer, drCr: 'dr', amount: 108000 },
+      { ledgerId: discountGiven, drCr: 'dr', amount: 10000 },
+      { ledgerId: sales, drCr: 'cr', amount: 100000 },
+      { ledgerId: cgst, drCr: 'cr', amount: 9000 },
+      { ledgerId: sgst, drCr: 'cr', amount: 9000 }
+    ])
+    // Credit notes: the other side is Cr. A plain accounting-mode note (Dr Sales + tax, Cr the buyer)
+    // is not warned; one with ₹50 credited to an income account is.
+    sale([
+      { ledgerId: sales, drCr: 'dr', amount: 10000 },
+      { ledgerId: cgst, drCr: 'dr', amount: 900 },
+      { ledgerId: sgst, drCr: 'dr', amount: 900 },
+      { ledgerId: buyer, drCr: 'cr', amount: 11800 }
+    ], cnType)
+    const noteWithIncome = sale([
+      { ledgerId: sales, drCr: 'dr', amount: 10000 },
+      { ledgerId: cgst, drCr: 'dr', amount: 900 },
+      { ledgerId: sgst, drCr: 'dr', amount: 900 },
+      { ledgerId: buyer, drCr: 'cr', amount: 6800 },
+      { ledgerId: discount, drCr: 'cr', amount: 5000 }
+    ], cnType)
     const issue = gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')
-    expect(issue).toMatchObject({ severity: 'warning', voucherIds: [withDiscount.id] })
+    expect(issue).toMatchObject({ severity: 'warning', voucherIds: [withDiscount.id, onExpense.id, noteWithIncome.id] })
     expect(issue!.message).toContain('s.15(3)(a)')
     // As before: the document carries the ₹1,000 sales line (the discount is not netted).
     expect(extractOutwardDocs(db, TEST_INFO, FROM, TO).find((d) => d.voucherId === withDiscount.id)!.items[0]!.taxable).toBe(100000)
