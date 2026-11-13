@@ -126,6 +126,24 @@ describe('live totals = the editor calculation = what is posted', () => {
     expect(m.facts.gstToCost).toBe(18_000)
     // An ordinary bill gets no journal.
     expect(posted(rent, c).entries.map((e) => e.role)).toEqual(['bill'])
+    // Review of #277: the round off is not GST. Electricity ₹1,000.50 at 18 % = ₹180.10 tax, rounded up
+    // ₹0.40 to ₹1,181: the journal moves ₹90.05 + ₹90.05 only.
+    const elec = posted({ ...form({ mode: 'expense', categoryId: 22, amount: 100_050, gstRate: 18 }), gstBlocked: true }, c)
+    expect(elec.entries[1]!.payload.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[22, 'dr', 18_010], [50, 'cr', 9_005], [51, 'cr', 9_005]])
+    expect(elec.facts).toMatchObject({ tax: 18_010, gstToCost: 18_010 })
+    // An inter-state supplier: IGST ₹180.
+    const igst = posted({ ...rent, supplierId: 11, gstBlocked: true }, c)
+    expect(igst.entries[1]!.payload.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[21, 'dr', 18_000], [52, 'cr', 18_000]])
+    // Products keep the mark only (how stock carries the GST is the CA's call, Q57): no journal.
+    const goods = posted({ ...form({ lines: [line(1, 1, '10', 10_000)] }), gstBlocked: true }, c)
+    expect(goods.entries.map((e) => e.role)).toEqual(['bill'])
+    expect(goods.entries[0]!.payload).toMatchObject({ itcBlocked: true })
+    // A company that numbers its journals by hand: no journal (a simple form has no place for its
+    // number) — said, never a dead end.
+    const manualCtx = { ...intentCtx(c), types: { ...intentCtx(c).types, journal: { id: 3, name: 'Journal', numbering: 'manual' as const, next: '' } } }
+    const manual = mapIntent(normaliseIntent({ clientId: 'test-client-1', ...purchaseIntentFrom(blocked, c, DEFAULTS) }, DATE), manualCtx)
+    expect(manual.entries.map((e) => e.role)).toEqual(['bill'])
+    expect(manual.facts.gstToCostManual).toBe(true)
     // No GST on the bill, or a business that can't claim: nothing to block.
     expect(purchaseIntentFrom({ ...blocked, gstOnBill: false }, c, DEFAULTS)).not.toHaveProperty('itcBlocked')
     expect(purchaseIntentFrom({ ...blocked, mode: 'amount' }, ctxFor('unregistered'), DEFAULTS)).not.toHaveProperty('itcBlocked')

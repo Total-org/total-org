@@ -474,6 +474,9 @@ export interface IntentOriginal {
   pending: number
   /** It posts GST (s.34: a note against it follows it). */
   carriesGst: boolean
+  /** WP 2d: a purchase whose GST a live journal moved to the cost — that journal's account (a
+   *  return moves the returned GST back out of it). Omitted = none. */
+  gstCostAccountId?: number
   /** The GST rates of its lines as the bill posted them: the item rates when they still give the
    *  bill's tax (one per line, distinct), the bill's own rate for a ledger-line bill; null = they
    *  can't be told from the bill (a rate changed since) — a return then asks / refuses. */
@@ -664,8 +667,11 @@ export interface IntentFacts {
   count?: CountFacts
   /** WP 9.7 make_goods: what was made, from what, and what it adds to stock. */
   made?: MadeFacts
-  /** WP 2d: the GST a purchase can't claim back (s.17(5)), moved to the cost by its journal. */
+  /** WP 2d: the GST a purchase can't claim back (s.17(5)), moved to the cost by its journal (a
+   *  return: moved back out of it). */
   gstToCost?: number
+  /** WP 2d: that move was left to the full app — the company numbers its journals by hand. */
+  gstToCostManual?: boolean
 }
 
 export interface CountFacts {
@@ -920,7 +926,6 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
       ...(itcBlocked ? { itcBlocked: true } : {})
     }
     const built = invoiceEntry(ctx, 'bill', kind, type, state, 'items')
-    costAccountId = account.id
     bill = built.entry
     total = built.total
     facts.tax = built.tax
@@ -955,23 +960,16 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   // WP 2d (owner, 13 Nov): GST the business can't claim back (s.17(5)) is moved to the cost by a
   // journal beside the bill — Dr the bill's account, Cr each input-tax ledger the bill debited. The
   // bill keeps its tax lines (GSTR-2B matches; GSTR-3B 4(A)(5) + 4(B)(1) as before); the journal
-  // puts the expense / profit and the Input GST balance right. Same transaction and undo group.
+  // puts the expense / profit and the Input GST balance right. Same transaction and undo group; the
+  // bill and its journal bin / restore together (services/gstCostJournal.ts). Expense / just-an-
+  // amount bills only (review of #277): products keep the mark only — how stock carries the GST is
+  // the CA's call (Q57).
   if (itcBlocked && costAccountId != null) {
-    const inputIds = new Set(Object.values(ctx.taxLedgers.input).filter((x): x is number => x != null))
-    const taxRows = bill.payload.lines.filter((l) => l.drCr === 'dr' && inputIds.has(l.ledgerId) && l.amount > 0)
-    const blockedTax = taxRows.reduce((s, l) => s + l.amount, 0)
-    if (blockedTax > 0) {
-      const { type: jType, number: jNumber } = typeOf(ctx, 'journal', null, 'gstOnBill')
-      entries.push(
-        accountingEntry(ctx, 'gst_cost', 'journal', jType, {
-          date,
-          number: jNumber,
-          rows: [row('dr', costAccountId, blockedTax), ...taxRows.map((l) => row('cr', l.ledgerId, l.amount))],
-          narration: `GST that can't be claimed back (s.17(5)) on bill ${billName} — moved to the cost`,
-          billRefs: []
-        })
-      )
-      facts.gstToCost = blockedTax
+    const j = gstCostJournal(ctx, bill.payload.lines, 'dr', costAccountId, date, `GST that can't be claimed back (s.17(5)) on bill ${billName} — moved to the cost`)
+    if (j === 'manual') facts.gstToCostManual = true
+    else if (j) {
+      entries.push(j.entry)
+      facts.gstToCost = j.amount
     }
   }
   facts.total = total
@@ -1179,6 +1177,30 @@ function mapMove(n: Extract<NormalIntent, { kind: 'move_money' }>, ctx: IntentCo
 
 // ---------------------------------------------------------------- returns
 
+/**
+ * WP 2d: the "GST to cost" journal over the input-tax lines on `side` of `lines` (the four tax
+ * heads only — never the round off, review of #277): a bill's (`dr`: Dr the account, Cr the tax) or
+ * its return's mirror (`cr`: Dr the tax, Cr the account). null = no input tax; 'manual' = the
+ * company numbers its journals by hand (a simple form has no place for one — the move is left to
+ * the full app and said).
+ */
+function gstCostJournal(
+  ctx: IntentContext, lines: readonly { ledgerId: number; drCr: 'dr' | 'cr'; amount: number }[], side: 'dr' | 'cr', accountId: number, date: string, narration: string
+): { entry: MappedEntry; amount: number } | 'manual' | null {
+  const t = ctx.taxLedgers.input
+  const heads = new Set([t.cgst, t.sgst, t.igst, t.cess].filter((x): x is number => x != null))
+  const taxRows = lines.filter((l) => l.drCr === side && heads.has(l.ledgerId) && l.amount > 0)
+  const amount = taxRows.reduce((s, l) => s + l.amount, 0)
+  if (amount <= 0) return null
+  const jt = ctx.types.journal
+  if (!jt || jt.numbering === 'manual') return 'manual'
+  const other = side === 'dr' ? 'cr' : 'dr'
+  const rows = side === 'dr'
+    ? [row('dr', accountId, amount), ...taxRows.map((l) => row(other, l.ledgerId, l.amount))]
+    : [...taxRows.map((l) => row(other, l.ledgerId, l.amount)), row('cr', accountId, amount)]
+  return { entry: accountingEntry(ctx, 'gst_cost', 'journal', jt, { date, number: jt.next, rows, narration, billRefs: [] }), amount }
+}
+
 function mapReturn(n: Extract<NormalIntent, { kind: 'return_sale' | 'return_purchase' }>, ctx: IntentContext): MappedIntent {
   const sale = n.kind === 'return_sale'
   const o = ctx.original
@@ -1272,6 +1294,17 @@ function mapReturn(n: Extract<NormalIntent, { kind: 'return_sale' | 'return_purc
     facts.offBill = offBill.amount
   }
   const entries = [note]
+  // WP 2d (review of #277): a return of a bill whose GST was moved to the cost moves the returned
+  // part back (Dr the input tax the note credits, Cr the bill's account) — else Input GST would
+  // sit in credit and the cost would stay on goods that went back.
+  if (!sale && o.gstCostAccountId != null) {
+    const j = gstCostJournal(ctx, note.payload.lines, 'cr', o.gstCostAccountId, date, `GST that can't be claimed back on returned bill ${o.billName} — moved back out of the cost`)
+    if (j === 'manual') facts.gstToCostManual = true
+    else if (j) {
+      entries.push(j.entry)
+      facts.gstToCost = j.amount
+    }
+  }
   if (n.refund) {
     // Only the credit the note created can be paid back — never more.
     if (settled.credit <= 0) fail('simple_refund_not_due', `The return comes off bill ${o.billName}, which is not paid yet — nothing to refund`, 'refund', { bill: o.billName })
@@ -1446,6 +1479,7 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
       out.push(f.forWhat ? t('simple.intent.purchaseFor', { amount: m(f.total), name, what: f.forWhat }) : t('simple.intent.purchase', { amount: m(f.total), name }))
       if (f.tax > 0) out.push(t('simple.intent.tax', { amount: m(f.tax) }))
       if ((f.gstToCost ?? 0) > 0) out.push(t('simple.intent.gstToCost', { amount: m(f.gstToCost!) }))
+      if (f.gstToCostManual) out.push(t('simple.intent.gstToCostManual'))
       if (f.paid > 0) out.push(t('simple.intent.paid', { amount: m(f.paid), how }))
       position(() => { if (f.due > 0) out.push(t('simple.intent.dueTo', { amount: m(f.due), name })) })
       break

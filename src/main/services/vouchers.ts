@@ -17,6 +17,7 @@ import { getFeatures } from './config'
 import { openSalesOrderValue } from './tradeDocs'
 import { writeAudit } from './audit'
 import { outwardDebitNoteIds } from './gst'
+import { binGstCostJournal, restoreGstCostJournal } from './gstCostJournal'
 import { hasRecordedSide, readTaxFacts, snapshotTaxFacts, TAX_FACT_KINDS, taxFactsDiff, writeTaxFacts, type VoucherTaxFacts } from './taxFacts'
 import { assertCashFinanceVoucherEditable, binCashFinancePartners, cashFinanceRestorePlan, restoreCashFinancePartners } from './cashFinanceGuards'
 import { ensureTdsPayableLedger, PENDING_PAYABLE_LEDGER, PENDING_TCS_PAYABLE_LEDGER, prepareVoucherTds, prepareVoucherWithholding } from './tds'
@@ -1100,6 +1101,8 @@ export function deleteVoucher(db: DB, id: number, opts: { importUndo?: boolean }
     binCashFinancePartners(db, id)
     // A GST disposal's tax invoice and journal go to the bin together.
     binFixedAssetPartner(db, id)
+    // WP 2d: a simple purchase's "GST to cost" journal goes with its bill.
+    binGstCostJournal(db, id, lock)
     // Inside the same transaction: a binned voucher never lacks its audit row (and a failed
     // audit write leaves the voucher where it was).
     writeAudit(db, 'voucher', id, 'delete', before, null)
@@ -1153,6 +1156,8 @@ export function restoreVoucher(db: DB, id: number, opts: { creditHoldOverride?: 
     restoreCashFinancePartners(db, cashFinancePartners, id)
     // A restored GST disposal journal brings its tax invoice back.
     restoreFixedAssetPartners(db, id)
+    // WP 2d: a restored bill brings back its "GST to cost" journal.
+    restoreGstCostJournal(db, id)
     // WP 2.5: its links come back to life — re-check their sources and capacity.
     assertRestorable(db, id)
     // WP 2.3: re-apply its serials — refused (rolled back) if one has moved on meanwhile.

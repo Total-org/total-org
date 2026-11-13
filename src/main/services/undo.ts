@@ -14,6 +14,7 @@ import { billAmount, type SaveCardEntry, type SaveCardParty, type SaveSummary, t
 import { AppError } from '@shared/errors'
 import { fyOf, todayISO } from '@shared/dates'
 import { writeAudit } from './audit'
+import { gstCostJournalOf } from './gstCostJournal'
 import { checkStock, deleteVoucher, getLockDate, getVoucher, lockedError, MOVES_STOCK, NOT_DELETED, restoreVoucher } from './vouchers'
 import { cashBankGroupIds, descendantIdsByName, partyGroupIdsBySide } from './masters'
 import { partyAllocation } from './analysis'
@@ -223,6 +224,8 @@ export function saveSummary(db: DB, voucherIds: readonly number[]): SaveSummary 
     if (debtors.has(led.groupId) || creditors.has(led.groupId)) partyIds.push(id)
   }
   let asOn: string | null = null
+  // WP 2d: the bills' "GST to cost" journals (gstCostJournal.ts) are said as what they are.
+  const gstCostJournals = new Set(voucherIds.map((id) => gstCostJournalOf(db, id)?.journalId).filter((x): x is number => x != null))
   for (const id of voucherIds) {
     const v = getVoucher(db, id)
     if (!v || v.deletedAt) continue
@@ -244,7 +247,7 @@ export function saveSummary(db: DB, voucherIds: readonly number[]): SaveSummary 
         }
       }
     }
-    entries.push({ voucherId: id, kind, number: v.number, date: v.date, amount, money: moneyLine })
+    entries.push({ voucherId: id, kind, number: v.number, date: v.date, amount, money: moneyLine, ...(kind === 'journal' && gstCostJournals.has(id) ? { gstToCost: true as const } : {}) })
     if (asOn == null || v.date > asOn) asOn = v.date
     addParty(v.partyLedgerId)
     for (const l of v.lines) addParty(l.ledgerId)

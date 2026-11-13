@@ -24,7 +24,9 @@ Things to know about the version numbers:
 purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
 entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and
 your GST balance are then right. The bill itself still shows the GST, so GSTR-2B still matches and
-GSTR-3B shows it availed and reversed, as before. Undo removes both. *For accountants*: bills
+GSTR-3B shows it availed and reversed, as before. Undo removes both, moving the bill to the bin
+takes the entry with it, and a return moves the returned part back out of the cost. For now this
+covers expense bills and bills typed as an amount; a bill of products keeps the mark only. *For accountants*: bills
 already in your books, and bills marked in the full purchase editor, are unchanged; post the journal
 yourself there.
 
