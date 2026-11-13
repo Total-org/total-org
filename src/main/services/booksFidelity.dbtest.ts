@@ -16,7 +16,7 @@ import { buildBooksWorkbook } from './booksExport'
 import { xlsxBytes } from './xlsxFile'
 import { parseImportFile, planSteps } from './importFiles'
 import { runImport, type ImportOptions } from './dataImport'
-import { createGodown, createLedger, createStockItem, getLedger, updateLedger } from './masters'
+import { createGodown, createGroup, createLedger, createStockItem, getLedger, updateLedger } from './masters'
 import { getLockDate, getVoucher, saveVoucher } from './vouchers'
 import { saveTradeDoc } from './tradeDocs'
 import { listTradeDocTypes } from './tradeDocTypes'
@@ -104,6 +104,15 @@ function richCompany(): { db: DB; prevFy: number } {
     ...base, voucherTypeId: vt(db, 'purchase'), date: `${prevFy + 1}-05-05`, partyLedgerId: caterer.id, itcBlocked: true,
     lines: [{ ledgerId: rent.id, drCr: 'dr', amount: 20000, costAllocations: [] }, { ledgerId: caterer.id, drCr: 'cr', amount: 20000, costAllocations: [] }]
   })
+  // WP 2d: a debit note to a customer under an imported group records its side ('debtor') — it
+  // rides through export / import (the voucher JSON cell's snap_party_side).
+  const tradeRec = createGroup(db, { name: 'Trade Receivables', parentId: groupId(db, 'Current Assets') })
+  const imported = createLedger(db, { name: 'Imported Customer', groupId: tradeRec.id, pan: null })
+  saveVoucher(db, {
+    ...base, voucherTypeId: vt(db, 'debit_note'), date: `${prevFy + 1}-05-07`, partyLedgerId: imported.id,
+    lines: [{ ledgerId: imported.id, drCr: 'dr', amount: 10000, costAllocations: [] }, { ledgerId: rent.id, drCr: 'cr', amount: 10000, costAllocations: [] }]
+  })
+  expect((db.prepare("SELECT COUNT(*) AS n FROM vouchers WHERE snap_party_side = 'debtor'").get() as { n: number }).n).toBe(1)
   // Order → challan → invoice (the invoice line does not move stock: it moved on the challan).
   const krishna = L(db, 'Krishna Enterprises')
   const so = saveTradeDoc(db, {

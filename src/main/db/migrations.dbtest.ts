@@ -174,7 +174,7 @@ describe('migrate', () => {
   })
 
   // Found by content, never by position (number by position; later entries are appended).
-  it('the reminder_log channel rebuild (PR #148) comes right before the voucher text index, then the NIC e-document columns, then the loan_vouchers disbursement rebuild, then the tax-fact snapshot columns, then the count-cost mark, then the GST gateway, then the AI plans, then the MSME acceptance, then the blocked-ITC mark (last)', () => {
+  it('the reminder_log channel rebuild (PR #148) comes right before the voucher text index, then the NIC e-document columns, then the loan_vouchers disbursement rebuild, then the tax-fact snapshot columns, then the count-cost mark, then the GST gateway, then the AI plans, then the MSME acceptance, then the blocked-ITC mark, then the debit-note party side (last)', () => {
     const at = MIGRATIONS.findIndex((sql) => sql.includes('CREATE TABLE reminder_log_new'))
     const rebuild = MIGRATIONS[at]!
     expect(rebuild.startsWith('-- @foreign-keys-off')).toBe(true)
@@ -187,17 +187,18 @@ describe('migrate', () => {
     expect(MIGRATIONS[at + 6]).toContain('gst_gateway_returns')
     expect(MIGRATIONS[at + 7]).toContain('CREATE TABLE ai_plans')
     expect(MIGRATIONS[at + 8]).toContain('CREATE TABLE msme_acceptance')
-    expect(MIGRATIONS.at(-1)).toContain('itc_blocked')
-    expect(at).toBe(MIGRATIONS.length - 10)
+    expect(MIGRATIONS[at + 9]).toContain('itc_blocked')
+    expect(MIGRATIONS.at(-1)).toContain('snap_party_side')
+    expect(at).toBe(MIGRATIONS.length - 11)
   })
 
   // WP 3.5 follow-up: the NIC signed copies / cancel state / e-way history — appended columns only.
   it('the NIC e-document columns come right after the voucher text index (then the loan_vouchers disbursement rebuild and the tax-fact snapshot columns): columns appended to vouchers, no rebuild', () => {
-    const last = MIGRATIONS.at(-8)!
+    const last = MIGRATIONS.at(-9)!
     expect(last).toContain('irn_signed_invoice')
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last).not.toMatch(/DROP TABLE|CREATE TABLE/i)
-    expect(MIGRATIONS.at(-9)).toContain('CREATE VIRTUAL TABLE voucher_fts')
+    expect(MIGRATIONS.at(-10)).toContain('CREATE VIRTUAL TABLE voucher_fts')
     const db = freshDb()
     const cols = (db.prepare('PRAGMA table_info(vouchers)').all() as { name: string }[]).map((c) => c.name)
     for (const c of ['irn_signed_invoice', 'irn_signed_qr', 'irn_cancelled_at', 'irn_cancel_reason', 'irn_cancel_remark', 'ewb_date', 'ewb_history']) {
@@ -207,7 +208,7 @@ describe('migrate', () => {
 
   // To-do §4 GST: the tax-fact snapshot columns — nullable columns appended, no rebuild, no backfill.
   it('the tax-fact snapshot columns come right before the count-cost mark: columns appended, nothing backfilled', () => {
-    const last = MIGRATIONS.at(-6)!
+    const last = MIGRATIONS.at(-7)!
     expect(last).toContain('snap_tax_facts')
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|CREATE TABLE|UPDATE|INSERT/i)
@@ -220,7 +221,7 @@ describe('migrate', () => {
   // PR #188 review: the count-cost mark — one column appended (default 0 = every existing count
   // line values as before) and a partial index, no rebuild, no backfill.
   it('the count-cost mark comes right before the GST gateway: a column defaulting to 0 and a partial index, nothing backfilled', () => {
-    const last = MIGRATIONS.at(-5)!
+    const last = MIGRATIONS.at(-6)!
     expect(last).toContain('count_cost')
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|CREATE TABLE|UPDATE|INSERT/i)
@@ -232,7 +233,7 @@ describe('migrate', () => {
 
   // Phase 4: the GST gateway — new tables + one nullable column; nothing existing changes.
   it('the GST gateway comes right before the AI plans: two new tables and gst2b_statements.source (NULL for every earlier statement)', () => {
-    const last = MIGRATIONS.at(-4)!
+    const last = MIGRATIONS.at(-5)!
     for (const t of ['gst_gateway_test_edocs', 'gst_gateway_returns']) expect(last).toContain(`CREATE TABLE ${t}`)
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|\bUPDATE\b|\bINSERT\b/i)
@@ -243,7 +244,7 @@ describe('migrate', () => {
 
   // Phase 3b part 2: plans — two new tables, nothing existing changes (no rebuild, no backfill).
   it('the AI plans come right before the MSME acceptance: ai_plans + ai_plan_items, an item is a draft XOR a reminder', () => {
-    const last = MIGRATIONS.at(-3)!
+    const last = MIGRATIONS.at(-4)!
     for (const t of ['ai_plans', 'ai_plan_items']) expect(last).toContain(`CREATE TABLE ${t}`)
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|ALTER TABLE|\bUPDATE\b|\bINSERT\b/i)
@@ -257,7 +258,7 @@ describe('migrate', () => {
 
   // WP 2d: the MSME day of acceptance — one new table, nothing existing changes (no row = the bill date).
   it('the MSME acceptance comes right before the blocked-ITC mark: one row per bill voucher, two bases, gone with the voucher', () => {
-    const last = MIGRATIONS.at(-2)!
+    const last = MIGRATIONS.at(-3)!
     expect(last).toContain('CREATE TABLE msme_acceptance')
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|ALTER TABLE|\bUPDATE\b|\bINSERT\b/i)
@@ -268,14 +269,25 @@ describe('migrate', () => {
   })
 
   // WP 2d: the s.17(5) mark per bill — one column appended (default 0 = every voucher as before).
-  it('the blocked-ITC mark is the last migration: a 0 / 1 column defaulting to 0, nothing backfilled', () => {
-    const last = MIGRATIONS.at(-1)!
+  it('the blocked-ITC mark comes right before the debit-note party side: a 0 / 1 column defaulting to 0, nothing backfilled', () => {
+    const last = MIGRATIONS.at(-2)!
     expect(last).toContain('itc_blocked')
     expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
     expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|CREATE TABLE|\bUPDATE\b|\bINSERT\b/i)
     const db = freshDb()
     const col = (db.prepare('PRAGMA table_info(vouchers)').all() as { name: string; dflt_value: string | null; notnull: number }[]).find((c) => c.name === 'itc_blocked')
     expect(col).toMatchObject({ dflt_value: '0', notnull: 1 })
+  })
+
+  // WP 2d: a debit note's party side in the tax-fact snapshot — one nullable column, nothing backfilled.
+  it('the debit-note party side is the last migration: a nullable debtor / creditor column, NULL for every existing voucher', () => {
+    const last = MIGRATIONS.at(-1)!
+    expect(last).toContain('snap_party_side')
+    expect(last.trimStart().startsWith('-- @foreign-keys-off')).toBe(false)
+    expect(last.replace(/--[^\n]*/g, '')).not.toMatch(/DROP TABLE|CREATE TABLE|\bUPDATE\b|\bINSERT\b/i)
+    const db = freshDb()
+    const col = (db.prepare('PRAGMA table_info(vouchers)').all() as { name: string; dflt_value: string | null; notnull: number }[]).find((c) => c.name === 'snap_party_side')
+    expect(col).toMatchObject({ dflt_value: null, notnull: 0 })
   })
 
   it('applies every migration exactly once and records them all', () => {

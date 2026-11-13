@@ -3696,12 +3696,21 @@ export const MIGRATIONS: string[] = [
     note TEXT NOT NULL DEFAULT ''
   );
   `,
-  // WP 2d — blocked input tax credit per bill (last; number by position): CGST Act s.17(5) blocks
+  // WP 2d — blocked input tax credit per bill (number by position): CGST Act s.17(5) blocks
   // credit by WHAT was bought (food, a car for people, club membership, personal use …), not by
   // supplier. A purchase / debit note can now be marked; its booked input tax then goes to the
   // blocked bucket exactly as a blocked supplier's does (GSTR-3B 4(A)(5) + 4(B)(1), Circular 170).
   // Default 0 = every existing voucher reads as before.
   `
   ALTER TABLE vouchers ADD COLUMN itc_blocked INTEGER NOT NULL DEFAULT 0 CHECK (itc_blocked IN (0, 1));
+  `,
+  // WP 2d — a debit note's party side (last; number by position): whether a debit note is OUTWARD
+  // (to a customer: GSTR-1) or a purchase return is decided by its party. Until now that read the
+  // SEEDED Sundry Debtors tree only (owner, 4 Nov: no filed month moves), so a customer under an
+  // imported group ("Trade Receivables") was taken as a supplier. The tax-fact snapshot now also
+  // records the party's side (by its group's role) on debit notes saved from now on; NULL — every
+  // voucher saved before — reads exactly as before.
+  `
+  ALTER TABLE vouchers ADD COLUMN snap_party_side TEXT CHECK (snap_party_side IN ('debtor', 'creditor'));
   `
 ]
