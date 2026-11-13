@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Small fixes from the second audit** (#PRNUM, second audit #10):
+**Small fixes from the second audit** (#274, second audit #10):
 - The setup list's "Add your first customer or supplier" is no longer ticked by the "Cash sale" walk-in customer
   that the first cash bill creates (UX2-2).
 - The first-run setup page has a banner and a main part for screen readers (UX2-4).
