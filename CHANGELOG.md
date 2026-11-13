@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Returning an old SEZ / export bill takes back the GST that bill charged** (#PR, second audit COR2-3, owner's answer to Q4):
+a bill made before 8 Nov 2026 to a customer marked SEZ or export could carry GST (IGST, or CGST + SGST for
+an SEZ unit in your state). A return of such a bill now takes that GST back, in simple Returns and in the
+full credit-note editor, so the bill and its return net to nil (before, ₹180 on a ₹1,000 bill stayed owing).
+Both say so, with a "check with your CA" badge.
+- For accountants: only new credit notes change; every saved note and every return reads as before (CGST Act s.34).
+
 **A warning when a bill's "GST can't be claimed" mark changes after a return was saved** (#276, second audit COR2-1, owner's answer to Q2):
 when you tick or untick "GST credit blocked (s.17(5))" on a purchase that already has a debit note
 against it, Total now names the notes whose own mark no longer matches, so you can open them and set

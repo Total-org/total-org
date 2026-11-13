@@ -675,3 +675,81 @@ describe('a return of a bill to an SEZ unit in our own state (IGST Act s.7(5)(b)
     expect(note.lines.some((l) => l.ledgerId === L('CGST') || l.ledgerId === L('SGST'))).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------- owner Q4 (audit 2 COR2-3)
+
+describe('owner Q4 (COR2-3): a return of an SEZ / export bill saved before the zero-rated rule takes back the GST that bill charged', () => {
+  /** A bill as books from before #244 carry it: saved while the rule did not apply, the party flagged since. */
+  const oldBill = (party: string, flag: 'sez_wop' | 'exp_wop' | 'sez_wp', intent: Record<string, unknown>): number => {
+    const sale = post({ kind: 'sale', customerId: L(party), payment: { how: 'credit' }, ...intent })
+    db.prepare('UPDATE ledgers SET export_type = ? WHERE id = ?').run(flag, L(party))
+    return sale.voucherIds[0]!
+  }
+  const ctxNow = (): ReturnContext => ({ invoice: { ...invoiceCtx(db), ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])) } })
+  const heads = (id: number) => {
+    const v = getVoucher(db, id)!
+    const on = (n: string): number => v.lines.filter((l) => l.ledgerId === L(n)).reduce((s, l) => s + l.amount, 0)
+    return { cgst: on('CGST'), sgst: on('SGST'), igst: on('IGST') }
+  }
+
+  it('an in-state SEZ unit (now "without payment"): 1 Widget @ ₹1,000 charged CGST ₹90 + SGST ₹90 = ₹1,180; the full return is ₹1,180 with the same CGST + SGST, and nothing stays owing', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    expect(heads(billId)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    expect(bill.follows).toBe('intra')
+    const form = formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' })
+    // ₹1,000 + ₹90 + ₹90 = ₹1,180 — the bill's own total (today's rule would give ₹1,000 and no GST).
+    expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
+    const noteId = out.voucherIds[0]!
+    expect(heads(noteId)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+    expect(due('Ramesh')).toMatchObject({ bills: [], unappliedCredit: 0 })
+  })
+
+  it('an export buyer in another state (now "without payment"), a bill of just an amount: ₹1,000 + IGST ₹180; the return of ₹1,000 takes back IGST ₹180', () => {
+    const billId = oldBill('Kumar', 'exp_wop', { amount: { amount: '1000', gstRate: 18 } })
+    expect(heads(billId)).toEqual({ cgst: 0, sgst: 0, igst: 18_000 })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    expect(bill.follows).toBe('inter')
+    const form = formFor({ amount: 100_000, settle: 'credit' })
+    expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
+    expect(heads(out.voucherIds[0]!)).toEqual({ cgst: 0, sgst: 0, igst: 18_000 })
+    expect(due('Kumar')).toMatchObject({ bills: [], unappliedCredit: 0 })
+  })
+
+  it('a bill the rule already gives (IGST to a "with payment" SEZ unit) and an untaxed one follow today\'s rule — nothing to follow', () => {
+    const igst = oldBill('Kumar', 'sez_wp', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    expect(returnBill(db, INFO, 'sale', igst, TODAY)!.follows).toBeUndefined()
+    const plain = post({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }], payment: { how: 'credit' } })
+    expect(returnBill(db, INFO, 'sale', plain.voucherIds[0]!, TODAY)!.follows).toBeUndefined()
+  })
+
+  it('the full credit-note editor: voucher:noteFollows names the supply; the note it saves loads back following its bill and round-trips', async () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '2', rate: '500' }] })
+    const v = getVoucher(db, billId)!
+    const { noteFollowsSupply } = await import('./noteFollows')
+    expect(noteFollowsSupply(db, { partyLedgerId: L('Ramesh'), billNames: [], lineUids: [v.inventory[0]!.lineUid!] })).toBe('intra')
+    expect(noteFollowsSupply(db, { partyLedgerId: L('Ramesh'), billNames: [v.billRefs.find((r) => r.kind === 'new')!.name], lineUids: [] })).toBe('intra')
+    // A bill of an ordinary customer among them: no single answer → today's rule.
+    const plain = post({ kind: 'sale', customerId: L('Kumar'), items: [{ itemId: I('Widget'), qty: '1', rate: '100' }], payment: { how: 'credit' } })
+    const plainUid = getVoucher(db, plain.voucherIds[0]!)!.inventory[0]!.lineUid!
+    expect(noteFollowsSupply(db, { partyLedgerId: null, billNames: [], lineUids: [v.inventory[0]!.lineUid!, plainUid] })).toBeNull()
+    // The accountant returns 1 of the 2 (₹500): with followsBill the note is ₹500 + ₹45 + ₹45 = ₹590.
+    const ctx = { ...invoiceCtx(db), ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])), kind: 'credit_note' as const }
+    const state: InvoiceFormState = {
+      ...emptyInvoiceState(TODAY), partyId: L('Ramesh'), accountId: L('Sales'), followsBill: 'intra',
+      rows: [{ itemId: I('Widget'), qtyText: '1', rate: 50_000, discount: null, godownId: null, batchId: null, source: { lineUid: v.inventory[0]!.lineUid!, linkType: 'return' } }],
+      noteBillRefs: [{ kind: 'against', name: v.billRefs.find((r) => r.kind === 'new')!.name, amount: 59_000, dueDate: null }]
+    }
+    const { computeInvoice, invoiceRepresentation } = await import('@shared/voucherEdit/invoice')
+    expect(computeInvoice(state, ctx).gst).toMatchObject({ taxable: 50_000, cgst: 4500, sgst: 4500, igst: 0 })
+    expect(computeInvoice({ ...state, followsBill: undefined }, ctx).gst).toMatchObject({ taxable: 50_000, cgst: 0, sgst: 0, igst: 0 })
+    const r = buildInvoicePayload(state, ctx, typeId(db, 'credit_note'), taxLedgerIdsFrom(listLedgers(db), 'output'))
+    if (!r.ok) throw new Error(r.error)
+    const noteId = saveVoucher(db, r.payload).id
+    expect(heads(noteId)).toEqual({ cgst: 4500, sgst: 4500, igst: 0 })
+    const rep = invoiceRepresentation(getVoucher(db, noteId)!, ctx, taxLedgerIdsFrom(listLedgers(db), 'output'))
+    expect(rep.ok && rep.state.followsBill).toBe('intra')
+  })
+})

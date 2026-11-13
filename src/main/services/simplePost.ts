@@ -20,7 +20,7 @@ import type Database from 'better-sqlite3-multiple-ciphers'
 import type { CompanyInfo, SaveVoucherWarnings, Voucher, VoucherKind } from '@shared/domain'
 import { gstRegistrationOf } from '@shared/gst/registration'
 import { addBreakups, computeGst, type GstBreakup, type SupplyType } from '@shared/gst/calc'
-import { billTaxClass } from '@shared/gst/zeroRated'
+import { billTaxClass, noteFollowsBill } from '@shared/gst/zeroRated'
 import { addDaysISO, fyOf, toDisplayDate } from '@shared/dates'
 import { AppError, ERROR_MAP, isAppError, isErrorCode, type ErrorIssue } from '@shared/errors'
 import { normalizeInvoiceNumber } from '@shared/gst/recon2b'
@@ -185,6 +185,9 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
     : headOf(tax.cgst) + headOf(tax.sgst) > 0
       ? 'intra'
       : billTaxClass(company.stateCode, kind, { stateCode: party?.stateCode ?? null, exportType: party?.exportType ?? null }, v.posOverride).supply
+  // Owner Q4 (audit 2 COR2-3): a sale saved before the zero-rated rule that charged GST the rule
+  // wouldn't — its return takes back what it charged (shared/gst/zeroRated.ts noteFollowsBill).
+  const follows = noteFollowsBill(kind, party?.exportType ?? null, { cgst: headOf(tax.cgst), sgst: headOf(tax.sgst), igst: headOf(tax.igst) })
   const stored = v.lines.filter((l) => l.ledgerId === tax.cgst || l.ledgerId === tax.sgst || l.ledgerId === tax.igst || l.ledgerId === tax.cess).reduce((s, l) => s + l.amount, 0)
   const taxOf = (g: { cgst: number; sgst: number; igst: number; cess: number }): number => g.cgst + g.sgst + g.igst + g.cess
   let rates: number[] | null
@@ -310,6 +313,7 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
     pending,
     carriesGst: voucherCarriesGst(v, tax),
     rates,
+    ...(follows ? { follows } : {}),
     noteReference,
     amountLeft,
     rest: attributable ? rest : null,

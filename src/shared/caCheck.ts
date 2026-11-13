@@ -33,6 +33,7 @@ export const CA_PLACES = {
   'simple.taxes.tcs': 'Taxes → TCS card',
   'simple.ratePicker': 'Every simple GST rate picker (new product, bill, purchase, money out, return, bank line)',
   'simple.returns.total': 'Returns → the return\'s total',
+  'simple.returns.followsBill': 'Returns → a return of an SEZ / export bill saved before 8 Nov that charged GST',
   'simple.hsnField': 'New product → HSN / SAC code',
   'simple.gstBlocked': 'Record a purchase / Money out → "Can you claim this GST back?" (s.17(5))',
   'gateway.compliance': 'Gateway → Compliance card, GST returns row',
@@ -53,6 +54,7 @@ export const CA_PLACES = {
   'company.state': 'Company details → state',
   'masters.hsnField': 'Masters → stock item → HSN / SAC code',
   'masters.exportType': 'Masters → ledger → Export / SEZ type',
+  'notes.followsBill': 'Credit note / Returns → a return of an SEZ / export bill saved before 8 Nov that charged GST',
   'tds.screen': 'TDS screen header (rates, due dates, returns)',
   'tds.lateInterest': 'TDS → late-deduction interest',
   'tcs.screen': 'TCS screen header',
@@ -241,7 +243,7 @@ export const CA_POINTS = [
     rule: 'IGST Act s.16(3) and (4) (zero-rated supply on payment of IGST, from 1 October 2023)',
     covers: [{ list: 'GST_UNVERIFIED', id: 'zero-rated-with-payment' }],
     questions: [55],
-    places: ['masters.exportType']
+    places: ['masters.exportType', 'notes.followsBill', 'simple.returns.followsBill']
   },
   {
     id: 'gstr3b-advances',

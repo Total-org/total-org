@@ -20,7 +20,7 @@ import type { SaveSummary } from './saveCard'
 import type { Translate } from '../i18n'
 import { formatPaise, parseAmountText, roundToRupee } from '../money'
 import { addDaysISO, fyOf, isValidISODate, resolveDateText, toDisplayDate, toPlainDate } from '../dates'
-import { addBreakups, computeGst, type GstBreakup } from '../gst/calc'
+import { addBreakups, computeGst, type GstBreakup, type SupplyType } from '../gst/calc'
 import { billTaxClass, type BillTaxClass } from '../gst/zeroRated'
 import { chargesGstOn, registrationOn } from '../gst/registration'
 import { AppError } from '../errors/appError'
@@ -478,6 +478,10 @@ export interface IntentOriginal {
    *  bill's tax (one per line, distinct), the bill's own rate for a ledger-line bill; null = they
    *  can't be told from the bill (a rate changed since) — a return then asks / refuses. */
   rates: number[] | null
+  /** Owner Q4 (audit 2 COR2-3, shared/gst/zeroRated.ts noteFollowsBill): a sale saved before the
+   *  zero-rated rule that charged GST the rule wouldn't — its return takes back that tax at this
+   *  supply, the party's SEZ / export flag ignored. Omitted = today's rule. */
+  follows?: SupplyType
   lines: IntentOriginalLine[]
   /** WP 9.5: the note's `reference` — the original's number (a sale: e-invoice PrecDocDtls looks
    *  it up), the supplier's bill number for a purchase (the 2B netting key, mismatch2b.ts).
@@ -774,11 +778,13 @@ function ledgerLines(
   rate: number,
   printedTotal: number | null = null,
   /** A return's tax and total from the running total (runningAmountRest). */
-  fixed: BillRest | null = null
+  fixed: BillRest | null = null,
+  /** Owner Q4: a return of an old SEZ / export bill follows that bill's posted supply. */
+  follows: BillTaxClass | null = null
 ): { rows: AccountingRowState[]; total: number; gst: GstBreakup } {
   // Phase 2: a party flagged SEZ / export is a zero-rated supply (shared/gst/zeroRated.ts) — as
   // the item editor's computeInvoice: IGST (s.7(5)(b) IGST Act), none without payment (s.16(3)).
-  const { supply, zeroTax } = partyTaxClass(ctx, kind, party)
+  const { supply, zeroTax } = follows ?? partyTaxClass(ctx, kind, party)
   const gst = fixed
     ? { taxable, cgst: fixed.cgst, sgst: fixed.sgst, igst: fixed.igst, cess: 0, total: taxable + fixed.cgst + fixed.sgst + fixed.igst }
     : addBreakups([computeGst(taxable, zeroTax ? 0 : rate, supply)])
@@ -1201,7 +1207,8 @@ function mapReturn(n: Extract<NormalIntent, { kind: 'return_sale' | 'return_purc
     })
     const state: InvoiceFormState = {
       ...emptyInvoiceState(date), number, partyId: party.id, accountId: account.id, rows, narration: n.narration, billName: '', billDueDate: date, reference,
-      ...(taxedOriginal ? { taxedOriginal: true } : {})
+      ...(taxedOriginal ? { taxedOriginal: true } : {}),
+      ...(sale && o.follows ? { followsBill: o.follows } : {})
     }
     // The tax and round off of the running total (everything returned so far, this one included)
     // less what the earlier returns posted; the return that empties the bill takes exactly what the
@@ -1229,9 +1236,9 @@ function mapReturn(n: Extract<NormalIntent, { kind: 'return_sale' | 'return_purc
       rate = o.rates[0]!
     }
     // The running total's tax and round off (the return of all that is left: what the bill still holds).
-    const { supply, zeroTax } = partyTaxClass(ctx, kind, party)
-    const fixed = runningAmountRest(a.amount, charges && !zeroTax ? (rate ?? 0) : 0, supply, o, charges)
-    const lines = ledgerLines(ctx, kind as 'credit_note' | 'debit_note', party, account.id, a.amount, charges ? (rate ?? 0) : 0, null, fixed)
+    const cls = sale && o.follows ? { supply: o.follows, zeroTax: false, zeroRated: null } : partyTaxClass(ctx, kind, party)
+    const fixed = runningAmountRest(a.amount, charges && !cls.zeroTax ? (rate ?? 0) : 0, cls.supply, o, charges)
+    const lines = ledgerLines(ctx, kind as 'credit_note' | 'debit_note', party, account.id, a.amount, charges ? (rate ?? 0) : 0, null, fixed, sale && o.follows ? cls : null)
     total = lines.total
     facts.tax = lines.gst.total - lines.gst.taxable
     settled = settle(total)

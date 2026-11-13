@@ -647,6 +647,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.returns.cameInto': 'Paise kahan aayenge',
   'simple.returns.noAccount': 'Aapne abhi tak koi bank account nahi joda hai. Use jodein, ya Cash chunein.',
   'simple.returns.total': 'Return ka total',
+  'simple.returns.followsBill': 'Yeh bill 8 Nov 2026 se pehle bana tha aur ismein SEZ ya export customer se GST liya gaya tha, isliye yeh return woh GST wapas leta hai.',
   'simple.returns.previewProblem': 'Yeh return abhi save nahi ho sakta: {reason}',
   'simple.returns.save': 'Return save karein',
   'simple.returns.shortcuts': '⌘↵ se save',

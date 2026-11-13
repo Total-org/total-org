@@ -166,6 +166,24 @@ describe('Return a sale (WP 9.5)', () => {
     expect(sent.intent).toMatchObject({ kind: 'return_sale', billId: 7, date: '2026-10-13', narration: 'Damaged', items: [{ lineUid: 'u-1', qty: 1000 }], refund: { how: 'upi', accountId: 31 } })
   })
 
+  it('owner Q4 (COR2-3): an SEZ customer\'s bill saved before the rule that charged GST — the return takes it back, and says so', async () => {
+    bill = itemsBill({ follows: 'intra' })
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) =>
+      channel === 'master:ledgers:list'
+        ? { ok: true, data: LEDGERS.map((l) => (l.id === 10 ? { ...l, exportType: 'sez_wop' } : l)) }
+        : base(channel, payload)
+    )
+    renderUi(<ReturnSale billId={7} />)
+    await screen.findByTestId('return-bill')
+    click('btn-return-all-0')
+    // 1 × ₹500 + CGST ₹45 + SGST ₹45 = ₹590 (today's rule for a "without payment" SEZ unit would be ₹500, no GST).
+    await waitFor(() => expect(screen.getByTestId('return-total').getAttribute('data-paise')).toBe('59000'))
+    expect(screen.getByTestId('return-tax').getAttribute('data-paise')).toBe('9000')
+    expect(text('return-follows-bill')).toContain('takes that GST back')
+    expect(bannedWordsIn(visibleText())).toEqual([])
+  })
+
   it('an unpaid bill: the return simply comes off it — no refund question, none sent', async () => {
     bill = itemsBill({ pending: 118_000 })
     renderUi(<ReturnSale billId={7} />)

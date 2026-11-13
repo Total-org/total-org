@@ -394,6 +394,12 @@ export function ReturnScreen({ side, billId: initialBill }: { side: ReturnSide; 
                     {money(totals?.total ?? 0)}
                   </span>
                 </div>
+                {bill?.side === 'sale' && bill.follows && (
+                  <p className="mt-1 text-detail text-muted" data-testid="return-follows-bill">
+                    {t('simple.returns.followsBill')}
+                    <CaCheck place="simple.returns.followsBill" />
+                  </p>
+                )}
                 {previewProblem && (
                   <p role="status" className="mt-1 text-detail text-warning" data-testid="return-preview-problem">
                     {t('simple.returns.previewProblem', { reason: previewProblem })}
