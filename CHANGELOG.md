@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**The MSME day of acceptance travels with your books** (#PR, WP 2d). The day you record on a micro or
+**The MSME day of acceptance travels with your books** (#275, WP 2d). The day you record on a micro or
 small supplier's bill (Payables → MSME → Accepted → Change) is now in the books export, and an import
 puts it back. Undoing an import puts back the day the bill had before. *For accountants*: no figure
 changes. A workbook exported before this version has no days in it, so importing one over your books
