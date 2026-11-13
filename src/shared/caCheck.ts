@@ -412,6 +412,15 @@ export const CA_POINTS = [
     places: ['simple.gstBlocked']
   },
   {
+    // WP 2d: purchase returns and the aggregate threshold (shared/tdsEligibility.ts header) — the
+    // Act's "aggregate of the amounts credited or paid" read without the returns; not confirmed.
+    id: 'tds-threshold-returns',
+    rule: 'ss.194C(5), 194J, 194H … Income-tax Act — "the aggregate of the amounts credited or paid"',
+    covers: [],
+    questions: [56],
+    places: ['tds.screen']
+  },
+  {
     id: 'tds-return-layouts',
     rule: 'Form 26Q, Form 16A (TRACES utility)',
     covers: [],
