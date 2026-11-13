@@ -310,6 +310,12 @@ describe('WP 9.3 Record a purchase: the form → simple:post = the purchase an a
     expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${journal}) AND deleted_at IS NOT NULL`)).toBe(2)
     restoreFromBin(db, bill)
     expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${journal}) AND deleted_at IS NULL`)).toBe(2)
+    // Review of #277: a journal the user binned on its own stays in the bin when the bill comes back.
+    deleteVoucher(db, journal)
+    deleteVoucher(db, bill)
+    restoreFromBin(db, bill)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id = ${journal} AND deleted_at IS NOT NULL`)).toBe(1)
+    restoreFromBin(db, journal)
     // A part return (₹400 of ₹1,000) moves ₹72 of the GST back out of the cost; the rest returned
     // (₹600) moves the remaining ₹108: Input GST back to nothing, Rent to nothing — the bill is gone.
     const ret = (amount: number, id: string) => postIntent(db, info, { clientId: id, kind: 'return_purchase', date: '2025-08-12', billId: bill, amount: { amount } }, TODAY)

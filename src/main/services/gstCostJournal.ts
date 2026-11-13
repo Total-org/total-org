@@ -11,6 +11,9 @@ import { getVoucher } from './vouchers'
 
 interface PostEntry { role: string; voucherId: number }
 
+/** The kinds that can carry a "GST to cost" journal: a purchase bill, a purchase return's note. */
+export const GST_COST_KINDS: ReadonlySet<string> = new Set(['purchase', 'debit_note'])
+
 /** The bill's (or a purchase return note's) gst_cost journal, live or binned, with its cost account
  *  (the account the journal debits — for a return's mirror, the one it credits); null = none. */
 export function gstCostJournalOf(db: DB, billId: number): { journalId: number; accountId: number } | null {
@@ -49,6 +52,11 @@ export function restoreGstCostJournal(db: DB, billId: number): void {
   if (!j) return
   const row = db.prepare('SELECT deleted_at AS deletedAt FROM vouchers WHERE id = ?').get(j.journalId) as { deletedAt: string | null } | undefined
   if (!row?.deletedAt) return
+  // Only one the bill took to the bin with it (review of #277): its newest voucher audit row is that
+  // paired delete. A journal the user binned on its own stays in the bin.
+  const last = db.prepare("SELECT action, after_json AS after FROM audit_log WHERE entity = 'voucher' AND entity_id = ? ORDER BY id DESC LIMIT 1").get(j.journalId) as { action: string; after: string | null } | undefined
+  const paired = last?.action === 'delete' && last.after != null && (JSON.parse(last.after) as { pairedWith?: number }).pairedWith === billId
+  if (!paired) return
   const before = getVoucher(db, j.journalId)
   db.prepare('UPDATE vouchers SET deleted_at = NULL WHERE id = ?').run(j.journalId)
   writeAudit(db, 'voucher', j.journalId, 'restore', before, { restored: true, pairedWith: billId })

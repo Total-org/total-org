@@ -672,6 +672,9 @@ export interface IntentFacts {
   gstToCost?: number
   /** WP 2d: that move was left to the full app — the company numbers its journals by hand. */
   gstToCostManual?: boolean
+  /** WP 2d (review of #277): a bill of products marked "can't claim" — its GST stays in the GST
+   *  accounts (no journal for products: how stock carries it is the CA's call, Q57). */
+  gstLeftInGst?: boolean
 }
 
 export interface CountFacts {
@@ -964,6 +967,8 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   // bill and its journal bin / restore together (services/gstCostJournal.ts). Expense / just-an-
   // amount bills only (review of #277): products keep the mark only — how stock carries the GST is
   // the CA's call (Q57).
+  // Products: the mark only — said, so the user knows the GST stays in the GST accounts.
+  if (itcBlocked && costAccountId == null && facts.tax > 0) facts.gstLeftInGst = true
   if (itcBlocked && costAccountId != null) {
     const j = gstCostJournal(ctx, bill.payload.lines, 'dr', costAccountId, date, `GST that can't be claimed back (s.17(5)) on bill ${billName} — moved to the cost`)
     if (j === 'manual') facts.gstToCostManual = true
@@ -1480,6 +1485,7 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
       if (f.tax > 0) out.push(t('simple.intent.tax', { amount: m(f.tax) }))
       if ((f.gstToCost ?? 0) > 0) out.push(t('simple.intent.gstToCost', { amount: m(f.gstToCost!) }))
       if (f.gstToCostManual) out.push(t('simple.intent.gstToCostManual'))
+      if (f.gstLeftInGst) out.push(t('simple.intent.gstLeftInGst'))
       if (f.paid > 0) out.push(t('simple.intent.paid', { amount: m(f.paid), how }))
       position(() => { if (f.due > 0) out.push(t('simple.intent.dueTo', { amount: m(f.due), name })) })
       break
@@ -1497,6 +1503,8 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
     case 'return_purchase':
       out.push(t(f.kind === 'return_sale' ? 'simple.intent.returnSale' : 'simple.intent.returnPurchase', { amount: m(f.total), name }))
       if (f.tax > 0) out.push(t('simple.intent.tax', { amount: m(f.tax) }))
+      if ((f.gstToCost ?? 0) > 0) out.push(t('simple.intent.gstOutOfCost', { amount: m(f.gstToCost!) }))
+      if (f.gstToCostManual) out.push(t('simple.intent.gstToCostManual'))
       if (f.againstBill && f.offBill > 0) out.push(t('simple.intent.offBill', { bill: f.againstBill, amount: m(f.offBill) }))
       if (f.credit > 0) {
         if (f.paid > 0) out.push(t(f.kind === 'return_sale' ? 'simple.intent.refunded' : 'simple.intent.refundIn', { amount: m(f.paid), how }))

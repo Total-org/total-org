@@ -138,6 +138,7 @@ describe('live totals = the editor calculation = what is posted', () => {
     const goods = posted({ ...form({ lines: [line(1, 1, '10', 10_000)] }), gstBlocked: true }, c)
     expect(goods.entries.map((e) => e.role)).toEqual(['bill'])
     expect(goods.entries[0]!.payload).toMatchObject({ itcBlocked: true })
+    expect(goods.facts.gstLeftInGst).toBe(true) // said: the GST stays in the GST accounts
     // A company that numbers its journals by hand: no journal (a simple form has no place for its
     // number) — said, never a dead end.
     const manualCtx = { ...intentCtx(c), types: { ...intentCtx(c).types, journal: { id: 3, name: 'Journal', numbering: 'manual' as const, next: '' } } }
