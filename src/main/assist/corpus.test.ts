@@ -52,6 +52,25 @@ const CORPUS: [string, Expect][] = [
   ['is mahine kitna kharcha hua', { kind: 'figure', measure: 'expenses', period: { rule: 'thisMonth' } }],
   ['how much did I spend last year', { kind: 'figure', measure: 'expenses', period: { rule: 'lastFy', from: '2025-04-01', to: '2026-03-31' } }],
   ['इस महीने का मुनाफा', { kind: 'figure', measure: 'profit', period: { rule: 'thisMonth' } }],
+  // audit 2 #4 (UX-14): what a figure question narrows to — never answered with the whole figure
+  ['how much did I spend on diesel', { kind: 'figure', measure: 'expenses', about: 'diesel' }],
+  ['sales of office chair this year', { kind: 'figure', measure: 'sales', period: { rule: 'fyToDate' }, about: 'office chair' }],
+  ['diesel ka kharcha kitna hua', { kind: 'figure', measure: 'expenses', about: 'diesel' }],
+  ['office chair ki bikri is saal', { kind: 'figure', measure: 'sales', about: 'office chair' }],
+  ['kitna kharcha hua rent pe', { kind: 'figure', measure: 'expenses', about: 'rent' }],
+  ['purchases from Mohan last month', { kind: 'figure', measure: 'purchases', period: { rule: 'lastMonth' }, about: 'mohan' }],
+  ['profit on chairs', { kind: 'figure', measure: 'profit', about: 'chairs' }],
+  ['what were my total sales so far this month', { kind: 'figure', measure: 'sales', about: undefined }],
+  ['how much did I spend in October 2025', { kind: 'figure', measure: 'expenses', about: undefined }],
+  ['is mahine ka kharcha', { kind: 'figure', measure: 'expenses', about: undefined }],
+  ['sales for 2025-26', { kind: 'figure', measure: 'sales', about: undefined }],
+  // review of #273: a connector makes it sure; a bare leftover word is loose (it narrows only when it names a record)
+  ['Tata Namak kitna becha', { kind: 'figure', measure: 'sales', about: 'tata namak', aboutLoose: true }],
+  ['डीज़ल का खर्चा कितना हुआ', { kind: 'figure', measure: 'expenses', about: 'डीज़ल', aboutLoose: undefined }],
+  ['cash sales today', { kind: 'figure', measure: 'sales', about: 'cash', aboutLoose: undefined }],
+  ['diesel ka kharcha kitna hua', { kind: 'figure', aboutLoose: undefined }],
+  ['how much did i spend from bank', { kind: 'figure', measure: 'expenses', about: 'bank', aboutLoose: undefined }],
+  ['kitna kharcha bank se hua', { kind: 'figure', measure: 'expenses', about: 'bank', aboutLoose: undefined }],
   // ---- cash in hand / bank balance ----
   ['cash in hand', { kind: 'money', which: 'cash' }],
   ['how much cash do I have', { kind: 'money', which: 'cash' }],
@@ -249,6 +268,25 @@ describe('Ask Total corpus', () => {
       check(got, want, '')
     })
   }
+})
+
+describe('Ask Total: whole-figure questions stay whole (review of #273)', () => {
+  // Every one of these asks for the WHOLE figure: no word may be read as what it narrows to.
+  const WHOLE = [
+    'net profit', "what's my net profit", 'gross profit', 'sales batao', 'kharcha batao', 'bikri batao', 'sales dikhao', 'is saal ka profit batao',
+    'pichhle mahine ka kharcha batao', 'कुल बिक्री कितनी हुई', 'मेरा खर्चा बताओ', 'बिक्री दिखाओ', 'अब तक की बिक्री', 'aaj tak ki sale',
+    'total bikri kitni hui ab tak', 'is mahine abhi tak ka kharcha', 'monthly expenses', 'operating expenses', 'my running costs', 'daily sales',
+    'weekly sales', 'annual turnover', 'sales report', 'sales summary', 'sales figures', 'what are my sales numbers', 'total sale amount',
+    'top expenses', 'my biggest expenses this month', 'what were my main costs', 'what did i spend the most on', 'expenses breakdown',
+    'how are my sales doing', 'sales kaisi hai', 'expenses ytd', 'sales mtd', 'how much have we sold till date', 'sales the day before yesterday',
+    'hello what are my sales', 'sales kitni hui bhai', 'sales jaldi batao', 'hamari bikri', 'dukaan ki sale', 'kitne ka maal becha',
+    'is hafte ki sales', 'पिछले साल की बिक्री', 'इस हफ्ते की बिक्री'
+  ]
+  it.each(WHOLE)('%s', (text) => {
+    const i = classify(text, TODAY)
+    expect(i.kind).toBe('figure')
+    expect(i.kind === 'figure' ? i.about : 'n/a').toBeUndefined()
+  })
 })
 
 describe('Ask Total normalising', () => {

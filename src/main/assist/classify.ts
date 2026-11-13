@@ -628,6 +628,56 @@ const MEASURE_WORDS: [RegExp, AssistMeasure][] = [
   [/\bexpenses?\b|\bspent\b|\bspend(?:ing)?\b|\bcosts?\b|\bkharcha\b|\bkharche\b|\bdid i pay\b/, 'expenses']
 ]
 
+/** Audit 2 #4 (UX-14): the words a figure question may hold without NARROWING it — question and
+ *  helper words, the measure words, periods, connectors (English and the Hinglish normalise()
+ *  leaves). Anything else ("diesel", "office chair", "ramesh") names a thing the figure must be
+ *  split by — the answer resolves it or says it can't, never the broad figure. */
+const FIGURE_FILLER = new Set(
+  (
+    'i me my mine we our us you your the a an it its this that these those there here hello hey hi ok okay bhai ji please pls ' +
+    'how much many what whats was were is are am be been did do does done doing have has had will would can could should ' +
+    'tell show give let know see total overall all whole entire so far till until up now yet ever any some just only ' +
+    'spend spent spending pay paid paying sell sold selling buy bought buying make made making earn earned earning get got getting go went going ' +
+    'sale sales purchase purchases expense expenses cost costs profit profits loss losses revenue turnover margin margins money income ' +
+    'net gross kul report reports summary figure figures number numbers amount amounts value list detail details breakdown ' +
+    'top most biggest big main largest highest major running operating daily weekly monthly annual yearly ytd mtd date ' +
+    'business shop dukan dukaan goods items item products product things stuff everything maal hamari hamara humara ' +
+    'month months year years week weeks day days today yesterday tomorrow before fy financial quarter last previous next current ' +
+    'since from to on of for in at by during between and or with about over under than per ' +
+    'ka ki ke ko se pe par mein me mai hua hui hue hai hain tha thi the kya kitna kitni kitne mera meri mere maine humne hamne ' +
+    'batao bataiye bata dikhao dikhaiye dikha jaldi kaisi kaisa kaise chal raha rahi ab abhi tak aaj kal hafte hafta mahine mahina saal pichle pichhle ' +
+    'becha bechi beche bikri kharida kharidi kharide kharcha kharche kharch fayda munafa rs rupees rupaye ' +
+    'कुल हुई हुआ हुए बताओ बताइए दिखाओ दिखाइए अब तक इस पिछले पिछला साल हफ्ते हफ़्ते हफ्ता महीने महीना आज कल मेरा मेरी मेरे हमारी हमारा कितना कितनी कितने ' +
+    MONTH_NAMES.join(' ') + ' ' + MONTH_NAMES.map((m) => m.slice(0, 3)).join(' ') + ' sept'
+  ).split(' ')
+)
+/** English connectors that introduce the thing ("spend ON diesel", "sales OF office chair"). */
+const ABOUT_BEFORE = new Set(['on', 'of', 'for', 'to', 'from', 'towards'])
+/** Hindi / Hinglish postpositions that follow it ("diesel KA kharcha", "rent PE", "Mohan SE"). */
+const ABOUT_AFTER = new Set(['ka', 'ki', 'ke', 'pe', 'par', 'se', 'wala', 'wali', 'vala', 'पर', 'का', 'की', 'के', 'से'])
+/** Ways of payment / where money sat — splits Total can't make yet (answer.ts says so, never a figure). */
+export const HOW_SPLIT = new Set(['cash', 'bank', 'credit', 'udhaar', 'udhar', 'upi', 'card', 'online', 'nakad', 'नकद', 'उधार'])
+const SKIP_BETWEEN = new Set(['the', 'my', 'a', 'an', 'our', 'all'])
+
+/** What a figure question narrows to ("spend on diesel" → "diesel", "office chair ki sales" →
+ *  "office chair"), or undefined when it asks for the whole figure. Numbers and filler words go.
+ *  `sure`: a connector introduces it — the answer then never gives the whole figure; otherwise the
+ *  leftover counts only when it names a record in the books (answer.ts), else the whole figure. */
+export function figureAbout(q: string): { about: string; sure: boolean } | undefined {
+  const tokens = q.split(' ').filter(Boolean).map((w) => w.replace(/'/g, ''))
+  const keep = (w: string): boolean => !FIGURE_FILLER.has(w) && !/^[\d.,/-]+(?:k|l|cr)?$/.test(w) && !/^\d{2,4}-\d{2}$/.test(w)
+  const kept = tokens.map((w, i) => (keep(w) ? i : -1)).filter((i) => i >= 0)
+  const about = kept.map((i) => tokens[i]).join(' ').trim()
+  if (about.replace(/[^\p{L}]/gu, '').length < 3) return undefined
+  // "cash sales", "udhaar sales": a way of payment is a split Total can't make yet — never the whole figure.
+  const sure = kept.some((i) => HOW_SPLIT.has(tokens[i]!)) || kept.some((i) => {
+    let j = i - 1
+    while (j >= 0 && SKIP_BETWEEN.has(tokens[j]!)) j--
+    return (j >= 0 && ABOUT_BEFORE.has(tokens[j]!)) || ABOUT_AFTER.has(tokens[i + 1] ?? '')
+  })
+  return { about, sure }
+}
+
 const OPEN = /^(?:please\s+)?(?:open|go to|goto|take me to|jump to|show me|show|kholo|khol do|khol|dikhao|dikha do|dikhaao)\s+(.+)$|^(.+?)\s+(?:kholo|khol do|dikhao|dikha do|kholiye|dikhaiye|open karo|open)$/
 
 /** Gate polish: the language a question is written in, when it says — Devanagari = Hindi, a Latin
@@ -722,7 +772,8 @@ export function classify(text: string, today: string): AssistIntent {
   const measure = MEASURE_WORDS.find(([re]) => re.test(q))?.[1]
   if (measure) {
     const said = periodOf(q, today)
-    return { kind: 'figure', measure, period: said ?? defaultPeriod(today), periodSaid: !!said }
+    const about = figureAbout(q)
+    return { kind: 'figure', measure, period: said ?? defaultPeriod(today), periodSaid: !!said, ...(about ? { about: about.about, ...(about.sure ? {} : { aboutLoose: true as const }) } : {}) }
   }
 
   if (BOTH_Q.test(q)) return { kind: 'money', which: 'both' }

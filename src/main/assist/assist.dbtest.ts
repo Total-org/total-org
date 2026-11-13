@@ -159,6 +159,80 @@ describe('Ask Total on hand-worked books', () => {
     expect(e.sentences.join(' ')).toContain('Rent')
   })
 
+  it('audit 2 #4: a narrower question never gets the broader figure — an account is its own P&L line, anything else "can\'t split"', async () => {
+    // October 2025 (this month on T): Courier Inward ₹300 + Courier Outward ₹150 + Packing Material ₹200 = ₹650 of costs.
+    const groups = await ok<{ id: number; name: string }[]>('master:groups:list')
+    const indirect = groups.find((x) => x.name === 'Indirect Expenses')!.id
+    for (const [key, name] of [['tIn', 'Courier Inward'], ['tOut', 'Courier Outward'], ['power', 'Packing Material']] as const) {
+      ids[key] = (await ok<{ id: number }>('master:ledgers:create', { name, groupId: indirect })).id
+    }
+    for (const [n, payee, amount] of [[1, ids.tIn, 30000], [2, ids.tOut, 15000], [3, ids.power, 20000]] as const) {
+      await ok('simple:post', { intent: { kind: 'money_out', clientId: `narrow-out-000${n}`, date: '2025-10-10', amount, from: { how: 'cash' }, payeeId: payee }, today: T })
+    }
+    expect(paise(await ask('expenses this month'))[0]).toBe(65000)
+    // One account named: its own line (₹200), never the ₹650.
+    const power = await ask('how much did I spend on packing material this month')
+    expect(power.figures.map((f) => [f.paise, f.source])).toEqual([[20000, { kind: 'ledger', ledgerId: ids.power, label: 'Packing Material' }]])
+    expect(power.sentences[0]).toContain('Packing Material: ₹200.00')
+    // Rent last month (Hinglish): ₹2,000 from the Rent account.
+    expect(paise(await ask('pichle mahine rent ka kharcha'))).toEqual([200000])
+    // Two courier accounts: asked which — then the pick answers with that one (₹300).
+    const which = await ask('how much did I spend on courier this month')
+    expect(which.figures).toEqual([])
+    expect(which.choice?.options.map((o) => o.label).sort()).toEqual(['Courier Inward', 'Courier Outward'])
+    expect(paise(await ask('how much did I spend on courier this month', { picks: { party: ids.tIn } }))).toEqual([30000])
+    // Nothing called diesel: no figure at all (it used to answer all costs).
+    const diesel = await ask('how much did I spend on diesel last month')
+    expect(diesel.figures).toEqual([])
+    expect(diesel.sentences.join(' ')).toContain('I can’t split costs by “diesel” yet')
+    expect(diesel.sentences.join(' ')).not.toContain('₹')
+    // A Devanagari question about a thing the books don't have: the same refusal, in Hindi.
+    const hiQ = await ask('डीज़ल का खर्चा कितना हुआ', { lang: 'hi' })
+    expect(hiQ.figures).toEqual([])
+    expect(hiQ.sentences.join(' ')).toContain('“डीज़ल” के हिसाब से नहीं बाँट सकता')
+    // A customer named: their page, not all sales (₹10,000).
+    const toRamesh = await ask('sales to Ramesh Traders last month')
+    expect(toRamesh.figures).toEqual([])
+    expect(toRamesh.sentences[0]).toContain('I can’t split sales by customer or supplier yet')
+    expect(toRamesh.links[0]!.target).toEqual({ screen: 'simple-person', params: { id: ids.ramesh } })
+    // A way of payment is a split too — never the whole figure, never the walk-in's page.
+    const cash = await ask('cash sales last month')
+    expect(cash.figures).toEqual([])
+    expect(cash.sentences[0]).toContain('I can’t split sales by “cash” yet')
+    // Round 2: money "from the bank" is a split Total can't make — never "Bank charges: ₹0.00".
+    for (const text of ['how much did i spend from bank this month', 'kitna kharcha bank se hua']) {
+      const bank = await ask(text)
+      expect(bank.figures, text).toEqual([])
+      expect(bank.sentences[0], text).toContain('I can’t split costs by')
+    }
+    // Round 3: an account whose name holds a payment word is still that account (₹125 of card machine rent in October).
+    const cardRent = (await ok<{ id: number }>('master:ledgers:create', { name: 'Card Machine Rent', groupId: indirect })).id
+    await ok('simple:post', { intent: { kind: 'money_out', clientId: 'narrow-out-0004', date: '2025-10-11', amount: 12500, from: { how: 'cash' }, payeeId: cardRent }, today: T })
+    expect(paise(await ask('how much did I spend on card machine rent this month'))).toEqual([12500])
+    expect(paise(await ask('card machine rent ka kharcha is mahine'))).toEqual([12500])
+    // The preset "Bank charges" account: its own (empty) line, not "can't split by bank".
+    const charges = await ask('how much did I spend on bank charges this month')
+    expect(charges.figures.map((f) => [f.paise, f.source?.kind, f.source?.label])).toEqual([[0, 'ledger', expect.stringMatching(/^bank charges$/i)]])
+    // Round 2: two products fit — "Which product?", and the pick answers (never the same question again).
+    const units = await ok<{ id: number }[]>('master:units:list')
+    const red = (await ok<{ id: number }>('master:stockItems:create', { name: 'Red Pen', unitId: units[0]!.id })).id
+    await ok('master:stockItems:create', { name: 'Blue Pen', unitId: units[0]!.id })
+    const pen = await ask('sales of pen last month')
+    expect(pen.figures).toEqual([])
+    expect(pen.choice?.slot).toBe('item')
+    expect(pen.choice?.options.map((o) => o.label).sort()).toEqual(['Blue Pen', 'Red Pen'])
+    const picked = await ask('sales of pen last month', { picks: { item: red } })
+    expect(picked.choice).toBeUndefined()
+    expect(picked.sentences[0]).toContain('I can’t split sales by product yet')
+    expect(picked.links[0]!.target).toEqual({ screen: 'simple-stock', params: { itemId: red } })
+    // Whole-figure questions with words the reader skips keep the whole figure.
+    for (const text of ['net sales last month', 'sales report last month', 'pichhle mahine ki sales batao', 'how were my sales doing last month']) {
+      expect(paise(await ask(text))[0], text).toBe(1000000)
+    }
+    // A leftover word that names nothing in the books ("kaisi") is not a split: the whole figure.
+    expect(paise(await ask('pichle mahine sales kaisi rahi'))[0]).toBe(1000000)
+  })
+
   it('GST due: collected ₹1,800, on purchases ₹900, to pay ₹900 by 20 Oct (the Taxes figures)', async () => {
     const g = await ask('GST kitna bharna hai')
     expect(g.intent).toBe('gst')

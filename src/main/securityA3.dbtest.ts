@@ -176,6 +176,19 @@ describe('canSeeProfit: false — the doors the audit sweep found (A3)', () => {
     expect(full.find((r) => r.ledgerId === led.sales)?.balance).toBe(-50_000_00)
   })
 
+  it('Ask Total (review of #273): an account\'s own P&L line is withheld; the owner gets it', async () => {
+    type Ans = { sentences: string[]; figures: { paise: number }[] }
+    const q = { text: 'how much did i spend on rent in may 2025', today: '2026-03-31', lang: 'en' }
+    await asAcct()
+    const hidden = await ok<Ans>('assist:ask', q)
+    expect(hidden.figures).toEqual([])
+    expect(hidden.sentences.join(' ')).toContain('Profit is not shown to your sign-in')
+    expect((await ok<Ans>('assist:ask', { ...q, text: 'sales of counter sales in may 2025' })).figures).toEqual([])
+    await asOwner()
+    const shown = await ok<Ans>('assist:ask', q)
+    expect(shown.figures.map((f) => f.paise)).toEqual([20_000_00])
+  })
+
   it('dashboard: the stock turnover goes with the margins (cost of goods ÷ stock)', async () => {
     await asAcct()
     const d = await ok<{ ratios: Record<string, number | null> }>('report:dashboard', { today: '2025-09-01', fyFrom: FY.from })
