@@ -281,6 +281,10 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
     if (v.inventory.length) {
       const own = n.inventory.length > 0 && n.inventory.every((l) => l.source?.linkType === 'return' && billUids.has(l.source.lineUid))
       if (!own || n.inventory.reduce((x, l) => x + l.amount, 0) !== f.taxable) attributable = false
+      // Owner Q4 (review of #278): a return of a bill this one FOLLOWS must have taken its GST back
+      // at the bill's supply — an earlier note under today's rule (no GST, or the other heads)
+      // can't be part of the running total (the next return would take its share too).
+      if (follows && f.taxable > 0 && (follows === 'intra' ? f.igst > 0 || f.cgst + f.sgst === 0 : f.cgst + f.sgst > 0 || f.igst === 0)) attributable = false
     } else {
       // An amount bill (re-review): a note found by its reference is this bill's return only when
       // it is nothing but the party, the bill's account(s), the tax and a round off under ₹1, and
