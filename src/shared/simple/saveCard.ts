@@ -37,6 +37,8 @@ export interface SaveCardEntry {
   amount: number
   /** Receipts / payments: the cash or bank account the money went through. */
   money: { name: string; isCash: boolean; amount: number } | null
+  /** WP 2d: the journal that moves a bill's GST it can't claim back into the cost (optional). */
+  gstToCost?: true
 }
 
 export interface SaveCardParty {
@@ -73,9 +75,11 @@ export function saveCardSentences(summary: SaveSummary, t: Translate): string[] 
   if (!first) return out
   // The bill (or the only entry) leads; a receipt / payment saved with it is told as money moving.
   const moneyOnly = rest.filter((e) => e.money)
-  const others = rest.filter((e) => !e.money)
+  const toCost = rest.filter((e) => e.gstToCost)
+  const others = rest.filter((e) => !e.money && !e.gstToCost)
   out.push(t('simple.saveCard.entry', { kind: ENTRY_KIND[first.kind] ?? 'other', amount: money(first.amount) }))
   if (others.length) out.push(t('simple.saveCard.entryMore', { n: others.length }))
+  for (const e of toCost) out.push(t('simple.saveCard.gstToCost', { amount: money(e.amount) }))
   for (const e of moneyOnly) {
     const m = e.money!
     const received = e.kind === 'receipt'

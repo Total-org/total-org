@@ -488,7 +488,8 @@ export async function openHandoff(a: {
       kind: r.kind,
       intent: sent,
       entry,
-      others: rest.map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })),
+      others: rest.filter((e) => e.role !== 'gst_cost').map((e) => ({ role: e.role, kind: e.kind, amount: e.amount })),
+      ...(rest.some((e) => e.role === 'gst_cost') ? { gstToCost: rest.filter((e) => e.role === 'gst_cost').reduce((s, e) => s + e.amount, 0) } : {}),
       missing: r.missing,
       ...(r.addedOnSave?.length ? { addedOnSave: r.addedOnSave } : {}),
       ...(a.afterBill != null ? { afterBill: a.afterBill } : {})
