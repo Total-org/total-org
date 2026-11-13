@@ -2,18 +2,28 @@ import { describe, expect, it, vi } from 'vitest'
 import { createUpdater, makeFetchLatest, NEUTRAL_REQUEST_HEADERS, type UpdateEngine, type UpdaterDeps } from './updaterCore'
 import type { UpdateNotice, UpdateSettings } from '@shared/updates'
 import type { ReleaseManifest } from './releaseManifest'
+import { InstallerMismatch } from './installerDownload'
 
 type Listener = (arg: never) => void
 
 const GOOD_HASH = 'a'.repeat(128)
-/** A verified manifest for `version` whose installer has GOOD_HASH (the wiring's real check is releaseManifest.test.ts). */
+const OTHER_HASH = 'c'.repeat(128)
+/** A verified manifest for `version` whose installer has GOOD_HASH (the wiring's real check is releaseManifest.test.ts);
+ *  `latest.yml` stands for another signed asset this platform must NOT install (SEC2-5). */
 const manifestFor = (version: string): ReleaseManifest => ({
   version: version.replace(/^v/, ''),
-  assets: [{ name: `Total-Setup-${version.replace(/^v/, '')}.exe`, size: 1, sha256: 'b'.repeat(64), sha512: GOOD_HASH }]
+  assets: [
+    { name: `Total-Setup-${version.replace(/^v/, '')}.exe`, size: 1, sha256: 'b'.repeat(64), sha512: GOOD_HASH },
+    { name: 'latest.yml', size: 1, sha256: 'd'.repeat(64), sha512: OTHER_HASH }
+  ]
 })
+/** What the fake checked download does: keep the file, report a mismatch, or fail on the network. */
+type HandResult = 'ok' | 'mismatch' | 'network' 
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
 
-function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: string } | null; current?: string; signed?: (v: string) => boolean; fileHash?: string } = {}) {
+function setup(
+  opts: { settings?: Partial<UpdateSettings>; latest?: { version: string } | null; current?: string; signed?: (v: string) => boolean; fileHash?: string; hand?: HandResult } = {}
+) {
   let settings: UpdateSettings = { autoCheck: true, skippedVersion: null, ...opts.settings }
   const listeners = new Map<string, Listener>()
   const timers: (() => void)[] = []
@@ -27,24 +37,38 @@ function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: s
     on: (ev: string, fn: Listener) => void listeners.set(ev, fn)
   } satisfies UpdateEngine
   const published: (UpdateNotice | null)[] = []
+  /** Files the user opened / was shown / that were deleted, and the installers downloaded. */
   const opened: string[] = []
+  const shown: string[] = []
+  const removed: string[] = []
+  const downloads: string[] = []
+  let hand: HandResult = opts.hand ?? 'ok'
+  let fileHash = opts.fileHash ?? GOOD_HASH
   const fetchLatest = vi.fn(async () => (opts.latest === undefined ? null : opts.latest))
   let hashThrows = false
   const verifyRelease = vi.fn(async (v: string) => ((opts.signed ?? (() => true))(v) ? manifestFor(v) : null))
   const deps: UpdaterDeps = {
     engine,
     currentVersion: opts.current ?? '0.12.0',
-    releasesUrl: 'https://example.test/releases',
     readSettings: () => settings,
     writeSettings: (patch) => (settings = { ...settings, ...patch }),
     fetchLatest,
     verifyRelease,
-    installerUrl: (m) => `https://example.test/dl/${m.assets[0]!.name}`,
+    installerFor: (m) => m.assets.find((a) => a.name.endsWith('.exe')) ?? null,
+    engineAssetNames: (v) => [`Total-Setup-${v}.exe`],
+    downloadInstaller: async (_m, asset) => {
+      downloads.push(asset.name)
+      if (hand === 'mismatch') throw new InstallerMismatch('SHA-512 differs')
+      if (hand === 'network') throw new Error('ECONNRESET')
+      return `/Downloads/${asset.name}`
+    },
     hashFile: async () => {
       if (hashThrows) throw new Error('EBUSY')
-      return opts.fileHash ?? GOOD_HASH
+      return fileHash
     },
-    openExternal: (u) => void opened.push(u),
+    openFile: (p) => void opened.push(p),
+    showFile: (p) => void shown.push(p),
+    removeFile: (p) => void removed.push(p),
     publish: (n) => void published.push(n),
     log: () => {},
     setTimer: (fn) => void timers.push(fn)
@@ -56,7 +80,23 @@ function setup(opts: { settings?: Partial<UpdateSettings>; latest?: { version: s
     await flush()
     await flush()
   }
-  return { u, engine, emit, timers, published, opened, fetchLatest, verifyRelease, settings: () => settings, hashFails: () => void (hashThrows = true) }
+  return {
+    u,
+    engine,
+    emit,
+    timers,
+    published,
+    opened,
+    shown,
+    removed,
+    downloads,
+    fetchLatest,
+    verifyRelease,
+    settings: () => settings,
+    hashFails: () => void (hashThrows = true),
+    setHand: (r: HandResult) => void (hand = r),
+    setFileHash: (h: string) => void (fileHash = h)
+  }
 }
 
 describe('update consent flow', () => {
@@ -131,9 +171,12 @@ describe('update consent flow', () => {
     t.u.act('install')
     await t.emit('error', new Error('Code signature did not pass validation'))
     expect(t.u.view().notice).toEqual({ phase: 'available', version: '0.13.0', via: 'site' })
-    expect(t.opened).toEqual([])
+    expect(t.downloads).toEqual([])
     t.u.act('download')
-    expect(t.opened).toEqual(['https://example.test/dl/Total-Setup-0.13.0.exe'])
+    await flush()
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe'])
+    expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.0', via: 'site' })
+    expect(t.opened).toEqual([]) // shown only, opened only on a click
   })
 
   it('a failed "install when I quit" also falls back and turns install-on-quit off again', async () => {
@@ -148,7 +191,7 @@ describe('update consent flow', () => {
     expect(t.u.view().notice).toEqual({ phase: 'available', version: '0.13.0', via: 'site' })
   })
 
-  it('a failed download opens the release page once (electron-updater both emits error and rejects)', async () => {
+  it('a failed engine download falls back to ONE checked download (electron-updater both emits error and rejects)', async () => {
     const t = setup()
     t.u.init()
     await t.emit('update-available', { version: '0.13.0' })
@@ -157,8 +200,11 @@ describe('update consent flow', () => {
     t.u.act('download')
     await t.emit('error', new Error('boom'))
     reject(new Error('boom'))
-    await new Promise((r) => setTimeout(r, 0))
-    expect(t.opened).toEqual(['https://example.test/dl/Total-Setup-0.13.0.exe'])
+    await flush()
+    await flush()
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe'])
+    expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.0', via: 'site' })
+    expect(t.opened).toEqual([])
   })
 
   it('blanks electron-updater\'s per-install id header', () => {
@@ -199,25 +245,27 @@ describe('update consent flow', () => {
     expect(t.u.view().notice?.version).toBe('0.13.0')
   })
 
-  it('the site fallback only offers a link (no engine download), same notice', async () => {
+  it('the site fallback downloads in main (no engine download, no browser), same notice', async () => {
     const t = setup({ latest: { version: 'v0.13.0' } })
     t.u.init()
     await t.emit('error', new Error('no signature'))
     await vi.waitFor(() => expect(t.u.view().notice).toEqual({ phase: 'available', version: '0.13.0', via: 'site' }))
     t.u.act('download')
-    expect(t.opened).toEqual(['https://example.test/dl/Total-Setup-0.13.0.exe'])
+    expect(t.u.view().notice).toEqual({ phase: 'downloading', version: '0.13.0', via: 'site' })
+    await flush()
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe'])
     expect(t.engine.downloadUpdate).not.toHaveBeenCalled()
-    expect(t.u.view().notice).toBeNull()
+    expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.0', via: 'site' })
   })
 
-  it('a failed engine download hands over the release page', async () => {
+  it('a failed engine download hands over to the checked download', async () => {
     const t = setup()
     t.engine.downloadUpdate.mockRejectedValueOnce(new Error('boom'))
     t.u.init()
     await t.emit('update-available', { version: '0.13.0' })
     t.u.act('download')
-    await vi.waitFor(() => expect(t.opened).toEqual(['https://example.test/dl/Total-Setup-0.13.0.exe']))
-    expect(t.u.view().notice).toBeNull()
+    await vi.waitFor(() => expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.0', via: 'site' }))
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe'])
   })
 
   it('Check now reports up-to-date / error', async () => {
@@ -305,11 +353,115 @@ describe('signed release manifest (audit A4)', () => {
     expect(t.u.view().notice).toBeNull()
   })
 
-  it('the site fallback opens the installer the manifest names, never the site\'s answer', async () => {
+  it('the site fallback downloads the installer the manifest names, never the site\'s answer', async () => {
     const t = setup({ latest: { version: '0.13.0' } })
     await t.u.checkNow()
     t.u.act('download')
-    expect(t.opened).toEqual(['https://example.test/dl/Total-Setup-0.13.0.exe'])
+    await flush()
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe'])
+  })
+
+  it('SEC2-5: an engine download that matches another signed asset (not this platform\'s installer) is never "ready"', async () => {
+    const t = setup({ fileHash: OTHER_HASH })
+    t.u.init()
+    await t.emit('update-available', { version: '0.13.0' })
+    t.u.act('download')
+    await t.emit('update-downloaded', { version: '0.13.0', downloadedFile: '/tmp/Total-Setup-0.13.0.exe' })
+    expect(t.u.view().notice).toBeNull()
+    t.u.act('install')
+    expect(t.engine.quitAndInstall).not.toHaveBeenCalled()
+  })
+})
+
+describe('the checked hand download (audit 2 SEC2-2)', () => {
+  const checked = async (opts: Parameters<typeof setup>[0] = {}) => {
+    const t = setup({ latest: { version: '0.13.0' }, ...opts })
+    await t.u.checkNow()
+    t.u.act('download')
+    await flush()
+    return t
+  }
+
+  it('nothing is downloaded before the click; after it the file is shown / opened only on a click', async () => {
+    const t = setup({ latest: { version: '0.13.0' } })
+    await t.u.checkNow()
+    expect(t.downloads).toEqual([])
+    t.u.act('download')
+    await flush()
+    expect(t.u.view().notice).toEqual({ phase: 'checked', version: '0.13.0', via: 'site' })
+    expect(t.opened).toEqual([])
+    t.u.act('showInstaller')
+    expect(t.shown).toEqual(['/Downloads/Total-Setup-0.13.0.exe'])
+    t.u.act('openInstaller')
+    await flush()
+    expect(t.opened).toEqual(['/Downloads/Total-Setup-0.13.0.exe'])
+    expect(t.removed).toEqual([])
+  })
+
+  it('a download that does not match the manifest says so and opens nothing; Try again downloads again', async () => {
+    const t = await checked({ hand: 'mismatch' })
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'unverified' })
+    t.u.act('openInstaller')
+    t.u.act('showInstaller')
+    await flush()
+    expect(t.opened).toEqual([])
+    expect(t.shown).toEqual([])
+    t.setHand('ok')
+    t.u.act('download')
+    await flush()
+    expect(t.downloads).toEqual(['Total-Setup-0.13.0.exe', 'Total-Setup-0.13.0.exe'])
+    expect(t.u.view().notice?.phase).toBe('checked')
+  })
+
+  it('a network failure is told apart from a mismatch', async () => {
+    const t = await checked({ hand: 'network' })
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'download' })
+  })
+
+  it('a file changed after the check is deleted, never opened', async () => {
+    const t = await checked()
+    t.setFileHash('e'.repeat(128))
+    t.u.act('openInstaller')
+    await flush()
+    expect(t.opened).toEqual([])
+    expect(t.removed).toEqual(['/Downloads/Total-Setup-0.13.0.exe'])
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'unverified' })
+    t.u.act('showInstaller')
+    expect(t.shown).toEqual([])
+  })
+
+  it('a hash that cannot be computed before opening fails closed', async () => {
+    const t = await checked()
+    t.hashFails()
+    t.u.act('openInstaller')
+    await flush()
+    expect(t.opened).toEqual([])
+    expect(t.u.view().notice?.phase).toBe('failed')
+  })
+
+  it('a release whose manifest names no installer for this computer downloads nothing', async () => {
+    const t = setup({ latest: { version: '0.13.0' } })
+    await t.u.checkNow()
+    t.setHand('ok')
+    // The manifest is verified, but the platform rule finds no installer in it.
+    const m = await t.verifyRelease.mock.results[0]!.value
+    m.assets = m.assets.filter((a: { name: string }) => !a.name.endsWith('.exe'))
+    t.u.act('download')
+    await flush()
+    expect(t.downloads).toEqual([])
+    expect(t.u.view().notice).toEqual({ phase: 'failed', version: '0.13.0', via: 'site', reason: 'unverified' })
+  })
+
+  it('skip still works on a failed notice; actions out of phase do nothing', async () => {
+    const t = await checked({ hand: 'network' })
+    t.u.act('skip')
+    expect(t.settings().skippedVersion).toBe('0.13.0')
+    expect(t.u.view().notice).toBeNull()
+    t.u.act('openInstaller')
+    t.u.act('showInstaller')
+    await flush()
+    expect(t.opened).toEqual([])
+    expect(t.shown).toEqual([])
   })
 })
 
@@ -377,14 +529,19 @@ describe('no request when off: the three network paths stubbed', () => {
     const u = createUpdater({
       engine,
       currentVersion: '0.12.0',
-      releasesUrl: 'https://github.com/o/r/releases/latest',
       readSettings: () => ({ autoCheck, skippedVersion: null }),
       writeSettings: () => ({ autoCheck, skippedVersion: null }),
       fetchLatest,
       verifyRelease: async (v) => manifestFor(v),
-      installerUrl: () => null,
+      installerFor: () => null,
+      engineAssetNames: () => [],
+      downloadInstaller: async () => {
+        throw new Error('not here')
+      },
       hashFile: async () => GOOD_HASH,
-      openExternal: () => {},
+      openFile: () => {},
+      showFile: () => {},
+      removeFile: () => {},
       publish: () => {},
       log: () => {},
       setTimer: (fn) => void timers.push(fn)

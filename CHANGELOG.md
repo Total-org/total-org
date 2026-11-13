@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Updates downloaded by hand are checked before you open them** (#PR, second audit SEC2-2 / SEC2-5). On a Mac (and on
+Windows when the built-in updater fails), "Download now" used to open the new installer in your browser. Total now
+downloads it itself into your Downloads folder and keeps it only when it matches the signed release list; then it
+offers "Open it" and "Show in folder". A file that does not match is deleted and never opened. The built-in updater
+also accepts only the file meant for this computer, not any other signed file of the release.
+
 **A warning for discounts booked on a Sales account** (#269, WP 2d). A discount shown on an invoice
 lowers its taxable value (CGST Act s.15(3)(a)). Total reads only a bill's sales lines, so a discount
 debited to an account under Sales Accounts, or to "Discount given", is not taken off in GSTR-1. The GSTR-1 checks now name

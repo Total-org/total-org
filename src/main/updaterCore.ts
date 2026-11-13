@@ -12,9 +12,18 @@
  * (`verifyRelease`, releaseManifest.ts), an engine download becomes "ready" only when the file's
  * SHA-512 is in that manifest, and a hand download opens the installer the manifest names on GitHub
  * — never a URL from the site's answer.
+ *
+ * Audit 2 SEC2-2 / SEC2-5: the hand download no longer goes through the browser. "Download now" on the
+ * 'site' path (and an engine download / install that fails) downloads the manifest's installer IN MAIN
+ * (`downloadInstaller` → installerDownload.ts), keeps it only when its size + SHA-512 match, and then
+ * offers "Open it" / "Show in folder" ('checked'; the file is re-hashed before it is opened). A file
+ * that doesn't match is deleted and the notice says so ('failed'); no page is opened. The engine's
+ * download counts only when it matches an asset this platform may install BY NAME too
+ * (`engineAssetNames`), not any signed asset of the release.
  */
 import { bareVersion, isNewerVersion, type UpdateAction, type UpdateCheckResult, type UpdateNotice, type UpdateSettings, type UpdatesView } from '@shared/updates'
-import { assetWithHash, type ReleaseManifest } from './releaseManifest'
+import { assetWithHash, type ManifestAsset, type ReleaseManifest } from './releaseManifest'
+import { InstallerMismatch } from './installerDownload'
 
 /** The slice of electron-updater's autoUpdater this flow uses. */
 export interface UpdateEngine {
@@ -74,20 +83,26 @@ export function makeFetchLatest(
 export interface UpdaterDeps {
   engine: UpdateEngine
   currentVersion: string
-  /** The release page, used when the engine can't download (unsigned builds). */
-  releasesUrl: string
   readSettings(): UpdateSettings
   writeSettings(patch: Partial<UpdateSettings>): UpdateSettings
   /** Site / GitHub version lookup. */
   fetchLatest(): Promise<LatestInfo | null>
   /** The release's signed manifest, verified (null = missing or does not verify — the version is not offered). */
   verifyRelease(version: string): Promise<ReleaseManifest | null>
-  /** The page / file a hand download opens for a verified release (the installer on GitHub), or null. */
-  installerUrl(manifest: ReleaseManifest): string | null
+  /** The installer a person installs by hand on this platform (the DMG / setup exe), or null. */
+  installerFor(manifest: ReleaseManifest): ManifestAsset | null
+  /** The asset names electron-updater may install on this platform (SEC2-5). */
+  engineAssetNames(version: string): string[]
+  /** Download that installer and keep it only when it IS the asset (throws InstallerMismatch otherwise). */
+  downloadInstaller(manifest: ReleaseManifest, asset: ManifestAsset): Promise<string>
   /** SHA-512 (hex) of a downloaded file. */
   hashFile(path: string): Promise<string>
-  /** Opens only allow-listed update URLs (the wiring checks; SEC-10). */
-  openExternal(url: string): void
+  /** Open a checked installer (the DMG mounts / the setup runs) — only after a user click. */
+  openFile(path: string): void
+  /** Show a checked installer in Finder / Explorer. */
+  showFile(path: string): void
+  /** Delete a file that turned out not to match. */
+  removeFile(path: string): void
   publish(notice: UpdateNotice | null): void
   log(level: 'warn' | 'info', message: string, extra?: Record<string, unknown>): void
   /** Delay before the launch check (ms). */
@@ -105,6 +120,8 @@ export function createUpdater(deps: UpdaterDeps) {
   /** The version the user asked to install (now or on quit): an engine error after that means the
    *  install could not happen (unsigned macOS: Squirrel refuses the bundle) — hand over the release page. */
   let installVersion: string | null = null
+  /** The installer Total downloaded and checked itself (SEC2-2), shown by the 'checked' notice. */
+  let handFile: { version: string; path: string; asset: ManifestAsset } | null = null
   const timer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms))
 
   const set = (next: UpdateNotice | null): void => {
@@ -132,10 +149,49 @@ export function createUpdater(deps: UpdaterDeps) {
     return null
   }
 
-  /** What a hand download opens: the verified installer of that version, else the release list. */
-  const pageFor = (version: string | undefined): string => {
-    const m = version ? verified.get(bareVersion(version)) : undefined
-    return (m && deps.installerUrl(m)) || deps.releasesUrl
+  /** The hand download (SEC2-2): fetch the verified installer in main, keep it only when it matches. */
+  async function handDownload(version: string): Promise<void> {
+    const v = bareVersion(version)
+    const m = verified.get(v)
+    const asset = m ? deps.installerFor(m) : null
+    if (!m || !asset) {
+      deps.log('warn', 'update-unverified', { version: v, reason: 'no installer in the manifest' })
+      set({ phase: 'failed', version: v, via: 'site', reason: 'unverified' })
+      return
+    }
+    handFile = null
+    set({ phase: 'downloading', version: v, via: 'site' })
+    try {
+      const path = await deps.downloadInstaller(m, asset)
+      handFile = { version: v, path, asset }
+      set({ phase: 'checked', version: v, via: 'site' })
+    } catch (err) {
+      const mismatch = err instanceof InstallerMismatch
+      deps.log('warn', mismatch ? 'update-unverified' : 'updater', { version: v, file: 'installer', error: String(err) })
+      set({ phase: 'failed', version: v, via: 'site', reason: mismatch ? 'unverified' : 'download' })
+    }
+  }
+
+  /** "Open it": the file is hashed again first — one that changed since is deleted, never opened. */
+  async function openChecked(f: { version: string; path: string; asset: ManifestAsset }): Promise<void> {
+    let same = false
+    try {
+      same = (await deps.hashFile(f.path)) === f.asset.sha512
+    } catch (err) {
+      deps.log('warn', 'updater', { error: String(err) })
+    }
+    if (!same) {
+      deps.log('warn', 'update-unverified', { version: f.version, file: 'installer changed' })
+      try {
+        deps.removeFile(f.path)
+      } catch (err) {
+        deps.log('warn', 'updater', { error: String(err) })
+      }
+      if (handFile === f) handFile = null
+      set({ phase: 'failed', version: f.version, via: 'site', reason: 'unverified' })
+      return
+    }
+    deps.openFile(f.path)
   }
 
   const background = (p: Promise<unknown>): void => {
@@ -193,7 +249,10 @@ export function createUpdater(deps: UpdaterDeps) {
             const m = await verifiedFor(version)
             let ok = false
             try {
-              ok = !!m && typeof info.downloadedFile === 'string' && !!assetWithHash(m, await deps.hashFile(info.downloadedFile))
+              ok =
+                !!m &&
+                typeof info.downloadedFile === 'string' &&
+                !!assetWithHash(m, await deps.hashFile(info.downloadedFile), deps.engineAssetNames(version))
             } catch (err) {
               // A file that can't be read is not verified (fail closed: install-on-quit is disarmed).
               deps.log('warn', 'updater', { error: String(err) })
@@ -216,7 +275,7 @@ export function createUpdater(deps: UpdaterDeps) {
         deps.log('warn', 'updater', { error: String(err) })
         if (installVersion) {
           // Installing (now, or arming "Install when I quit") failed — typical for an unsigned macOS
-          // build. Offer the release page through the same notice; nothing is opened by itself.
+          // build. Offer Total's own checked download through the same notice; nothing starts by itself.
           const version = installVersion
           installVersion = null
           onQuitVersion = null
@@ -224,10 +283,10 @@ export function createUpdater(deps: UpdaterDeps) {
           set({ phase: 'available', version, via: 'site' })
           return
         }
-        if (notice?.phase === 'downloading') {
-          // The engine could not fetch it (typical for unsigned builds): hand over the release page.
-          deps.openExternal(pageFor(notice.version))
-          set(null)
+        if (notice?.phase === 'downloading' && notice.via === 'engine') {
+          // The engine could not fetch it (typical for unsigned builds): the user already asked for the
+          // download, so Total fetches and checks the installer itself (SEC2-2).
+          background(handDownload(notice.version))
           return
         }
         void autoFallback()
@@ -257,21 +316,26 @@ export function createUpdater(deps: UpdaterDeps) {
 
     act(action: UpdateAction): UpdatesView {
       const n = notice
-      if (action === 'download' && n?.phase === 'available') {
-        if (n.via === 'engine') {
+      if (action === 'download' && (n?.phase === 'available' || n?.phase === 'failed')) {
+        if (n.via === 'engine' && n.phase === 'available') {
           set({ ...n, phase: 'downloading' })
           deps.engine.downloadUpdate().catch((err: unknown) => {
             deps.log('warn', 'updater', { error: String(err) })
-            // electron-updater also emits 'error' for the same failure (handled above); open the page once.
-            if (notice?.phase !== 'downloading' || notice.version !== n.version) return
-            deps.openExternal(pageFor(n.version))
-            set(null)
+            // electron-updater also emits 'error' for the same failure (handled above); fall back once.
+            if (notice?.phase !== 'downloading' || notice.via !== 'engine' || notice.version !== n.version) return
+            background(handDownload(n.version))
           })
         } else {
-          deps.openExternal(pageFor(n.version))
-          set(null)
+          // 'site' (macOS always) or "Try again" after a failed one: Total's own checked download.
+          background(handDownload(n.version))
         }
-      } else if (action === 'skip' && n && n.phase === 'available') {
+      } else if ((action === 'openInstaller' || action === 'showInstaller') && n?.phase === 'checked') {
+        const f = handFile
+        if (f && f.version === n.version) {
+          if (action === 'showInstaller') deps.showFile(f.path)
+          else background(openChecked(f))
+        }
+      } else if (action === 'skip' && n && (n.phase === 'available' || n.phase === 'failed')) {
         deps.writeSettings({ skippedVersion: n.version })
         set(null)
       } else if (action === 'install' && n?.phase === 'ready') {

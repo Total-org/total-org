@@ -7,7 +7,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 // @ts-expect-error — plain .mjs release script (no types)
 import { buildManifest, signManifest, checkManifest, releaseKeys as scriptKeys, ASSET_NAME as SCRIPT_ASSET_NAME, MAX_ASSETS as SCRIPT_MAX_ASSETS } from '../../scripts/release/manifest.mjs'
-import { ASSET_NAME, MAX_ASSETS, assetWithHash, installerFor, releaseAssetUrl, RELEASE_KEYS, sha512File, verifyManifest, type ReleaseKey } from './releaseManifest'
+import { ASSET_NAME, MAX_ASSETS, assetWithHash, engineAssetNames, installerFor, releaseAssetUrl, RELEASE_KEYS, sha512File, verifyManifest, type ReleaseKey } from './releaseManifest'
 
 function testKey(id = 'test-key'): { pem: string; keys: ReleaseKey[] } {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
@@ -50,6 +50,25 @@ describe('release manifest', () => {
     expect(installerFor(check.manifest, 'darwin')?.name).toBe(`Total-${V}-arm64.dmg`)
     expect(installerFor(check.manifest, 'win32')?.name).toBe(`Total-Setup-${V}.exe`)
     expect(installerFor(check.manifest, 'linux')).toBeNull()
+    expect(installerFor(check.manifest, 'darwin', 'arm64')?.name).toBe(`Total-${V}-arm64.dmg`)
+    // SEC2-5: a hash match counts only for an asset this platform installs.
+    const zip = FILES.find((f) => f.name.endsWith('-mac.zip'))!
+    expect(assetWithHash(check.manifest, sha512(exe.bytes), engineAssetNames(V, 'win32', 'x64'))?.name).toBe(exe.name)
+    expect(assetWithHash(check.manifest, sha512(zip.bytes), engineAssetNames(V, 'win32', 'x64'))).toBeNull()
+    expect(assetWithHash(check.manifest, sha512(zip.bytes), engineAssetNames(V, 'darwin', 'arm64'))?.name).toBe(zip.name)
+    expect(assetWithHash(check.manifest, sha512(exe.bytes), engineAssetNames(V, 'darwin', 'arm64'))).toBeNull()
+    const yml = FILES.find((f) => f.name === 'latest.yml')!
+    expect(assetWithHash(check.manifest, sha512(yml.bytes), engineAssetNames(V, 'darwin', 'arm64'))).toBeNull()
+    expect(engineAssetNames(`v${V}`, 'darwin', 'x64')).toEqual([`Total-${V}-x64-mac.zip`, `Total-${V}-mac.zip`])
+    expect(engineAssetNames(V, 'linux', 'x64')).toEqual([])
+  })
+
+  it('installerFor prefers the DMG built for this Mac', () => {
+    const asset = (name: string) => ({ name, size: 1, sha256: '0'.repeat(64), sha512: '0'.repeat(128) })
+    const m = { version: V, assets: [asset(`Total-${V}-arm64.dmg`), asset(`Total-${V}.dmg`)] }
+    expect(installerFor(m, 'darwin', 'x64')?.name).toBe(`Total-${V}.dmg`)
+    expect(installerFor(m, 'darwin', 'arm64')?.name).toBe(`Total-${V}-arm64.dmg`)
+    expect(installerFor({ version: V, assets: [asset(`Total-${V}-arm64.dmg`)] }, 'darwin', 'x64')?.name).toBe(`Total-${V}-arm64.dmg`) // as before
   })
 
   it('refuses a key the app does not pin, a changed asset, another version and a bad signature', () => {

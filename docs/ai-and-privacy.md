@@ -12,7 +12,7 @@ default (and can be switched off); the AI helper and live filing only after you 
 
 | What | When | Where it goes | Needs you to opt in? |
 |---|---|---|---|
-| Update check | About 5 seconds after launch, once per launch, packaged app only, and only while "Check for updates automatically" is on; also Settings, About (or How Total looks in simple mode), "Check for updates" / "Check now" | At launch: GitHub's release feed for `Total-org/total-org` (electron-updater); and, if that errors, `irminflow.com/api/latest` (`devjindal.tech/api/latest` in versions built before 8 Nov 2026 — it still answers), then `api.github.com`. "Check now" / "Check for updates" asks `irminflow.com/api/latest` (then `api.github.com`) only. Whenever a NEWER version is found, its signed `total-manifest.json` from that GitHub release (audit A4) | It is on by default and you can turn it off: "Check for updates automatically" (app-wide, owner only where the business has users). With it off, Total makes no request at launch. Nothing is downloaded until you press "Download now". |
+| Update check | About 5 seconds after launch, once per launch, packaged app only, and only while "Check for updates automatically" is on; also Settings, About (or How Total looks in simple mode), "Check for updates" / "Check now" | At launch: GitHub's release feed for `Total-org/total-org` (electron-updater); and, if that errors, `irminflow.com/api/latest` (`devjindal.tech/api/latest` in versions built before 8 Nov 2026 — it still answers), then `api.github.com`. "Check now" / "Check for updates" asks `irminflow.com/api/latest` (then `api.github.com`) only. Whenever a NEWER version is found, its signed `total-manifest.json` from that GitHub release (audit A4) | It is on by default and you can turn it off: "Check for updates automatically" (app-wide, owner only where the business has users). With it off, Total makes no request at launch. Nothing is downloaded until you press "Download now"; then the installer itself comes from that GitHub release and is kept only when it matches the signed manifest. |
 | AI helper | Only after you accept the data notice and add your own key (none for a model on this computer) | The AI service you chose (Settings → AI): OpenAI (`https://api.openai.com/v1`, the default), OpenRouter, Groq, Google Gemini's OpenAI-compatible endpoint, a custom https address — or Ollama / LM Studio on this computer (localhost only, nothing leaves it) | Yes |
 | Live e-invoice / e-way bill filing | Only when you press a live-filing button after entering credentials | The NIC API address you typed in | Yes |
 | Opening a link | When you click a help link, a reminder's "Open in WhatsApp", "Email…" on a statement, or "Support" | Your browser or mail app, not Total | Only on click |
@@ -74,13 +74,18 @@ Code: `src/main/updater.ts`, started from `src/main/index.ts`. Only the packaged
    and checked its Ed25519 signature against the key built into the app (audit A4; the private key
    is a secret of the release workflow): a version whose manifest is missing or does not verify is
    not offered ("could not be checked as a genuine release"). A file electron-updater downloads is
-   installed only when its SHA-512 is in that manifest. "Download now" then opens that version's
-   installer on GitHub (the file the manifest names — never an address from the site's answer) in
-   your browser and you install the new version yourself; every page the updater opens must be an
-   https page of this repository's GitHub releases or of the site (anything else opens the release
-   list instead). If a download or an install through
+   installed only when its SHA-512 is in that manifest AND it is the file this platform installs
+   (the setup exe on Windows, the mac zip on macOS — audit 2 SEC2-5). "Download now" then makes
+   Total itself download that version's installer from GitHub (the DMG built for this Mac, or
+   `Total-Setup-<version>.exe` — the file the manifest names, never an address from the site's
+   answer; GitHub's redirect to its file host is followed) into your Downloads folder. It is kept
+   only when its size and SHA-512 equal the manifest's (audit 2 SEC2-2); then the notice offers
+   "Open it" (the file is checked again first) and "Show in folder", and you install the new
+   version yourself. A file that does not match is deleted and never opened ("did not match the
+   signed release"); a download that fails says so and offers "Try again". No browser page is
+   opened for a download any more. If a download or an install through
    electron-updater fails (an unsigned macOS build cannot replace itself), the notice turns into
-   the same browser download; "Install when I quit" is offered only after electron-updater itself
+   the same checked download; "Install when I quit" is offered only after electron-updater itself
    finished a download. How far an unsigned macOS build gets before it fails is **unverified**
    (no signed or unsigned release was tested for this page).
 4. The comparison with your version happens on your computer. What is requested is the version

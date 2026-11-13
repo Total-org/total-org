@@ -13,13 +13,18 @@ export interface UpdateSettings {
 
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = { autoCheck: true, skippedVersion: null }
 
-/** What the notice shows. `via` = how "Download now" gets it: electron-updater ('engine') or the
- *  site / GitHub release page ('site'). */
+/** What the notice shows. `via` = how "Download now" gets it: electron-updater ('engine') or Total's
+ *  own checked download of the installer ('site' — macOS always, Windows when the engine fails).
+ *  Audit 2 SEC2-2: 'checked' = that installer is downloaded and matches the signed manifest (open it /
+ *  show it); 'failed' = it could not be downloaded ('download') or did not match ('unverified' — the
+ *  file was deleted, nothing was opened). */
 export interface UpdateNotice {
-  phase: 'available' | 'downloading' | 'ready'
+  phase: 'available' | 'downloading' | 'ready' | 'checked' | 'failed'
   /** Without a leading "v". */
   version: string
   via: 'engine' | 'site'
+  /** Only on 'failed'. */
+  reason?: 'download' | 'unverified'
 }
 
 export interface UpdatesView {
@@ -29,7 +34,7 @@ export interface UpdatesView {
 }
 
 /** The user's choices on a notice that need main (the plain "Later" is renderer-only). */
-export const UPDATE_ACTIONS = ['download', 'install', 'installOnQuit', 'skip'] as const
+export const UPDATE_ACTIONS = ['download', 'install', 'installOnQuit', 'skip', 'openInstaller', 'showInstaller'] as const
 export type UpdateAction = (typeof UPDATE_ACTIONS)[number]
 
 export interface UpdateCheckResult {

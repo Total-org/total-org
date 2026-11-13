@@ -86,11 +86,24 @@ export function verifyManifest(fileText: string, version: string, keys: readonly
 export const releaseAssetUrl = (repo: string, version: string, name: string): string =>
   `https://github.com/${repo}/releases/download/v${encodeURIComponent(version.replace(/^v/, ''))}/${encodeURIComponent(name)}`
 
-/** The installer a person downloads by hand on this platform (macOS → the DMG, Windows → the setup exe). */
-export function installerFor(manifest: ReleaseManifest, platform: string): ManifestAsset | null {
+/** The installer a person downloads by hand on this platform (macOS → the DMG, Windows → the setup exe).
+ *  On macOS the DMG built for this machine's `arch` is preferred (`Total-<v>-arm64.dmg`, or the
+ *  arch-less x64 name), else any DMG of that version as before. */
+export function installerFor(manifest: ReleaseManifest, platform: string, arch?: string): ManifestAsset | null {
   const v = manifest.version
-  const want = platform === 'darwin' ? (n: string) => n.startsWith(`Total-${v}`) && n.endsWith('.dmg') : platform === 'win32' ? (n: string) => n === `Total-Setup-${v}.exe` : null
-  return want ? (manifest.assets.find((a) => want(a.name)) ?? null) : null
+  if (platform === 'win32') return manifest.assets.find((a) => a.name === `Total-Setup-${v}.exe`) ?? null
+  if (platform !== 'darwin') return null
+  const exact = arch ? manifest.assets.find((a) => a.name === `Total-${v}-${arch}.dmg` || (arch === 'x64' && a.name === `Total-${v}.dmg`)) : undefined
+  return exact ?? manifest.assets.find((a) => a.name.startsWith(`Total-${v}`) && a.name.endsWith('.dmg')) ?? null
+}
+
+/** Audit 2 SEC2-5: the asset names electron-updater may install on this platform — the setup exe on
+ *  Windows, the mac zip (`Total-<v>-<arch>-mac.zip`, arch-less for x64) on macOS. */
+export function engineAssetNames(version: string, platform: string, arch: string): string[] {
+  const v = version.replace(/^v/, '')
+  if (platform === 'win32') return [`Total-Setup-${v}.exe`]
+  if (platform === 'darwin') return arch === 'x64' ? [`Total-${v}-x64-mac.zip`, `Total-${v}-mac.zip`] : [`Total-${v}-${arch}-mac.zip`]
+  return []
 }
 
 /** SHA-512 (hex) of a file, streamed. */
@@ -104,7 +117,9 @@ export function sha512File(path: string): Promise<string> {
   })
 }
 
-/** The manifest entry a downloaded file's SHA-512 matches, or null. */
-export function assetWithHash(manifest: ReleaseManifest, sha512: string): ManifestAsset | null {
-  return manifest.assets.find((a) => a.sha512 === sha512.toLowerCase()) ?? null
+/** The manifest entry a downloaded file's SHA-512 matches, or null. `names` (SEC2-5) limits it to the
+ *  assets that may be installed here — a match on any other signed asset does not count. */
+export function assetWithHash(manifest: ReleaseManifest, sha512: string, names?: readonly string[]): ManifestAsset | null {
+  const h = sha512.toLowerCase()
+  return manifest.assets.find((a) => a.sha512 === h && (!names || names.includes(a.name))) ?? null
 }
