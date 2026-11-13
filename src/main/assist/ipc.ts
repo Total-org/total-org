@@ -34,6 +34,8 @@ export interface AskTotalDeps {
   roleNow: () => Role | null
   /** The signed-in user's id (never the name: a rename keeps it); null = nobody signed in (a company without users). */
   userNow?: () => number | null
+  /** WP 7.2: the sign-in may see profit figures (absent = yes) — a per-account P&L line is withheld otherwise. */
+  canSeeProfit?: () => boolean
 }
 
 export const canDraftAs = (role: Role | null): boolean => role === 'accountant' || role === 'owner'
@@ -46,7 +48,7 @@ export function registerAskTotalIpc(handle: Handle, deps: AskTotalDeps): void {
       c.db,
       c.info,
       { text: p.text, today: homeAsOn(p.today, todayISO()), ...(p.picks ? { picks: p.picks } : {}), ...(p.lang ? { lang: p.lang } : {}) },
-      { canDraft: canDraftAs(deps.roleNow()) }
+      { canDraft: canDraftAs(deps.roleNow()), canSeeProfit: deps.canSeeProfit?.() ?? true }
     )
   }, 'viewer')
 

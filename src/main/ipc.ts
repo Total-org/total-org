@@ -543,7 +543,8 @@ export function registerIpc(): void {
   registerAskTotalIpc(askTotalHandle, {
     company: () => requireCompany(),
     roleNow: () => (sessionUser ? sessionUser.role : current?.usersExist ? null : 'owner'),
-    userNow: () => sessionUser?.id ?? null
+    userNow: () => sessionUser?.id ?? null,
+    canSeeProfit: () => canSeeProfitNow()
   })
   // ---------- receivables (WP 4.2) — channels live in ipcReceivables.ts ----------
   registerReceivablesIpc(handle, () => requireCompany())

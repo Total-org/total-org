@@ -40,6 +40,8 @@ import { getFeatures } from '../services/config'
 import { companyLanguage } from '../i18n'
 import { classify, questionLanguage } from './classify'
 import { findItem, findLedger } from './names'
+import { ledgerClassifier } from '../ai/ledgerClass'
+import { counterAccounts } from '../services/counter'
 import { previewPlan } from '../services/aiPlans'
 import { entryAnswer } from './entry'
 import { partyRoleOf, type PartyGroupLink } from '@shared/chartOfAccounts'
@@ -54,6 +56,8 @@ export interface AskInput {
 export interface AskEnv {
   /** The signed-in role may record entries (accountant / owner; anyone in a company without users). */
   canDraft: boolean
+  /** WP 7.2: the sign-in may see profit (P&L) figures; absent = yes. A per-account P&L line is withheld otherwise. */
+  canSeeProfit?: boolean
 }
 
 /** The tool name figures carry (AiFigure.tool) — the panel says "Total answered this itself". */
@@ -219,14 +223,27 @@ function pnlLedgerAmount(nodes: readonly StatementNode[], ledgerId: number): num
  *  chair") is never answered with the whole figure. An account of the measure's kind (through the
  *  search service) → that account's own P&L line; a product / a customer or supplier → "I can't
  *  split … by product / by customer yet" + their page; anything else → "I can't split … by X yet". */
-function narrowFigureAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }> & { about: string }, input: AskInput, t: Translate): AssistAnswer {
+function narrowFigureAnswer(
+  db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }> & { about: string }, input: AskInput, t: Translate, env: AskEnv
+): AssistAnswer | null {
   const p = intent.period
   const when = periodText(p, input.today, t)
   const measure = intent.measure
   const tail = intent.periodSaid ? [] : [t('assist.figure.periodAssumed')]
+  const which = (options: { id: number; label: string; sub?: string }[]): AssistAnswer => {
+    const question = t('assist.which', { name: intent.about })
+    return answer(intent, [question], { choice: { slot: 'party', question, options } })
+  }
+  // A picked option ("Which rent?") comes back as picks.party: an account of the measure's class, else a party.
+  const cls = measure === 'sales' ? (['income'] as const) : (['expense'] as const)
+  const picked = input.picks?.party != null ? pickedLedger(db, input.picks.party) : null
+  const classOf = picked?.status === 'match' ? ledgerClassifier(db).cls(picked.id) : null
   if (measure !== 'profit') {
-    const acct = findLedger(db, intent.about, measure === 'sales' ? ['income'] : ['expense'], input.today)
+    const acct = picked ? (classOf != null && (cls as readonly string[]).includes(classOf) ? picked : { status: 'none' as const }) : findLedger(db, intent.about, cls, input.today)
     if (acct.status === 'match') {
+      // Review of #273: an account's own line is a P&L figure — withheld from a sign-in that may not see profit
+      // (as the trial balance, the chart of accounts and explain_figure withhold it).
+      if (env.canSeeProfit === false) return answer(intent, [t('assist.profitHidden')])
       const pnl = profitAndLoss(db, p.from, p.to)
       const all = [...pnl.tradingIncomes, ...pnl.tradingExpenses, ...pnl.indirectIncomes, ...pnl.indirectExpenses]
       const v = pnlLedgerAmount(all, acct.id) ?? 0
@@ -238,24 +255,39 @@ function narrowFigureAnswer(db: DB, company: CompanyInfo, intent: Extract<Assist
         links: [{ label: t('assist.link.account', { name: acct.name }), target: to }]
       })
     }
+    // Two or more accounts fit ("rent": Shop Rent, Godown Rent) — asked, never guessed or passed on.
+    if (acct.status === 'choose') return which(acct.options)
   }
-  const item = findItem(db, intent.about, input.today)
+  const item = picked ? { status: 'none' as const } : findItem(db, intent.about, input.today)
   if (item.status === 'match') {
     const to = target('simple-stock', { itemId: item.id })
     return answer(intent, [t('assist.figure.cantSplitItem', { measure, name: item.name })], { links: [{ label: t('assist.link.product', { name: item.name }), target: to }] })
   }
-  const party = findLedger(db, intent.about, ['debtor', 'creditor'], input.today)
-  if (party.status === 'match') {
+  // The walk-in "Cash sale" is never anyone's customer (review of #273: "cash sales" pointed at it).
+  const walkIn = counterAccounts(db).walkInLedgerId
+  const party = picked && (classOf === 'debtor' || classOf === 'creditor') ? picked : picked ? { status: 'none' as const } : findLedger(db, intent.about, ['debtor', 'creditor'], input.today)
+  if (party.status === 'match' && party.id !== walkIn) {
     const to = target('simple-person', { id: party.id })
     return answer(intent, [t('assist.figure.cantSplitParty', { measure, name: party.name })], { links: [{ label: t('assist.link.person', { name: party.name }), target: to }] })
   }
+  // A leftover word no connector introduced ("sales kaisi") narrows only when it names a record.
+  if (intent.aboutLoose) return item.status === 'choose' ? whichItem(item.options) : null
+  if (item.status === 'choose') return whichItem(item.options)
   const whole = measure === 'sales' ? target('simple-sales') : measure === 'purchases' ? target('simple-purchases') : target('simple-reports', { report: 'doing' })
   const wholeLabel = measure === 'sales' ? 'assist.link.sales' : measure === 'purchases' ? 'assist.link.purchases' : 'assist.link.pnl'
   return answer(intent, [t('assist.figure.cantSplit', { measure, thing: intent.about })], { links: [{ label: t(wholeLabel), target: whole }] })
+
+  function whichItem(options: { id: number; label: string; sub?: string }[]): AssistAnswer {
+    const question = t('assist.whichItem', { name: intent.about })
+    return answer(intent, [question], { choice: { slot: 'item', question, options } })
+  }
 }
 
-function figureAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }>, input: AskInput, t: Translate): AssistAnswer {
-  if (intent.about) return narrowFigureAnswer(db, company, { ...intent, about: intent.about }, input, t)
+function figureAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }>, input: AskInput, t: Translate, env: AskEnv): AssistAnswer {
+  if (intent.about) {
+    const narrow = narrowFigureAnswer(db, company, { ...intent, about: intent.about }, input, t, env)
+    if (narrow) return narrow
+  }
   const p = intent.period
   const pnl = profitAndLoss(db, p.from, p.to)
   // WP 9.9's column ("How is my business doing"): the P&L's own totals, re-arranged — one definition.
@@ -784,7 +816,7 @@ export function askTotal(db: DB, company: CompanyInfo, input: AskInput, env: Ask
       case 'gst':
         return gstAnswer(db, company, intent, input, t)
       case 'figure':
-        return figureAnswer(db, company, intent, input, t)
+        return figureAnswer(db, company, intent, input, t, env)
       case 'money':
         return moneyAnswer(db, company, intent, input, t)
       case 'stock':

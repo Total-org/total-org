@@ -50,8 +50,10 @@ export type AssistIntent =
   | { kind: 'owed'; side: 'receivable' | 'payable'; party?: string }
   | { kind: 'gst' }
   /** `about` (audit 2 #4): what the question narrows the figure to ("diesel", "office chair") —
-   *  the answer resolves it or says it can't split by it; absent = the whole figure. */
-  | { kind: 'figure'; measure: AssistMeasure; period: AssistPeriod; periodSaid: boolean; about?: string }
+   *  the answer resolves it or says it can't split by it; absent = the whole figure.
+   *  `aboutLoose`: no connector introduced it ("Tata Namak kitna becha") — it narrows only when it names
+   *  a record in the books; otherwise the whole figure is answered as before. */
+  | { kind: 'figure'; measure: AssistMeasure; period: AssistPeriod; periodSaid: boolean; about?: string; aboutLoose?: true }
   | { kind: 'money'; which: 'cash' | 'bank' | 'both' }
   /** `loose`: read from "<name> kitna hai" — an unknown name is "not understood", not "no such product". */
   | { kind: 'stock'; item?: string; low?: boolean; loose?: boolean }
