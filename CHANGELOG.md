@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**A warning for discounts booked on a Sales account** (#PR, WP 2d). A discount shown on an invoice
+**A warning for discounts booked on a Sales account** (#269, WP 2d). A discount shown on an invoice
 lowers its taxable value (CGST Act s.15(3)(a)). Total reads only a bill's sales lines, so a discount
 debited to an account under Sales Accounts is not taken off in GSTR-1. The GSTR-1 checks now name
 these bills. *For accountants*: no figure changes. Whether to take such discounts off is a separate
