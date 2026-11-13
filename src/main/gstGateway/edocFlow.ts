@@ -11,7 +11,7 @@
 //                  real IRN.
 import type { DB } from '../db/connection'
 import type { CompanyInfo } from '@shared/domain'
-import { buildEInvoiceJson, buildEwbByIrnPayload, type EdocCompany } from '@shared/gst/edocs'
+import { buildEInvoiceJson, buildEwbByIrnPayload, einvoiceExclusion, type EdocCompany } from '@shared/gst/edocs'
 import { einvoiceIssues } from '@shared/gst/einvoiceSchema'
 import {
   ewbCancelWindow, ewbExtendWindow, irnCancelWindow, IRN_CANCEL_REMARK_MAX, EWB_CANCEL_REMARK_MAX,
@@ -154,6 +154,10 @@ export async function generateIrnFlow(db: DB, company: CompanyInfo, voucherId: n
   const isExport = invoice.supTyp === 'EXPWP' || invoice.supTyp === 'EXPWOP'
   // [GEN] validation 7: "B2C transactions not accepted for IRN". Exports go with Gstin URP.
   if (!invoice.partyGstin && !isExport) throw cfg('e-Invoice needs a registered (GSTIN) buyer, or an export party')
+  // Audit 2 #6: the export's rule — a bill of supply (composition / unregistered on its date, or
+  // only nil / exempt lines) takes no IRN.
+  const notTaxInvoice = einvoiceExclusion(invoice, company)
+  if (notTaxInvoice) throw cfg(`This bill is not e-invoiced: ${notTaxInvoice}`)
 
   const edocCompany: EdocCompany = { name: company.name, gstin: c.who.gstin, stateCode: company.stateCode, address: company.address }
   const [payload] = buildEInvoiceJson([invoice], edocCompany)
