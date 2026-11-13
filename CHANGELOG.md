@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Home's GST tile says the month and the date for monthly filers** (#PRNUM, second audit UX2-1). A business that files
+**Home's GST tile says the month and the date for monthly filers** (#272, second audit UX2-1). A business that files
 GST every month saw "So far this quarter: ₹90.00" with no date while the month was still running. It now says
 "Nov 2026 so far: ₹90.00 — due 20 Dec" (in Hindi and Hinglish too). Quarterly filers see what they saw before. The
 figures are unchanged.
