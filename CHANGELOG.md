@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**GST you can't claim back now counts as cost** (#PR, WP 2d, owner's decision 13 Nov). When Record a
+**GST you can't claim back now counts as cost** (#277, WP 2d, owner's decision 13 Nov). When Record a
 purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
 entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and
 your GST balance are then right. The bill itself still shows the GST, so GSTR-2B still matches and
