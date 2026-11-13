@@ -33,6 +33,14 @@ const ev = (voucherId: number, date: string, kind: WalkEvent['kind'], base: numb
 })
 
 describe('classifyTdsVoucher', () => {
+  it('WP 2d: a debit note to a flagged party is a return event — base = its credits to non-tax ledgers', () => {
+    const c = classifyTdsVoucher({
+      kind: 'debit_note', partyLedgerId: 1,
+      lines: [{ ledgerId: 1, drCr: 'dr', amount: 1180 }, { ledgerId: 10, drCr: 'cr', amount: 1000 }, { ledgerId: 20, drCr: 'cr', amount: 180 }]
+    }, f)
+    expect(c).toMatchObject({ eventKind: 'return', partyLedgerId: 1, basePaise: 1000, grossPaise: 1180 })
+  })
+
   it('purchase to a flagged party: base = non-tax debits, gross = party credit', () => {
     const c = classifyTdsVoucher({
       kind: 'purchase', partyLedgerId: 1,
@@ -60,6 +68,22 @@ describe('classifyTdsVoucher', () => {
 
 describe('walkTdsEvents — eligibility reasons', () => {
   const rows = (): TdsRateRow | null => row()
+  it('WP 2d (owner, 13 Nov): a purchase return lowers the aggregate for later bills, never undoes an earlier liability', () => {
+    // s.194C here: ₹30,000 single, ₹1,00,000 a year. Four bills of ₹26,000 = ₹1,04,000 cross the year's
+    // limit; a ₹10,000 debit note before the fourth leaves ₹94,000 — nothing is liable.
+    const before = walkTdsEvents([ev(1, '2025-04-10', 'credit', 2600000), ev(2, '2025-05-10', 'credit', 2600000), ev(3, '2025-06-10', 'credit', 2600000), ev(4, '2025-06-20', 'return', 1000000), ev(5, '2025-07-10', 'credit', 2600000)], rows)
+    expect(before.map((x) => x.reason)).toEqual([null, null, null, null, null])
+    expect(before.map((x) => x.eventBasePaise)).toEqual([2600000, 2600000, 2600000, -1000000, 2600000])
+    expect(before.map((x) => x.priorPaise)).toEqual([0, 2600000, 5200000, 7800000, 6800000])
+    expect(priorAggregate(before, 'fy', '2025-08-01')).toBe(9400000)
+    // The same return AFTER the fourth bill: the year's limit was crossed then — every bill stays liable.
+    const after = walkTdsEvents([ev(1, '2025-04-10', 'credit', 2600000), ev(2, '2025-05-10', 'credit', 2600000), ev(3, '2025-06-10', 'credit', 2600000), ev(5, '2025-07-10', 'credit', 2600000), ev(6, '2025-07-20', 'return', 1000000)], rows)
+    expect(after.map((x) => x.reason)).toEqual(['aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate', null])
+    expect(priorAggregate(after, 'fy', '2025-08-01')).toBe(9400000)
+    // Never below nil: a return bigger than what was credited takes the aggregate to nothing.
+    expect(walkTdsEvents([ev(1, '2025-04-10', 'credit', 500000), ev(2, '2025-04-20', 'return', 900000)], rows)[1]!.eventBasePaise).toBe(-500000)
+  })
+
   it('single, aggregate and aggregate-crossed-later', () => {
     const r = walkTdsEvents([ev(1, '2025-04-10', 'credit', 2500000), ev(2, '2025-05-10', 'credit', 3500000), ev(3, '2025-06-10', 'credit', 2000000), ev(4, '2025-07-10', 'credit', 2500000)], rows)
     expect(r.map((x) => x.reason)).toEqual(['aggregate_later', 'single', 'aggregate_later', 'aggregate'])

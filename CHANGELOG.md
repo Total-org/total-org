@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**TDS: a purchase return now lowers the supplier's yearly limit** (#PR, owner's decision 13 Nov).
+When you give a supplier a debit note (goods sent back, short work), Total now takes it off what has
+been credited to them for the year. Later bills are tested against the lower total. A return does
+not cancel a deduction that was already due before it. *For accountants*: this changes which bills
+Total lists as "TDS needed", in every year, including years already closed. The owner approved
+this. The reading is question 56 for your CA.
+
 **GST you can't claim back now counts as cost** (#277, WP 2d, owner's decision 13 Nov). When Record a
 purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
 entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and
