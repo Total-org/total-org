@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**TDS: a purchase return now lowers the supplier's yearly limit** (#PR, owner's decision 13 Nov).
+**TDS: a purchase return now lowers the supplier's yearly limit** (#280, owner's decision 13 Nov).
 When you give a supplier a debit note (goods sent back, short work), Total now takes it off what has
 been credited to them for the year. Later bills are tested against the lower total. A return does
 not cancel a deduction that was already due before it. *For accountants*: this changes which bills
