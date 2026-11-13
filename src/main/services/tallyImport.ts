@@ -209,10 +209,10 @@ function settleOnOpenBills(party: PartyBills, partyName: string, v: TallyVoucher
       // Owner, 13 Nov (audit 2 COR2-4, Q5): a debit / credit note or journal "Agst Ref" a bill the
       // party has had (open, or paid in full) stays part of that bill, as Tally shows it — the engine
       // adds it to that bill (shared/outstanding.ts raiseNamed, audit A1), reopening a paid one in its
-      // place. Never a name a named credit (an advance) has had: GSTR-1 11B reads a sale's `against`
-      // ref of such a name as an advance adjustment (review of #281), and invoices keep the old path.
-      // Imports from now on only.
-      if (NOTE_KINDS.has(kind) && !party.allocator.creditNames().has(r.name) && party.allocator.hasBill(r.name)) {
+      // place. Notes and journals only: invoices keep the old path (GSTR-1 11B reads a SALE's
+      // `against` ref named like an advance as an advance adjustment — review of #281). Imports from
+      // now on only.
+      if (NOTE_KINDS.has(kind) && party.allocator.hasBill(r.name)) {
         const bill = open.find((b) => b.name === r.name)
         if (bill) bill.left += r.amount
         else open.push({ name: r.name, left: r.amount })

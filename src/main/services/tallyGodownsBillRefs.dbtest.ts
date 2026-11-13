@@ -294,7 +294,6 @@ describe('Tally import (owner Q5): a debit note Agst Ref an invoice stays part o
       tallyCreditSale('INV-10', '20260405', 'Cust', 1_000, [{ name: 'INV-10', type: 'Agst Ref', rupees: 500 }, { name: 'INV-10', type: 'New Ref', rupees: 500 }]),
       tallyCreditSale('INV-11', '20260410', 'Cust', 200, [{ name: 'INV-10', type: 'Agst Ref', rupees: 200 }])])
     expect(getVoucher(db, id('INV-11')!)!.billRefs).toEqual([{ kind: 'new', name: 'INV-11', amount: 20_000, dueDate: null }])
-    // A debit note to that name is not passed through either (the name was an advance's).
     db.prepare("UPDATE ledgers SET gst_rate = 18, state_code = ? WHERE name = 'Cust'").run(TEST_INFO.stateCode)
     // 11B: the ₹500 advance (gross, 18 % inclusive: 500 × 100 / 118 = ₹423.73), nothing more.
     const adj = extractAdvanceAdjustments(db, TEST_INFO, '2026-04-01', '2026-04-30')
@@ -325,5 +324,17 @@ describe('Tally import (owner Q5): a debit note Agst Ref an invoice stays part o
     db.prepare("UPDATE ledgers SET gst_rate = 18 WHERE name = 'Sales Account'").run()
     const cdnur = (gstr1(db, TEST_INFO, '2026-04-01', '2026-04-30', '042026').json.cdnur ?? []) as { typ: string; val: number }[]
     expect(cdnur.map((n) => [n.typ, n.val])).toEqual([['B2CL', 1180]])
+  })
+
+  it('review of #281 (round 2): a debit note Agst Ref an invoice named after its advance adds to that invoice — INV-10 ₹600 due, as Tally shows it', () => {
+    // R/1 advance INV-10 ₹500; INV-10 ₹1,000 = Agst INV-10 ₹500 + New Ref INV-10 ₹500; DN/1 ₹100 Agst INV-10 → INV-10 ₹500 + ₹100.
+    const { db, id, L, summary } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyReceipt('R/1', '20260401', 'Cust', 500, [{ name: 'INV-10', type: 'Advance', rupees: 500 }]),
+      tallyCreditSale('INV-10', '20260405', 'Cust', 1_000, [{ name: 'INV-10', type: 'Agst Ref', rupees: 500 }, { name: 'INV-10', type: 'New Ref', rupees: 500 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 100, [{ name: 'INV-10', type: 'Agst Ref', rupees: 100 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'INV-10', amount: 10_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['INV-10', 60_000]], 0, []])
+    expect(summary.warnings.filter((w) => w.includes('DN/1'))).toEqual([])
   })
 })

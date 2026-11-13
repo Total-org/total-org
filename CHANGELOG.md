@@ -27,8 +27,7 @@ after the note. A note against an invoice already paid opens that invoice again 
 Bill-wise lists, reminders and "pay this bill" now match Tally. The same holds on the supplier side: a
 journal or note crediting a supplier against their bill P/1 (freight, say) adds to P/1.
 - For accountants: only imports from now on; books imported before are unchanged. Party totals were already
-  right. Debit / credit notes and journals only — invoices, and any name an advance has had, keep the old
-  path (GSTR-1 11B). An imported debit note against a B2CL invoice now goes to GSTR-1 9B CDNUR (typ B2CL),
+  right. Debit / credit notes and journals only — invoices keep the old path (GSTR-1 11B). An imported debit note against a B2CL invoice now goes to GSTR-1 9B CDNUR (typ B2CL),
   like a note keyed into Total (it used to fall into B2CS); the added amount ages from the bill's own date
   (MSME s.43B(h), Form 1, rule 37 — the A1 CA point).
 
