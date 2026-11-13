@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Discounts booked on an account now come off the GST value** (#PR, WP 2d, owner's decision
+**Discounts booked on an account now come off the GST value** (#279, WP 2d, owner's decision
 13 Nov). A sales bill, or a credit or debit note, with a discount booked on an income or expense
 account (for example "Discount given", or an account under Sales Accounts) now reports its value
 after the discount in GSTR-1, GSTR-3B and GSTR-9 (CGST Act s.15(3)(a)). *For accountants*: this
