@@ -11,6 +11,7 @@ import { sumCredits, sumDebits, validateVoucher, type LedgerFacts } from '@share
 import { formatPaise } from '@shared/money'
 import { AppError, isErrorCode } from '@shared/errors'
 import { fyOf } from '@shared/dates'
+import { candidateNotes, notesDisagreeingWithPurchase } from './itcBlockedNotes'
 import { nextSeriesNumber } from './numbering'
 import { cashBankGroupIds } from './masters'
 import { getFeatures } from './config'
@@ -634,30 +635,6 @@ function resolveItcBlocked(db: DB, input: VoucherInputParsed, kind: VoucherKind,
   return bills.length > 0 && bills.every((r) => r.b === 1)
 }
 
-/**
- * Owner, 13 Nov (audit 2 COR2-1, Q2): a debit note keeps the s.17(5) mark it was saved with — only a
- * NEW note follows its purchase. So when a purchase's mark changes, the debit notes already saved
- * against it (return links to its lines, an `against` ref to its bill name, or its reference — same
- * party) whose own mark now differs are named, so the user can fix them by hand. Nothing is changed.
- */
-function notesDisagreeingWithPurchase(db: DB, purchaseId: number, blocked: boolean): string[] {
-  const p = db.prepare('SELECT party_ledger_id AS party, reference AS ref FROM vouchers WHERE id = ?').get(purchaseId) as { party: number | null; ref: string | null } | undefined
-  if (!p) return []
-  const rows = db
-    .prepare(
-      `SELECT DISTINCT n.number FROM vouchers n JOIN voucher_types nt ON nt.id = n.voucher_type_id
-       WHERE nt.kind = 'debit_note' AND n.deleted_at IS NULL AND n.id <> ? AND COALESCE(n.itc_blocked, 0) <> ?
-         AND (n.id IN (SELECT ll.to_voucher_id FROM line_links ll WHERE ll.link_type = 'return' AND ll.from_voucher_id = ?)
-           OR (n.party_ledger_id = ? AND n.id IN (
-                SELECT a.voucher_id FROM bill_refs a JOIN bill_refs b ON b.name = a.name AND b.party_ledger_id = a.party_ledger_id
-                WHERE a.kind = 'against' AND a.party_ledger_id = ? AND b.kind = 'new' AND b.voucher_id = ?))
-           OR (n.party_ledger_id = ? AND ? IS NOT NULL AND n.reference = ?))
-       ORDER BY n.date, n.id`
-    )
-    .all(purchaseId, blocked ? 1 : 0, purchaseId, p.party, p.party, purchaseId, p.party, p.ref, p.ref) as { number: string }[]
-  return rows.map((r) => r.number)
-}
-
 /** A note's originals — the bills it is set against (same party) and the invoices its return
  *  lines come from — of which one was raised in a GST-charging period or carries tax. */
 function noteAgainstTaxedBill(
@@ -1070,6 +1047,9 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   const beforeKind = before ? getVoucherType(db, before.voucherTypeId).kind : null
   const outwardBefore = existingId && before && beforeKind === 'debit_note' && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
   const sideRecorded = existingId ? hasRecordedSide(db, existingId) : false
+  // COR2-1 (owner Q2): the notes that returned a purchase as the books stand BEFORE the save (a save
+  // that also changes its reference / bill name / party still names the notes made against the old ones).
+  const notesBefore = existingId && before && beforeKind === 'purchase' && vt.kind === 'purchase' ? candidateNotes(db, existingId, [before.partyLedgerId]) : null
   const voucherId = run()
   const after = getVoucher(db, voucherId)!
   // The audit row carries the tax-fact snapshot beside the voucher (only when there is one).
@@ -1094,15 +1074,15 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   }
   // Owner, 13 Nov (COR2-1, Q2): a purchase whose s.17(5) mark changed — debit notes already saved
   // against it keep theirs, so name the ones that now disagree (GSTR-3B Table 4 is off by their tax).
-  if (existingId && before && vt.kind === 'purchase' && beforeKind === 'purchase' && !!before.itcBlocked !== !!after.itcBlocked) {
-    const notes = notesDisagreeingWithPurchase(db, voucherId, !!after.itcBlocked)
+  if (notesBefore && !!before?.itcBlocked !== !!after.itcBlocked) {
+    const notes = notesDisagreeingWithPurchase(db, voucherId, notesBefore, [before?.partyLedgerId ?? null, after.partyLedgerId])
     if (notes.length) {
       const one = notes.length === 1
       const now = after.itcBlocked ? 'is marked' : 'is no longer marked'
       const theirs = after.itcBlocked ? 'not marked' : 'marked'
       warnings.taxFactsChanged = [
         ...(warnings.taxFactsChanged ?? []),
-        `${after.number}: its GST credit ${now} as blocked (s.17(5)), but the debit ${one ? 'note' : 'notes'} ${notes.join(', ')} saved against it ${one ? 'is' : 'are'} still ${theirs} — GSTR-3B Table 4 is off by ${one ? 'that note’s' : 'those notes’'} GST until you open ${one ? 'it' : 'each one'} and set “GST credit blocked” to match`
+        `${after.number}: its GST credit ${now} as blocked (s.17(5)), but the debit ${one ? 'note' : 'notes'} ${notes.join(', ')} saved against it ${one ? 'is' : 'are'} still ${theirs} — GSTR-3B Table 4 is off by ${one ? 'that note’s' : 'those notes’'} GST until you open ${one ? 'it' : 'each one'} and set “GST credit blocked” the same way (the GSTR-1 screen’s checks list ${one ? 'it' : 'them'} too)`
       ]
     }
   }
