@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Ask Total no longer answers a narrow question with a total** (#PRNUM, second audit #4 / UX-14). "How much did I
+**Ask Total no longer answers a narrow question with a total** (#273, second audit #4 / UX-14). "How much did I
 spend on diesel?" used to get all of the month's costs, and "sales of office chair this year" the whole year's
 sales, as if they were the chair's. Now a named account answers with that account's own figure ("Rent: ₹2,000.00
 in Sep 2025"); a product, customer or supplier gets "I can't split sales by product yet" with a link to their page;
