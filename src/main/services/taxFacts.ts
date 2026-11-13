@@ -16,6 +16,7 @@
  */
 import type { DB } from '../db/connection'
 import { partyGroupIdsBySide } from './masters'
+import { noteFollowsBill, type PartyExportType } from '@shared/gst/zeroRated'
 
 export interface LineTaxFacts {
   gstRate: number | null
@@ -119,7 +120,7 @@ const snapshotStmts = new WeakMap<DB, { run(id: number): unknown }[]>()
 /** Copy today's master facts onto a voucher just written by saveVoucher (inside its transaction). */
 /** `recordSide` (WP 2d, review of #266): false keeps the voucher's stored debit-note side as it is —
  *  a note saved before WP 2d has none and keeps the old rule (no filed month moves on a re-save). */
-export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?: boolean } = {}): void {
+export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?: boolean; followBill?: boolean } = {}): void {
   if (!hasTaxSnapshots(db)) return
   let stmts = snapshotStmts.get(db)
   if (!stmts) {
@@ -127,7 +128,60 @@ export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?:
     snapshotStmts.set(db, stmts)
   }
   for (const s of stmts) s.run(voucherId)
+  if (opts.followBill !== false) followBillClass(db, voucherId)
   if (hasPartySideSnapshot(db) && opts.recordSide !== false) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(debitNoteSide(db, voucherId), voucherId)
+}
+
+/**
+ * Owner Q4 (audit 2 COR2-3): a credit note that took back GST its party's SEZ / export class would
+ * not charge (shared/gst/zeroRated.ts noteFollowsBill — it follows a sale saved before the rule) is
+ * snapshotted with the class its sales bills are READ with (each bill's own snapshot, else the live
+ * master — as the GST readers take it), so GSTR-1 / 3B and the e-invoice report the note like its
+ * bill and the two net to nil there too. Only when every such bill agrees; saveVoucher runs it on a
+ * NEW note or one that already followed (review of #278) — an older note re-saved keeps its class.
+ */
+function followBillClass(db: DB, noteId: number): void {
+  const n = db
+    .prepare(
+      `SELECT vt.kind, v.party_ledger_id AS party, v.reference AS ref, v.snap_party_export_type AS exportType FROM vouchers v
+       JOIN voucher_types vt ON vt.id = v.voucher_type_id WHERE v.id = ?`
+    )
+    .get(noteId) as { kind: string; party: number | null; ref: string | null; exportType: PartyExportType | null } | undefined
+  if (!n || n.kind !== 'credit_note' || n.party == null || !n.exportType) return
+  if (noteFollowsBill('sales', n.exportType, postedHeads(db, noteId)) == null) return
+  const ids = new Set<number>()
+  for (const r of db
+    .prepare(
+      `SELECT DISTINCT ll.from_voucher_id AS id FROM line_links ll WHERE ll.to_voucher_id = ? AND ll.link_type = 'return' AND ll.from_voucher_id IS NOT NULL
+       UNION SELECT b.voucher_id FROM bill_refs a JOIN bill_refs b ON b.kind = 'new' AND b.name = a.name AND b.party_ledger_id = a.party_ledger_id
+         WHERE a.voucher_id = ? AND a.kind = 'against'
+       UNION SELECT s.id FROM vouchers s WHERE s.party_ledger_id = ? AND s.number = ? AND s.id <> ? AND s.deleted_at IS NULL`
+    )
+    .all(noteId, noteId, n.party, n.ref ?? '', noteId) as { id: number }[]) ids.add(r.id)
+  const classes = new Set<string | null>()
+  const cls = db.prepare(
+    `SELECT CASE WHEN COALESCE(v.snap_tax_facts, 0) = 1 THEN v.snap_party_export_type ELSE l.export_type END AS c
+     FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id LEFT JOIN ledgers l ON l.id = v.party_ledger_id
+     WHERE v.id = ? AND vt.kind = 'sales' AND v.deleted_at IS NULL`
+  )
+  for (const id of ids) {
+    const r = cls.get(id) as { c: string | null } | undefined
+    if (r) classes.add(r.c)
+  }
+  if (classes.size !== 1) return
+  const c = [...classes][0]!
+  if (c !== n.exportType) db.prepare('UPDATE vouchers SET snap_party_export_type = ? WHERE id = ?').run(c, noteId)
+}
+
+function postedHeads(db: DB, voucherId: number): { cgst: number; sgst: number; igst: number } {
+  const out = { cgst: 0, sgst: 0, igst: 0 }
+  for (const h of db
+    .prepare(
+      `SELECT l.tax_type AS t, SUM(CASE WHEN vl.dr_cr = 'dr' THEN vl.amount ELSE -vl.amount END) AS amt FROM voucher_lines vl
+       JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? AND l.tax_type IN ('cgst', 'sgst', 'igst') GROUP BY l.tax_type`
+    )
+    .all(voucherId) as { t: 'cgst' | 'sgst' | 'igst'; amt: number }[]) out[h.t] = h.amt
+  return out
 }
 
 /** WP 2d: does this voucher already carry a recorded debit-note side (a note saved since WP 2d)? */

@@ -164,6 +164,12 @@ export const GST_SOURCES = {
     id: 's15', title: 'Section 15(3) CGST Act — the value of a supply excludes a discount given before or at the supply and duly recorded in the invoice; after the supply, only through a credit note (s.34)',
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter4/section15_v1.00.html', accessed: '2026-11-13', verified: true
   },
+  // Audit 2 COR2-3 / owner Q4 (accessed 2026-11-14): a credit note against an SEZ / export bill saved
+  // before the zero-rated rule takes back the tax that bill charged (shared/gst/zeroRated.ts noteFollowsBill).
+  s34: {
+    id: 's34', title: 'Section 34(1) CGST Act — where the taxable value or tax charged in a tax invoice exceeds what is payable, or the goods are returned, the supplier may issue credit notes; (2) the tax liability is adjusted as prescribed',
+    url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter7/section34_v1.00.html', accessed: '2026-11-14', verified: true
+  },
   // WP 2d (accessed 2026-11-13): advances for goods (shared/gst/advanceGoods.ts).
   n66_2017: {
     id: 'n66_2017', title: 'Notification 66/2017-Central Tax (15-11-2017, s.148 CGST Act) — a registered person not under composition pays central tax on outward supplies of GOODS at the time of supply in s.12(2)(a) (the invoice), so no tax on an advance for goods',
@@ -193,7 +199,7 @@ export const GST_UNVERIFIED: { id: string; text: string; sources: GstSourceId[] 
   { id: 'hsn-sac-uqc', text: 'GSTR-1 Table 12: a line without an HSN / SAC is left out, and a service (SAC) line goes in with UQC OTH and quantity 0 — GSTN\'s Table 12 advisories may require an HSN on every line and UQC "NA" for services (not read in an official text).', sources: ['gstr1Schema'] },
   { id: 'hsn-master-list', text: 'HSN / SAC codes are checked against the GST portal\'s downloadable list (April 2026). A code not in it is flagged, never refused — how complete that list is, and whether the portal or the e-invoice system accepts codes outside it, is unconfirmed. The list carries no GST rates, so Total never suggests a rate for a code.', sources: ['hsnMaster'] },
   { id: 'hsn-digits', text: 'The HSN digits check does not know the business\'s turnover: 4 digits are accepted with a note that above ₹5 crore (preceding FY) 6 are needed (Notification 78/2020-CT); a code that starts like one of the 49 chemicals of Notification 90/2020-CT is told it needs all 8 digits.', sources: ['n78_2020', 'n90_2020'] },
-  { id: 'zero-rated-with-payment', text: 'Since 1 October 2023 (IGST Act s.16(3) / (4)) an export or SEZ supply goes without payment of IGST under bond / LUT, and on payment of IGST only for the classes of persons / goods / services the Government notifies — which classes are notified was not read; Total charges IGST whenever the party is flagged "with payment". Also unconfirmed: a credit note to such a party follows its bill\'s class (no GST under LUT).', sources: ['igstS16', 'igstS7'] },
+  { id: 'zero-rated-with-payment', text: 'Since 1 October 2023 (IGST Act s.16(3) / (4)) an export or SEZ supply goes without payment of IGST under bond / LUT, and on payment of IGST only for the classes of persons / goods / services the Government notifies — which classes are notified was not read; Total charges IGST whenever the party is flagged "with payment". Also unconfirmed: a credit note to such a party follows its bill\'s class (no GST under LUT), and a return of a bill saved before that rule (8 Nov 2026) that charged GST takes that GST back (owner, 13 Nov — s.34: the note adjusts the tax charged in that invoice).', sources: ['igstS16', 'igstS7', 's34'] },
   { id: 'gstr3b-advances', text: 'Whether GSTR-3B 3.1(a) must include tax on advances (GSTR-1 11A less 11B) — the app leaves it out; the golden fixtures expect it in (GSTN auto-population). Ask the CA.', sources: ['gstr3bAutoPopulation'] }
 ]
 

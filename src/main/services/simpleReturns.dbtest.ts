@@ -25,7 +25,7 @@ import {
   buildAccountingPayload, buildInvoicePayload, derivePartyId, emptyInvoiceState, taxLedgerIdsFrom, taxSideOf,
   type AccountingFormState, type InvoiceFormState
 } from '@shared/voucherEdit'
-import { qtyText } from '@shared/voucherEdit/payload'
+import { qtyText, voucherToPayload } from '@shared/voucherEdit/payload'
 import { emptyReturnForm, returnFormErrors, returnIntentFrom, returnTotals, type ReturnContext, type ReturnForm } from '@shared/simple/returns'
 import { createLedger, createStockItem, listLedgers, listStockItems } from './masters'
 import { listTradeDocTypes } from './tradeDocTypes'
@@ -673,5 +673,156 @@ describe('a return of a bill to an SEZ unit in our own state (IGST Act s.7(5)(b)
     const note = getVoucher(db, out.voucherIds[0]!)!
     expect(note.lines.filter((l) => l.ledgerId === L('IGST')).map((l) => [l.drCr, l.amount])).toEqual([['dr', 18_013]])
     expect(note.lines.some((l) => l.ledgerId === L('CGST') || l.ledgerId === L('SGST'))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------- owner Q4 (audit 2 COR2-3)
+
+describe('owner Q4 (COR2-3): a return of an SEZ / export bill saved before the zero-rated rule takes back the GST that bill charged', () => {
+  /** A bill as books from before #244 carry it: saved while the rule did not apply, the party flagged since. */
+  const oldBill = (party: string, flag: 'sez_wop' | 'exp_wop' | 'sez_wp', intent: Record<string, unknown>): number => {
+    const sale = post({ kind: 'sale', customerId: L(party), payment: { how: 'credit' }, ...intent })
+    db.prepare('UPDATE ledgers SET export_type = ? WHERE id = ?').run(flag, L(party))
+    return sale.voucherIds[0]!
+  }
+  const ctxNow = (): ReturnContext => ({ invoice: { ...invoiceCtx(db), ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])) } })
+  const heads = (id: number) => {
+    const v = getVoucher(db, id)!
+    const on = (n: string): number => v.lines.filter((l) => l.ledgerId === L(n)).reduce((s, l) => s + l.amount, 0)
+    return { cgst: on('CGST'), sgst: on('SGST'), igst: on('IGST') }
+  }
+
+  it('an in-state SEZ unit (now "without payment"): 1 Widget @ ₹1,000 charged CGST ₹90 + SGST ₹90 = ₹1,180; the full return is ₹1,180 with the same CGST + SGST, and nothing stays owing', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    expect(heads(billId)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    expect(bill.follows).toBe('intra')
+    const form = formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' })
+    // ₹1,000 + ₹90 + ₹90 = ₹1,180 — the bill's own total (today's rule would give ₹1,000 and no GST).
+    expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
+    const noteId = out.voucherIds[0]!
+    expect(heads(noteId)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+    expect(due('Ramesh')).toMatchObject({ bills: [], unappliedCredit: 0 })
+  })
+
+  it('an export buyer in another state (now "without payment"), a bill of just an amount: ₹1,000 + IGST ₹180; the return of ₹1,000 takes back IGST ₹180', () => {
+    const billId = oldBill('Kumar', 'exp_wop', { amount: { amount: '1000', gstRate: 18 } })
+    expect(heads(billId)).toEqual({ cgst: 0, sgst: 0, igst: 18_000 })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    expect(bill.follows).toBe('inter')
+    const form = formFor({ amount: 100_000, settle: 'credit' })
+    expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
+    expect(heads(out.voucherIds[0]!)).toEqual({ cgst: 0, sgst: 0, igst: 18_000 })
+    expect(due('Kumar')).toMatchObject({ bills: [], unappliedCredit: 0 })
+  })
+
+  it('a bill the rule already gives (IGST to a "with payment" SEZ unit) and an untaxed one follow today\'s rule — nothing to follow', () => {
+    const igst = oldBill('Kumar', 'sez_wp', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    expect(returnBill(db, INFO, 'sale', igst, TODAY)!.follows).toBeUndefined()
+    const plain = post({ kind: 'sale', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }], payment: { how: 'credit' } })
+    expect(returnBill(db, INFO, 'sale', plain.voucherIds[0]!, TODAY)!.follows).toBeUndefined()
+  })
+
+  it('the full credit-note editor: voucher:noteFollows names the supply; the note it saves loads back following its bill and round-trips', async () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '2', rate: '500' }] })
+    const v = getVoucher(db, billId)!
+    const { noteFollowsSupply } = await import('./noteFollows')
+    expect(noteFollowsSupply(db, { partyLedgerId: L('Ramesh'), billNames: [], lineUids: [v.inventory[0]!.lineUid!] })).toBe('intra')
+    expect(noteFollowsSupply(db, { partyLedgerId: L('Ramesh'), billNames: [v.billRefs.find((r) => r.kind === 'new')!.name], lineUids: [] })).toBe('intra')
+    // A bill of an ordinary customer among them: no single answer → today's rule.
+    const plain = post({ kind: 'sale', customerId: L('Kumar'), items: [{ itemId: I('Widget'), qty: '1', rate: '100' }], payment: { how: 'credit' } })
+    const plainUid = getVoucher(db, plain.voucherIds[0]!)!.inventory[0]!.lineUid!
+    expect(noteFollowsSupply(db, { partyLedgerId: null, billNames: [], lineUids: [v.inventory[0]!.lineUid!, plainUid] })).toBeNull()
+    // The accountant returns 1 of the 2 (₹500): with followsBill the note is ₹500 + ₹45 + ₹45 = ₹590.
+    const ctx = { ...invoiceCtx(db), ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])), kind: 'credit_note' as const }
+    const state: InvoiceFormState = {
+      ...emptyInvoiceState(TODAY), partyId: L('Ramesh'), accountId: L('Sales'), followsBill: 'intra',
+      rows: [{ itemId: I('Widget'), qtyText: '1', rate: 50_000, discount: null, godownId: null, batchId: null, source: { lineUid: v.inventory[0]!.lineUid!, linkType: 'return' } }],
+      noteBillRefs: [{ kind: 'against', name: v.billRefs.find((r) => r.kind === 'new')!.name, amount: 59_000, dueDate: null }]
+    }
+    const { computeInvoice, invoiceRepresentation } = await import('@shared/voucherEdit/invoice')
+    expect(computeInvoice(state, ctx).gst).toMatchObject({ taxable: 50_000, cgst: 4500, sgst: 4500, igst: 0 })
+    expect(computeInvoice({ ...state, followsBill: undefined }, ctx).gst).toMatchObject({ taxable: 50_000, cgst: 0, sgst: 0, igst: 0 })
+    const r = buildInvoicePayload(state, ctx, typeId(db, 'credit_note'), taxLedgerIdsFrom(listLedgers(db), 'output'))
+    if (!r.ok) throw new Error(r.error)
+    const noteId = saveVoucher(db, r.payload).id
+    expect(heads(noteId)).toEqual({ cgst: 4500, sgst: 4500, igst: 0 })
+    const rep = invoiceRepresentation(getVoucher(db, noteId)!, ctx, taxLedgerIdsFrom(listLedgers(db), 'output'))
+    expect(rep.ok && rep.state.followsBill).toBe('intra')
+  })
+
+  it('review of #278: GSTR-3B reports the note like its bill — Aug: ₹1,000 + CGST ₹90 + SGST ₹90; Sep return: −₹1,000 − ₹90 − ₹90; together nil', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    const bill = returnBill(db, INFO, 'sale', billId, '2025-09-02')!
+    const form = { ...formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' as const }), date: '2025-09-02' }
+    const out = postIntent(db, INFO, { clientId: `ret-${++seq}-q4`, ...returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults) }, '2025-09-02')
+    const noteId = out.voucherIds[0]!
+    expect(heads(noteId)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+    // The note is read with its bill's class (the bill's own snapshot: no flag then) — not "SEZ without payment".
+    expect((db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(noteId) as { e: string | null }).e).toBeNull()
+    const aug = gstr3b(db, INFO, '2025-08-01', '2025-08-31', '082025')
+    const sep = gstr3b(db, INFO, '2025-09-01', '2025-09-30', '092025')
+    expect(aug.outward).toMatchObject({ taxable: 100_000, cgst: 9000, sgst: 9000, igst: 0 })
+    expect(sep.outward).toMatchObject({ taxable: -100_000, cgst: -9000, sgst: -9000, igst: 0 })
+    expect(sep.zeroRated).toMatchObject({ taxable: 0, igst: 0 })
+  })
+
+  it('review of #278: a bill READ as "SEZ without payment" (its snapshot carries the flag) — its return keeps that class, so both are reported alike', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    db.prepare("UPDATE vouchers SET snap_party_export_type = 'sez_wop' WHERE id = ?").run(billId)
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    const out = post(returnIntentFrom(formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' }), bill, ctxNow(), sellSetup(db).defaults))
+    expect((db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(out.voucherIds[0]!) as { e: string | null }).e).toBe('sez_wop')
+    const aug = gstr3b(db, INFO, '2025-08-01', '2025-08-31', '082025')
+    // Bill + return: the zero-rated row nets to nil, as does 3.1(a).
+    expect(aug.zeroRated.taxable).toBe(0)
+    expect(aug.outward).toMatchObject({ taxable: 0, cgst: 0, sgst: 0 })
+  })
+
+  it('review of #278: an earlier return of the bill under today\'s rule (no GST) is not part of the running total — the next return of 1 Widget is ₹1,000 + ₹90 + ₹90, never ₹360 of GST', () => {
+    // 2 Widgets @ ₹1,000 + CGST ₹180 + SGST ₹180 = ₹2,360.
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '2', rate: '1000' }] })
+    const uid = getVoucher(db, billId)!.inventory[0]!.lineUid!
+    // A note made between #244 and this fix: 1 Widget at today's rule — ₹1,000, no GST.
+    const ctx = { ...invoiceCtx(db), ledgers: new Map(listLedgers(db).map((l) => [l.id, { stateCode: l.stateCode, gstRate: l.gstRate, exportType: l.exportType }])), kind: 'credit_note' as const }
+    const early: InvoiceFormState = {
+      ...emptyInvoiceState(TODAY), partyId: L('Ramesh'), accountId: L('Sales'), reference: getVoucher(db, billId)!.number,
+      rows: [{ itemId: I('Widget'), qtyText: '1', rate: 100_000, discount: null, godownId: null, batchId: null, source: { lineUid: uid, linkType: 'return' } }]
+    }
+    const r = buildInvoicePayload(early, ctx, typeId(db, 'credit_note'), taxLedgerIdsFrom(listLedgers(db), 'output'))
+    if (!r.ok) throw new Error(r.error)
+    expect(heads(saveVoucher(db, r.payload).id)).toEqual({ cgst: 0, sgst: 0, igst: 0 })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    expect(bill).toMatchObject({ follows: 'intra', rest: null, returned: null })
+    const form = formFor({ qty: { [uid]: '1' }, settle: 'credit' })
+    expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
+    const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
+    expect(heads(out.voucherIds[0]!)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+  })
+
+  it('review of #278 (round 2): a note saved BEFORE (read as "SEZ without payment") re-saved with only a new narration keeps its class and its month\'s GSTR-3B', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    const bill = returnBill(db, INFO, 'sale', billId, '2025-09-02')!
+    const form = { ...formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' as const }), date: '2025-09-02' }
+    const noteId = postIntent(db, INFO, { clientId: `ret-${++seq}-q4b`, ...returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults) }, '2025-09-02').voucherIds[0]!
+    // As main saved such a note before this PR: the party's flag in its snapshot.
+    db.prepare("UPDATE vouchers SET snap_party_export_type = 'sez_wop' WHERE id = ?").run(noteId)
+    const sepBefore = JSON.stringify(gstr3b(db, INFO, '2025-09-01', '2025-09-30', '092025'))
+    expect(JSON.parse(sepBefore)).toMatchObject({ outward: { taxable: 0, cgst: 0, sgst: 0 }, zeroRated: { taxable: -100_000 } })
+    saveVoucher(db, { ...voucherToPayload(getVoucher(db, noteId)!), narration: 'Edited later' }, noteId)
+    expect((db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(noteId) as { e: string | null }).e).toBe('sez_wop')
+    expect(JSON.stringify(gstr3b(db, INFO, '2025-09-01', '2025-09-30', '092025'))).toBe(sepBefore)
+  })
+
+  it('review of #278 (round 2): a note that followed its bill keeps following when re-saved', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    const noteId = post(returnIntentFrom(formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' }), bill, ctxNow(), sellSetup(db).defaults)).voucherIds[0]!
+    const snap = (): string | null => (db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(noteId) as { e: string | null }).e
+    expect(snap()).toBeNull()
+    saveVoucher(db, { ...voucherToPayload(getVoucher(db, noteId)!), narration: 'Edited later' }, noteId)
+    expect(snap()).toBeNull()
   })
 })

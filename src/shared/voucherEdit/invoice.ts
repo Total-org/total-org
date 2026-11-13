@@ -5,7 +5,7 @@
 
 import type { LineSource, Voucher, VoucherBillRef, VoucherKind } from '../domain'
 import { computeGst, addBreakups, type GstBreakup, type SupplyType } from '../gst/calc'
-import { billTaxClass, zeroRatedClass, zeroRatedKind, type PartyExportType, type ZeroRatedClass } from '../gst/zeroRated'
+import { billTaxClass, noteFollowsBill, zeroRatedClass, zeroRatedKind, type PartyExportType, type ZeroRatedClass } from '../gst/zeroRated'
 import { roundToRupee } from '../money'
 import { chargesGstOn, type GstRegistrationFacts } from '../gst/registration'
 import type { TdsDeductionState } from './tds'
@@ -84,6 +84,11 @@ export interface InvoiceFormState {
    *  state as loaded (invoiceRepresentation), and while those inputs are unchanged the editor
    *  computes it as before (the party's flag ignored), so it saves back exactly as saved. */
   legacyZeroRated?: string
+  /** Owner, 13 Nov (audit 2 COR2-3, Q4 — shared/gst/zeroRated.ts noteFollowsBill): a CREDIT NOTE
+   *  against a sales bill saved before the zero-rated rule that charged GST the rule wouldn't — the
+   *  note takes back what that bill charged: this supply, the party's SEZ / export flag ignored.
+   *  Absent = today's rule (every note saved before, and every other note). */
+  followsBill?: SupplyType
   /** PR #190: a simple return's tax and round off from the RUNNING total (intents.ts
    *  runningReturnTax — everything returned of the bill so far less what the earlier returns
    *  posted), so bill + returns net to zero to the paisa. Read back by invoiceRepresentation from a
@@ -232,9 +237,9 @@ export function computeInvoice(state: InvoiceFormState, ctx: InvoiceContext): In
   // untaxed — shared/gst/zeroRated.ts, as gst.ts outwardSupplyClass reports it. A saved bill from
   // before that rule keeps its own computation while unchanged (legacyZeroRated).
   const legacyZr = state.legacyZeroRated != null && state.legacyZeroRated === taxInputsKey(state)
-  const { supply, zeroTax, zeroRated } = billTaxClass(
-    ctx.companyStateCode, ctx.kind, legacyZr ? (party ? { stateCode: party.stateCode } : undefined) : party, state.posOverride
-  )
+  const { supply, zeroTax, zeroRated } = state.followsBill && ctx.kind === 'credit_note'
+    ? { supply: state.followsBill, zeroTax: false, zeroRated: null }
+    : billTaxClass(ctx.companyStateCode, ctx.kind, legacyZr ? (party ? { stateCode: party.stateCode } : undefined) : party, state.posOverride)
   const fxRate = state.currencyCode && state.fxRateText.trim() ? Number(state.fxRateText) : null
   const fxActive = !!state.currencyCode && !!fxRate && Number.isFinite(fxRate) && fxRate > 0
 
@@ -298,7 +303,9 @@ export function taxInputsKey(state: InvoiceFormState): string {
   return JSON.stringify([
     state.date, state.partyId, state.accountId, state.posOverride, state.currencyCode, state.fxRateText,
     !!state.legacyTax, !!state.taxedOriginal,
-    state.rows.filter(computedRow).map((r) => [r.itemId, r.qtyText, r.rate, r.discount])
+    state.rows.filter(computedRow).map((r) => [r.itemId, r.qtyText, r.rate, r.discount]),
+    // Q4: only when set, so every key computed before is unchanged.
+    ...(state.followsBill ? [state.followsBill] : [])
   ])
 }
 
@@ -313,7 +320,8 @@ export function fixedTaxKey(state: InvoiceFormState): string {
     // Only the rows the computation uses (an editor's trailing blank row is not a change).
     state.rows
       .filter(computedRow)
-      .map((r) => [r.itemId, r.qtyText, r.rate, r.discount, r.source?.lineUid ?? null, r.source?.linkType ?? null])
+      .map((r) => [r.itemId, r.qtyText, r.rate, r.discount, r.source?.lineUid ?? null, r.source?.linkType ?? null]),
+    ...(state.followsBill ? [state.followsBill] : [])
   ])
 }
 
@@ -624,6 +632,17 @@ export function invoiceRepresentation(
   // Phase 2: saved before a bill to an SEZ / export party was taxed as a zero-rated supply — it
   // round-trips with the computation it was saved with (the party's flag ignored) while unchanged.
   if (!zeroRatedKind(ctx.kind) || !zeroRatedClass(ctx.ledgers.get(loaded.state.partyId!)?.exportType)) return rep
+  // Owner Q4 (audit 2 COR2-3): a credit note that posted tax the rule wouldn't charge took back an
+  // old bill's tax (or was saved before the rule, against such a bill) — it keeps following that
+  // supply, also once its lines are edited (unedited, it saves back exactly as saved either way).
+  if (ctx.kind === 'credit_note') {
+    const posted = { cgst: sumOn(v, taxLedgers.cgst), sgst: sumOn(v, taxLedgers.sgst), igst: sumOn(v, taxLedgers.igst) }
+    const supply = noteFollowsBill('sales', ctx.ledgers.get(loaded.state.partyId!)?.exportType, posted)
+    if (supply) {
+      const follows = representAs(v, { ...state, followsBill: supply }, ctx, taxLedgers)
+      if (follows.ok) return follows
+    }
+  }
   const blind = representAs(v, { ...state, legacyZeroRated: taxInputsKey(state) }, ctx, taxLedgers)
   return blind.ok ? blind : rep
 }
@@ -645,6 +664,9 @@ function representAs(v: Voucher, state: InvoiceFormState, ctx: InvoiceContext, t
   const again = confirmRoundTrip(v, fixed, buildInvoicePayload(fixed, ctx, v.voucherTypeId, taxLedgers))
   return again.ok ? again : rep
 }
+
+const sumOn = (v: Pick<Voucher, 'lines'>, ledgerId: number | null): number =>
+  ledgerId == null ? 0 : v.lines.filter((l) => l.ledgerId === ledgerId).reduce((s, l) => s + l.amount, 0)
 
 /** Does a saved voucher post to one of the GST component ledgers (CGST / SGST / IGST / cess)? */
 export function voucherCarriesGst(v: Pick<Voucher, 'lines'>, taxLedgers: TaxLedgerIds): boolean {
