@@ -7,6 +7,7 @@
 import { app, shell } from 'electron'
 import { appendFileSync, mkdirSync, readdirSync, unlinkSync } from 'fs'
 import { join } from 'path'
+import { todayISO } from '@shared/dates'
 import { dataRoot } from './paths'
 import { formatLine, isExpiredLogName, type LogLevel } from './logformat'
 
@@ -14,10 +15,6 @@ const KEEP_DAYS = 14
 
 export function logsDir(): string {
   return join(dataRoot(), 'logs')
-}
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 function logFilePath(): string {

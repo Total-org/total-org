@@ -2,7 +2,7 @@
 // Circular 170 GSTR-3B re-shaping and the annual compliance deadlines.
 import { describe, expect, it } from 'vitest'
 import { applySetOff, buildGstr1, buildGstr3b, circular170Inputs, EMPTY_GST3B_MANUAL, type GstDoc } from './returns'
-import { buildGstr9, gstr1JsonTotals, setOffDetail, type Gstr3bFigures, type Gstr9Month } from './gstr9'
+import { buildGstr9, gstr1JsonTotals, gstr9Csv, setOffDetail, type Gstr3bFigures, type Gstr9Month } from './gstr9'
 import { buildItc04, itc04Csv, itc04Json, itc04Periodicity, itc04Periods } from './itc04'
 import { bulkAcceptKeys, imsActionsCsv, imsActionsJson, imsRows, type ImsActionRecord } from './ims'
 import { isValidSelfInvoiceNumber, selfInvoiceNumber, selfInvoiceStatus } from './selfInvoice'
@@ -69,6 +69,12 @@ describe('GSTR-9 workings', () => {
     const r2 = buildGstr9({ ...{ fyLabel: '2026-27', gstin: 'X', advances: [], advanceAdjustments: [], itcDocs: [], hsnInward: [] }, docs: may, months: [exported] })
     expect(r2.compare.find((c) => c.id === 'g1-taxable')!.diff.taxable).toBe(100000 - 10000)
     expect(r2.compare.find((c) => c.id === 'g1-nil')!.diff.taxable).toBe(7000)
+  })
+
+  it('audit SEC-16: the CSV neutralises a note starting with = + - @, and negative figures stay plain numbers', () => {
+    const csv = gstr9Csv({ ...r, rows: r.rows.map((x, i) => (i === 0 ? { ...x, note: '-1+cmd' } : x)) })
+    expect(csv.split('\n')[1]!.endsWith(",'-1+cmd")).toBe(true)
+    expect(gstr9Csv(r)).not.toContain("'")
   })
 
   it('table 6 splits ITC by inputs / input services and ties 6J to nil', () => {
@@ -167,6 +173,14 @@ describe('ITC-04', () => {
     expect(csv).toHaveLength(4)
     expect(csv[1]!.startsWith('4,29AAPFU0939F1ZV,')).toBe(true)
   })
+
+  it('audit SEC-16: a job worker / description starting with = + - @ is neutralised in the CSV; numbers stay numbers', () => {
+    const evil = { ...r, sent: r.sent.map((x) => ({ ...x, jwName: '@SUM(1+1)', description: '=HYPERLINK("http://x","y")' })) }
+    const row = itc04Csv(evil).split('\n')[1]!
+    expect(row).toContain(",'@SUM(1+1),")
+    expect(row).toContain(`"'=HYPERLINK(""http://x"",""y"")"`)
+    expect(itc04Csv(r)).toBe(itc04Csv({ ...r }))
+  })
 })
 
 describe('IMS action list', () => {
@@ -189,6 +203,10 @@ describe('IMS action list', () => {
     expect(j.records[0]).toMatchObject({ action: 'R', idt: '05-06-2026' })
     expect(j.verified_against_portal_schema).toBe(false)
     expect(imsActionsCsv(stored).split('\n')[1]).toContain('Reject')
+  })
+
+  it('audit SEC-16: a note starting with = + - @ is neutralised in the CSV', () => {
+    expect(imsActionsCsv([{ ...stored[0]!, note: '+cmd|calc' }]).split('\n')[1]).toContain(",'+cmd|calc,")
   })
 })
 

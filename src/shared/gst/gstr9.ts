@@ -14,6 +14,7 @@
  */
 import type { GstAdvanceAgg, GstDoc, Gst3bManual, InwardSummary, ItcBreakdown, TaxTotals } from './returns'
 import { isZeroRatedTyp } from './returns'
+import { neutralizeCsvFormula } from '../csv'
 
 export interface Gstr9Amounts {
   taxable: number
@@ -598,8 +599,9 @@ function aggregateHsn(lines: { voucherId: number; hsn: string; uqc: string; rate
 // ---------- export ----------
 
 const rupees = (paise: number): number => Math.round(paise) / 100
+// Audit SEC-16: a name / note starting with = + - @ is neutralised (csv.ts), as every other CSV.
 const csvCell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
+  const s = neutralizeCsvFormula(v == null ? '' : String(v))
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

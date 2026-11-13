@@ -20,6 +20,16 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Small fixes from the second audit** (#PRNUM, second audit #10):
+- The setup list's "Add your first customer or supplier" is no longer ticked by the "Cash sale" walk-in customer
+  that the first cash bill creates (UX2-2).
+- The first-run setup page has a banner and a main part for screen readers (UX2-4).
+- The ITC-04, GSTR-9 and IMS CSV files neutralise a name or note that starts with `=`, `+`, `-` or `@`, as every
+  other CSV already did, so a spreadsheet never runs it as a formula (SEC-16).
+- Six places that wrote today's date in UTC (a day behind in India before 5:30 am) now use the local date: the bulk
+  edit date, the transport document date, two export titles, the books export file name and the log file name
+  (COR-4); a test keeps it that way. CI runs the unit tests in India's time zone (HEALTH-5).
+
 **Ask Total no longer answers a narrow question with a total** (#273, second audit #4 / UX-14). "How much did I
 spend on diesel?" used to get all of the month's costs, and "sales of office chair this year" the whole year's
 sales, as if they were the chair's. Now a named account answers with that account's own figure ("Rent: ₹2,000.00

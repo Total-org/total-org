@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImportProfile } from '@shared/bankFormats/types'
 import { DATE_FORMATS } from '@shared/bankFormats/types'
-import { toDisplayDate } from '@shared/dates'
+import { toDisplayDate, todayISO } from '@shared/dates'
 import { bankingApi, type StatementPreview, type StatementSource, type WorkspaceEntry, type WorkspaceLine } from '../../lib/bankingClient'
 import { DataTable, defineColumns } from '../../components/table'
 import { Badge, Banner, Button, Checkbox, EmptyState, Field, Modal, Money, Panel, Segmented, Select, StatGrid, StatTile, Textarea } from '../../components/ui'
@@ -433,7 +433,7 @@ export function ImportTab({ bankLedgerId, bankName, settings }: { bankLedgerId: 
               Show matched &amp; ignored
             </label>
           }
-          exportOptions={{ title: `Bank statement lines — ${bankName}`, periodLabel: toDisplayDate(new Date().toISOString().slice(0, 10)), filename: 'bank-statement-lines' }}
+          exportOptions={{ title: `Bank statement lines — ${bankName}`, periodLabel: toDisplayDate(todayISO()), filename: 'bank-statement-lines' }}
         />
       </Panel>
       <p className="mt-2 text-hint text-muted">

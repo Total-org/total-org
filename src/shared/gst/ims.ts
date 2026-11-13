@@ -10,6 +10,7 @@
  */
 import type { PortalInvoice, Recon2bPair, Recon2bBucket } from './recon2b'
 import { normalizeGstin } from './recon2b'
+import { neutralizeCsvFormula } from '../csv'
 
 export type ImsAction = 'accept' | 'reject' | 'pending'
 export type ImsDocType = 'INV' | 'CN' | 'DN'
@@ -149,8 +150,9 @@ export function imsActionsJson(gstin: string, period: string, records: ImsAction
   }
 }
 
+// Audit SEC-16: a name / note starting with = + - @ is neutralised (csv.ts), as every other CSV.
 const csvCell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
+  const s = neutralizeCsvFormula(v == null ? '' : String(v))
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

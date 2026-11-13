@@ -39,6 +39,7 @@ import { IN_BOOKS, NOT_DELETED, getLockDate } from './vouchers'
 import { promisedThisWeek } from './receivables'
 import { msmeDueSummary } from './payables'
 import { pdcsMaturing } from './pdc'
+import { counterAccounts } from './counter'
 import { partySideGroupIds } from '@shared/chartOfAccounts'
 
 /** Mirrors db/backup.ts BackupInfo — passed in by the IPC handler (the service never touches
@@ -222,12 +223,15 @@ export function tdsApplies(db: DB, company: CompanyInfo, tdsOn: boolean, payable
 /** The onboarding facts (WP 1.10a) the setup checklist is derived from. WP 8.3: accounts seeded
  *  by a setup preset (simple_category) are not the user's own yet. */
 export function dashSetup(db: DB, company: CompanyInfo, bankLedgers: number, userBackups: number): DashSetup {
+  // Audit 2 UX2-2: the walk-in "Cash sale" customer the first cash bill creates (counter.ts
+  // ensureWalkIn) is not the user's first customer either.
+  const walkIn = counterAccounts(db).walkInLedgerId ?? -1
   const counts = db
     .prepare(
-      `SELECT (SELECT COUNT(*) FROM ledgers WHERE is_system = 0 AND simple_category IS NULL) AS userLedgers,
+      `SELECT (SELECT COUNT(*) FROM ledgers WHERE is_system = 0 AND simple_category IS NULL AND id != ?) AS userLedgers,
               (SELECT COUNT(*) FROM vouchers v WHERE ${NOT_DELETED}) AS voucherCount`
     )
-    .get() as { userLedgers: number; voucherCount: number }
+    .get(walkIn) as { userLedgers: number; voucherCount: number }
   return {
     companyInfoComplete: !!company.address.trim() && !!(company.email || company.phone) && !!company.pan,
     gstRegistered: company.gstRegistrationType !== 'unregistered',

@@ -219,6 +219,11 @@ describe('simple screens: names, labels, roles (WP 10.5)', () => {
   it('the setup wizard, step by step (radio cards in named groups; errors described)', async () => {
     wrap(<SetupWizard today="2026-10-14" onFinish={vi.fn(async () => {})} onSample={vi.fn()} onSampleFull={vi.fn()} onFullForm={vi.fn()} onImportBackup={vi.fn()} />)
     expect(a11yProblems()).toEqual([])
+    // Audit 2 UX2-4: one banner (the title) and one main landmark on the first-run page.
+    expect(screen.getAllByRole('banner')).toHaveLength(1)
+    expect(screen.getByRole('banner').textContent).toContain('Set up')
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+    expect(screen.getByRole('main').contains(screen.getByTestId('setup-next'))).toBe(true)
     fireEvent.change(screen.getByTestId('setup-name'), { target: { value: 'Ramesh Kirana' } })
     fireEvent.click(screen.getByTestId('setup-next'))
     expect(screen.getByTestId('setup-wizard').getAttribute('data-step')).toBe('type')

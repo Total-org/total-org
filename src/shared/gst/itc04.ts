@@ -19,6 +19,7 @@
 import type { Itc04Data } from '../jobWork'
 import { toUqc } from './uqc'
 import { ITC04_RULES } from './sources'
+import { neutralizeCsvFormula } from '../csv'
 
 export type Itc04Periodicity = 'half_yearly' | 'annual'
 export type Itc04PeriodKind = 'H1' | 'H2' | 'FY'
@@ -310,8 +311,9 @@ export function itc04Json(r: Itc04Result, gstin: string): Record<string, unknown
   }
 }
 
+// Audit SEC-16: a name / note starting with = + - @ is neutralised (csv.ts), as every other CSV.
 const csvCell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
+  const s = neutralizeCsvFormula(v == null ? '' : String(v))
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 const csvLine = (cells: unknown[]): string => cells.map(csvCell).join(',')
