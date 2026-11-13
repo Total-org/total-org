@@ -203,6 +203,17 @@ function settleOnOpenBills(party: PartyBills, partyName: string, v: TallyVoucher
         add(r)
         continue
       }
+      // Owner, 13 Nov (audit 2 COR2-4, Q5): a debit note / journal "Agst Ref" a bill the party has had
+      // (open, or paid in full) stays part of that bill, as Tally shows it — the engine adds it to
+      // that bill (shared/outstanding.ts raiseNamed, audit A1), reopening a paid one in its place.
+      // No named credit of that name (that path is above); imports from now on only.
+      if (kind !== 'receipt' && kind !== 'payment' && !credits.some((c) => c.name === r.name) && party.allocator.hasBill(r.name)) {
+        const bill = open.find((b) => b.name === r.name)
+        if (bill) bill.left += r.amount
+        else open.push({ name: r.name, left: r.amount })
+        add(r)
+        continue
+      }
       if (kind === 'receipt' || kind === 'payment') return keepNone([r.name], 'advance', 'a refund can\'t open a bill of its own')
       if (!v.number) return keepNone([r.name], 'advance', 'the entry has no number to name a bill by')
       // Never a name the party has had (a paid bill, a used-up advance — `PartyBills.names`); the

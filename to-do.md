@@ -215,6 +215,7 @@ done on main were dropped. One line each; the pointer says where to look.
 - Audit trail: s.128(5) wording, IT rule 6F, IT Act 2025 s.62 / Rules 2026 r.46(9) retention — `src/main/services/audit.ts`
 - Busy / Zoho import header spellings and XML roots — `src/shared/dataImport/busy.ts`, `zoho.ts`
 - GST calendar items from the GPT review that still need a CA: e-invoice applicability, advance GST, MSME acceptance date (section 4, GST)
+- ~~Tally import rewrote a debit note's Agst Ref to an invoice as a bill of its own (audit 2 COR2-4)~~ DONE — owner Q5: kept as part of that invoice, as Tally shows it, for imports from now on — PR #PR
 - Amounts added to a bill by a note / journal (audit A1, PR #233 — owner 8 Nov: keep, flag for a CA): an unpaid amount a journal / note added to a supplier bill (e.g. freight) counts in rule 37's "unpaid after 180 days" workings (`gstItcReversal.ts`, proposal only) and in MSME s.43B(h) / Form 1 as part of the original bill (its date and booking year) — confirm both; the added amount ages from the bill's own date (owner, as Tally)
 
 ## 6. Deferred engineering (per WP)

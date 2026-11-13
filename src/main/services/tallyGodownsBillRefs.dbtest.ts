@@ -253,3 +253,38 @@ describe('Tally import: an Agst Ref naming no open bill', () => {
     void id
   })
 })
+
+// Owner, 13 Nov (audit 2 COR2-4, Q5): a debit note "Agst Ref" an invoice stays part of that invoice,
+// as Tally shows it (the engine adds it to the bill — shared/outstanding.ts raiseNamed, audit A1).
+const tallyDebitNote = (no: string, date: string, party: string, rupees: number, bills: { name: string; type: 'Agst Ref' | 'New Ref'; rupees: number }[]): string =>
+  tallyCreditSale(no, date, party, rupees, bills).replace('VCHTYPE="Sales"', 'VCHTYPE="Debit Note"').replace('<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>', '<VOUCHERTYPENAME>Debit Note</VOUCHERTYPENAME>')
+
+describe('Tally import (owner Q5): a debit note Agst Ref an invoice stays part of that invoice', () => {
+  it('S/1 ₹11,800 + debit note DN/1 ₹1,180 against it = S/1 ₹12,980 — one bill, as Tally shows it; the party total ties', () => {
+    const { db, id, L, summary } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/1', '20260401', 'Cust', 11_800, [{ name: 'S/1', type: 'New Ref', rupees: 11_800 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 1_180, [{ name: 'S/1', type: 'Agst Ref', rupees: 1_180 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'S/1', amount: 118_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.amount, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['S/1', 1_298_000, 1_298_000]], 0, []])
+    expect(a.bills[0]!.pending).toBe(closingBalances(db, '2026-04-30').get(L('Cust'))!)
+    expect(summary.warnings.filter((w) => w.includes('DN/1'))).toEqual([])
+  })
+
+  it('a debit note against a bill paid in full reopens that bill (₹1,180 due on S/1), never a bill named after the note', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/1', '20260401', 'Cust', 11_800, [{ name: 'S/1', type: 'New Ref', rupees: 11_800 }]),
+      tallyReceipt('R-1', '20260405', 'Cust', 11_800, [{ name: 'S/1', type: 'Agst Ref', rupees: 11_800 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 1_180, [{ name: 'S/1', type: 'Agst Ref', rupees: 1_180 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'S/1', amount: 118_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['S/1', 118_000]], 0, []])
+  })
+
+  it('a name the party has never had a bill of still opens a bill under the note\'s own number (as before)', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyDebitNote('DN/2', '20260410', 'Cust', 500, [{ name: 'NOPE-1', type: 'Agst Ref', rupees: 500 }])])
+    expect(getVoucher(db, id('DN/2')!)!.billRefs).toEqual([{ kind: 'new', name: 'DN/2', amount: 50_000, dueDate: null }])
+    expect(partyAllocation(db, L('Cust'), '2026-04-30').bills.map((b) => [b.number, b.pending])).toEqual([['DN/2', 50_000]])
+  })
+})

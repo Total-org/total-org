@@ -76,6 +76,9 @@ export interface BillAllocator {
   openCredits(): readonly { name: string; amount: number }[]
   /** Every name a named credit has had so far, used up or not (live view). */
   creditNames(): ReadonlySet<string>
+  /** Has the party had a bill of this name so far — open, or paid in full (the bill a positive
+   *  event's `against` ref adds to, A1)? Audit 2 COR2-4: the Tally import passes such a ref through. */
+  hasBill(name: string): boolean
   /** Ages the open bills as of `asOn`; call once, after the last `apply`. */
   result(asOn: string): AllocateBillsResult & { credits: { name: string; amount: number }[]; creditNames: string[] }
 }
@@ -237,7 +240,7 @@ export function billAllocator(creditDays: number | null): BillAllocator {
     return { bills: open, unappliedCredit: credit + namedCredits.reduce((t, c) => t + c.amount, 0), warnings, credits: namedCredits.map((c) => ({ ...c })), creditNames: [...creditNames] }
   }
 
-  return { apply, open: () => open, openCredits: () => namedCredits, creditNames: () => creditNames, result }
+  return { apply, open: () => open, openCredits: () => namedCredits, creditNames: () => creditNames, hasBill: (name) => open.some((b) => b.number === name) || closedByName.has(name), result }
 }
 
 export interface ReminderCompany {
