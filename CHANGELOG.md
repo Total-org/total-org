@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**The e-invoice file leaves out bills that are not tax invoices** (#PRNUM, second audit #6). The e-invoice export used
+**The e-invoice file leaves out bills that are not tax invoices** (#271, second audit #6). The e-invoice export used
 to take every bill to a customer with a GSTIN — also a bill of only nil-rated goods, a composition dealer's bill
 and an unregistered business's sale (whose file then had no seller GSTIN and failed the official schema). These
 are bills of supply and take no e-invoice (rule 48(4) covers tax invoices and notes), so the export now leaves them
