@@ -1,8 +1,8 @@
 # The full app (for accountants)
 
 The full app is Total's accountant mode: Tally-style double-entry books, keyboard-first. It works
-on the same books as the simple screens. Turn it on for a business in **Settings → How Total
-looks**, or open one screen through **Accountant view**.
+on the same books as the simple screens. The owner turns it on for a business in **Settings → How
+Total looks**, or open one screen through **Accountant view**.
 
 ## Entering
 
@@ -28,16 +28,17 @@ looks**, or open one screen through **Accountant view**.
 
 ## Control
 
-- **Edit log** (MCA rule 3(1)): every change is kept with its before and after, in a chain that
-  can't be altered. Deleted entries go to the **Bin** and can be restored.
+- **Audit trail** (the edit log, MCA rule 3(1)): every change is kept with its before and after,
+  in a hash chain that shows any tampering. Deleted entries go to the **Bin** and can be restored.
 - **Lock date** and the **year-end close** (a closing journal per year; bin it to reopen).
-- **People & roles**: owner / accountant / viewer, with per-person limits (no posting, no profit
+- **Settings → Users** (People & roles on the simple screens): owner / accountant / viewer, with per-person limits (no posting, no profit
   figures, no exports).
-- **Backups**: automatic and on demand, each one restore-checked; encrypted `.totalbak` exports for
+- **Backups**: automatic and on demand; every backup you take, and the newest automatic one each
+  day, is checked to restore; encrypted `.totalbak` exports for
   moving books to another computer.
 
 ## Keys
 
-⌘K palette (commands, ledgers, entries by name / number / GSTIN / amount) · ⌘J Ask · ⌘O switch
+⌘K palette (commands, ledgers, entries by name / number / GSTIN / amount) · ⌘J Assistant (Ask Total, then the AI helper if set up) · ⌘O switch
 business · ⌘L lock · Esc closes the top panel, then goes back. On
 Windows, Ctrl for ⌘ and Alt for ⌥.

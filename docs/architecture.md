@@ -82,11 +82,11 @@ src/shared/*  pure TypeScript engine — money, dates, GST, posting rules, valua
 
 | Gate | What |
 |---|---|
-| `npm test` | Pure engine tests (hand-worked figures; GST golden bills validated against the official schemas) |
-| `npm run test:db` | Services against real SQLite under Electron-as-Node |
+| `npm test` | Pure engine tests (hand-worked figures; the official GST schemas' hashes and samples) |
+| `npm run test:db` | Services against real SQLite under Electron-as-Node, incl. the hand-worked GST golden bills checked against the official schemas |
 | `npm run test:renderer` | Components and hooks (jsdom) |
 | `npm run e2e` | Playwright scenarios on the built app |
 | `npm run perf` | Budgets on a 100k-entry seed |
-| CI | All of the above on Linux / macOS / Windows |
-| Scheduled release | Every 12 h: green CI + the upgrade test (the last release's books opened by HEAD, every report identical) |
+| CI | Unit, renderer and DB tests on Linux and Windows (typecheck and lint on Linux); smoke on macOS and Windows; e2e in full on macOS on push to main, a subset on PRs and on Windows; perf on Linux |
+| Scheduled release | Every 12 h: green CI + the upgrade test (the last release's books opened by HEAD, the main reports and GST returns identical unless the owner approved a figure change) |
 | Upgrade matrix | The same upgrade test from 0.10.0 onwards, on demand (Phase 6) |

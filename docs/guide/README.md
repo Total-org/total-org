@@ -24,8 +24,8 @@ Updates: Total tells you when a new version is out and asks before it downloads 
 The first screen asks a few plain questions: your language (English, हिन्दी or Hinglish — Hindi
 and Hinglish are marked **beta** until a native speaker has checked them), the business name and
 state, what kind of business it is, whether you are registered for GST, whether you keep stock,
-and when your books start. If you were already in business, Total then asks **what you had on day
-one** — cash, bank, what customers owed you, what you owed suppliers, your stock.
+and when your books start. If you were already in business, Home then asks you to **enter what you
+had on day one** — cash, bank, what customers owed you, what you owed suppliers, your stock.
 
 Coming from Tally? Say so in the setup and Total opens the Tally import afterwards.
 
@@ -38,7 +38,7 @@ Just looking? **Try with sample data** opens a sample shop with a few months of 
 - **Full app** (for accountants): the complete double-entry books, every report and register,
   keyboard-first. See [the full app](full-app.md).
 
-Both work on the same books. You can switch in **Settings → How Total looks**, or open any simple
+Both work on the same books. The owner can switch in **Settings → How Total looks**, or open any simple
 screen's **Accountant view** to see the same entry in the full app.
 
 ## 4. Everyday tasks (simple)
@@ -46,16 +46,16 @@ screen's **Accountant view** to see the same entry in the full app.
 | You want to… | Go to |
 |---|---|
 | Make a bill for a customer | **+ Sale** on Home (or Sell → Make a bill) |
-| Record a bill from a supplier | **+ Purchase** (Buy → Record a purchase) |
-| Record money that came in or went out | **+ Money in** / **+ Money out** |
+| Record a bill from a supplier | **+ Purchase** (Buy → Record a purchase or expense bill) |
+| Record money that came in or went out | **Money in** / **Money out** on Home |
 | Move money between cash and bank | Money → Move money |
 | Check your bank statement against the books | Money → Bank (drop the statement file) |
 | Take back goods, or return goods to a supplier | Sell → Sale returns / Buy → Purchase returns |
-| See who owes you, remind them | People (a person's page has **Remind**) |
+| See who owes you, remind them | People (a person's page has **Send a reminder**) |
 | Count your stock | Stock → Count your stock |
 | See how the business is doing | Reports |
 | Get your GST ready to file | Taxes |
-| Ask a question ("how much do customers owe?") | **Ask** (⌘J) — answered by Total itself, no internet |
+| Ask a question ("how much do customers owe?") | **Ask Total** (⌘J) — answered by Total itself, no internet |
 
 After every save, a card says what was recorded, with **Undo** for a day while nothing else
 depends on it, and **Print** / **Share**. Home shows what needs your attention: late customers,
@@ -71,17 +71,20 @@ and the steps. Some tax rules in Total are not yet checked by a chartered accoun
 ## 6. Keep your books safe
 
 - Press **Back up now** at the end of the day; Home reminds you after a week. Total also backs up
-  when you open the books and checks every backup can be restored.
+  when you open the books, and checks that backups can be restored (every backup you take, and the
+  newest automatic one each day).
 - Copy your backups somewhere else now and then (a pen drive, a cloud folder you trust).
 - **Settings → Lock and safety** (Security in the full app): a passphrase that encrypts the books on disk, sign-ins with a PIN
-  for each person (owner, accountant, viewer), and a lock after a few idle minutes (⌘L locks now).
+  for each person (owner, accountant, viewer), and an automatic lock after some idle minutes if you
+  turn it on (⌘L locks now).
   A lost passphrase cannot be recovered.
 
 ## 7. The AI helper (optional, off by default)
 
 Total works fully without AI. If you want, **Settings → AI helper** connects an AI service you pay
 for separately (OpenAI, Gemini, a local model…). Nothing is sent until you turn it on; GSTIN, PAN
-and account numbers are hidden before anything leaves; nothing it suggests is saved until you
+and account numbers are hidden before anything leaves (a setting, on by default — except a photo or
+PDF of a bill you ask it to read, which goes as it is); nothing it suggests is saved until you
 approve it. Details: [AI and privacy](../ai-and-privacy.md).
 
 ## 8. Keys worth knowing
