@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**A warning when a bill's "GST can't be claimed" mark changes after a return was saved** (#PR, second audit COR2-1, owner's answer to Q2):
+**A warning when a bill's "GST can't be claimed" mark changes after a return was saved** (#276, second audit COR2-1, owner's answer to Q2):
 when you tick or untick "GST credit blocked (s.17(5))" on a purchase that already has a debit note
 against it, Total now names the notes whose own mark no longer matches, so you can open them and set
 it the same way. A new debit note still takes the mark from the bills it returns (as since #263).
