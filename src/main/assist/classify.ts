@@ -655,7 +655,8 @@ const FIGURE_FILLER = new Set(
 const ABOUT_BEFORE = new Set(['on', 'of', 'for', 'to', 'from', 'towards'])
 /** Hindi / Hinglish postpositions that follow it ("diesel KA kharcha", "rent PE", "Mohan SE"). */
 const ABOUT_AFTER = new Set(['ka', 'ki', 'ke', 'pe', 'par', 'se', 'wala', 'wali', 'vala', 'पर', 'का', 'की', 'के', 'से'])
-const HOW_SPLIT = new Set(['cash', 'credit', 'udhaar', 'udhar', 'upi', 'card', 'online', 'nakad', 'नकद', 'उधार'])
+/** Ways of payment / where money sat — splits Total can't make yet (answer.ts says so, never a figure). */
+export const HOW_SPLIT = new Set(['cash', 'bank', 'credit', 'udhaar', 'udhar', 'upi', 'card', 'online', 'nakad', 'नकद', 'उधार'])
 const SKIP_BETWEEN = new Set(['the', 'my', 'a', 'an', 'our', 'all'])
 
 /** What a figure question narrows to ("spend on diesel" → "diesel", "office chair ki sales" →

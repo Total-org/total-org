@@ -38,7 +38,7 @@ import type { VoucherResult } from '@shared/search'
 import { withholdingWhy } from '@shared/simple/explain'
 import { getFeatures } from '../services/config'
 import { companyLanguage } from '../i18n'
-import { classify, questionLanguage } from './classify'
+import { classify, HOW_SPLIT, questionLanguage } from './classify'
 import { findItem, findLedger } from './names'
 import { ledgerClassifier } from '../ai/ledgerClass'
 import { counterAccounts } from '../services/counter'
@@ -238,6 +238,9 @@ function narrowFigureAnswer(
   const cls = measure === 'sales' ? (['income'] as const) : (['expense'] as const)
   const picked = input.picks?.party != null ? pickedLedger(db, input.picks.party) : null
   const classOf = picked?.status === 'match' ? ledgerClassifier(db).cls(picked.id) : null
+  // Review of #273 (round 2): money "from the bank" / "from HDFC" is a split Total can't make yet —
+  // never the account that merely shares the word ("Bank charges").
+  if (!picked && input.picks?.item == null && (intent.about.split(' ').some((w) => HOW_SPLIT.has(w)) || findLedger(db, intent.about, ['cash', 'bank'], input.today).status === 'match')) return cantSplit()
   if (measure !== 'profit') {
     const acct = picked ? (classOf != null && (cls as readonly string[]).includes(classOf) ? picked : { status: 'none' as const }) : findLedger(db, intent.about, cls, input.today)
     if (acct.status === 'match') {
@@ -258,7 +261,9 @@ function narrowFigureAnswer(
     // Two or more accounts fit ("rent": Shop Rent, Godown Rent) — asked, never guessed or passed on.
     if (acct.status === 'choose') return which(acct.options)
   }
-  const item = picked ? { status: 'none' as const } : findItem(db, intent.about, input.today)
+  // A picked product ("Which pen?" → Blue Pen) answers for that product — never the same question again.
+  const pickedItem = input.picks?.item != null ? (db.prepare('SELECT id, name FROM stock_items WHERE id = ?').get(input.picks.item) as { id: number; name: string } | undefined) : undefined
+  const item = pickedItem ? { status: 'match' as const, ...pickedItem } : picked || input.picks?.item != null ? { status: 'none' as const } : findItem(db, intent.about, input.today)
   if (item.status === 'match') {
     const to = target('simple-stock', { itemId: item.id })
     return answer(intent, [t('assist.figure.cantSplitItem', { measure, name: item.name })], { links: [{ label: t('assist.link.product', { name: item.name }), target: to }] })
@@ -273,9 +278,13 @@ function narrowFigureAnswer(
   // A leftover word no connector introduced ("sales kaisi") narrows only when it names a record.
   if (intent.aboutLoose) return item.status === 'choose' ? whichItem(item.options) : null
   if (item.status === 'choose') return whichItem(item.options)
-  const whole = measure === 'sales' ? target('simple-sales') : measure === 'purchases' ? target('simple-purchases') : target('simple-reports', { report: 'doing' })
-  const wholeLabel = measure === 'sales' ? 'assist.link.sales' : measure === 'purchases' ? 'assist.link.purchases' : 'assist.link.pnl'
-  return answer(intent, [t('assist.figure.cantSplit', { measure, thing: intent.about })], { links: [{ label: t(wholeLabel), target: whole }] })
+  return cantSplit()
+
+  function cantSplit(): AssistAnswer {
+    const whole = measure === 'sales' ? target('simple-sales') : measure === 'purchases' ? target('simple-purchases') : target('simple-reports', { report: 'doing' })
+    const wholeLabel = measure === 'sales' ? 'assist.link.sales' : measure === 'purchases' ? 'assist.link.purchases' : 'assist.link.pnl'
+    return answer(intent, [t('assist.figure.cantSplit', { measure, thing: intent.about })], { links: [{ label: t(wholeLabel), target: whole }] })
+  }
 
   function whichItem(options: { id: number; label: string; sub?: string }[]): AssistAnswer {
     const question = t('assist.whichItem', { name: intent.about })

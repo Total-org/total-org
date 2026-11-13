@@ -199,6 +199,24 @@ describe('Ask Total on hand-worked books', () => {
     const cash = await ask('cash sales last month')
     expect(cash.figures).toEqual([])
     expect(cash.sentences[0]).toContain('I can’t split sales by “cash” yet')
+    // Round 2: money "from the bank" is a split Total can't make — never "Bank charges: ₹0.00".
+    for (const text of ['how much did i spend from bank this month', 'kitna kharcha bank se hua']) {
+      const bank = await ask(text)
+      expect(bank.figures, text).toEqual([])
+      expect(bank.sentences[0], text).toContain('I can’t split costs by')
+    }
+    // Round 2: two products fit — "Which product?", and the pick answers (never the same question again).
+    const units = await ok<{ id: number }[]>('master:units:list')
+    const red = (await ok<{ id: number }>('master:stockItems:create', { name: 'Red Pen', unitId: units[0]!.id })).id
+    await ok('master:stockItems:create', { name: 'Blue Pen', unitId: units[0]!.id })
+    const pen = await ask('sales of pen last month')
+    expect(pen.figures).toEqual([])
+    expect(pen.choice?.slot).toBe('item')
+    expect(pen.choice?.options.map((o) => o.label).sort()).toEqual(['Blue Pen', 'Red Pen'])
+    const picked = await ask('sales of pen last month', { picks: { item: red } })
+    expect(picked.choice).toBeUndefined()
+    expect(picked.sentences[0]).toContain('I can’t split sales by product yet')
+    expect(picked.links[0]!.target).toEqual({ screen: 'simple-stock', params: { itemId: red } })
     // Whole-figure questions with words the reader skips keep the whole figure.
     for (const text of ['net sales last month', 'sales report last month', 'pichhle mahine ki sales batao', 'how were my sales doing last month']) {
       expect(paise(await ask(text))[0], text).toBe(1000000)

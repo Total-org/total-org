@@ -69,6 +69,8 @@ const CORPUS: [string, Expect][] = [
   ['डीज़ल का खर्चा कितना हुआ', { kind: 'figure', measure: 'expenses', about: 'डीज़ल', aboutLoose: undefined }],
   ['cash sales today', { kind: 'figure', measure: 'sales', about: 'cash', aboutLoose: undefined }],
   ['diesel ka kharcha kitna hua', { kind: 'figure', aboutLoose: undefined }],
+  ['how much did i spend from bank', { kind: 'figure', measure: 'expenses', about: 'bank', aboutLoose: undefined }],
+  ['kitna kharcha bank se hua', { kind: 'figure', measure: 'expenses', about: 'bank', aboutLoose: undefined }],
   // ---- cash in hand / bank balance ----
   ['cash in hand', { kind: 'money', which: 'cash' }],
   ['how much cash do I have', { kind: 'money', which: 'cash' }],
