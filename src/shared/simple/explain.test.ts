@@ -115,7 +115,12 @@ describe('explain sentences (WP 8.6)', () => {
     expect(gstLine(month, TODAY, hi)).toBe('अक्तूबर 2026 में अब तक: ₹90.00 — 20 नवंबर तक भरना है')
     expect(gstLine(month, TODAY, translator('hinglish'))).toBe('Oct 2026 mein ab tak: ₹90.00 — 20 Nov tak bharna hai')
     expect(gstLine({ ...month, row: { ...month.row, gstr3bDue: null } }, TODAY, t)).toBe('Oct 2026 so far: ₹90.00')
-    expect(gstLine({ ...month, row: { ...month.row, payable: -500 } }, TODAY, t)).toBe('Oct 2026 so far: ₹0.00 — due 20 Nov')
+    expect(gstLine({ ...month, row: { ...month.row, payable: -500 } }, TODAY, t)).toBe('Oct 2026 so far: nothing to pay yet — return due 20 Nov')
+    expect(gstLine({ ...month, row: { ...month.row, payable: 0 } }, TODAY, hi)).toBe('अक्तूबर 2026 में अब तक: अभी कुछ नहीं भरना — रिटर्न 20 नवंबर तक')
+    // Its "Why?" says the same date, and "so far" once.
+    expect(gstWhy(month, TODAY, t)).toContain('For Oct 2026 so far: ')
+    expect(gstWhy(month, TODAY, t)).toContain('₹90.00 to pay in cash by 20 Nov.')
+    expect(gstWhy(month, TODAY, t).match(/so far/g)).toHaveLength(1)
     for (const tr of [t, hi, translator('hinglish')]) expect(gstLine(month, TODAY, tr)).not.toMatch(/quarter|तिमाही/i)
     expect(gstPeriodLabel(month, t)).toBe('Oct 2026 so far')
     // A month that is over is unchanged.

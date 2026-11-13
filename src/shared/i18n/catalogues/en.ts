@@ -340,6 +340,7 @@ export const en = {
   'simple.home.gstMonthSoFar': '{month} so far',
   'simple.home.gstMonthSoFarDue': '{month} so far: {amount} — due {date}',
   'simple.home.gstMonthSoFarAmount': '{month} so far: {amount}',
+  'simple.home.gstMonthSoFarNothing': '{month} so far: nothing to pay yet — return due {date}',
   'simple.home.gstQuarterly': 'You file GST every quarter: the return is due the 22nd or 24th after the quarter, depending on your state — check the date with your CA.',
   'simple.home.gstComposition': 'Composition scheme: your GST is paid through the composition return (CMP-08) — a short statement of the tax on your sales that you file on the GST portal. Total does not work out the amount yet; ask your CA for it and the date.',
   'simple.home.addSale': '+ Sale',
