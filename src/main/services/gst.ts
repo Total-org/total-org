@@ -484,6 +484,25 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
         .all(...notes) as { id: number; n: number }[]) returnLinksBy.set(r.id, r.n)
     }
   }
+  // Review of #279 (round 1): per discounted document, the GST heads it POSTED (on its tax side) —
+  // the discount comes off only when the tax on the value after it explains them at least as well
+  // as the tax on the value before it. Chunks of 500, only documents with a discount.
+  const postedHeadsBy = new Map<number, { cgst: number; sgst: number; igst: number; cess: number }>()
+  const discountedIds = [...discountBy.keys()]
+  for (let i = 0; i < discountedIds.length; i += 500) {
+    const chunk = discountedIds.slice(i, i + 500)
+    for (const r of db
+      .prepare(
+        `SELECT vl.voucher_id AS id, l.tax_type AS head, vl.dr_cr AS drCr, SUM(vl.amount) AS t FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id
+         WHERE vl.voucher_id IN (${chunk.map(() => '?').join(',')}) AND l.tax_type IN ('cgst', 'sgst', 'igst', 'cess') GROUP BY vl.voucher_id, l.tax_type, vl.dr_cr`
+      )
+      .all(...chunk) as { id: number; head: 'cgst' | 'sgst' | 'igst' | 'cess'; drCr: 'dr' | 'cr'; t: number }[]) {
+      const sign = (kindOfDoc.get(r.id) === 'credit_note') === (r.drCr === 'dr') ? 1 : -1
+      const p = postedHeadsBy.get(r.id) ?? { cgst: 0, sgst: 0, igst: 0, cess: 0 }
+      p[r.head] += sign * r.t
+      postedHeadsBy.set(r.id, p)
+    }
+  }
   const lineStmt = db.prepare(
     `SELECT vl.amount, vl.dr_cr AS drCr, l.group_id AS groupId, ${ledgerFacts.gstRate} AS gstRate, ${ledgerFacts.cessRate} AS cessRate, ${ledgerFacts.hsn} AS hsn, l.name
      FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN ledgers l ON l.id = vl.ledger_id
@@ -602,16 +621,31 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
           const g = zeroTax ? { cgst: 0, sgst: 0, igst: 0, cess: 0 } : computeGst(l.taxable, l.rate, supply, l.cessRate)
           return s + l.taxable + g.cgst + g.sgst + g.igst + g.cess
         }, 0)
+      // How far the lines' own tax is from the heads the document posted (paise, all four heads).
+      const taxGap = (): number => {
+        const posted = postedHeadsBy.get(v.id) ?? { cgst: 0, sgst: 0, igst: 0, cess: 0 }
+        const t = { cgst: 0, sgst: 0, igst: 0, cess: 0 }
+        if (!zeroTax) for (const l of docLines) {
+          const g = computeGst(l.taxable, l.rate, supply, l.cessRate)
+          t.cgst += g.cgst; t.sgst += g.sgst; t.igst += g.igst; t.cess += g.cess
+        }
+        return Math.abs(posted.cgst - t.cgst) + Math.abs(posted.sgst - t.sgst) + Math.abs(posted.igst - t.igst) + Math.abs(posted.cess - t.cess)
+      }
       const found = discountBy.get(v.id) ?? 0
       let discount = 0
       let gathered = gather(0)
       if (found > 0) {
         notes?.discounted?.push(v.id)
         const grossOffSlab = gathered.offSlab
+        const grossGap = taxGap()
         const net = gather(found)
         const debits = totalBy.get(v.id) ?? 0
         const netValue = debits - Math.min(found, debits) - (tcsBy.get(v.id) ?? 0)
-        if (Math.abs(netValue - linesTotal()) <= VAL_MISMATCH_TOLERANCE_PAISE && !(net.offSlab && !grossOffSlab)) {
+        // Net only when (a) the value after the discount ties, (b) netting makes no off-slab rate
+        // the gross didn't, and (c) the tax on the net lines is no further from the POSTED heads than
+        // the tax on the gross — a small discount on a bill taxed on the gross also ties within ₹1,
+        // but its gross tax is the exact one (review of #279, round 1).
+        if (Math.abs(netValue - linesTotal()) <= VAL_MISMATCH_TOLERANCE_PAISE && !(net.offSlab && !grossOffSlab) && taxGap() <= grossGap) {
           discount = found
           gathered = net
         } else {

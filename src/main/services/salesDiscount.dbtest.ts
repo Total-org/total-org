@@ -172,6 +172,29 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     expect(docs.find((d) => d.voucherId === note.id)!.original).toMatchObject({ invoiceValue: 9_440_000 })
   })
 
+  it('review of #279 (round 1): a small discount on a bill taxed on the gross ties within ₹1 but stays as charged', () => {
+    const db = seededDb()
+    const groupId = (name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
+    const vt = (db.prepare("SELECT id FROM voucher_types WHERE kind = 'sales'").get() as { id: number }).id
+    const L = (input: Parameters<typeof createLedger>[1]): number => createLedger(db, input).id
+    const buyer = L({ name: 'Buyer', groupId: groupId('Sundry Debtors'), stateCode: '27', gstin: '27AAPFU0939F1ZV' })
+    const s5 = L({ name: 'Sales 5', groupId: groupId('Sales Accounts'), gstRate: 5, hsn: '1006' })
+    const given = L({ name: 'Discount given', groupId: groupId('Indirect Expenses') })
+    const cgst = L({ name: 'Output CGST', groupId: groupId('Duties & Taxes'), taxType: 'cgst' })
+    const sgst = L({ name: 'Output SGST', groupId: groupId('Duties & Taxes'), taxType: 'sgst' })
+    const line = (ledgerId: number, drCr: DrCr, amount: number) => ({ ledgerId, drCr, amount, costAllocations: [] })
+    // ₹1,000 at 5 % taxed on the gross: ₹25 + ₹25; ₹19 discount; party ₹1,031. Netting would give ₹981 and
+    // ₹24.53 + ₹24.53 (value off by 94 paise — inside the ₹1 tie) — ₹49.06 against ₹50 collected.
+    const bill = saveVoucher(db, {
+      voucherTypeId: vt, date: '2026-07-05', partyLedgerId: buyer,
+      lines: [line(buyer, 'dr', 103100), line(given, 'dr', 1900), line(s5, 'cr', 100000), line(cgst, 'cr', 2500), line(sgst, 'cr', 2500)],
+      inventory: [], billRefs: [], tds: null
+    })
+    const doc = extractOutwardDocs(db, TEST_INFO, FROM, TO).find((d) => d.voucherId === bill.id)!
+    expect(doc.items).toEqual([{ rate: 5, taxable: 100000, cgst: 2500, sgst: 2500, igst: 0, cess: 0 }])
+    expect(gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')!.message).toContain('1 charged GST on the value BEFORE it')
+  })
+
   it('lessDiscount shares a discount pro rata by value, in whole paise (largest remainders), never below nil', () => {
     // ₹100 off ₹600 + ₹400: ₹60 + ₹40.
     expect(lessDiscount([60_000, 40_000], 10_000)).toEqual([54_000, 36_000])
