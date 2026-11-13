@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Returning an old SEZ / export bill takes back the GST that bill charged** (#PR, second audit COR2-3, owner's answer to Q4):
+**Returning an old SEZ / export bill takes back the GST that bill charged** (#278, second audit COR2-3, owner's answer to Q4):
 a bill made before 8 Nov 2026 to a customer marked SEZ or export could carry GST (IGST, or CGST + SGST for
 an SEZ unit in your state). A return of such a bill now takes that GST back, in simple Returns and in the
 full credit-note editor, so the bill and its return net to nil (before, ₹180 on a ₹1,000 bill stayed owing).
