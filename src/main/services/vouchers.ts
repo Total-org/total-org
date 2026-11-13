@@ -1049,7 +1049,9 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   const sideRecorded = existingId ? hasRecordedSide(db, existingId) : false
   // COR2-1 (owner Q2): the notes that returned a purchase as the books stand BEFORE the save (a save
   // that also changes its reference / bill name / party still names the notes made against the old ones).
-  const notesBefore = existingId && before && beforeKind === 'purchase' && vt.kind === 'purchase' ? candidateNotes(db, existingId, [before.partyLedgerId]) : null
+  // Read only when the payload flips the mark (absent keeps it, so it can't flip).
+  const flips = input.itcBlocked !== undefined && input.itcBlocked !== !!before?.itcBlocked
+  const notesBefore = flips && existingId && before && beforeKind === 'purchase' && vt.kind === 'purchase' ? candidateNotes(db, existingId, [before.partyLedgerId]) : null
   const voucherId = run()
   const after = getVoucher(db, voucherId)!
   // The audit row carries the tax-fact snapshot beside the voucher (only when there is one).
@@ -1082,7 +1084,7 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
       const theirs = after.itcBlocked ? 'not marked' : 'marked'
       warnings.taxFactsChanged = [
         ...(warnings.taxFactsChanged ?? []),
-        `${after.number}: its GST credit ${now} as blocked (s.17(5)), but the debit ${one ? 'note' : 'notes'} ${notes.join(', ')} saved against it ${one ? 'is' : 'are'} still ${theirs} — GSTR-3B Table 4 is off by ${one ? 'that note’s' : 'those notes’'} GST until you open ${one ? 'it' : 'each one'} and set “GST credit blocked” the same way (the GSTR-1 screen’s checks list ${one ? 'it' : 'them'} too)`
+        `${after.number}: its GST credit ${now} as blocked (s.17(5)), but the debit ${one ? 'note' : 'notes'} ${notes.join(', ')} saved against it ${one ? 'is' : 'are'} still ${theirs} — GSTR-3B Table 4 is off by ${one ? 'that note’s' : 'those notes’'} GST until you open ${one ? 'it' : 'each one'} and set “GST credit blocked” the same way (the GSTR-3B and GSTR-1 screens list ${one ? 'it' : 'them'} too)`
       ]
     }
   }
