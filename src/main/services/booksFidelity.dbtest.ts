@@ -222,6 +222,7 @@ describe('Books workbook fidelity', () => {
     const f = parseImportFile('books.xlsx', bytes)
     runImport(dst, planSteps(f), { duplicate: 'update', applyBooksFrom: Number(f.manifest!.booksFrom), lockDate: String(f.manifest!.lockDate) || null, sourceNamespace: `${f.manifest!.company}|${f.manifest!.gstin}` }, { source: 'excel', profileId: null, fileName: 'books.xlsx' }, false)
     expect(dst.prepare('SELECT accepted_on AS a FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-07` }])
+    expect(dst.prepare("SELECT v.itc_blocked AS b FROM vouchers v JOIN ledgers l ON l.id = v.party_ledger_id WHERE l.name = 'Annapurna Caterers'").all()).toEqual([{ b: 1 }])
     // (3) A day that is not a date (or a year off) is not stored — a step warning, the day left as it was.
     const bad = planSteps(parseImportFile('books.xlsx', bytes))
     for (const st of bad) if (st.rows.target === 'vouchers') for (const r of st.rows.rows as { more?: Record<string, unknown> | null }[]) if (r.more?.['msme.accepted_on']) r.more['msme.accepted_on'] = `${prevFy + 1}-13-45`

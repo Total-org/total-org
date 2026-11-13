@@ -29,6 +29,11 @@ export function HandoffBanner({ handoff }: { handoff: SimpleHandoff }): React.JS
           {t(o.kind === 'receipt' ? 'simple.handoff.otherReceived' : 'simple.handoff.otherPaid', { amount: formatPaise(o.amount, { symbol: true }) })}
         </p>
       ))}
+      {(handoff.gstToCost ?? 0) > 0 && (
+        <p className="mt-1" data-testid="handoff-gst-to-cost">
+          {t('simple.handoff.gstToCost', { amount: formatPaise(handoff.gstToCost!, { symbol: true }) })}
+        </p>
+      )}
       {(handoff.addedOnSave?.length ?? 0) > 0 && (
         <p className="mt-1" data-testid="handoff-added-on-save">
           {t('simple.handoff.addedOnSave', { names: handoff.addedOnSave!.join(', '), count: handoff.addedOnSave!.length })}

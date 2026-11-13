@@ -8,7 +8,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@t
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_FEATURES } from '@shared/features'
 import type { UiSettings } from '@shared/simple/uiMode'
-import type { HandoffEntry, IntentFormResult } from '@shared/simple/handoff'
+import type { HandoffEntry, IntentFormResult, SimpleHandoff } from '@shared/simple/handoff'
 import { sanitiseHandoffEntry } from '@shared/simple/handoff'
 import { emptyInvoiceState } from '@shared/voucherEdit'
 import { useNav, useSession, useToasts, type Screen } from '../state/stores'
@@ -543,6 +543,21 @@ describe('the remembered choice', () => {
     await act(async () => back.result.current())
     expect(invoke).toHaveBeenCalledWith('simple:handoffTarget', { voucherId: 51 })
     expect(top()).toEqual({ name: 'simple-sales', billId: 51 })
+  })
+
+  it('WP 2d: a "can\'t claim" purchase hands off the bill; its GST-to-cost journal is not a "payment made now" — the banner says what happens to it', async () => {
+    setSession({ mode: 'simple' })
+    const journal = { ...BILL, role: 'gst_cost' as const, kind: 'journal' as const, form: 'accounting' as const, amount: 18_000 }
+    const payment = { ...BILL, role: 'payment' as const, kind: 'payment' as const, form: 'accounting' as const, amount: 118_000 }
+    intentForm = { kind: 'purchase', entries: [{ ...BILL, kind: 'purchase' }, journal, payment], missing: [] } as unknown as IntentFormResult
+    act(() => useNav.setState({ stack: [{ name: 'gateway' }, { name: 'simple-buy' }] }))
+    const { result } = renderHook(() => useAccountantView('simple-buy'), { wrapper: ({ children }) => withClient(<>{children}</>) })
+    await act(async () => result.current({ intent: { kind: 'purchase', date: '2026-05-10', supplierId: 7, amount: { amount: 100_000, gstRate: 18 }, itcBlocked: true, payment: { how: 'cash' } } }))
+    const h = (top() as { handoff: SimpleHandoff }).handoff
+    expect(h.others).toEqual([{ role: 'payment', kind: 'payment', amount: 118_000 }])
+    expect(h.gstToCost).toBe(18_000)
+    render(withClient(<HandoffBanner handoff={h} />))
+    expect(screen.getByTestId('handoff-gst-to-cost').textContent).toBe('The ₹180.00 of GST you can’t claim back is moved into the cost only when you save from the simple screen — this form keeps it in your GST accounts.')
   })
 
   it('the editor banner says what is filled in, the payment left out and accounts not set up yet', () => {

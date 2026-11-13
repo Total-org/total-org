@@ -38,6 +38,7 @@ import { pricingLoader, rememberSalePrices } from './pricing'
 import { openBills, partyAllocation, partyAllocationWithCredits } from './analysis'
 import { fyIsClosed } from './cashFinanceCommon'
 import { writeAudit } from './audit'
+import { gstCostJournalOf } from './gstCostJournal'
 import { saveSummary } from './undo'
 import { ledgerClassifier } from '../ai/ledgerClass'
 import { rehearse } from '../ai/drafting/rehearse'
@@ -54,12 +55,12 @@ import { LABOUR_CREDIT_GROUP, LABOUR_CREDIT_LEDGER, LABOUR_EXPENSE_GROUP, LABOUR
 
 const KINDS_FOR: Record<NormalIntent['kind'], VoucherKind[]> = {
   sale: ['sales', 'receipt'],
-  purchase: ['purchase', 'payment'],
+  purchase: ['purchase', 'payment', 'journal'],
   money_in: ['receipt'],
   money_out: ['payment'],
   move_money: ['contra'],
   return_sale: ['credit_note', 'payment'],
-  return_purchase: ['debit_note', 'receipt'],
+  return_purchase: ['debit_note', 'receipt', 'journal'],
   stock_count: ['physical_stock'],
   make_goods: ['stock_journal']
 }
@@ -159,6 +160,14 @@ export function notesByReference(db: DB, kind: 'sales' | 'purchase', bill: { id:
  *  read it too — services/simpleReturns.ts): what is pending on it, its GST rates as it posted
  *  them, each item line with what is left to return (live `return` links), and — for a bill
  *  without item lines — the value before GST still returnable. */
+/** WP 2d: a purchase's LIVE "GST to cost" journal's account, for its return (gstCostJournal.ts). */
+function gstCostAccountOf(db: DB, billId: number): { gstCostAccountId?: number } {
+  const j = gstCostJournalOf(db, billId)
+  if (!j) return {}
+  const live = db.prepare(`SELECT 1 FROM vouchers v WHERE v.id = ? AND ${NOT_DELETED}`).get(j.journalId)
+  return live ? { gstCostAccountId: j.accountId } : {}
+}
+
 export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<typeof listLedgers>, billId: number, date: string): IntentOriginal | null {
   const v = getVoucher(db, billId)
   if (!v || v.deletedAt || v.partyLedgerId == null) return null
@@ -309,6 +318,7 @@ export function loadOriginal(db: DB, company: CompanyInfo, ledgers: ReturnType<t
     billName,
     pending,
     carriesGst: voucherCarriesGst(v, tax),
+    ...(kind === 'purchase' ? gstCostAccountOf(db, v.id) : {}),
     rates,
     noteReference,
     amountLeft,

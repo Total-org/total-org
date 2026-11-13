@@ -23,10 +23,10 @@ import {
 import { emptyMoneyOutForm, moneyOutIntentFrom } from '@shared/simple/money'
 import { buyIntentFrom, emptyBuyForm, purchaseIntentFrom, buyFormErrors, buyTotals, type BuyContext, type BuyForm } from '@shared/simple/buy'
 import { createLedger, createStockItem, listGroups, listLedgers, listStockItems } from './masters'
-import { getVoucher, nextVoucherNumber, saveVoucher } from './vouchers'
+import { deleteVoucher, getVoucher, nextVoucherNumber, saveVoucher } from './vouchers'
 import { partyAllocation } from './analysis'
 import { gstr3b } from './gst'
-import { undoSave } from './undo'
+import { restoreFromBin, saveSummary, undoSave } from './undo'
 import { postIntent } from './simplePost'
 import { buySetup, purchasesList, purchaseView } from './simpleBuy'
 import { createMemory } from '../ai/memory'
@@ -286,6 +286,63 @@ describe('WP 9.3 Record a purchase: the form → simple:post = the purchase an a
     undoSave(db, out.voucherIds)
     expect(purchasesList(db, '2025-04-01', TODAY, TODAY).some((x) => x.voucherId === bill)).toBe(false)
     expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${pay}) AND deleted_at IS NOT NULL`)).toBe(2)
+  })
+
+  it('WP 2d (owner, 13 Nov): "can\'t claim this GST back" → the bill + a journal moving its GST to the cost; 3B still availed + reversed; Undo bins both', () => {
+    // Rent ₹1,000 + 18 % = ₹1,180, can't claim: the bill (marked blocked) + Dr Rent ₹180 / Cr Input CGST ₹90 + SGST ₹90.
+    const out = buy({ supplierId: L('Bharat Steel'), billNo: 'R-17', mode: 'expense', categoryId: L('Rent'), amount: 100_000, gstBlocked: true })
+    expect(out.entries.map((e) => [e.role, e.kind])).toEqual([['bill', 'purchase'], ['gst_cost', 'journal']])
+    const [bill, journal] = out.voucherIds as [number, number]
+    expect(getVoucher(db, bill)).toMatchObject({ itcBlocked: true })
+    const jl = getVoucher(db, journal)!.lines.map((l) => [l.ledgerId, l.drCr, l.amount])
+    expect(jl).toEqual([[L('Rent'), 'dr', 18_000], [L('Input CGST'), 'cr', 9_000], [L('Input SGST'), 'cr', 9_000]])
+    expect(out.facts.gstToCost).toBe(18_000)
+    // Input GST nets to nothing; the rent is ₹1,180 (the expense carries the GST).
+    const bal = (id: number): number => (db.prepare("SELECT COALESCE(SUM(CASE WHEN vl.dr_cr = 'dr' THEN vl.amount ELSE -vl.amount END), 0) AS b FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id WHERE vl.ledger_id = ? AND v.deleted_at IS NULL").get(id) as { b: number }).b
+    expect([bal(L('Input CGST')), bal(L('Input SGST')), bal(L('Rent'))]).toEqual([0, 0, 118_000])
+    // GSTR-3B: the bill's ₹90 + ₹90 is still availed in 4(A)(5) and reversed in 4(B)(1) (Circular 170).
+    expect(gstr3b(db, info, '2025-08-01', '2025-08-31', '082025').circular170.blocked).toMatchObject({ cgst: 9_000, sgst: 9_000 })
+    // The save card says what the second entry is.
+    expect(saveSummary(db, out.voucherIds).entries.map((e) => e.gstToCost ?? false)).toEqual([false, true])
+    // Review of #277: binning the BILL alone in the full app takes its journal along; restoring it
+    // brings both back.
+    deleteVoucher(db, bill)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${journal}) AND deleted_at IS NOT NULL`)).toBe(2)
+    restoreFromBin(db, bill)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${journal}) AND deleted_at IS NULL`)).toBe(2)
+    // Review of #277: a journal the user binned on its own stays in the bin when the bill comes back.
+    deleteVoucher(db, journal)
+    deleteVoucher(db, bill)
+    restoreFromBin(db, bill)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id = ${journal} AND deleted_at IS NOT NULL`)).toBe(1)
+    restoreFromBin(db, journal)
+    // A part return (₹400 of ₹1,000) moves ₹72 of the GST back out of the cost; the rest returned
+    // (₹600) moves the remaining ₹108: Input GST back to nothing, Rent to nothing — the bill is gone.
+    const ret = (amount: number, id: string) => postIntent(db, info, { clientId: id, kind: 'return_purchase', date: '2025-08-12', billId: bill, amount: { amount } }, TODAY)
+    const part = ret(40_000, 'blocked-return-1')
+    expect(part.entries.map((e) => [e.role, e.kind])).toEqual([['note', 'debit_note'], ['gst_cost', 'journal']])
+    expect(getVoucher(db, part.voucherIds[0]!)).toMatchObject({ itcBlocked: true })
+    expect(getVoucher(db, part.voucherIds[1]!)!.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[L('Input CGST'), 'dr', 3_600], [L('Input SGST'), 'dr', 3_600], [L('Rent'), 'cr', 7_200]])
+    expect([bal(L('Input CGST')), bal(L('Input SGST')), bal(L('Rent'))]).toEqual([0, 0, 70_800])
+    ret(60_000, 'blocked-return-2')
+    expect([bal(L('Input CGST')), bal(L('Input SGST')), bal(L('Rent'))]).toEqual([0, 0, 0])
+    expect(gstr3b(db, info, '2025-08-01', '2025-08-31', '082025').circular170.blocked).toMatchObject({ cgst: 0, sgst: 0 })
+    // Binning a return note takes its mirror journal along too.
+    deleteVoucher(db, part.voucherIds[0]!)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id = ${part.voucherIds[1]!} AND deleted_at IS NOT NULL`)).toBe(1)
+  })
+
+  it('WP 2d: Money out\'s GST bill answered "can\'t claim" posts the bill, its payment and the journal; Undo bins all three', () => {
+    const defaults = buySetup(db).defaults
+    const out = postIntent(db, info, {
+      clientId: 'blocked-money-out-1',
+      ...moneyOutIntentFrom({ ...emptyMoneyOutForm('2025-08-10'), who: 'expense', amount: 118_000, how: 'cash', payeeId: L('Rent'), gstBill: true, billSupplierId: L('Bharat Steel'), billNo: 'R-18', gstRate: 18, gstBlocked: true }, [], defaults,
+        { facts: gstRegistrationOf(info), companyStateCode: '27', supplierState: () => '27', drawingsId: null })
+    }, TODAY)
+    expect(out.entries.map((e) => [e.role, e.kind])).toEqual([['bill', 'purchase'], ['gst_cost', 'journal'], ['payment', 'payment']])
+    expect(out.facts.gstToCost).toBe(18_000)
+    undoSave(db, out.voucherIds)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${out.voucherIds.join(',')}) AND deleted_at IS NOT NULL`)).toBe(3)
   })
 
   it('review: nil-rated products on a bill without GST post with no tax; the bill view carries the rupee round-off', () => {

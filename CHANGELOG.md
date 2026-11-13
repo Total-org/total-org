@@ -20,6 +20,16 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**GST you can't claim back now counts as cost** (#277, WP 2d, owner's decision 13 Nov). When Record a
+purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
+entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and
+your GST balance are then right. The bill itself still shows the GST, so GSTR-2B still matches and
+GSTR-3B shows it availed and reversed, as before. Undo removes both, moving the bill to the bin
+takes the entry with it, and a return moves the returned part back out of the cost. For now this
+covers expense bills and bills typed as an amount; a bill of products keeps the mark only. *For accountants*: bills
+already in your books, and bills marked in the full purchase editor, are unchanged; post the journal
+yourself there.
+
 **A warning when a bill's "GST can't be claimed" mark changes after a return was saved** (#276, second audit COR2-1, owner's answer to Q2):
 when you tick or untick "GST credit blocked (s.17(5))" on a purchase that already has a debit note
 against it, Total now names the notes whose own mark no longer matches, so you can open them and set
@@ -33,7 +43,8 @@ small supplier's bill (Payables → MSME → Accepted → Change) is now in the 
 puts it back. Undoing an import puts back the day the bill had before. *For accountants*: no figure
 changes. A Books workbook exported before this version has no days in it, so importing one over your
 books with "update" uses the bill dates for those bills again. Imports from Busy, Zoho or Excel never
-touch a recorded day, or a bill's "can't claim this GST" mark. If you record a day after an import,
+touch a recorded day, or a bill's "can't claim this GST" mark. A new debit note imported from them that
+returns only bills marked "can't claim" now takes that mark, as it would in the purchase editor. If you record a day after an import,
 undoing that import keeps it.
 
 ## [0.12.3] - 2026-11-13
