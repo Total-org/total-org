@@ -26,6 +26,7 @@ import { einvoiceApplicability, type EinvoiceApplicability } from '@shared/gst/e
 import { einvoiceTurnOnNotice, type EinvoiceStatus } from '@shared/compliance'
 import { companyExportsDir } from '../paths'
 import { IN_BOOKS } from './vouchers'
+import { mismatchedNoteIds } from './itcBlockedNotes'
 import { chargesGstOn, registrationOn } from '@shared/gst/registration'
 import { hasTradeSchema } from './tradeLinks'
 import { writeAudit } from './audit'
@@ -1152,7 +1153,29 @@ export function gstValidate(db: DB, company: CompanyInfo, from: string, to: stri
   const goods = goodsAdvanceIssue(db, company, from, to)
   const blended = blendedRateIssue(notes.blended)
   const discount = salesDiscountIssue(db, docs)
-  return [...issues, ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : [])]
+  const marks = blockedNoteIssue(db, from, to)
+  return [...issues, ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : []), ...(marks ? [marks] : [])]
+}
+
+/**
+ * Owner, 13 Nov (audit 2 COR2-1, Q2) — a warning, never a figure: a debit note keeps the s.17(5)
+ * "GST credit blocked" mark it was saved with (CGST Act s.17(5), GST_SOURCES.s17), and GSTR-3B Table
+ * 4 reads each voucher by its own mark (4(A)(5) + 4(B)(1), Circular 170), so a note whose mark
+ * differs from that of every purchase it returns puts Table 4 out by its GST (services/itcBlockedNotes.ts).
+ */
+export function blockedNoteIssue(db: DB, from: string, to: string): GstIssue | null {
+  const ids = mismatchedNoteIds(db, from, to)
+  if (ids.length === 0) return null
+  const n = ids.length
+  return {
+    code: 'itc_blocked_note_mismatch',
+    severity: 'warning',
+    message:
+      `${n} debit note${n === 1 ? '' : 's'} with a "GST credit blocked" (s.17(5)) mark different from the purchase${n === 1 ? '' : 's'} ${n === 1 ? 'it returns' : 'they return'}. ` +
+      'GSTR-3B Table 4 reads each entry by its own mark, so the blocked credit (4(A)(5) / 4(B)(1)) and the ordinary credit are off by that GST. ' +
+      'Open each note and set the mark as on its purchase (check a filed month with your CA first).',
+    voucherIds: ids
+  }
 }
 
 /**

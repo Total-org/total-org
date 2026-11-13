@@ -11,6 +11,7 @@ import { sumCredits, sumDebits, validateVoucher, type LedgerFacts } from '@share
 import { formatPaise } from '@shared/money'
 import { AppError, isErrorCode } from '@shared/errors'
 import { fyOf } from '@shared/dates'
+import { candidateNotes, notesDisagreeingWithPurchase } from './itcBlockedNotes'
 import { nextSeriesNumber } from './numbering'
 import { cashBankGroupIds } from './masters'
 import { getFeatures } from './config'
@@ -1046,6 +1047,11 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   const beforeKind = before ? getVoucherType(db, before.voucherTypeId).kind : null
   const outwardBefore = existingId && before && beforeKind === 'debit_note' && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
   const sideRecorded = existingId ? hasRecordedSide(db, existingId) : false
+  // COR2-1 (owner Q2): the notes that returned a purchase as the books stand BEFORE the save (a save
+  // that also changes its reference / bill name / party still names the notes made against the old ones).
+  // Read only when the payload flips the mark (absent keeps it, so it can't flip).
+  const flips = input.itcBlocked !== undefined && input.itcBlocked !== !!before?.itcBlocked
+  const notesBefore = flips && existingId && before && beforeKind === 'purchase' && vt.kind === 'purchase' ? candidateNotes(db, existingId, [before.partyLedgerId]) : null
   const voucherId = run()
   const after = getVoucher(db, voucherId)!
   // The audit row carries the tax-fact snapshot beside the voucher (only when there is one).
@@ -1066,6 +1072,20 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
         ? 'moves from the purchase returns (input tax credit) to GSTR-1 (now read as an outward note)'
         : 'moves from GSTR-1 (outward notes) to the purchase returns (now read as a purchase return, input tax credit)'
       warnings.taxFactsChanged = [...(warnings.taxFactsChanged ?? []), `${after.number}: this debit note ${moved}`]
+    }
+  }
+  // Owner, 13 Nov (COR2-1, Q2): a purchase whose s.17(5) mark changed — debit notes already saved
+  // against it keep theirs, so name the ones that now disagree (GSTR-3B Table 4 is off by their tax).
+  if (notesBefore && !!before?.itcBlocked !== !!after.itcBlocked) {
+    const notes = notesDisagreeingWithPurchase(db, voucherId, notesBefore, [before?.partyLedgerId ?? null, after.partyLedgerId])
+    if (notes.length) {
+      const one = notes.length === 1
+      const now = after.itcBlocked ? 'is marked' : 'is no longer marked'
+      const theirs = after.itcBlocked ? 'not marked' : 'marked'
+      warnings.taxFactsChanged = [
+        ...(warnings.taxFactsChanged ?? []),
+        `${after.number}: its GST credit ${now} as blocked (s.17(5)), but the debit ${one ? 'note' : 'notes'} ${notes.join(', ')} saved against it ${one ? 'is' : 'are'} still ${theirs} — GSTR-3B Table 4 is off by ${one ? 'that note’s' : 'those notes’'} GST until you open ${one ? 'it' : 'each one'} and set “GST credit blocked” the same way (the GSTR-3B and GSTR-1 screens list ${one ? 'it' : 'them'} too)`
+      ]
     }
   }
   if (hold && holdOverride) {
