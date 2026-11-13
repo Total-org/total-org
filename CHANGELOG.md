@@ -20,6 +20,8 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-11-13
+
 **Small fixes from the second audit** (#274, second audit #10):
 - The setup list's "Add your first customer or supplier" is no longer ticked by the "Cash sale" walk-in customer
   that the first cash bill creates (UX2-2).
