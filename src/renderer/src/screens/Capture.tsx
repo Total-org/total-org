@@ -5,7 +5,7 @@
 // a ledger line) are answered here without another provider call. Viewers see the queue only.
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { toDisplayDate } from '@shared/dates'
+import { toDisplayDate, todayISO } from '@shared/dates'
 import { formatPaise } from '@shared/money'
 import type { CaptureEstimate, CaptureItemDto, CaptureMapping, CaptureStatus } from '@shared/capture/types'
 import { captureApi, fileToBase64, usd } from '../lib/captureClient'
@@ -248,7 +248,7 @@ export function CaptureScreen(): React.JSX.Element {
               </MenuButton>
             ) : null
           }
-          exportOptions={{ title: 'Capture queue', periodLabel: toDisplayDate(new Date().toISOString().slice(0, 10)), filename: 'capture-queue' }}
+          exportOptions={{ title: 'Capture queue', periodLabel: toDisplayDate(todayISO()), filename: 'capture-queue' }}
         />
       </Panel>
       <p className="mt-2 text-hint text-muted">

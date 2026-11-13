@@ -16,6 +16,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Audit HEALTH-5 / audit 2 #10: the tests run in India's time zone, as the users and the e2e
+    # job do (UTC is a day behind from 00:00 to 05:30 IST — the local-"today" bugs only show there);
+    # build-win keeps the runner's UTC, so both zones are covered.
+    env:
+      TZ: Asia/Kolkata
     steps:
       - uses: actions/checkout@v4
 

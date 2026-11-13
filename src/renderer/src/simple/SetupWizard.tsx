@@ -140,14 +140,16 @@ export function SetupWizard({
   return (
     <SimpleKitLabels on>
     <div className="w-full max-w-2xl" data-testid="setup-wizard" data-step={step} lang={language === 'hi' ? 'hi' : 'en'}>
-      <div className="mb-6 flex items-center gap-3">
+      {/* Audit 2 UX2-4: the first-run page has landmarks — the title is the banner, the rest the main part. */}
+      <header className="mb-6 flex items-center gap-3">
         <TotalLogo size={44} />
         <div>
           <h1 className="font-serif text-title font-semibold tracking-tight">{t('simple.setup.title')}</h1>
           <p className="text-small text-muted">{t('simple.setup.intro')}</p>
         </div>
-      </div>
+      </header>
 
+      <main>
       <div className="rounded-xl border border-line bg-panel px-6 py-5">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-small font-semibold text-muted" data-testid="setup-step-label">
@@ -244,6 +246,7 @@ export function SetupWizard({
           </div>
         </div>
       )}
+      </main>
     </div>
     </SimpleKitLabels>
   )

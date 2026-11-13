@@ -3,8 +3,10 @@
  * already has. Nothing is stored: every step is recomputed from the company's facts, so a step
  * ticks itself the moment the user does the thing anywhere in the app.
  *
- * Consumed by the Gateway (WP 1.10b) through the renderer hook `useOnboardingChecklist`
- * (renderer/src/lib/onboarding.ts) and the kit `Checklist` component.
+ * The app's screens (Gateway, simple Home) read it through `onboardingFromDashSetup` over the
+ * dashboard's `setup` facts (services/dashboard.ts dashSetup — the walk-in and, on simple Home, every
+ * non-party ledger left out: audit 2 UX2-2). `deriveOnboarding` (from raw facts) has no app caller
+ * since review of #274 removed the unused `useOnboardingChecklist` hook; it is kept for its tests.
  */
 import type { CompanyInfo } from './domain'
 import type { DashSetup } from './dashboard'

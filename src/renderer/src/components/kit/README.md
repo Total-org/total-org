@@ -251,7 +251,7 @@ The table platform's anchored popover, exported under kit names. `MenuButton` is
 | `EmptyState title hint action compact` | the one "nothing here" state |
 | `Spinner`, `Skeleton`, `SkeletonRows`, `SkeletonTiles` | loading |
 | `Kbd` | key cap |
-| `Checklist items onOpen hideDone` | setup checklist; feed it `useOnboardingChecklist()` (lib/onboarding.ts) |
+| `Checklist items onOpen hideDone` | setup checklist; feed it `onboardingFromDashSetup(setup)` (shared/onboarding.ts) |
 
 ## Conventions
 

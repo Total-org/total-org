@@ -160,7 +160,8 @@ export interface DashSetup {
   companyInfoComplete: boolean
   gstRegistered: boolean
   gstinSet: boolean
-  /** Ledgers the user created (seeded system ledgers excluded). */
+  /** Ledgers the user created (seeded system ledgers and the walk-in excluded). Only `> 0` is read (the
+   *  checklist's ledger step); simple Home's copy stays 0 until a customer / supplier exists (audit 2 UX2-2). */
   userLedgers: number
   bankLedgers: number
   voucherCount: number

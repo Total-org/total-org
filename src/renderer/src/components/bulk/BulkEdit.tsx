@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { BulkRecordResult, BulkRequest, BulkResult, BulkTarget, BulkUndoResult, ItemChange, LedgerChange, VoucherChange } from '@shared/bulkEdit'
 import { BULK_MAX_RECORDS } from '@shared/bulkEdit'
-import { toDisplayDateTime } from '@shared/dates'
+import { toDisplayDateTime, todayISO } from '@shared/dates'
 import { auditUserLabel } from '@shared/auditEntities'
 import { api } from '../../lib/client'
 import { bulkApi, type BulkBatchRow } from '../../lib/workspaceClient'
@@ -152,7 +152,7 @@ export function BulkEditModal({
   const [field, setField] = useState<FieldId>(FIELDS[target][0]!.id)
   const [mode, setMode] = useState<'replace' | 'append' | 'prepend'>('append')
   const [text, setText] = useState('')
-  const [date, setDate] = useState(workingDate || new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(workingDate || todayISO())
   const [fromId, setFromId] = useState<number | null>(null)
   const [toId, setToId] = useState<number | null>(null)
   const [num, setNum] = useState('')

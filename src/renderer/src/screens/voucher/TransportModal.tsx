@@ -1,3 +1,4 @@
+import { todayISO } from '@shared/dates'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { VoucherTransportInput } from '@shared/schemas'
@@ -193,7 +194,7 @@ export function TransportModal({
                 <DateInput
                   testId="input-trans-doc-date"
                   value={form.transDocDate ?? ''}
-                  context={form.transDocDate ?? new Date().toISOString().slice(0, 10)}
+                  context={form.transDocDate ?? todayISO()}
                   onChange={(d) => set({ transDocDate: d })}
                 />
               </Field>

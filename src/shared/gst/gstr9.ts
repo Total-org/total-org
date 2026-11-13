@@ -14,6 +14,7 @@
  */
 import type { GstAdvanceAgg, GstDoc, Gst3bManual, InwardSummary, ItcBreakdown, TaxTotals } from './returns'
 import { isZeroRatedTyp } from './returns'
+import { quoteCsvField } from '../csv'
 
 export interface Gstr9Amounts {
   taxable: number
@@ -598,10 +599,8 @@ function aggregateHsn(lines: { voucherId: number; hsn: string; uqc: string; rate
 // ---------- export ----------
 
 const rupees = (paise: number): number => Math.round(paise) / 100
-const csvCell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
+// Audit SEC-16 + review of #274: csv.ts's one cell rule — formula guard, then RFC 4180 quoting (incl. a bare CR).
+const csvCell = (v: unknown): string => quoteCsvField(v == null ? '' : String(v))
 
 /** CSV of every table row, the Table 9 rows and the comparison, plain rupee decimals. */
 export function gstr9Csv(r: Gstr9Result): string {

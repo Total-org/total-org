@@ -39,6 +39,7 @@ import { IN_BOOKS, NOT_DELETED, getLockDate } from './vouchers'
 import { promisedThisWeek } from './receivables'
 import { msmeDueSummary } from './payables'
 import { pdcsMaturing } from './pdc'
+import { counterAccounts } from './counter'
 import { partySideGroupIds } from '@shared/chartOfAccounts'
 
 /** Mirrors db/backup.ts BackupInfo — passed in by the IPC handler (the service never touches
@@ -222,12 +223,15 @@ export function tdsApplies(db: DB, company: CompanyInfo, tdsOn: boolean, payable
 /** The onboarding facts (WP 1.10a) the setup checklist is derived from. WP 8.3: accounts seeded
  *  by a setup preset (simple_category) are not the user's own yet. */
 export function dashSetup(db: DB, company: CompanyInfo, bankLedgers: number, userBackups: number): DashSetup {
+  // Audit 2 UX2-2: the walk-in "Cash sale" customer the first cash bill creates (counter.ts
+  // ensureWalkIn) is not the user's first customer either.
+  const walkIn = counterAccounts(db).walkInLedgerId ?? -1
   const counts = db
     .prepare(
-      `SELECT (SELECT COUNT(*) FROM ledgers WHERE is_system = 0 AND simple_category IS NULL) AS userLedgers,
+      `SELECT (SELECT COUNT(*) FROM ledgers WHERE is_system = 0 AND simple_category IS NULL AND id != ?) AS userLedgers,
               (SELECT COUNT(*) FROM vouchers v WHERE ${NOT_DELETED}) AS voucherCount`
     )
-    .get() as { userLedgers: number; voucherCount: number }
+    .get(walkIn) as { userLedgers: number; voucherCount: number }
   return {
     companyInfoComplete: !!company.address.trim() && !!(company.email || company.phone) && !!company.pan,
     gstRegistered: company.gstRegistrationType !== 'unregistered',
@@ -237,6 +241,18 @@ export function dashSetup(db: DB, company: CompanyInfo, bankLedgers: number, use
     voucherCount: counts.voucherCount,
     userBackups
   }
+}
+
+/** Audit 2 UX2-2 (review of #274): customers / suppliers the user created — party groups by role, no
+ *  preset account, never the walk-in. Simple Home's "Add your first customer or supplier" ticks on it. */
+export function userPartyCount(db: DB): number {
+  const groups = listGroups(db)
+  const partyGroups = [...partySideGroupIds(groups, 'debtor'), ...partySideGroupIds(groups, 'creditor')]
+  if (!partyGroups.length) return 0
+  const walkIn = counterAccounts(db).walkInLedgerId ?? -1
+  return (db
+    .prepare(`SELECT COUNT(*) AS n FROM ledgers WHERE is_system = 0 AND simple_category IS NULL AND id != ? AND group_id IN (${partyGroups.map(() => '?').join(', ')})`)
+    .get(walkIn, ...partyGroups) as { n: number }).n
 }
 
 /** Backups the user took — the automatic on-open snapshots don't count. */

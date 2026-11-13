@@ -6,6 +6,7 @@ import { app, dialog, shell } from 'electron'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { z } from 'zod'
+import { todayISO } from '@shared/dates'
 import type { DB } from './db/connection'
 import { backupCompany } from './db/connection'
 import type { CompanyInfo } from '@shared/domain'
@@ -109,7 +110,7 @@ export function registerDataImportIpc(handle: Handle, company: () => Company, se
     const { asOn, reveal } = z.object({ asOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), reveal: z.boolean().default(true) }).parse(p ?? {})
     const c = company()
     const { sheets, counts } = buildBooksWorkbook(c.db, c.info, app.getVersion(), asOn)
-    const path = join(companyExportsDir(c.slug), `books-${c.slug}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const path = join(companyExportsDir(c.slug), `books-${c.slug}-${todayISO()}.xlsx`)
     writeXlsxFile(path, sheets)
     writeAudit(c.db, 'export', 0, 'export', null, { kind: 'books_xlsx', path, counts })
     if (reveal) shell.showItemInFolder(path)

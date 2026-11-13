@@ -10,6 +10,7 @@
  */
 import type { PortalInvoice, Recon2bPair, Recon2bBucket } from './recon2b'
 import { normalizeGstin } from './recon2b'
+import { quoteCsvField } from '../csv'
 
 export type ImsAction = 'accept' | 'reject' | 'pending'
 export type ImsDocType = 'INV' | 'CN' | 'DN'
@@ -149,10 +150,8 @@ export function imsActionsJson(gstin: string, period: string, records: ImsAction
   }
 }
 
-const csvCell = (v: unknown): string => {
-  const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
+// Audit SEC-16 + review of #274: csv.ts's one cell rule — formula guard, then RFC 4180 quoting (incl. a bare CR).
+const csvCell = (v: unknown): string => quoteCsvField(v == null ? '' : String(v))
 
 export function imsActionsCsv(records: ImsActionRecord[]): string {
   const head = ['Supplier GSTIN', 'Document type', 'Document no.', 'Document date', 'Value', 'Taxable value', 'IGST', 'CGST', 'SGST', 'Cess', 'Action', 'Note', 'Decided at']

@@ -11,6 +11,8 @@ import { applySetup } from './companySetup'
 import { simpleHome, simpleHomeAttention } from './simpleHome'
 import { simpleTaxes } from './simpleTaxes'
 import { postIntent } from './simplePost'
+import { dashSetup, userPartyCount } from './dashboard'
+import { createLedger } from './masters'
 import type { DB } from '../db/connection'
 
 const TODAY = '2026-11-07'
@@ -70,5 +72,30 @@ describe('audit A7 / UX-9: GST on Home starts with a fresh business’s first en
     expect(home.gst?.kind === 'regular' && home.gst.row).toMatchObject({ period: '2026-11', soFar: true, gstr1Due: '2026-12-11', gstr3bDue: '2026-12-20', liability: 9000 })
     const taxes = simpleTaxes(db, company, {}, TODAY)
     expect(taxes.kind === 'regular' && taxes.period).toMatchObject({ period: '2026-11', soFar: true })
+  })
+})
+
+describe('audit 2 UX2-2: the walk-in "Cash sale" is not the first customer', () => {
+  it('a cash bill to the walk-in leaves "Add your first customer or supplier" open; a real customer ticks it', () => {
+    const db = shop('2026-04-01', true)
+    expect(db.prepare("SELECT COUNT(*) AS n FROM ledgers WHERE name = 'Cash sale'").get()).toEqual({ n: 1 })
+    expect(dashSetup(db, readCompanyInfo(db), 0, 0).userLedgers).toBe(0)
+    const debtors = (db.prepare("SELECT id FROM groups WHERE name = 'Sundry Debtors'").get() as { id: number }).id
+    createLedger(db, { name: 'Sita Devi', groupId: debtors, openingBalance: 0, gstin: null, stateCode: '27', address: null, taxType: null, gstRate: null, hsn: null, tdsSectionId: null, pan: null, creditDays: null, exportType: null })
+    expect(dashSetup(db, readCompanyInfo(db), 0, 0).userLedgers).toBe(1)
+    expect(userPartyCount(db)).toBe(1)
+    expect(simpleHome(db, readCompanyInfo(db), { today: TODAY, backups: [] }).setup.userLedgers).toBe(1)
+  })
+
+  it('review of #274: a bank account added for the first UPI sale is not a customer or supplier either', () => {
+    const db = shop('2026-04-01', true, false)
+    const banks = (db.prepare("SELECT id FROM groups WHERE name = 'Bank Accounts'").get() as { id: number }).id
+    const hdfc = createLedger(db, { name: 'HDFC', groupId: banks, openingBalance: 0, gstin: null, stateCode: null, address: null, taxType: null, gstRate: null, hsn: null, tdsSectionId: null, pan: null, creditDays: null, exportType: null }).id
+    postIntent(db, readCompanyInfo(db), { clientId: 'upi-bill-00001', kind: 'sale', date: TODAY, amount: { amount: 50000, gstRate: 18 }, payment: { how: 'upi', accountId: hdfc } }, TODAY)
+    // The accountant's "Create your first ledger" (a customer, supplier or expense account) counts HDFC as before …
+    expect(dashSetup(db, readCompanyInfo(db), 1, 0).userLedgers).toBe(1)
+    // … simple Home's "Add your first customer or supplier" does not.
+    expect(userPartyCount(db)).toBe(0)
+    expect(simpleHome(db, readCompanyInfo(db), { today: TODAY, backups: [] }).setup.userLedgers).toBe(0)
   })
 })
