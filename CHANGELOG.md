@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Tally import: a debit note "against" an invoice stays part of that invoice** (#PR, second audit COR2-4, owner's answer to Q5):
+**Tally import: a debit note "against" an invoice stays part of that invoice** (#281, second audit COR2-4, owner's answer to Q5):
 when a Tally debit note (or journal) to a customer is set Agst Ref invoice S/1, Total now adds it to S/1
 (₹11,800 + ₹1,180 = ₹12,980 due on S/1), exactly as Tally shows it, instead of making a separate bill named
 after the note. A note against an invoice already paid opens that invoice again for the note's amount.
