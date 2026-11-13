@@ -160,6 +160,10 @@ export const GST_SOURCES = {
     id: 'igstS16', title: 'IGST Act s.16 — zero-rated supply (export; supply for authorised operations to an SEZ developer / unit); (3) without payment of IGST under bond / LUT; (4) on payment only for notified classes (as amended by the Finance Act 2021, in force 1 October 2023, Notification 27/2023-CT)',
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_IGST_Act/active/chaptervii/section16_v1.00.html', accessed: '2026-11-08', verified: true
   },
+  s15: {
+    id: 's15', title: 'Section 15(3) CGST Act — the value of a supply excludes a discount given before or at the supply and duly recorded in the invoice; after the supply, only through a credit note (s.34)',
+    url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter4/section15_v1.00.html', accessed: '2026-11-13', verified: true
+  },
   // WP 2d (accessed 2026-11-13): advances for goods (shared/gst/advanceGoods.ts).
   n66_2017: {
     id: 'n66_2017', title: 'Notification 66/2017-Central Tax (15-11-2017, s.148 CGST Act) — a registered person not under composition pays central tax on outward supplies of GOODS at the time of supply in s.12(2)(a) (the invoice), so no tax on an advance for goods',

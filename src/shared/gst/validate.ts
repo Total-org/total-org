@@ -77,6 +77,7 @@ export interface GstIssue {
     | 'off_slab_rate'
     | 'advance_goods'
     | 'blended_rate'
+    | 'sales_discount_line'
     | 'einvoice_doc_no'
   severity: 'blocking' | 'warning'
   message: string

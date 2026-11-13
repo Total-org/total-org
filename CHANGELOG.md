@@ -20,6 +20,14 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**A warning for discounts booked on a Sales account** (#269, WP 2d). A discount shown on an invoice
+lowers its taxable value (CGST Act s.15(3)(a)). Total reads only a bill's sales lines, so a discount
+debited to an account under Sales Accounts, or to "Discount given", is not taken off in GSTR-1. The GSTR-1 checks now name
+these bills. *For accountants*: no figure changes. Whether to take such discounts off is a separate
+decision, because it would change months already filed.
+The TDS screen also gets a "Check with your CA" badge: a purchase return does not lower a supplier's
+yearly TDS limit in Total today (question 56 in the CA list).
+
 **Debit notes to customers under your own group names** (#266, WP 2d). A debit note to a customer
 filed under a group such as "Trade Receivables", with no sales line on it, was read as a purchase
 return. From now on a debit note records which side its party is on when you save it, and GSTR-1
