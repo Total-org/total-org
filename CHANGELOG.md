@@ -20,6 +20,13 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Ask Total no longer answers a narrow question with a total** (#PRNUM, second audit #4 / UX-14). "How much did I
+spend on diesel?" used to get all of the month's costs, and "sales of office chair this year" the whole year's
+sales, as if they were the chair's. Now a named account answers with that account's own figure ("Rent: ₹2,000.00
+in Sep 2025"); a product, customer or supplier gets "I can't split sales by product yet" with a link to their page;
+anything else gets "I can't split costs by “diesel” yet" — never a figure that wasn't asked for. In Hindi and
+Hinglish too.
+
 **Home's GST tile says the month and the date for monthly filers** (#272, second audit UX2-1). A business that files
 GST every month saw "So far this quarter: ₹90.00" with no date while the month was still running. It now says
 "Nov 2026 so far: ₹90.00 — due 20 Dec" (in Hindi and Hinglish too). Quarterly filers see what they saw before. The

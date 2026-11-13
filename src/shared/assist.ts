@@ -49,7 +49,9 @@ export interface AssistEntrySlots {
 export type AssistIntent =
   | { kind: 'owed'; side: 'receivable' | 'payable'; party?: string }
   | { kind: 'gst' }
-  | { kind: 'figure'; measure: AssistMeasure; period: AssistPeriod; periodSaid: boolean }
+  /** `about` (audit 2 #4): what the question narrows the figure to ("diesel", "office chair") —
+   *  the answer resolves it or says it can't split by it; absent = the whole figure. */
+  | { kind: 'figure'; measure: AssistMeasure; period: AssistPeriod; periodSaid: boolean; about?: string }
   | { kind: 'money'; which: 'cash' | 'bank' | 'both' }
   /** `loose`: read from "<name> kitna hai" — an unknown name is "not understood", not "no such product". */
   | { kind: 'stock'; item?: string; low?: boolean; loose?: boolean }

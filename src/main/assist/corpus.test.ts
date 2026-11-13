@@ -52,6 +52,18 @@ const CORPUS: [string, Expect][] = [
   ['is mahine kitna kharcha hua', { kind: 'figure', measure: 'expenses', period: { rule: 'thisMonth' } }],
   ['how much did I spend last year', { kind: 'figure', measure: 'expenses', period: { rule: 'lastFy', from: '2025-04-01', to: '2026-03-31' } }],
   ['इस महीने का मुनाफा', { kind: 'figure', measure: 'profit', period: { rule: 'thisMonth' } }],
+  // audit 2 #4 (UX-14): what a figure question narrows to — never answered with the whole figure
+  ['how much did I spend on diesel', { kind: 'figure', measure: 'expenses', about: 'diesel' }],
+  ['sales of office chair this year', { kind: 'figure', measure: 'sales', period: { rule: 'fyToDate' }, about: 'office chair' }],
+  ['diesel ka kharcha kitna hua', { kind: 'figure', measure: 'expenses', about: 'diesel' }],
+  ['office chair ki bikri is saal', { kind: 'figure', measure: 'sales', about: 'office chair' }],
+  ['kitna kharcha hua rent pe', { kind: 'figure', measure: 'expenses', about: 'rent' }],
+  ['purchases from Mohan last month', { kind: 'figure', measure: 'purchases', period: { rule: 'lastMonth' }, about: 'mohan' }],
+  ['profit on chairs', { kind: 'figure', measure: 'profit', about: 'chairs' }],
+  ['what were my total sales so far this month', { kind: 'figure', measure: 'sales', about: undefined }],
+  ['how much did I spend in October 2025', { kind: 'figure', measure: 'expenses', about: undefined }],
+  ['is mahine ka kharcha', { kind: 'figure', measure: 'expenses', about: undefined }],
+  ['sales for 2025-26', { kind: 'figure', measure: 'sales', about: undefined }],
   // ---- cash in hand / bank balance ----
   ['cash in hand', { kind: 'money', which: 'cash' }],
   ['how much cash do I have', { kind: 'money', which: 'cash' }],

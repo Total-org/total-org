@@ -205,7 +205,57 @@ function gstAnswer(db: DB, company: CompanyInfo, intent: AssistIntent, input: As
   return answer(intent, sentences, { figures, links })
 }
 
+/** A ledger's own line in the P&L tree (0 = it did not move in the period). */
+function pnlLedgerAmount(nodes: readonly StatementNode[], ledgerId: number): number | null {
+  for (const n of nodes) {
+    if (n.kind === 'ledger' && n.id === ledgerId) return n.amount
+    const inner = pnlLedgerAmount(n.children, ledgerId)
+    if (inner != null) return inner
+  }
+  return null
+}
+
+/** Audit 2 #4 (UX-14): a figure question that names a thing ("spend on diesel", "sales of office
+ *  chair") is never answered with the whole figure. An account of the measure's kind (through the
+ *  search service) → that account's own P&L line; a product / a customer or supplier → "I can't
+ *  split … by product / by customer yet" + their page; anything else → "I can't split … by X yet". */
+function narrowFigureAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }> & { about: string }, input: AskInput, t: Translate): AssistAnswer {
+  const p = intent.period
+  const when = periodText(p, input.today, t)
+  const measure = intent.measure
+  const tail = intent.periodSaid ? [] : [t('assist.figure.periodAssumed')]
+  if (measure !== 'profit') {
+    const acct = findLedger(db, intent.about, measure === 'sales' ? ['income'] : ['expense'], input.today)
+    if (acct.status === 'match') {
+      const pnl = profitAndLoss(db, p.from, p.to)
+      const all = [...pnl.tradingIncomes, ...pnl.tradingExpenses, ...pnl.indirectIncomes, ...pnl.indirectExpenses]
+      const v = pnlLedgerAmount(all, acct.id) ?? 0
+      const to = target('ledger-statement', { ledgerId: acct.id })
+      const sentences = [t('assist.figure.account', { name: acct.name, amount: money(v), period: when })]
+      if (measure !== 'expenses' && company.gstRegistrationType === 'regular') sentences.push(t('assist.figure.beforeGst'))
+      return answer(intent, [...sentences, ...tail], {
+        figures: [fig(v, { kind: 'ledger', ledgerId: acct.id, label: acct.name }, to)],
+        links: [{ label: t('assist.link.account', { name: acct.name }), target: to }]
+      })
+    }
+  }
+  const item = findItem(db, intent.about, input.today)
+  if (item.status === 'match') {
+    const to = target('simple-stock', { itemId: item.id })
+    return answer(intent, [t('assist.figure.cantSplitItem', { measure, name: item.name })], { links: [{ label: t('assist.link.product', { name: item.name }), target: to }] })
+  }
+  const party = findLedger(db, intent.about, ['debtor', 'creditor'], input.today)
+  if (party.status === 'match') {
+    const to = target('simple-person', { id: party.id })
+    return answer(intent, [t('assist.figure.cantSplitParty', { measure, name: party.name })], { links: [{ label: t('assist.link.person', { name: party.name }), target: to }] })
+  }
+  const whole = measure === 'sales' ? target('simple-sales') : measure === 'purchases' ? target('simple-purchases') : target('simple-reports', { report: 'doing' })
+  const wholeLabel = measure === 'sales' ? 'assist.link.sales' : measure === 'purchases' ? 'assist.link.purchases' : 'assist.link.pnl'
+  return answer(intent, [t('assist.figure.cantSplit', { measure, thing: intent.about })], { links: [{ label: t(wholeLabel), target: whole }] })
+}
+
 function figureAnswer(db: DB, company: CompanyInfo, intent: Extract<AssistIntent, { kind: 'figure' }>, input: AskInput, t: Translate): AssistAnswer {
+  if (intent.about) return narrowFigureAnswer(db, company, { ...intent, about: intent.about }, input, t)
   const p = intent.period
   const pnl = profitAndLoss(db, p.from, p.to)
   // WP 9.9's column ("How is my business doing"): the P&L's own totals, re-arranged — one definition.

@@ -159,6 +159,27 @@ describe('Ask Total on hand-worked books', () => {
     expect(e.sentences.join(' ')).toContain('Rent')
   })
 
+  it('audit 2 #4: a narrower question never gets the broader figure — an account is its own P&L line, anything else "can\'t split"', async () => {
+    // Rent is the only cost: ₹2,000 (its own line, the same ₹2,000 as all costs here — but read from the Rent account).
+    const rent = await ask('how much did I spend on rent last month')
+    expect(rent.figures.map((f) => [f.paise, f.source])).toEqual([[200000, { kind: 'ledger', ledgerId: ids.rent, label: expect.stringMatching(/rent/i) }]])
+    expect(rent.sentences[0]).toMatch(/Rent.*₹2,000\.00/)
+    expect(paise(await ask('pichle mahine rent ka kharcha'))).toEqual([200000])
+    // Nothing called diesel: no figure at all (it used to answer all costs, ₹2,000).
+    const diesel = await ask('how much did I spend on diesel last month')
+    expect(diesel.figures).toEqual([])
+    expect(diesel.sentences.join(' ')).toContain('I can’t split costs by “diesel” yet')
+    expect(diesel.sentences.join(' ')).not.toContain('₹')
+    // A customer named: their page, not all sales (₹10,000).
+    const toRamesh = await ask('sales to Ramesh Traders last month')
+    expect(toRamesh.figures).toEqual([])
+    expect(toRamesh.sentences[0]).toContain('I can’t split sales by customer or supplier yet')
+    expect(toRamesh.links[0]!.target).toEqual({ screen: 'simple-person', params: { id: ids.ramesh } })
+    // Hindi words for the same refusal.
+    const hi = await ask('how much did I spend on diesel last month', { lang: 'hi' })
+    expect(hi.sentences.join(' ')).toContain('“diesel” के हिसाब से नहीं बाँट सकता')
+  })
+
   it('GST due: collected ₹1,800, on purchases ₹900, to pay ₹900 by 20 Oct (the Taxes figures)', async () => {
     const g = await ask('GST kitna bharna hai')
     expect(g.intent).toBe('gst')
