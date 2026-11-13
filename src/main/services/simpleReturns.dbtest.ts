@@ -25,7 +25,7 @@ import {
   buildAccountingPayload, buildInvoicePayload, derivePartyId, emptyInvoiceState, taxLedgerIdsFrom, taxSideOf,
   type AccountingFormState, type InvoiceFormState
 } from '@shared/voucherEdit'
-import { qtyText } from '@shared/voucherEdit/payload'
+import { qtyText, voucherToPayload } from '@shared/voucherEdit/payload'
 import { emptyReturnForm, returnFormErrors, returnIntentFrom, returnTotals, type ReturnContext, type ReturnForm } from '@shared/simple/returns'
 import { createLedger, createStockItem, listLedgers, listStockItems } from './masters'
 import { listTradeDocTypes } from './tradeDocTypes'
@@ -800,5 +800,29 @@ describe('owner Q4 (COR2-3): a return of an SEZ / export bill saved before the z
     expect(returnTotals(form, bill, ctxNow())).toMatchObject({ taxable: 100_000, tax: 18_000, total: 118_000 })
     const out = post(returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults))
     expect(heads(out.voucherIds[0]!)).toEqual({ cgst: 9000, sgst: 9000, igst: 0 })
+  })
+
+  it('review of #278 (round 2): a note saved BEFORE (read as "SEZ without payment") re-saved with only a new narration keeps its class and its month\'s GSTR-3B', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    const bill = returnBill(db, INFO, 'sale', billId, '2025-09-02')!
+    const form = { ...formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' as const }), date: '2025-09-02' }
+    const noteId = postIntent(db, INFO, { clientId: `ret-${++seq}-q4b`, ...returnIntentFrom(form, bill, ctxNow(), sellSetup(db).defaults) }, '2025-09-02').voucherIds[0]!
+    // As main saved such a note before this PR: the party's flag in its snapshot.
+    db.prepare("UPDATE vouchers SET snap_party_export_type = 'sez_wop' WHERE id = ?").run(noteId)
+    const sepBefore = JSON.stringify(gstr3b(db, INFO, '2025-09-01', '2025-09-30', '092025'))
+    expect(JSON.parse(sepBefore)).toMatchObject({ outward: { taxable: 0, cgst: 0, sgst: 0 }, zeroRated: { taxable: -100_000 } })
+    saveVoucher(db, { ...voucherToPayload(getVoucher(db, noteId)!), narration: 'Edited later' }, noteId)
+    expect((db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(noteId) as { e: string | null }).e).toBe('sez_wop')
+    expect(JSON.stringify(gstr3b(db, INFO, '2025-09-01', '2025-09-30', '092025'))).toBe(sepBefore)
+  })
+
+  it('review of #278 (round 2): a note that followed its bill keeps following when re-saved', () => {
+    const billId = oldBill('Ramesh', 'sez_wop', { items: [{ itemId: I('Widget'), qty: '1', rate: '1000' }] })
+    const bill = returnBill(db, INFO, 'sale', billId, TODAY)!
+    const noteId = post(returnIntentFrom(formFor({ qty: { [bill.lines[0]!.lineUid]: '1' }, settle: 'credit' }), bill, ctxNow(), sellSetup(db).defaults)).voucherIds[0]!
+    const snap = (): string | null => (db.prepare('SELECT snap_party_export_type AS e FROM vouchers WHERE id = ?').get(noteId) as { e: string | null }).e
+    expect(snap()).toBeNull()
+    saveVoucher(db, { ...voucherToPayload(getVoucher(db, noteId)!), narration: 'Edited later' }, noteId)
+    expect(snap()).toBeNull()
   })
 })

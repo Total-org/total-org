@@ -120,7 +120,7 @@ const snapshotStmts = new WeakMap<DB, { run(id: number): unknown }[]>()
 /** Copy today's master facts onto a voucher just written by saveVoucher (inside its transaction). */
 /** `recordSide` (WP 2d, review of #266): false keeps the voucher's stored debit-note side as it is —
  *  a note saved before WP 2d has none and keeps the old rule (no filed month moves on a re-save). */
-export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?: boolean } = {}): void {
+export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?: boolean; followBill?: boolean } = {}): void {
   if (!hasTaxSnapshots(db)) return
   let stmts = snapshotStmts.get(db)
   if (!stmts) {
@@ -128,7 +128,7 @@ export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?:
     snapshotStmts.set(db, stmts)
   }
   for (const s of stmts) s.run(voucherId)
-  followBillClass(db, voucherId)
+  if (opts.followBill !== false) followBillClass(db, voucherId)
   if (hasPartySideSnapshot(db) && opts.recordSide !== false) db.prepare('UPDATE vouchers SET snap_party_side = ? WHERE id = ?').run(debitNoteSide(db, voucherId), voucherId)
 }
 
@@ -137,8 +137,8 @@ export function snapshotTaxFacts(db: DB, voucherId: number, opts: { recordSide?:
  * not charge (shared/gst/zeroRated.ts noteFollowsBill — it follows a sale saved before the rule) is
  * snapshotted with the class its sales bills are READ with (each bill's own snapshot, else the live
  * master — as the GST readers take it), so GSTR-1 / 3B and the e-invoice report the note like its
- * bill and the two net to nil there too. Only when every such bill agrees; runs on a save, so a
- * note saved before keeps the snapshot it has.
+ * bill and the two net to nil there too. Only when every such bill agrees; saveVoucher runs it on a
+ * NEW note or one that already followed (review of #278) — an older note re-saved keeps its class.
  */
 function followBillClass(db: DB, noteId: number): void {
   const n = db
