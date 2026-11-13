@@ -20,6 +20,11 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Home's GST tile says the month and the date for monthly filers** (#272, second audit UX2-1). A business that files
+GST every month saw "So far this quarter: ₹90.00" with no date while the month was still running. It now says
+"Nov 2026 so far: ₹90.00 — due 20 Dec" (in Hindi and Hinglish too). Quarterly filers see what they saw before. The
+figures are unchanged.
+
 **The e-invoice file leaves out bills that are not tax invoices** (#271, second audit #6). The e-invoice export used
 to take every bill to a customer with a GSTIN — also a bill of only nil-rated goods, a composition dealer's bill
 and an unregistered business's sale (whose file then had no seller GSTIN and failed the official schema). These

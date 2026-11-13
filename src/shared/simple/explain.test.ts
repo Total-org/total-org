@@ -108,6 +108,25 @@ describe('explain sentences (WP 8.6)', () => {
     expect(gstPeriodLabel(gst({ quarterly: true, soFar: true, from: '2026-10-01', to: '2026-11-13', period: '2026-11' }), t)).toBe('Oct – Nov 2026 so far')
   })
 
+  it('GST line: a MONTHLY filer\'s running month says the month and its due date, never "quarter" (audit 2 UX2-1)', () => {
+    // Monthly filer, October running (e.g. after "I've filed" September): ₹90 so far, GSTR-3B for October due 20 Nov.
+    const month = gst({ soFar: true, from: '2026-10-01', to: TODAY, period: '2026-10', gstr3bDue: '2026-11-20', payable: 9000 })
+    expect(gstLine(month, TODAY, t)).toBe('Oct 2026 so far: ₹90.00 — due 20 Nov')
+    expect(gstLine(month, TODAY, hi)).toBe('अक्तूबर 2026 में अब तक: ₹90.00 — 20 नवंबर तक भरना है')
+    expect(gstLine(month, TODAY, translator('hinglish'))).toBe('Oct 2026 mein ab tak: ₹90.00 — 20 Nov tak bharna hai')
+    expect(gstLine({ ...month, row: { ...month.row, gstr3bDue: null } }, TODAY, t)).toBe('Oct 2026 so far: ₹90.00')
+    expect(gstLine({ ...month, row: { ...month.row, payable: -500 } }, TODAY, t)).toBe('Oct 2026 so far: nothing to pay yet — return due 20 Nov')
+    expect(gstLine({ ...month, row: { ...month.row, payable: 0 } }, TODAY, hi)).toBe('अक्तूबर 2026 में अब तक: अभी कुछ नहीं भरना — रिटर्न 20 नवंबर तक')
+    // Its "Why?" says the same date, and "so far" once.
+    expect(gstWhy(month, TODAY, t)).toContain('For Oct 2026 so far: ')
+    expect(gstWhy(month, TODAY, t)).toContain('₹90.00 to pay in cash by 20 Nov.')
+    expect(gstWhy(month, TODAY, t).match(/so far/g)).toHaveLength(1)
+    for (const tr of [t, hi, translator('hinglish')]) expect(gstLine(month, TODAY, tr)).not.toMatch(/quarter|तिमाही/i)
+    expect(gstPeriodLabel(month, t)).toBe('Oct 2026 so far')
+    // A month that is over is unchanged.
+    expect(gstPeriodLabel(gst(), t)).toBe('Sep 2026')
+  })
+
   it('GST "Why?": sales without reverse charge, purchases vs GSTR-2B, cash by the date, then reverse charge and who files', () => {
     expect(gstWhy(gst(), TODAY, t)).toBe(
       'For Sep 2026: GST collected on your sales ₹1,800.00; GST you paid on purchases ₹600.00 (booked, not yet checked against GSTR-2B — the GST portal’s list of your suppliers’ bills); ₹1,200.00 to pay in cash by 20 Oct. Total prepares these figures; you file the return and pay on gst.gov.in.'
