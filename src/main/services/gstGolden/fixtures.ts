@@ -260,8 +260,7 @@ export const FIXTURES: GoldenFixture[] = [
     // Milk 20 L × 55 = 1,100 at 0%. Total 1,100. GSTR-1 Table 8 INTRAB2B 1,100; 3B 3.1(c) 1,100.
     // A bill of supply of nil-rated goods needs no e-invoice (no taxable supply).
     doc: { kind: 'sales', date: '2025-07-16', number: 'G310', party: 'regMH', rows: [{ item: 'milk', qty: '20', rate: 55 }] },
-    expect: { lines: [{ taxable: 1100, rate: 0 }], roundOff: 0, total: 1100, gstr1: 'none', einvoice: false },
-    knownBug: { in: ['einvoice'], reason: 'The e-invoice export takes a bill of supply of nil-rated goods (only a buyer GSTIN is checked); e-invoicing covers tax invoices / notes (Notification 13/2020-CT, rule 48(4))', appGives: { einvoiceIncluded: true } }
+    expect: { lines: [{ taxable: 1100, rate: 0 }], roundOff: 0, total: 1100, gstr1: 'none', einvoice: false }
   },
   {
     id: 'NIL-02', title: 'Nil-rated goods to an unregistered buyer in another state',
@@ -494,16 +493,14 @@ export const FIXTURES: GoldenFixture[] = [
     company: 'composition',
     // 3 × 1,000 = 3,000; total 3,000.
     doc: { kind: 'sales', date: '2025-09-02', number: 'C702', party: 'regMH', rows: [{ item: 'widget', qty: '3', rate: 1000 }] },
-    expect: { lines: [{ taxable: 3000, rate: 0 }], roundOff: 0, total: 3000, gstr1: 'not-filed', einvoice: false },
-    knownBug: { in: ['einvoice'], reason: 'The e-invoice export takes a composition dealer’s bill of supply (only a buyer GSTIN is checked); a composition dealer issues no tax invoice and does not e-invoice', appGives: { einvoiceIncluded: true } }
+    expect: { lines: [{ taxable: 3000, rate: 0 }], roundOff: 0, total: 3000, gstr1: 'not-filed', einvoice: false }
   },
   {
     id: 'UNR-01', title: 'Unregistered business: no GST',
     company: 'unregistered',
     // 3 × 1,000 = 3,000 to a registered buyer in another state; total 3,000.
     doc: { kind: 'sales', date: '2025-09-03', number: 'U703', party: 'regKA', rows: [{ item: 'widget', qty: '3', rate: 1000 }] },
-    expect: { lines: [{ taxable: 3000, rate: 0 }], roundOff: 0, total: 3000, gstr1: 'not-filed', einvoice: false },
-    knownBug: { in: ['einvoice'], reason: 'An unregistered business’s sale goes into the e-invoice export (only the buyer GSTIN is checked) with no seller GSTIN', appGives: { einvoiceIncluded: true, schema: { einvoice: ['SellerDtls.Gstin: String must contain exactly 15 character(s)', 'SellerDtls.Gstin: invalid GSTIN', '/SellerDtls/Gstin must NOT have fewer than 15 characters {"limit":15}', '/SellerDtls/Gstin must match pattern "([0-9]{2}[0-9A-Z]{13})" {"pattern":"([0-9]{2}[0-9A-Z]{13})"}'] } } }
+    expect: { lines: [{ taxable: 3000, rate: 0 }], roundOff: 0, total: 3000, gstr1: 'not-filed', einvoice: false }
   },
 
   // ───────────────────────── advances (services) ─────────────────────────

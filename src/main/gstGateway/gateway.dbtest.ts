@@ -145,6 +145,14 @@ describe('settings: test mode only; the password lives in the secret store', () 
 })
 
 describe('e-invoice / e-way bill in test mode', () => {
+  it('a bill of supply gets no IRN (audit 2 #6, the export\'s rule): nothing is sent or stored', async () => {
+    const b = books()
+    const id = sale(b)
+    const composition: CompanyInfo = { ...COMPANY, gstRegistrationType: 'composition' }
+    await expect(generateIrnFlow(b.db, composition, id, gw(b.db))).rejects.toThrow(/not e-invoiced: Composition/)
+    expect(edocRecord(b.db, TEST_STORE, id).irn).toBeNull()
+  })
+
   it('the simulated IRN = SHA-256(GSTIN + FY + INV + number) lands in the test table only — the voucher, its print and its edit lock never see it', async () => {
     const b = books()
     const id = sale(b)
