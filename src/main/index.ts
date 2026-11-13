@@ -1,3 +1,5 @@
+// Audit 2 SEC2-3: first, so a packaged build refuses a remote-debugging switch before anything loads.
+import './debugGuard'
 import { bootMark } from './bootTrace'
 import { e2eToday } from './e2eClock'
 import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron'

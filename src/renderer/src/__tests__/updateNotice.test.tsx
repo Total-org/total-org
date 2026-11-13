@@ -107,6 +107,32 @@ describe('update notice', () => {
     expect(screen.getByTestId('update-notice')).toBeTruthy()
   })
 
+  it('audit 2 SEC2-2: a checked installer offers Open it / Show in folder; a failed one says why and offers Try again', async () => {
+    localStorage.setItem(LANGUAGE_KEY, 'en')
+    render(wrap(<UpdateNotice />))
+    await waitFor(() => expect(push).not.toBeNull())
+    const site: Notice = { phase: 'checked', version: '0.13.0', via: 'site' }
+    act(() => push!(site))
+    expect(screen.getByTestId('update-checked').textContent).toBe('Total 0.13.0 is downloaded and checked.')
+    fireEvent.click(screen.getByTestId('btn-update-open-installer'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('app:updates:act', { action: 'openInstaller' }))
+    fireEvent.click(screen.getByTestId('btn-update-show-installer'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('app:updates:act', { action: 'showInstaller' }))
+
+    act(() => push!({ ...site, phase: 'failed', reason: 'unverified' }))
+    expect(screen.getByTestId('update-failed').textContent).toMatch(/did not match the signed release, so Total deleted it and did not open it/)
+    expect(screen.queryByTestId('btn-update-open-installer')).toBeNull()
+    fireEvent.click(screen.getByTestId('btn-update-try-again'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('app:updates:act', { action: 'download' }))
+
+    act(() => push!({ ...site, phase: 'failed', reason: 'download' }))
+    expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't download Total 0.13.0. Check your internet connection and try again.")
+    act(() => push!({ ...site, phase: 'failed', reason: 'save' }))
+    expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't save Total 0.13.0 on this computer. Check that there is free space, then try again.")
+    act(() => push!({ ...site, phase: 'failed', reason: 'noInstaller' }))
+    expect(screen.getByTestId('update-failed').textContent).toMatch(/could not be checked as a genuine release/)
+  })
+
   it('a download in progress can be hidden', async () => {
     view.notice = { ...available, phase: 'downloading' }
     render(wrap(<UpdateNotice />))

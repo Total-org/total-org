@@ -114,6 +114,8 @@ jobs:
           app="$(ls -d dist/mac*/Total.app | head -1)"
           node scripts/fuses.mjs check "$app/Contents/MacOS/Total"
           codesign --verify --deep --strict "$app"
+          # Audit 2 SEC2-3: the shipped build refuses --remote-debugging-port / -pipe.
+          node scripts/debug-switch-check.mjs "$app/Contents/MacOS/Total"
 
   release-win:
     # Runs after the mac job so both publish into the SAME release —
@@ -174,6 +176,7 @@ jobs:
         shell: bash
         run: |
           node scripts/fuses.mjs check dist/win-unpacked/Total.exe
+          node scripts/debug-switch-check.mjs dist/win-unpacked/Total.exe
           node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
 
       - name: Hermetic IPC smoke test against the packaged Total.exe

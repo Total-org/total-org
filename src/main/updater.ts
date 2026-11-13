@@ -19,12 +19,16 @@
  *
  * Audit A4: every version is checked against its release's signed manifest (total-manifest.json,
  * Ed25519, key pinned in releaseKeys.json — releaseManifest.ts) before it is offered; an engine
- * download is installed only when its SHA-512 is in that manifest; a hand download opens the
- * manifest's installer on GitHub; every URL handed to the OS passes `allowedUpdateUrl` (SEC-10).
+ * download is installed only when its SHA-512 is in that manifest — and is an asset this platform
+ * installs (SEC2-5). Audit 2 SEC2-2: a hand download is no longer a browser download — main fetches
+ * the manifest's installer from GitHub into a folder Total owns (userData/updates), keeps it only when its size + SHA-512 match
+ * (installerDownload.ts), and only then offers "Open it" / "Show in folder".
  *
  * The app stays fully offline otherwise: this runs only in packaged builds and never blocks.
  */
 import { app, BrowserWindow, shell } from 'electron'
+import { mkdirSync, rmSync } from 'fs'
+import { join } from 'path'
 import { createRequire } from 'module'
 import { log } from './log'
 import { GITHUB_REPO, SITE_URL } from '@shared/product'
@@ -33,8 +37,8 @@ import { dataRoot } from './paths'
 import { readUpdateSettings, writeUpdateSettings } from './services/appSettings'
 import { createUpdater, makeFetchLatest, type Updater } from './updaterCore'
 import { updateCheckDisabled } from '@shared/updateText'
-import { allowedUpdateUrl } from '@shared/externalLinks'
-import { installerFor, MANIFEST_ASSET, releaseAssetUrl, sha512File, verifyManifest, type ReleaseManifest } from './releaseManifest'
+import { engineAssetNames, installerFor, MANIFEST_ASSET, releaseAssetUrl, sha512File, verifyManifest, type ReleaseManifest } from './releaseManifest'
+import { downloadVerifiedInstaller } from './installerDownload'
 
 // Phase 5 speed: electron-updater (~45 ms to load) is required when the updater is first built —
 // the launch check runs after the window is up — not when the app starts.
@@ -67,10 +71,22 @@ async function verifyRelease(version: string): Promise<ReleaseManifest | null> {
   return check.manifest
 }
 
-function openUpdatePage(url: string): void {
-  const safe = allowedUpdateUrl(url)
-  if (!safe) log('warn', 'update-url-refused', { url: url.slice(0, 200) })
-  void shell.openExternal(safe ?? RELEASES_URL)
+/** Where the checked installer is kept: a folder Total owns (review of #270 — the user's Downloads asks
+ *  for macOS permission, and a partial file would be left there). Emptied at launch and before every
+ *  download, so nothing piles up. */
+const updatesDir = (): string => join(app.getPath('userData'), 'updates')
+
+function emptyUpdatesDir(): string {
+  const dir = updatesDir()
+  rmSync(dir, { recursive: true, force: true })
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function openChecked(path: string): void {
+  void shell.openPath(path).then((error) => {
+    if (error) log('warn', 'updater', { error: `open installer: ${error}` })
+  })
 }
 
 /** A corrupt app-settings.json reads as the defaults; say so in the log once per run (it is read often). */
@@ -95,17 +111,24 @@ function build(): Updater {
   updater ??= createUpdater({
     engine: autoUpdaterEngine() as never,
     currentVersion: app.getVersion(),
-    releasesUrl: RELEASES_URL,
     readSettings,
     writeSettings: (patch) => writeUpdateSettings(dataRoot(), patch, actor, app.getVersion(), onCorrupt),
     fetchLatest,
     verifyRelease,
-    installerUrl: (m) => {
-      const asset = installerFor(m, process.platform)
-      return asset ? releaseAssetUrl(GITHUB_REPO, m.version, asset.name) : null
-    },
+    installerFor: (m) => installerFor(m, process.platform, process.arch),
+    engineAssetNames: (v) => engineAssetNames(v, process.platform, process.arch),
+    downloadInstaller: (m, asset) =>
+      downloadVerifiedInstaller({
+        // GitHub only (never the site): the release asset, redirects to GitHub's file host followed.
+        fetchImpl: (url, signal) => fetch(url, { signal }),
+        url: releaseAssetUrl(GITHUB_REPO, m.version, asset.name),
+        asset,
+        dir: emptyUpdatesDir()
+      }),
     hashFile: sha512File,
-    openExternal: openUpdatePage,
+    openFile: openChecked,
+    showFile: (path) => shell.showItemInFolder(path),
+    removeFile: (path) => rmSync(path, { force: true }),
     publish,
     log: (level, message, extra) => log(level, message, extra)
   })
@@ -143,5 +166,10 @@ export function initUpdater(): void {
   if (!app.isPackaged) return
   // WP 7.3: scripted runs against a packaged build (the Windows CI smoke) never check.
   if (updateCheckDisabled(process.env)) return
+  try {
+    rmSync(updatesDir(), { recursive: true, force: true })
+  } catch (err) {
+    log('warn', 'updater', { error: `clear updates folder: ${String(err)}` })
+  }
   build().init()
 }

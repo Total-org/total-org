@@ -274,6 +274,7 @@ jobs:
         shell: bash
         run: |
           node scripts/fuses.mjs check dist/win-unpacked/Total.exe
+          node scripts/debug-switch-check.mjs dist/win-unpacked/Total.exe
           node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
 
       - name: Hermetic IPC smoke test (packaged Total.exe)

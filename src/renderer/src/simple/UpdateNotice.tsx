@@ -11,6 +11,8 @@ const DOWNLOAD: UpdateAction = 'download' // i18n-technical
 const SKIP: UpdateAction = 'skip' // i18n-technical
 const INSTALL: UpdateAction = 'install' // i18n-technical
 const ON_QUIT: UpdateAction = 'installOnQuit' // i18n-technical
+const OPEN_INSTALLER: UpdateAction = 'openInstaller' // i18n-technical
+const SHOW_INSTALLER: UpdateAction = 'showInstaller' // i18n-technical
 
 /** Notices hidden with "Later" this session (`phase:version`). Module-level, not component state: the
  *  notice is mounted once per App layout (company select / shell / simple shell), so opening a company
@@ -43,7 +45,9 @@ export function useUpdateNotice(): Notice | null {
 /**
  * The update notice, shown over every screen in both modes (plain words through t()). Total never
  * downloads on its own: "Download now" starts it, "Skip this version" is remembered, "Later" only hides
- * the notice for this session. A finished download offers "Restart to update" / "Install when I quit".
+ * the notice for this session. A finished download offers "Restart to update" / "Install when I quit";
+ * an installer Total downloaded and checked itself (audit 2 SEC2-2) offers "Open it" / "Show in folder",
+ * and one that could not be downloaded or did not match says so ("Try again").
  */
 export function UpdateNotice(): React.JSX.Element | null {
   const t = useT()
@@ -121,6 +125,57 @@ export function UpdateNotice(): React.JSX.Element | null {
         <p className="mt-2 text-hint text-muted" data-testid="update-ask-owner">
           {gate.reason === 'other_company_has_users' ? t('simple.updates.otherCompany') : t('simple.updates.askOwner')}
         </p>
+      )}
+      {notice.phase === 'checked' && (
+        <>
+          <p className="text-detail font-medium text-ink" data-testid="update-checked">
+            {t('simple.updates.checked', { version: notice.version })}
+          </p>
+          <p className="mt-1 text-hint text-muted">{t('simple.updates.checkedHint')}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canAct && (
+              <>
+                <Button variant="primary" disabled={busy} onClick={() => void act(OPEN_INSTALLER)} data-testid="btn-update-open-installer">
+                  {t('simple.updates.openInstaller')}
+                </Button>
+                <Button disabled={busy} onClick={() => void act(SHOW_INSTALLER)} data-testid="btn-update-show-installer">
+                  {t('simple.updates.showInstaller')}
+                </Button>
+              </>
+            )}
+            <Button disabled={busy} onClick={later} data-testid="btn-update-later">
+              {t('simple.updates.later')}
+            </Button>
+          </div>
+        </>
+      )}
+      {notice.phase === 'failed' && (
+        <>
+          <p className="text-detail text-ink" role="alert" data-testid="update-failed">
+            {notice.reason === 'unverified'
+              ? t('simple.updates.mismatch', { version: notice.version })
+              : notice.reason === 'noInstaller'
+                ? t('simple.updates.unverified', { version: notice.version })
+                : notice.reason === 'save'
+                  ? t('simple.updates.saveFailed', { version: notice.version })
+                  : t('simple.updates.downloadFailed', { version: notice.version })}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canAct && (
+              <Button variant="primary" disabled={busy} onClick={() => void act(DOWNLOAD)} data-testid="btn-update-try-again">
+                {t('simple.updates.tryAgain')}
+              </Button>
+            )}
+            <Button disabled={busy} onClick={later} data-testid="btn-update-later">
+              {t('simple.updates.later')}
+            </Button>
+            {canAct && (
+              <Button disabled={busy} onClick={() => void act(SKIP)} data-testid="btn-update-skip">
+                {t('simple.updates.skip')}
+              </Button>
+            )}
+          </div>
+        </>
       )}
       {notice.phase === 'ready' && (
         <>
