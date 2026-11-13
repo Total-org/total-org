@@ -148,4 +148,58 @@ describe('blocked input tax per bill (WP 2d, s.17(5))', () => {
     expect(bills.find((b) => b.voucherId === plain)).toMatchObject({ pendingAtFyEnd: 105000, gstExcluded: 5000 })
     expect(bills.find((b) => b.voucherId === marked)).toMatchObject({ pendingAtFyEnd: 105000, gstExcluded: 0 })
   })
+
+  it('owner, 13 Nov (COR2-1, Q2): re-marking a purchase names the debit notes saved against it that now disagree — and changes none of them', () => {
+    const s = setup()
+    const bill = s.bill()
+    const note = s.ret('AC-1')
+    expect(getVoucher(s.db, note.id)).not.toHaveProperty('itcBlocked')
+    const noteNo = getVoucher(s.db, note.id)!.number
+    // Re-saved unchanged: no warning.
+    const same = saveVoucher(s.db, voucherToPayload(getVoucher(s.db, bill.id)!), bill.id)
+    expect(same.warnings.taxFactsChanged ?? []).toEqual([])
+    // Marked now: the note (unmarked) is named; it keeps its own mark, so its figures read as before.
+    const marked = saveVoucher(s.db, { ...voucherToPayload(getVoucher(s.db, bill.id)!), itcBlocked: true }, bill.id)
+    const w = (marked.warnings.taxFactsChanged ?? []).filter((m) => m.includes('GST credit blocked'))
+    expect(w).toHaveLength(1)
+    expect(w[0]).toContain(noteNo)
+    expect(w[0]).toContain('still not marked')
+    expect(getVoucher(s.db, note.id)).not.toHaveProperty('itcBlocked')
+    // The hand-worked consequence the warning describes: blocked +₹25 + ₹25 on the bill, ordinary −₹25 − ₹25 on the note.
+    expect(itcBreakdown(s.db, TEST_INFO, FROM, TO)).toMatchObject({ oth: { cgst: -2500, sgst: -2500 }, blocked: { cgst: 2500, sgst: 2500 } })
+    // The user marks the note too: now the bill's next change names it again, the other way round.
+    saveVoucher(s.db, { ...voucherToPayload(getVoucher(s.db, note.id)!), itcBlocked: true }, note.id)
+    const again = saveVoucher(s.db, voucherToPayload(getVoucher(s.db, bill.id)!), bill.id)
+    expect((again.warnings.taxFactsChanged ?? []).filter((m) => m.includes('GST credit blocked'))).toEqual([])
+    const unmarked = saveVoucher(s.db, { ...voucherToPayload(getVoucher(s.db, bill.id)!), itcBlocked: false }, bill.id)
+    const w2 = (unmarked.warnings.taxFactsChanged ?? []).filter((m) => m.includes('GST credit blocked'))
+    expect(w2).toHaveLength(1)
+    expect(w2[0]).toContain('is no longer marked')
+    expect(w2[0]).toContain(noteNo)
+    expect(getVoucher(s.db, note.id)).toMatchObject({ itcBlocked: true })
+  })
+
+  it('COR2-1: a note found only by the bill’s reference is named; a binned note and another supplier’s bill of the same number are not', () => {
+    const s = setup()
+    const other = s.L({ name: 'Other caterer', groupId: s.groupId('Sundry Creditors'), stateCode: '27' })
+    const bill = s.bill(undefined, '2026-07-10', 'AC-9')
+    s.bill(undefined, '2026-07-10', 'AC-9', other)
+    // A debit note with the bill's reference but no bill refs (amount-only return, as Returns books it).
+    const byRef = saveVoucher(s.db, {
+      voucherTypeId: s.vtId('debit_note'), date: '2026-07-21', partyLedgerId: s.caterer, reference: 'AC-9',
+      lines: ([
+        { ledgerId: s.caterer, drCr: 'dr', amount: 1050 },
+        { ledgerId: s.food, drCr: 'cr', amount: 1000 },
+        { ledgerId: s.L({ name: 'Round off', groupId: s.groupId('Indirect Expenses') }), drCr: 'cr', amount: 50 }
+      ] as { ledgerId: number; drCr: DrCr; amount: number }[]).map((l) => ({ ...l, costAllocations: [] })),
+      inventory: [], billRefs: [], tds: null
+    })
+    s.ret('AC-9', undefined, other)
+    const binned = s.ret('AC-9')
+    s.db.prepare("UPDATE vouchers SET deleted_at = '2026-07-22' WHERE id = ?").run(binned.id)
+    const res = saveVoucher(s.db, { ...voucherToPayload(getVoucher(s.db, bill.id)!), itcBlocked: true }, bill.id)
+    const w = (res.warnings.taxFactsChanged ?? []).filter((m) => m.includes('GST credit blocked'))
+    expect(w).toHaveLength(1)
+    expect(w[0]?.match(/the debit note (\S+) saved against it/)?.[1]).toBe(getVoucher(s.db, byRef.id)!.number)
+  })
 })
