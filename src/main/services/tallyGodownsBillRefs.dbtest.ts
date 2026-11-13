@@ -11,7 +11,7 @@ import { importTallyXml } from './tallyImport'
 import { getVoucher } from './vouchers'
 import { partyAllocation } from './analysis'
 import { closingBalances } from './reports'
-import { extractAdvances } from './gst'
+import { extractAdvanceAdjustments, extractAdvances, gstr1 } from './gst'
 import { partyChangeRefusal } from './bulkEdit'
 import { TEST_INFO } from '../db/testdb'
 import * as stock from './stockAnalysis'
@@ -251,5 +251,90 @@ describe('Tally import: an Agst Ref naming no open bill', () => {
     const bills = (db.prepare("SELECT br.name FROM bill_refs br JOIN vouchers v ON v.id = br.voucher_id WHERE br.kind = 'new' AND v.date = '2026-04-10'").all() as { name: string }[]).map((r) => r.name)
     expect(bills).toEqual(['S-7/26-27'])
     void id
+  })
+})
+
+// Owner, 13 Nov (audit 2 COR2-4, Q5): a debit note "Agst Ref" an invoice stays part of that invoice,
+// as Tally shows it (the engine adds it to the bill — shared/outstanding.ts raiseNamed, audit A1).
+const tallyDebitNote = (no: string, date: string, party: string, rupees: number, bills: { name: string; type: 'Agst Ref' | 'New Ref'; rupees: number }[]): string =>
+  tallyCreditSale(no, date, party, rupees, bills).replace('VCHTYPE="Sales"', 'VCHTYPE="Debit Note"').replace('<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>', '<VOUCHERTYPENAME>Debit Note</VOUCHERTYPENAME>')
+
+describe('Tally import (owner Q5): a debit note Agst Ref an invoice stays part of that invoice', () => {
+  it('S/1 ₹11,800 + debit note DN/1 ₹1,180 against it = S/1 ₹12,980 — one bill, as Tally shows it; the party total ties', () => {
+    const { db, id, L, summary } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/1', '20260401', 'Cust', 11_800, [{ name: 'S/1', type: 'New Ref', rupees: 11_800 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 1_180, [{ name: 'S/1', type: 'Agst Ref', rupees: 1_180 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'S/1', amount: 118_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.amount, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['S/1', 1_298_000, 1_298_000]], 0, []])
+    expect(a.bills[0]!.pending).toBe(closingBalances(db, '2026-04-30').get(L('Cust'))!)
+    expect(summary.warnings.filter((w) => w.includes('DN/1'))).toEqual([])
+  })
+
+  it('a debit note against a bill paid in full reopens that bill (₹1,180 due on S/1), never a bill named after the note', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/1', '20260401', 'Cust', 11_800, [{ name: 'S/1', type: 'New Ref', rupees: 11_800 }]),
+      tallyReceipt('R-1', '20260405', 'Cust', 11_800, [{ name: 'S/1', type: 'Agst Ref', rupees: 11_800 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 1_180, [{ name: 'S/1', type: 'Agst Ref', rupees: 1_180 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'S/1', amount: 118_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['S/1', 118_000]], 0, []])
+  })
+
+  it('a name the party has never had a bill of still opens a bill under the note\'s own number (as before)', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyDebitNote('DN/2', '20260410', 'Cust', 500, [{ name: 'NOPE-1', type: 'Agst Ref', rupees: 500 }])])
+    expect(getVoucher(db, id('DN/2')!)!.billRefs).toEqual([{ kind: 'new', name: 'DN/2', amount: 50_000, dueDate: null }])
+    expect(partyAllocation(db, L('Cust'), '2026-04-30').bills.map((b) => [b.number, b.pending])).toEqual([['DN/2', 50_000]])
+  })
+
+  it('review of #281: a SALE Agst Ref an invoice named like a used-up advance keeps the old path — GSTR-1 11B counts only the ₹500 advance', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyReceipt('R/1', '20260401', 'Cust', 500, [{ name: 'INV-10', type: 'Advance', rupees: 500 }]),
+      tallyCreditSale('INV-10', '20260405', 'Cust', 1_000, [{ name: 'INV-10', type: 'Agst Ref', rupees: 500 }, { name: 'INV-10', type: 'New Ref', rupees: 500 }]),
+      tallyCreditSale('INV-11', '20260410', 'Cust', 200, [{ name: 'INV-10', type: 'Agst Ref', rupees: 200 }])])
+    expect(getVoucher(db, id('INV-11')!)!.billRefs).toEqual([{ kind: 'new', name: 'INV-11', amount: 20_000, dueDate: null }])
+    db.prepare("UPDATE ledgers SET gst_rate = 18, state_code = ? WHERE name = 'Cust'").run(TEST_INFO.stateCode)
+    // 11B: the ₹500 advance (gross, 18 % inclusive: 500 × 100 / 118 = ₹423.73), nothing more.
+    const adj = extractAdvanceAdjustments(db, TEST_INFO, '2026-04-01', '2026-04-30')
+    expect(adj.reduce((t, r) => t + r.taxable, 0)).toBe(42_373)
+    void L
+  })
+
+  it('review of #281: the supplier mirror — a journal crediting the supplier Agst Ref P/1 (paid) adds to P/1, which opens again for ₹500', () => {
+    // Tally's sign: a negative AMOUNT is a debit. P/1: Cr supplier ₹5,000 / Dr Purchase; payment: Dr supplier / Cr bank;
+    // journal: Cr supplier ₹500 (freight added to P/1) / Dr Purchase.
+    const crSupplier = (vt: string, no: string, date: string, rupees: number, bill: { name: string; type: 'New Ref' | 'Agst Ref' }) =>
+      tallyReceipt(no, date, 'Kumar Steel', rupees, [{ ...bill, rupees }]).replace('VCHTYPE="Receipt"', `VCHTYPE="${vt}"`).replace('<VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>', `<VOUCHERTYPENAME>${vt}</VOUCHERTYPENAME>`).replace('<LEDGERNAME>HDFC Bank</LEDGERNAME>', '<LEDGERNAME>Purchase Account</LEDGERNAME>')
+    const pay = tallyCreditSale('PY/1', '20260405', 'Kumar Steel', 5_000, [{ name: 'P/1', type: 'Agst Ref', rupees: 5_000 }])
+      .replace('VCHTYPE="Sales"', 'VCHTYPE="Payment"').replace('<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>', '<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>').replace('<LEDGERNAME>Sales Account</LEDGERNAME>', '<LEDGERNAME>HDFC Bank</LEDGERNAME>')
+    const { db, id, L } = run([tallyLedger('Kumar Steel', 'Sundry Creditors'),
+      crSupplier('Purchase', 'P/1', '20260401', 5_000, { name: 'P/1', type: 'New Ref' }), pay,
+      crSupplier('Journal', 'J/1', '20260410', 500, { name: 'P/1', type: 'Agst Ref' })])
+    expect(getVoucher(db, id('J/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'P/1', amount: 50_000, dueDate: null }])
+    const a = partyAllocation(db, L('Kumar Steel'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.date, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['P/1', '2026-04-01', 50_000]], 0, []])
+  })
+
+  it('review of #281: an imported debit note against a B2CL invoice now goes to GSTR-1 9B CDNUR (typ B2CL), like a note keyed into Total', () => {
+    const { db } = run([tallyLedger('Far Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/9', '20260401', 'Far Cust', 300_000, [{ name: 'S/9', type: 'New Ref', rupees: 300_000 }]),
+      tallyDebitNote('DN/9', '20260410', 'Far Cust', 1_180, [{ name: 'S/9', type: 'Agst Ref', rupees: 1_180 }])])
+    db.prepare("UPDATE ledgers SET state_code = '29' WHERE name = 'Far Cust'").run()
+    db.prepare("UPDATE ledgers SET gst_rate = 18 WHERE name = 'Sales Account'").run()
+    const cdnur = (gstr1(db, TEST_INFO, '2026-04-01', '2026-04-30', '042026').json.cdnur ?? []) as { typ: string; val: number }[]
+    expect(cdnur.map((n) => [n.typ, n.val])).toEqual([['B2CL', 1180]])
+  })
+
+  it('review of #281 (round 2): a debit note Agst Ref an invoice named after its advance adds to that invoice — INV-10 ₹600 due, as Tally shows it', () => {
+    // R/1 advance INV-10 ₹500; INV-10 ₹1,000 = Agst INV-10 ₹500 + New Ref INV-10 ₹500; DN/1 ₹100 Agst INV-10 → INV-10 ₹500 + ₹100.
+    const { db, id, L, summary } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyReceipt('R/1', '20260401', 'Cust', 500, [{ name: 'INV-10', type: 'Advance', rupees: 500 }]),
+      tallyCreditSale('INV-10', '20260405', 'Cust', 1_000, [{ name: 'INV-10', type: 'Agst Ref', rupees: 500 }, { name: 'INV-10', type: 'New Ref', rupees: 500 }]),
+      tallyDebitNote('DN/1', '20260410', 'Cust', 100, [{ name: 'INV-10', type: 'Agst Ref', rupees: 100 }])])
+    expect(getVoucher(db, id('DN/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'INV-10', amount: 10_000, dueDate: null }])
+    const a = partyAllocation(db, L('Cust'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['INV-10', 60_000]], 0, []])
+    expect(summary.warnings.filter((w) => w.includes('DN/1'))).toEqual([])
   })
 })
