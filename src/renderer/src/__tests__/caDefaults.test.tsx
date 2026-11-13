@@ -186,6 +186,22 @@ describe('UX-4 — GST returns open on the month being filed', () => {
     await waitFor(() => expect(screen.queryByTestId('gst-due-quarter')).toBeNull(), SLOW)
   })
 
+  it('owner Q2 (COR2-1): a debit note whose s.17(5) mark differs from its purchase is listed on GSTR-3B, with a link to it', async () => {
+    const base = invoke.getMockImplementation()!
+    invoke.mockImplementation(async (channel: string, payload?: unknown) =>
+      channel === 'gst:validate'
+        ? { ok: true, data: { issues: [
+            { code: 'itc_blocked_note_mismatch', severity: 'warning', message: '1 debit note with a "GST credit blocked" (s.17(5)) mark different from the purchase it returns.', voucherIds: [41] },
+            { code: 'missing_hsn', severity: 'warning', message: 'HSN missing', voucherIds: [7] }
+          ], roundOff: [] } }
+        : base(channel, payload)
+    )
+    renderScreen(<Gstr3bScreen />)
+    const box = await screen.findByTestId('gstr3b-note-marks', {}, SLOW)
+    expect(box.textContent).toMatch(/GST credit blocked/)
+    expect(box.textContent).not.toMatch(/HSN missing/)
+  })
+
   it('a stored "This month" choice is kept', async () => {
     localStorage.setItem(screenOptionsKey('alpha-co', 'gstr3b'), JSON.stringify({ openOn: 'current' }))
     renderScreen(<Gstr3bScreen />)

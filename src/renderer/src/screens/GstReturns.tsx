@@ -582,6 +582,15 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     queryFn: () => api.gst.gstr3b(month!.from, month!.to, month!.period),
     enabled: !!month
   })
+  // Owner Q2 (audit 2 COR2-1): a debit note whose s.17(5) mark differs from its purchases' puts
+  // Table 4 out by its GST — the GSTR-1 checks' warning, shown here where Table 4 is filed.
+  const nav = useNav()
+  const { data: validation } = useQuery({
+    queryKey: ['gstValidate', month?.key],
+    queryFn: () => api.gst.validate(month!.from, month!.to),
+    enabled: !!month
+  })
+  const noteMarks = (validation?.issues ?? []).filter((i) => i.code === 'itc_blocked_note_mismatch')
 
   const exportRefused = useCapabilityRefused('canExport') // #148: hide / disable export buttons the owner refused
   const doExport = async (): Promise<void> => {
@@ -668,6 +677,16 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         <Banner tone="warning" className="mb-3">
           Add the company GSTIN under Company details to enable export.
         </Banner>
+      )}
+
+      {noteMarks.length > 0 && (
+        <Panel className="mb-3">
+          <div data-testid="gstr3b-note-marks">
+            {noteMarks.map((issue, i) => (
+              <IssueRow key={`${issue.code}-${i}`} severity={issue.severity} message={issue.message} voucherIds={issue.voucherIds} onOpen={(voucherId) => nav.go({ name: 'voucher-entry', voucherId })} />
+            ))}
+          </div>
+        </Panel>
       )}
 
       {info?.gstin && info.gstRegistrationType === 'regular' && <GatewayReturnPanel form="gstr3b" period={month.period} blocked={null} />}

@@ -79,6 +79,7 @@ export interface GstIssue {
     | 'blended_rate'
     | 'sales_discount_line'
     | 'einvoice_doc_no'
+    | 'itc_blocked_note_mismatch'
   severity: 'blocking' | 'warning'
   message: string
   /** Vouchers to drill into from the issues panel (empty for company-level issues). */

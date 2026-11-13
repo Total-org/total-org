@@ -30,6 +30,14 @@ covers expense bills and bills typed as an amount; a bill of products keeps the 
 already in your books, and bills marked in the full purchase editor, are unchanged; post the journal
 yourself there.
 
+**A warning when a bill's "GST can't be claimed" mark changes after a return was saved** (#276, second audit COR2-1, owner's answer to Q2):
+when you tick or untick "GST credit blocked (s.17(5))" on a purchase that already has a debit note
+against it, Total now names the notes whose own mark no longer matches, so you can open them and set
+it the same way; the GSTR-3B and GSTR-1 screens keep listing such notes until they match. A new debit note
+still takes the mark from the bills it returns (as since #263).
+- For accountants: nothing is recalculated — every saved note keeps the mark it was saved with, so no
+  GSTR-3B / GSTR-9 figure moves. Until the note is fixed, Table 4 is off by its tax (the warning says so).
+
 **The MSME day of acceptance travels with your books** (#275, WP 2d). The day you record on a micro or
 small supplier's bill (Payables → MSME → Accepted → Change) is now in the books export, and an import
 puts it back. Undoing an import puts back the day the bill had before. *For accountants*: no figure
