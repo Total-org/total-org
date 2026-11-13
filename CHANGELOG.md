@@ -20,6 +20,10 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**A short user guide and an architecture page** (#267, Phase 6 prep). `docs/guide/` explains Total in
+plain words for both ways of using it (simple screens and the full app); `docs/architecture.md`
+is a one-page map of how it is built.
+
 **Hindi and Hinglish say "beta"; Windows says "preview"** (#264, Phase 6 prep). The language pickers
 (first-run setup, How Total looks in both modes) now show "हिन्दी (beta)" and "Hinglish (beta)" —
 in Hindi, "(बीटा)" — because a native speaker has not reviewed the text yet. Windows is called a
