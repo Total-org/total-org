@@ -76,12 +76,42 @@ describe('walkTdsEvents — eligibility reasons', () => {
     expect(before.map((x) => x.eventBasePaise)).toEqual([2600000, 2600000, 2600000, -1000000, 2600000])
     expect(before.map((x) => x.priorPaise)).toEqual([0, 2600000, 5200000, 7800000, 6800000])
     expect(priorAggregate(before, 'fy', '2025-08-01')).toBe(9400000)
-    // The same return AFTER the fourth bill: the year's limit was crossed then — every bill stays liable.
-    const after = walkTdsEvents([ev(1, '2025-04-10', 'credit', 2600000), ev(2, '2025-05-10', 'credit', 2600000), ev(3, '2025-06-10', 'credit', 2600000), ev(5, '2025-07-10', 'credit', 2600000), ev(6, '2025-07-20', 'return', 1000000)], rows)
-    expect(after.map((x) => x.reason)).toEqual(['aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate', null])
-    expect(priorAggregate(after, 'fy', '2025-08-01')).toBe(9400000)
+    // The same return AFTER the fourth bill: the year's limit was crossed then — every bill stays liable,
+    // and (review of #280) the return lowers nothing: a later ₹5,000 bill is liable as it always was.
+    const after = walkTdsEvents([ev(1, '2025-04-10', 'credit', 2600000), ev(2, '2025-05-10', 'credit', 2600000), ev(3, '2025-06-10', 'credit', 2600000), ev(5, '2025-07-10', 'credit', 2600000), ev(6, '2025-07-20', 'return', 1000000), ev(7, '2025-08-10', 'credit', 500000)], rows)
+    expect(after.map((x) => x.reason)).toEqual(['aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate', null, 'aggregate'])
+    expect(after.map((x) => x.eventBasePaise)).toEqual([2600000, 2600000, 2600000, 2600000, 0, 500000])
+    expect(after[5]!.eligibleBasePaise).toBe(500000)
+    expect(priorAggregate(after, 'fy', '2025-09-01')).toBe(10900000)
     // Never below nil: a return bigger than what was credited takes the aggregate to nothing.
     expect(walkTdsEvents([ev(1, '2025-04-10', 'credit', 500000), ev(2, '2025-04-20', 'return', 900000)], rows)[1]!.eventBasePaise).toBe(-500000)
+  })
+
+  it('review of #280: a return never makes a payment an advance (it touches only the aggregate)', () => {
+    // A ₹20,000 debit note on 5 Apr against LAST year's bill (nothing of this year to lower), then this
+    // year's bills ₹26,000 × 3 + ₹10,000 = ₹88,000, each paid in full the next day: under ₹1,00,000,
+    // no advance, nothing liable (before the fix the return made each payment a ₹20,000 "advance").
+    const r = walkTdsEvents([
+      ev(1, '2025-04-05', 'return', 2000000),
+      ev(2, '2025-05-01', 'credit', 2600000), ev(3, '2025-05-02', 'payment', 2600000),
+      ev(4, '2025-06-01', 'credit', 2600000), ev(5, '2025-06-02', 'payment', 2600000),
+      ev(6, '2025-07-01', 'credit', 2600000), ev(7, '2025-07-02', 'payment', 2600000),
+      ev(8, '2025-08-01', 'credit', 1000000), ev(9, '2025-08-02', 'payment', 1000000)
+    ], rows)
+    expect(r.every((x) => x.reason === null && x.eligibleBasePaise === 0)).toBe(true)
+    expect(r.map((x) => x.eventBasePaise)).toEqual([0, 2600000, 0, 2600000, 0, 2600000, 0, 1000000, 0])
+    expect(priorAggregate(r, 'fy', '2025-09-01')).toBe(8800000)
+    // Within one year, the return refunded by cheque (a receipt — not an event): bill ₹30,000 paid,
+    // ₹10,000 back, bills ₹30,000 + ₹30,000 + ₹15,000 paid in full: ₹30,000 − ₹10,000 + ₹75,000 = ₹95,000,
+    // nothing liable (before the fix each later payment added a ₹10,000 "advance": ₹1,25,000, all liable).
+    const refund = walkTdsEvents([
+      ev(1, '2025-04-10', 'credit', 3000000), ev(2, '2025-04-11', 'payment', 3000000), ev(3, '2025-04-20', 'return', 1000000),
+      ev(4, '2025-05-10', 'credit', 3000000), ev(5, '2025-05-11', 'payment', 3000000),
+      ev(6, '2025-06-10', 'credit', 3000000), ev(7, '2025-06-11', 'payment', 3000000),
+      ev(8, '2025-07-10', 'credit', 1500000), ev(9, '2025-07-11', 'payment', 1500000)
+    ], rows)
+    expect(refund.every((x) => x.eligibleBasePaise === 0)).toBe(true)
+    expect(priorAggregate(refund, 'fy', '2025-08-01')).toBe(9500000)
   })
 
   it('single, aggregate and aggregate-crossed-later', () => {

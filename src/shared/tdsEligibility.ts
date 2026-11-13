@@ -252,21 +252,25 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
       voucherId: e.voucherId, date: e.date, kind: e.kind, eventBasePaise: 0, priorPaise: 0, row,
       deducted: e.entryBasePaise != null, exempt: e.exempt, eligibleBasePaise: 0, reason: null
     }
+    // A return touches only the period aggregate (review of #280): lowering `credited` would turn
+    // later payments into advances (paid > credited) that were never paid ahead.
     if (e.kind === 'credit') credited += e.grossPaise
-    else if (e.kind === 'return') credited -= e.grossPaise
-    else paid += e.grossPaise
+    else if (e.kind === 'payment') paid += e.grossPaise
     if (e.exempt) {
       results.push(base)
       continue
     }
     if (e.kind === 'return') {
       // WP 2d: what was taken back lowers the period's aggregate (never below nil) for every later
-      // event; nothing about it is liable.
+      // event; nothing about it is liable. Once the period's aggregate has exceeded the annual limit
+      // the return lowers nothing (review of #280, s.194C(5) proviso reading — CA point Q56): the
+      // limit was crossed, so later credits of the period stay liable, exactly as before WP 2d.
       const periodKey = row ? thresholdPeriod(row.thresholdBasis, e.date).from : e.date.slice(0, 4)
       const prior = aggregate.get(periodKey) ?? 0
-      const back = Math.min(e.basePaise, prior)
+      const crossed = row != null && row.thresholdAnnualPaise > 0 && prior > row.thresholdAnnualPaise
+      const back = crossed ? 0 : Math.min(e.basePaise, prior)
       aggregate.set(periodKey, prior - back)
-      results.push({ ...base, eventBasePaise: -back, priorPaise: prior })
+      results.push({ ...base, eventBasePaise: back > 0 ? -back : 0, priorPaise: prior })
       continue
     }
     let eventBase: number
