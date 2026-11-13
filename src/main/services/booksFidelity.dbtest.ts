@@ -210,6 +210,26 @@ describe('Books workbook fidelity', () => {
     undoImport(dst, upd.batchId!)
     expect(dst.prepare('SELECT accepted_on AS a, basis FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-20`, basis: 'objection_removed' }])
     dst.prepare("UPDATE msme_acceptance SET accepted_on = ?, basis = 'delivered', note = 'GRN 7'").run(`${prevFy + 1}-05-02`)
+    // Review of #275: (1) undo leaves a day recorded AFTER the import (through the screen's service) alone.
+    const upd2 = importBooks(dst, bytes, { duplicate: 'update' })
+    const billId = (dst.prepare('SELECT voucher_id AS id FROM msme_acceptance').get() as { id: number }).id
+    setMsmeAcceptance(dst, { voucherId: billId, acceptedOn: `${prevFy + 1}-05-07`, basis: 'delivered', note: '' }, `${prevFy + 1}-06-01`)
+    const undone = undoImport(dst, upd2.batchId!)
+    expect(undone.kept).toContainEqual(expect.objectContaining({ entity: 'msme_acceptance', id: billId }))
+    expect(dst.prepare('SELECT accepted_on AS a FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-07` }])
+    // (2) Any other source (Busy / Zoho / Excel) carries neither the day nor the s.17(5) mark: an
+    // "update" import from one leaves both as they are.
+    const f = parseImportFile('books.xlsx', bytes)
+    runImport(dst, planSteps(f), { duplicate: 'update', applyBooksFrom: Number(f.manifest!.booksFrom), lockDate: String(f.manifest!.lockDate) || null, sourceNamespace: `${f.manifest!.company}|${f.manifest!.gstin}` }, { source: 'excel', profileId: null, fileName: 'books.xlsx' }, false)
+    expect(dst.prepare('SELECT accepted_on AS a FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-07` }])
+    // (3) A day that is not a date (or a year off) is not stored — a step warning, the day left as it was.
+    const bad = planSteps(parseImportFile('books.xlsx', bytes))
+    for (const st of bad) if (st.rows.target === 'vouchers') for (const r of st.rows.rows as { more?: Record<string, unknown> | null }[]) if (r.more?.['msme.accepted_on']) r.more['msme.accepted_on'] = `${prevFy + 1}-13-45`
+    const badRun = runImport(dst, bad, { duplicate: 'update', applyBooksFrom: Number(f.manifest!.booksFrom), lockDate: String(f.manifest!.lockDate) || null, sourceNamespace: `${f.manifest!.company}|${f.manifest!.gstin}` }, { source: 'total-books', profileId: null, fileName: 'books.xlsx' }, false)
+    expect(badRun.steps.flatMap((x) => x.warnings)).toContainEqual(expect.stringContaining('is not a date within a year of the bill'))
+    expect(dst.prepare('SELECT accepted_on AS a FROM msme_acceptance').all()).toEqual([{ a: `${prevFy + 1}-05-07` }])
+    // Back to the source's day for the checks below.
+    dst.prepare("UPDATE msme_acceptance SET accepted_on = ?, basis = 'delivered', note = 'GRN 7'").run(`${prevFy + 1}-05-02`)
 
     // A second import changes nothing (Source IDs match; both receipts "1" are found in their own FY).
     const again = importBooks(dst, bytes, { duplicate: 'skip' })
