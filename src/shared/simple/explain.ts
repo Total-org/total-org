@@ -151,7 +151,8 @@ export function deadlineWhy(d: Pick<Deadline, 'kind' | 'form' | 'date'>, today: 
  *  "Oct 2026 so far" for a quarter still running. */
 export function gstPeriodLabel(gst: RegularGst, t: Translate): string {
   const r = gst.row
-  if (!r.quarterly || !r.from) return toMonthLabel(r.period, 'long', t.lang)
+  // Audit 2 UX2-1: a monthly filer's running month says "so far" too.
+  if (!r.quarterly || !r.from) return r.soFar ? t('simple.home.gstMonthSoFar', { month: toMonthLabel(r.period, 'long', t.lang) }) : toMonthLabel(r.period, 'long', t.lang)
   const first = r.from.slice(0, 7)
   const vars = { from: toMonthLabel(first, 'short', t.lang), to: toMonthLabel(r.period, 'long', t.lang) }
   if (r.soFar) return first === r.period ? t('simple.home.gstMonthSoFar', { month: toMonthLabel(r.period, 'long', t.lang) }) : t('simple.home.gstQuarterSoFar', vars)
@@ -159,9 +160,14 @@ export function gstPeriodLabel(gst: RegularGst, t: Translate): string {
 }
 
 /** The GST tile's figure line: "₹Z by 20 Nov" (regular registrations only); a quarter still
- *  running (its return more than 45 days off) shows "So far this quarter: ₹X". */
+ *  running (its return more than 45 days off) shows "So far this quarter: ₹X"; a monthly filer's
+ *  running month "Nov 2026 so far: ₹X — due 20 Dec" (audit 2 UX2-1: it used to say "quarter"). */
 export function gstLine(gst: RegularGst, today: string, t: Translate): string {
   const r = gst.row
+  if (r.soFar && !r.quarterly) {
+    const vars = { month: toMonthLabel(r.period, 'long', t.lang), amount: money(Math.max(0, r.payable)) }
+    return r.gstr3bDue ? t('simple.home.gstMonthSoFarDue', { ...vars, date: shortDate(r.gstr3bDue, today, t.lang) }) : t('simple.home.gstMonthSoFarAmount', vars)
+  }
   if (r.soFar) return t('simple.home.gstSoFar', { amount: money(Math.max(0, r.payable)) })
   if (!r.gstr3bDue) return t('simple.home.gstNoDate', { amount: money(Math.max(0, r.payable)), month: gstPeriodLabel(gst, t) })
   return r.payable > 0

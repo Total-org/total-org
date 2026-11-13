@@ -134,6 +134,9 @@ await scenario('80-first-ten-minutes', async (h) => {
   assertEq(fresh.gst.row.soFar, true, 'so far')
   assertEq(fresh.gst.row.liability, 9000, '₹90 of GST collected')
   assertEq(fresh.gst.row.gstr3bDue, nextMonth20(today), 'due the 20th of next month')
+  // Audit 2 UX2-1: a monthly filer's tile says the month and the due date — never "quarter".
+  const tile = await page.textContent('[data-testid="simple-tile-gst-value"]')
+  assert(/so far: ₹90\.00 — due 20 /.test(tile ?? '') && !/quarter/i.test(tile ?? ''), `GST tile words: ${tile}`)
   const attention = await h.invoke('simple:homeAttention', { today })
   assert(!attention.items.some((i) => i.source === 'close'), `nothing about last month (${JSON.stringify(attention.items)})`)
   await h.shot('08-home-after-first-bill')

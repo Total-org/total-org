@@ -323,6 +323,8 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.home.gstQuarter': '{from} – {to}',
   'simple.home.gstQuarterSoFar': '{from} – {to} अब तक',
   'simple.home.gstMonthSoFar': '{month} अब तक',
+  'simple.home.gstMonthSoFarDue': '{month} में अब तक: {amount} — {date} तक भरना है',
+  'simple.home.gstMonthSoFarAmount': '{month} में अब तक: {amount}',
   'simple.home.gstQuarterly': 'आप हर तिमाही GST भरते हैं: रिटर्न तिमाही के बाद की 22 या 24 तारीख तक भरना होता है, आपके राज्य के हिसाब से — तारीख अपने CA से पक्की कर लें।',
   'simple.home.gstComposition': 'कंपोज़िशन स्कीम: आपका GST कंपोज़िशन रिटर्न (CMP-08) से भरा जाता है — आपकी बिक्री पर टैक्स का छोटा-सा हिसाब जो आप GST पोर्टल पर भरते हैं। Total अभी यह रकम नहीं निकालता; रकम और तारीख अपने CA से पूछें।',
   'simple.home.addSale': '+ बिक्री',
