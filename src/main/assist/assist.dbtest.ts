@@ -205,6 +205,14 @@ describe('Ask Total on hand-worked books', () => {
       expect(bank.figures, text).toEqual([])
       expect(bank.sentences[0], text).toContain('I can’t split costs by')
     }
+    // Round 3: an account whose name holds a payment word is still that account (₹125 of card machine rent in October).
+    const cardRent = (await ok<{ id: number }>('master:ledgers:create', { name: 'Card Machine Rent', groupId: indirect })).id
+    await ok('simple:post', { intent: { kind: 'money_out', clientId: 'narrow-out-0004', date: '2025-10-11', amount: 12500, from: { how: 'cash' }, payeeId: cardRent }, today: T })
+    expect(paise(await ask('how much did I spend on card machine rent this month'))).toEqual([12500])
+    expect(paise(await ask('card machine rent ka kharcha is mahine'))).toEqual([12500])
+    // The preset "Bank charges" account: its own (empty) line, not "can't split by bank".
+    const charges = await ask('how much did I spend on bank charges this month')
+    expect(charges.figures.map((f) => [f.paise, f.source?.kind, f.source?.label])).toEqual([[0, 'ledger', expect.stringMatching(/^bank charges$/i)]])
     // Round 2: two products fit — "Which product?", and the pick answers (never the same question again).
     const units = await ok<{ id: number }[]>('master:units:list')
     const red = (await ok<{ id: number }>('master:stockItems:create', { name: 'Red Pen', unitId: units[0]!.id })).id

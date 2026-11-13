@@ -238,9 +238,10 @@ function narrowFigureAnswer(
   const cls = measure === 'sales' ? (['income'] as const) : (['expense'] as const)
   const picked = input.picks?.party != null ? pickedLedger(db, input.picks.party) : null
   const classOf = picked?.status === 'match' ? ledgerClassifier(db).cls(picked.id) : null
-  // Review of #273 (round 2): money "from the bank" / "from HDFC" is a split Total can't make yet —
-  // never the account that merely shares the word ("Bank charges").
-  if (!picked && input.picks?.item == null && (intent.about.split(' ').some((w) => HOW_SPLIT.has(w)) || findLedger(db, intent.about, ['cash', 'bank'], input.today).status === 'match')) return cantSplit()
+  // Review of #273 (rounds 2–3): money "from the bank" / "from HDFC" is a split Total can't make yet —
+  // never the account that merely shares the word. Only an about that is NOTHING BUT a payment way
+  // (or a cash / bank ledger) stops here: "bank charges" still reaches its own account.
+  if (!picked && input.picks?.item == null && (intent.about.split(' ').every((w) => HOW_SPLIT.has(w) || w === 'account' || w === 'a/c') || findLedger(db, intent.about, ['cash', 'bank'], input.today).status === 'match')) return cantSplit()
   if (measure !== 'profit') {
     const acct = picked ? (classOf != null && (cls as readonly string[]).includes(classOf) ? picked : { status: 'none' as const }) : findLedger(db, intent.about, cls, input.today)
     if (acct.status === 'match') {
