@@ -243,6 +243,18 @@ export function dashSetup(db: DB, company: CompanyInfo, bankLedgers: number, use
   }
 }
 
+/** Audit 2 UX2-2 (review of #274): customers / suppliers the user created — party groups by role, no
+ *  preset account, never the walk-in. Simple Home's "Add your first customer or supplier" ticks on it. */
+export function userPartyCount(db: DB): number {
+  const groups = listGroups(db)
+  const partyGroups = [...partySideGroupIds(groups, 'debtor'), ...partySideGroupIds(groups, 'creditor')]
+  if (!partyGroups.length) return 0
+  const walkIn = counterAccounts(db).walkInLedgerId ?? -1
+  return (db
+    .prepare(`SELECT COUNT(*) AS n FROM ledgers WHERE is_system = 0 AND simple_category IS NULL AND id != ? AND group_id IN (${partyGroups.map(() => '?').join(', ')})`)
+    .get(walkIn, ...partyGroups) as { n: number }).n
+}
+
 /** Backups the user took — the automatic on-open snapshots don't count. */
 export function userBackupsOf<T extends DashBackupInput>(backups: readonly T[]): T[] {
   return backups.filter((b) => !AUTOMATIC_TAGS.has(b.tag))

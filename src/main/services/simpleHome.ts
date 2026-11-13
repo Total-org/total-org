@@ -32,7 +32,7 @@ import { stockValuesAt } from './stockAnalysis'
 import { listGroups } from './masters'
 import { IN_BOOKS } from './vouchers'
 import { getFeatures, getGstProfile, getUi } from './config'
-import { dashGst, dashSetup, readGstFiled, tdsApplies, tdsPayableLedgers, userBackupsOf, type DashBackupInput } from './dashboard'
+import { dashGst, dashSetup, readGstFiled, userPartyCount, tdsApplies, tdsPayableLedgers, userBackupsOf, type DashBackupInput } from './dashboard'
 import { anomalies, closeChecklist, getStatement } from './assistants'
 import { extractPurchaseDocs } from './gst'
 import { getRecon2bTolerances } from './gstIms'
@@ -170,7 +170,10 @@ function compute(db: DB, company: CompanyInfo, opts: { today: string; backups: D
   const days = lastAt == null ? null : daysSince(lastAt, today)
   const backup = { lastAt, days, nudge: days != null && days > BACKUP_NUDGE_DAYS }
 
-  const setup = dashSetup(db, company, ledgers.filter((l) => bankIds.has(l.groupId)).length, mine.length)
+  const accountantSetup = dashSetup(db, company, ledgers.filter((l) => bankIds.has(l.groupId)).length, mine.length)
+  // Audit 2 UX2-2: simple Home's ledger step is "Add your first customer or supplier" — a bank account or
+  // an expense made first does not tick it (only `> 0` is read; the count stays as before once one exists).
+  const setup = userPartyCount(db) > 0 ? accountantSetup : { ...accountantSetup, userLedgers: 0 }
   const ui = getUi(db)
 
   return {

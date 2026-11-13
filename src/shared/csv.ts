@@ -109,7 +109,7 @@ export function neutralizeCsvFormula(field: string): string {
 
 /** Quote a field per RFC 4180 if it contains a comma, quote, or line break; double embedded
  *  quotes. Formula-triggering cells are neutralized first (see neutralizeCsvFormula). */
-function quoteCsvField(field: string): string {
+export function quoteCsvField(field: string): string {
   const safe = neutralizeCsvFormula(field)
   if (/["\n\r,]/.test(safe)) {
     return `"${safe.replace(/"/g, '""')}"`
