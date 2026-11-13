@@ -145,6 +145,9 @@ function advanceTo(p: PartyBills, date: string): void {
  *   refund) the voucher keeps no refs instead.
  * Warnings say what the voucher ends up with, naming the bill "as of this import".
  */
+/** The kinds whose Agst Ref to a bill adds to it on import (owner Q5): notes and journals. */
+const NOTE_KINDS: ReadonlySet<VoucherKind> = new Set<VoucherKind>(['debit_note', 'credit_note', 'journal'])
+
 function settleOnOpenBills(party: PartyBills, partyName: string, v: TallyVoucher, kind: VoucherKind, refs: ImportBillRef[], warnings: string[]): ImportBillRef[] {
   if (!refs.some((r) => r.kind === 'against')) return refs
   // tallyBillRefs took refs only when every party line is on one side.
@@ -203,11 +206,13 @@ function settleOnOpenBills(party: PartyBills, partyName: string, v: TallyVoucher
         add(r)
         continue
       }
-      // Owner, 13 Nov (audit 2 COR2-4, Q5): a debit note / journal "Agst Ref" a bill the party has had
-      // (open, or paid in full) stays part of that bill, as Tally shows it — the engine adds it to
-      // that bill (shared/outstanding.ts raiseNamed, audit A1), reopening a paid one in its place.
-      // No named credit of that name (that path is above); imports from now on only.
-      if (kind !== 'receipt' && kind !== 'payment' && !credits.some((c) => c.name === r.name) && party.allocator.hasBill(r.name)) {
+      // Owner, 13 Nov (audit 2 COR2-4, Q5): a debit / credit note or journal "Agst Ref" a bill the
+      // party has had (open, or paid in full) stays part of that bill, as Tally shows it — the engine
+      // adds it to that bill (shared/outstanding.ts raiseNamed, audit A1), reopening a paid one in its
+      // place. Never a name a named credit (an advance) has had: GSTR-1 11B reads a sale's `against`
+      // ref of such a name as an advance adjustment (review of #281), and invoices keep the old path.
+      // Imports from now on only.
+      if (NOTE_KINDS.has(kind) && !party.allocator.creditNames().has(r.name) && party.allocator.hasBill(r.name)) {
         const bill = open.find((b) => b.name === r.name)
         if (bill) bill.left += r.amount
         else open.push({ name: r.name, left: r.amount })

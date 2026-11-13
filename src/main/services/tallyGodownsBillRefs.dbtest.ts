@@ -11,7 +11,7 @@ import { importTallyXml } from './tallyImport'
 import { getVoucher } from './vouchers'
 import { partyAllocation } from './analysis'
 import { closingBalances } from './reports'
-import { extractAdvances } from './gst'
+import { extractAdvanceAdjustments, extractAdvances, gstr1 } from './gst'
 import { partyChangeRefusal } from './bulkEdit'
 import { TEST_INFO } from '../db/testdb'
 import * as stock from './stockAnalysis'
@@ -286,5 +286,44 @@ describe('Tally import (owner Q5): a debit note Agst Ref an invoice stays part o
       tallyDebitNote('DN/2', '20260410', 'Cust', 500, [{ name: 'NOPE-1', type: 'Agst Ref', rupees: 500 }])])
     expect(getVoucher(db, id('DN/2')!)!.billRefs).toEqual([{ kind: 'new', name: 'DN/2', amount: 50_000, dueDate: null }])
     expect(partyAllocation(db, L('Cust'), '2026-04-30').bills.map((b) => [b.number, b.pending])).toEqual([['DN/2', 50_000]])
+  })
+
+  it('review of #281: a SALE Agst Ref an invoice named like a used-up advance keeps the old path — GSTR-1 11B counts only the ₹500 advance', () => {
+    const { db, id, L } = run([tallyLedger('Cust', 'Sundry Debtors'),
+      tallyReceipt('R/1', '20260401', 'Cust', 500, [{ name: 'INV-10', type: 'Advance', rupees: 500 }]),
+      tallyCreditSale('INV-10', '20260405', 'Cust', 1_000, [{ name: 'INV-10', type: 'Agst Ref', rupees: 500 }, { name: 'INV-10', type: 'New Ref', rupees: 500 }]),
+      tallyCreditSale('INV-11', '20260410', 'Cust', 200, [{ name: 'INV-10', type: 'Agst Ref', rupees: 200 }])])
+    expect(getVoucher(db, id('INV-11')!)!.billRefs).toEqual([{ kind: 'new', name: 'INV-11', amount: 20_000, dueDate: null }])
+    // A debit note to that name is not passed through either (the name was an advance's).
+    db.prepare("UPDATE ledgers SET gst_rate = 18, state_code = ? WHERE name = 'Cust'").run(TEST_INFO.stateCode)
+    // 11B: the ₹500 advance (gross, 18 % inclusive: 500 × 100 / 118 = ₹423.73), nothing more.
+    const adj = extractAdvanceAdjustments(db, TEST_INFO, '2026-04-01', '2026-04-30')
+    expect(adj.reduce((t, r) => t + r.taxable, 0)).toBe(42_373)
+    void L
+  })
+
+  it('review of #281: the supplier mirror — a journal crediting the supplier Agst Ref P/1 (paid) adds to P/1, which opens again for ₹500', () => {
+    // Tally's sign: a negative AMOUNT is a debit. P/1: Cr supplier ₹5,000 / Dr Purchase; payment: Dr supplier / Cr bank;
+    // journal: Cr supplier ₹500 (freight added to P/1) / Dr Purchase.
+    const crSupplier = (vt: string, no: string, date: string, rupees: number, bill: { name: string; type: 'New Ref' | 'Agst Ref' }) =>
+      tallyReceipt(no, date, 'Kumar Steel', rupees, [{ ...bill, rupees }]).replace('VCHTYPE="Receipt"', `VCHTYPE="${vt}"`).replace('<VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME>', `<VOUCHERTYPENAME>${vt}</VOUCHERTYPENAME>`).replace('<LEDGERNAME>HDFC Bank</LEDGERNAME>', '<LEDGERNAME>Purchase Account</LEDGERNAME>')
+    const pay = tallyCreditSale('PY/1', '20260405', 'Kumar Steel', 5_000, [{ name: 'P/1', type: 'Agst Ref', rupees: 5_000 }])
+      .replace('VCHTYPE="Sales"', 'VCHTYPE="Payment"').replace('<VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>', '<VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>').replace('<LEDGERNAME>Sales Account</LEDGERNAME>', '<LEDGERNAME>HDFC Bank</LEDGERNAME>')
+    const { db, id, L } = run([tallyLedger('Kumar Steel', 'Sundry Creditors'),
+      crSupplier('Purchase', 'P/1', '20260401', 5_000, { name: 'P/1', type: 'New Ref' }), pay,
+      crSupplier('Journal', 'J/1', '20260410', 500, { name: 'P/1', type: 'Agst Ref' })])
+    expect(getVoucher(db, id('J/1')!)!.billRefs).toEqual([{ kind: 'against', name: 'P/1', amount: 50_000, dueDate: null }])
+    const a = partyAllocation(db, L('Kumar Steel'), '2026-04-30')
+    expect([a.bills.map((b) => [b.number, b.date, b.pending]), a.unappliedCredit, a.warnings]).toEqual([[['P/1', '2026-04-01', 50_000]], 0, []])
+  })
+
+  it('review of #281: an imported debit note against a B2CL invoice now goes to GSTR-1 9B CDNUR (typ B2CL), like a note keyed into Total', () => {
+    const { db } = run([tallyLedger('Far Cust', 'Sundry Debtors'),
+      tallyCreditSale('S/9', '20260401', 'Far Cust', 300_000, [{ name: 'S/9', type: 'New Ref', rupees: 300_000 }]),
+      tallyDebitNote('DN/9', '20260410', 'Far Cust', 1_180, [{ name: 'S/9', type: 'Agst Ref', rupees: 1_180 }])])
+    db.prepare("UPDATE ledgers SET state_code = '29' WHERE name = 'Far Cust'").run()
+    db.prepare("UPDATE ledgers SET gst_rate = 18 WHERE name = 'Sales Account'").run()
+    const cdnur = (gstr1(db, TEST_INFO, '2026-04-01', '2026-04-30', '042026').json.cdnur ?? []) as { typ: string; val: number }[]
+    expect(cdnur.map((n) => [n.typ, n.val])).toEqual([['B2CL', 1180]])
   })
 })
