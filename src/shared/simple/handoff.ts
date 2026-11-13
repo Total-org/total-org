@@ -76,6 +76,9 @@ export interface SimpleHandoff {
   /** Phase 5: this editor is the SECOND step — the money paid / received / refunded now for the
    *  entry the first step saved (its bill-wise name). */
   afterBill?: string
+  /** WP 2d: the GST the simple answers would have moved to the cost (s.17(5)) — the editor posts no
+   *  such move, so the banner says so (absent = none). */
+  gstToCost?: number
 }
 
 /** simple:handoffTarget — the facts "Back to simple" needs from main (services/simpleHandoff.ts). */

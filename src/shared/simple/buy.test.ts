@@ -55,7 +55,7 @@ function intentCtx(c: BuyContext): IntentContext {
       L(22, 'Electricity', 'expense'), L(30, 'Cash', 'cash'), L(31, 'HDFC Bank', 'bank')
     ]),
     items: new Map([[1, { id: 1, name: 'Widget' }], [2, { id: 2, name: 'Rice' }], [3, { id: 3, name: 'Sugar' }]]),
-    types: { purchase: { id: 1, name: 'Purchase', numbering: 'auto', next: 'P-1' }, payment: { id: 2, name: 'Payment', numbering: 'auto', next: 'PY-1' } },
+    types: { purchase: { id: 1, name: 'Purchase', numbering: 'auto', next: 'P-1' }, payment: { id: 2, name: 'Payment', numbering: 'auto', next: 'PY-1' }, journal: { id: 3, name: 'Journal', numbering: 'auto', next: 'J-1' } },
     taxLedgers: { output: { cgst: 40, sgst: 41, igst: 42, cess: 43, roundOff: 44 }, input: { cgst: 50, sgst: 51, igst: 52, cess: 53, roundOff: 54 } },
     defaults: { walkInId: null, cashId: 30, upiId: 31, cardId: 31, bankId: 31, salesId: null, purchaseId: 20, drawingsId: null },
     prices: new Map(),
@@ -120,6 +120,12 @@ describe('live totals = the editor calculation = what is posted', () => {
     expect(m.entries[0]!.payload).toMatchObject({ itcBlocked: true })
     // The same lines as an ordinary bill: ₹1,000 + CGST ₹90 + SGST ₹90.
     expect(linesOf(m)).toEqual([[10, 'cr', 118_000], [21, 'dr', 100_000], [50, 'dr', 9_000], [51, 'dr', 9_000]])
+    // Owner, 13 Nov: a journal moves that GST to the cost — Dr Rent ₹180, Cr Input CGST ₹90 + SGST ₹90.
+    expect(m.entries.map((e) => [e.role, e.kind])).toEqual([['bill', 'purchase'], ['gst_cost', 'journal']])
+    expect(m.entries[1]!.payload.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[21, 'dr', 18_000], [50, 'cr', 9_000], [51, 'cr', 9_000]])
+    expect(m.facts.gstToCost).toBe(18_000)
+    // An ordinary bill gets no journal.
+    expect(posted(rent, c).entries.map((e) => e.role)).toEqual(['bill'])
     // No GST on the bill, or a business that can't claim: nothing to block.
     expect(purchaseIntentFrom({ ...blocked, gstOnBill: false }, c, DEFAULTS)).not.toHaveProperty('itcBlocked')
     expect(purchaseIntentFrom({ ...blocked, mode: 'amount' }, ctxFor('unregistered'), DEFAULTS)).not.toHaveProperty('itcBlocked')

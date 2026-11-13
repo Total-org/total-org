@@ -610,7 +610,7 @@ export class NeedTaxLedgers extends Error {
 // ---------------------------------------------------------------- mapped result
 
 /** What each saved entry is to the intent. */
-export type IntentRole = 'bill' | 'payment' | 'money' | 'note' | 'refund' | 'count' | 'made'
+export type IntentRole = 'bill' | 'payment' | 'money' | 'note' | 'refund' | 'count' | 'made' | 'gst_cost'
 
 export type MappedEntry =
   | { role: IntentRole; kind: VoucherKind; voucherTypeId: number; form: 'invoice'; state: InvoiceFormState; payload: VoucherPayload }
@@ -664,6 +664,8 @@ export interface IntentFacts {
   count?: CountFacts
   /** WP 9.7 make_goods: what was made, from what, and what it adds to stock. */
   made?: MadeFacts
+  /** WP 2d: the GST a purchase can't claim back (s.17(5)), moved to the cost by its journal. */
+  gstToCost?: number
 }
 
 export interface CountFacts {
@@ -881,6 +883,7 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   const itcBlocked = n.kind === 'purchase' && n.itcBlocked && charges && gstOnBill
   const facts: IntentFacts = { ...emptyFacts(n.kind), partyName: party.name, walkIn, side: sale ? 'customer' : 'supplier' }
 
+  let costAccountId: number | null = null
   let bill: MappedEntry
   let total: number
   if (n.items) {
@@ -917,6 +920,7 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
       ...(itcBlocked ? { itcBlocked: true } : {})
     }
     const built = invoiceEntry(ctx, 'bill', kind, type, state, 'items')
+    costAccountId = account.id
     bill = built.entry
     total = built.total
     facts.tax = built.tax
@@ -930,6 +934,7 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
       taxable = foldGstIntoAmount(taxable, a.gstRate ?? account.gstRate ?? null)
       rate = 0
     }
+    costAccountId = account.id
     const lines = ledgerLines(ctx, kind as 'sales' | 'purchase', party, account.id, taxable, rate, a.billTotal ?? null)
     // WP 10.8: a bill for an expense (rent, electricity …) is said as that, not "Purchase bill".
     if (!sale && account.id !== ctx.defaults.purchaseId) facts.forWhat = account.name
@@ -947,6 +952,28 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   if (paid > total) fail('simple_overpaid', `${formatPaise(paid, { symbol: true })} is more than the bill (${formatPaise(total, { symbol: true })})`, 'payment.amount', { amount: formatPaise(total, { symbol: true }) })
   if (walkIn && paid !== total) fail('simple_walk_in_unpaid', 'A walk-in sale is paid in full — pick the customer to sell on credit', 'payment')
   const entries = [bill]
+  // WP 2d (owner, 13 Nov): GST the business can't claim back (s.17(5)) is moved to the cost by a
+  // journal beside the bill — Dr the bill's account, Cr each input-tax ledger the bill debited. The
+  // bill keeps its tax lines (GSTR-2B matches; GSTR-3B 4(A)(5) + 4(B)(1) as before); the journal
+  // puts the expense / profit and the Input GST balance right. Same transaction and undo group.
+  if (itcBlocked && costAccountId != null) {
+    const inputIds = new Set(Object.values(ctx.taxLedgers.input).filter((x): x is number => x != null))
+    const taxRows = bill.payload.lines.filter((l) => l.drCr === 'dr' && inputIds.has(l.ledgerId) && l.amount > 0)
+    const blockedTax = taxRows.reduce((s, l) => s + l.amount, 0)
+    if (blockedTax > 0) {
+      const { type: jType, number: jNumber } = typeOf(ctx, 'journal', null, 'gstOnBill')
+      entries.push(
+        accountingEntry(ctx, 'gst_cost', 'journal', jType, {
+          date,
+          number: jNumber,
+          rows: [row('dr', costAccountId, blockedTax), ...taxRows.map((l) => row('cr', l.ledgerId, l.amount))],
+          narration: `GST that can't be claimed back (s.17(5)) on bill ${billName} — moved to the cost`,
+          billRefs: []
+        })
+      )
+      facts.gstToCost = blockedTax
+    }
+  }
   facts.total = total
   facts.paid = paid
   facts.due = total - paid
@@ -1418,6 +1445,7 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
     case 'purchase':
       out.push(f.forWhat ? t('simple.intent.purchaseFor', { amount: m(f.total), name, what: f.forWhat }) : t('simple.intent.purchase', { amount: m(f.total), name }))
       if (f.tax > 0) out.push(t('simple.intent.tax', { amount: m(f.tax) }))
+      if ((f.gstToCost ?? 0) > 0) out.push(t('simple.intent.gstToCost', { amount: m(f.gstToCost!) }))
       if (f.paid > 0) out.push(t('simple.intent.paid', { amount: m(f.paid), how }))
       position(() => { if (f.due > 0) out.push(t('simple.intent.dueTo', { amount: m(f.due), name })) })
       break

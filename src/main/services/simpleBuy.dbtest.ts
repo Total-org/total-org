@@ -288,6 +288,25 @@ describe('WP 9.3 Record a purchase: the form → simple:post = the purchase an a
     expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${pay}) AND deleted_at IS NOT NULL`)).toBe(2)
   })
 
+  it('WP 2d (owner, 13 Nov): "can\'t claim this GST back" → the bill + a journal moving its GST to the cost; 3B still availed + reversed; Undo bins both', () => {
+    // Rent ₹1,000 + 18 % = ₹1,180, can't claim: the bill (marked blocked) + Dr Rent ₹180 / Cr Input CGST ₹90 + SGST ₹90.
+    const out = buy({ supplierId: L('Bharat Steel'), billNo: 'R-17', mode: 'expense', categoryId: L('Rent'), amount: 100_000, gstBlocked: true })
+    expect(out.entries.map((e) => [e.role, e.kind])).toEqual([['bill', 'purchase'], ['gst_cost', 'journal']])
+    const [bill, journal] = out.voucherIds as [number, number]
+    expect(getVoucher(db, bill)).toMatchObject({ itcBlocked: true })
+    const jl = getVoucher(db, journal)!.lines.map((l) => [l.ledgerId, l.drCr, l.amount])
+    expect(jl).toEqual([[L('Rent'), 'dr', 18_000], [L('Input CGST'), 'cr', 9_000], [L('Input SGST'), 'cr', 9_000]])
+    expect(out.facts.gstToCost).toBe(18_000)
+    // Input GST nets to nothing; the rent is ₹1,180 (the expense carries the GST).
+    const bal = (id: number): number => (db.prepare("SELECT COALESCE(SUM(CASE WHEN vl.dr_cr = 'dr' THEN vl.amount ELSE -vl.amount END), 0) AS b FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id WHERE vl.ledger_id = ? AND v.deleted_at IS NULL").get(id) as { b: number }).b
+    expect([bal(L('Input CGST')), bal(L('Input SGST')), bal(L('Rent'))]).toEqual([0, 0, 118_000])
+    // GSTR-3B: the bill's ₹90 + ₹90 is still availed in 4(A)(5) and reversed in 4(B)(1) (Circular 170).
+    expect(gstr3b(db, info, '2025-08-01', '2025-08-31', '082025').circular170.blocked).toMatchObject({ cgst: 9_000, sgst: 9_000 })
+    // Undo bins the bill and its journal as one group.
+    undoSave(db, out.voucherIds)
+    expect(count(`SELECT COUNT(*) AS n FROM vouchers WHERE id IN (${bill}, ${journal}) AND deleted_at IS NOT NULL`)).toBe(2)
+  })
+
   it('review: nil-rated products on a bill without GST post with no tax; the bill view carries the rupee round-off', () => {
     const unit = db.prepare("SELECT id FROM units WHERE symbol = 'Nos'").get() as { id: number }
     createStockItem(db, stockItemInputSchema.parse({ name: 'Loose salt', unitId: unit.id, gstRate: 0, hsn: '2501' }))

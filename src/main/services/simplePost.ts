@@ -54,7 +54,7 @@ import { LABOUR_CREDIT_GROUP, LABOUR_CREDIT_LEDGER, LABOUR_EXPENSE_GROUP, LABOUR
 
 const KINDS_FOR: Record<NormalIntent['kind'], VoucherKind[]> = {
   sale: ['sales', 'receipt'],
-  purchase: ['purchase', 'payment'],
+  purchase: ['purchase', 'payment', 'journal'],
   money_in: ['receipt'],
   money_out: ['payment'],
   move_money: ['contra'],
