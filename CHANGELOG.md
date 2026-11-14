@@ -27,7 +27,8 @@ on the value after the discount now reports that value in GSTR-1, GSTR-3B and GS
 s.15(3)(a)). *For accountants*: this changes the figures of such bills in every month, including
 months already filed. The owner approved this. A bill that charged GST on the value BEFORE the
 discount is still reported as charged — the tax collected is paid over — and the GSTR-1 checks
-list it. A round-off account is never a discount. The e-invoice and the print still show the value
+list it. A round-off account is never a discount. A credit note is never netted, and a business that
+e-invoices keeps the value before the discount (owner, 14 Nov). The e-invoice and the print still show the value
 before the discount; that is question 58 for your CA. Bills with the discount on the item line
 were always right and do not change.
 

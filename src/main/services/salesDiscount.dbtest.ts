@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import { createLedger, createStockItem, listUnits } from './masters'
 import { saveVoucher } from './vouchers'
-import { extractOutwardDocs, gstr3b, gstValidate, lessDiscount } from './gst'
+import { extractOutwardDocs, gstr3b, gstValidate, lessDiscount, setEinvoicing } from './gst'
 import type { DrCr } from '@shared/domain'
 
 const FROM = '2026-07-01'
@@ -80,8 +80,11 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     const issue = gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')
     expect(issue).toMatchObject({ severity: 'warning', voucherIds: [withDiscount.id, onExpense.id, noteWithIncome.id] })
     expect(issue!.message).toContain('s.15(3)(a)')
-    // Two of them charged GST on the value before the discount: said, and reported as charged.
-    expect(issue!.message).toContain('2 charged GST on the value BEFORE it')
+    // One charged GST on the value before the discount (reported as charged); the credit note is
+    // never netted (owner, 14 Nov) — reported as recorded; the first is netted.
+    expect(issue!.message).toContain('1 charged GST on the value after the discount')
+    expect(issue!.message).toContain('1 charged GST on the value BEFORE it')
+    expect(issue!.message).toContain('1 is reported as recorded')
     // Owner, 13 Nov: the discount is taken off when the bill charged GST on the value after it —
     // ₹900 taxable, ₹81 + ₹81 (party ₹1,062 = ₹900 + ₹162: the value ties, no val_mismatch).
     const docs = extractOutwardDocs(db, TEST_INFO, FROM, TO)
@@ -93,7 +96,7 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     // ₹1,000 taxable, ₹90 + ₹90, value ₹1,180 (the party's ₹1,080 + the ₹100 discount line).
     expect(docs.find((d) => d.voucherId === onExpense.id)!.items).toEqual([{ rate: 18, taxable: 100000, cgst: 9000, sgst: 9000, igst: 0, cess: 0 }])
     expect(docs.find((d) => d.voucherId === onExpense.id)!.invoiceValue).toBe(118000)
-    // The credit note's ₹50 income line: its tax (₹9 + ₹9) is 18 % of ₹100, not ₹50 — kept as charged.
+    // The credit note's ₹50 income line: a credit note is never netted (owner, 14 Nov) — ₹100 as recorded.
     expect(docs.find((d) => d.voucherId === noteWithIncome.id)!.items[0]!.taxable).toBe(10000)
     expect(docs.find((d) => d.voucherId === rounded.id)!.items).toEqual([{ rate: 18, taxable: 100000, cgst: 9000, sgst: 9000, igst: 0, cess: 0 }])
     // A kept bill never blocks the export: only warnings.
@@ -193,6 +196,39 @@ describe('discount booked on a Sales account (WP 2d)', () => {
     const doc = extractOutwardDocs(db, TEST_INFO, FROM, TO).find((d) => d.voucherId === bill.id)!
     expect(doc.items).toEqual([{ rate: 5, taxable: 100000, cgst: 2500, sgst: 2500, igst: 0, cess: 0 }])
     expect(gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')!.message).toContain('1 charged GST on the value BEFORE it')
+  })
+
+  it('owner, 14 Nov: a business that e-invoices keeps the value before the discount; a credit note is never netted', () => {
+    const db = seededDb()
+    const groupId = (name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
+    const vtOf = (kind: string): number => (db.prepare('SELECT id FROM voucher_types WHERE kind = ?').get(kind) as { id: number }).id
+    const L = (input: Parameters<typeof createLedger>[1]): number => createLedger(db, input).id
+    const buyer = L({ name: 'Buyer', groupId: groupId('Sundry Debtors'), stateCode: '27', gstin: '27AAPFU0939F1ZV' })
+    const sales = L({ name: 'Sales 18', groupId: groupId('Sales Accounts'), gstRate: 18, hsn: '8471' })
+    const discount = L({ name: 'Discount allowed', groupId: groupId('Sales Accounts') })
+    const cgst = L({ name: 'Output CGST', groupId: groupId('Duties & Taxes'), taxType: 'cgst' })
+    const sgst = L({ name: 'Output SGST', groupId: groupId('Duties & Taxes'), taxType: 'sgst' })
+    const line = (ledgerId: number, drCr: DrCr, amount: number) => ({ ledgerId, drCr, amount, costAllocations: [] })
+    // A credit note whose GST WAS charged on the reduced value: ₹100 back less ₹50 kept as a fee
+    // (Cr the discount account), tax ₹4.50 + ₹4.50 on ₹50 — the note is still reported as recorded.
+    const note = saveVoucher(db, {
+      voucherTypeId: vtOf('credit_note'), date: '2026-07-10', partyLedgerId: buyer,
+      lines: [line(sales, 'dr', 10000), line(cgst, 'dr', 450), line(sgst, 'dr', 450), line(buyer, 'cr', 5900), line(discount, 'cr', 5000)],
+      inventory: [], billRefs: [], tds: null
+    })
+    // The ₹1,000 − ₹100 bill taxed on ₹900 (party ₹1,062) — netted while the business doesn't e-invoice.
+    const bill = saveVoucher(db, {
+      voucherTypeId: vtOf('sales'), date: '2026-07-05', partyLedgerId: buyer,
+      lines: [line(buyer, 'dr', 106200), line(discount, 'dr', 10000), line(sales, 'cr', 100000), line(cgst, 'cr', 8100), line(sgst, 'cr', 8100)],
+      inventory: [], billRefs: [], tds: null
+    })
+    const taxable = (id: number): number => extractOutwardDocs(db, TEST_INFO, FROM, TO).find((d) => d.voucherId === id)!.items[0]!.taxable
+    expect(taxable(note.id)).toBe(10000)
+    expect(taxable(bill.id)).toBe(90000)
+    // With e-invoicing on, the bill keeps ₹1,000 (the IRN's value, which the portal pre-fills — Q58).
+    setEinvoicing(db, TEST_INFO, { enabled: true })
+    expect(taxable(bill.id)).toBe(100000)
+    expect(gstValidate(db, TEST_INFO, FROM, TO).find((i) => i.code === 'sales_discount_line')!.message).toContain('2 are reported as recorded')
   })
 
   it('lessDiscount shares a discount pro rata by value, in whole paise (largest remainders), never below nil', () => {

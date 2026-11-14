@@ -363,6 +363,9 @@ export interface OutwardExtractionNotes {
   /** WP 2d (review of #279): of those, the ones that charged GST on the value BEFORE the discount —
    *  reported as charged (gross). */
   discountKept?: number[]
+  /** WP 2d (owner, 14 Nov): of those, the ones never netted — credit notes, and every document of a
+   *  business that e-invoices (`einvoicingOn`) — reported as recorded. */
+  discountAsRecorded?: number[]
 }
 
 /**
@@ -433,6 +436,9 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
   // are not discounts), read with the rest per chunk. GST_SOURCES.s15.
   const discountGroupIds = discountGroups(db)
   const kindOfDoc = new Map(vouchers.map((v) => [v.id, v.kind]))
+  // Owner, 14 Nov: a business that e-invoices keeps the value before the discount (the portal
+  // pre-fills GSTR-1 from the IRN, which carries it — Q58), and a credit note is never netted.
+  const einvoicing = einvoicingOn(db, company)
   const discountBy = new Map<number, number>()
   const docIds = vouchers.map((v) => v.id)
   for (let i = 0; i < docIds.length; i += 500) {
@@ -645,7 +651,10 @@ function extractOutwardDocsRaw(db: DB, company: CompanyInfo, from: string, to: s
         // the gross didn't, and (c) the tax on the net lines is no further from the POSTED heads than
         // the tax on the gross — a small discount on a bill taxed on the gross also ties within ₹1,
         // but its gross tax is the exact one (review of #279, round 1).
-        if (Math.abs(netValue - linesTotal()) <= VAL_MISMATCH_TOLERANCE_PAISE && !(net.offSlab && !grossOffSlab) && taxGap() <= grossGap) {
+        if (einvoicing || v.kind === 'credit_note') {
+          gathered = gather(0)
+          notes?.discountAsRecorded?.push(v.id)
+        } else if (Math.abs(netValue - linesTotal()) <= VAL_MISMATCH_TOLERANCE_PAISE && !(net.offSlab && !grossOffSlab) && taxGap() <= grossGap) {
           discount = found
           gathered = net
         } else {
@@ -1282,7 +1291,7 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
  *  e-invoice doc-no warning (#140) runs while the switch is on OR the profile says e-invoicing
  *  is required on the period's last day (to-do §4). */
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
-  const notes: OutwardExtractionNotes = { blended: [], discounted: [], discountKept: [] }
+  const notes: OutwardExtractionNotes = { blended: [], discounted: [], discountKept: [], discountAsRecorded: [] }
   const docs = extractOutwardDocs(db, company, from, to, notes)
   const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
@@ -1292,7 +1301,7 @@ export function gstValidate(db: DB, company: CompanyInfo, from: string, to: stri
   })
   const goods = goodsAdvanceIssue(db, company, from, to)
   const blended = blendedRateIssue(notes.blended)
-  const discount = salesDiscountIssue(notes.discounted ?? [], notes.discountKept ?? [])
+  const discount = salesDiscountIssue(notes.discounted ?? [], notes.discountKept ?? [], notes.discountAsRecorded ?? [])
   const marks = blockedNoteIssue(db, from, to)
   return [...issues, ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : []), ...(marks ? [marks] : [])]
 }
@@ -1324,17 +1333,20 @@ export function blockedNoteIssue(db: DB, from: string, to: string): GstIssue | n
  * the owner's decision of 13 Nov the discount is taken off their taxable value (s.15(3)(a), GST_SOURCES.s15)
  * in GSTR-1 / 3B / 9; their e-invoice and print still carry the value before it.
  */
-export function salesDiscountIssue(voucherIds: readonly number[], kept: readonly number[] = []): GstIssue | null {
+export function salesDiscountIssue(voucherIds: readonly number[], kept: readonly number[] = [], asRecorded: readonly number[] = []): GstIssue | null {
   if (voucherIds.length === 0) return null
   const n = voucherIds.length
   const k = kept.length
+  const r = asRecorded.length
+  const netted = n - k - r
   return {
     code: 'sales_discount_line',
     severity: 'warning',
     message:
       `${n} document${n === 1 ? '' : 's'} with a discount booked on an income or expense account (for example under Sales Accounts, or "Discount given"). ` +
-      'Where the GST was charged on the value after the discount, the returns report that value (s.15(3)(a) CGST Act)' +
+      (netted ? `${netted} charged GST on the value after the discount and ${netted === 1 ? 'is' : 'are'} reported at that value (s.15(3)(a) CGST Act)` : 'None is reported at the value after the discount') +
       (k ? `; ${k} charged GST on the value BEFORE it and ${k === 1 ? 'is' : 'are'} reported as charged — the tax collected is paid over` : '') +
+      (r ? `; ${r} ${r === 1 ? 'is' : 'are'} reported as recorded (credit notes, and every bill of a business that e-invoices, keep the value before the discount)` : '') +
       '. The e-invoice and the print still show the value before the discount. ' +
       'Check these with your CA; for new bills, give the discount on the item line, or book the sale at the value after the discount.',
     voucherIds: [...voucherIds]
