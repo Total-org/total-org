@@ -30,8 +30,11 @@
  * is excluded: CBDT Circular 23/2017, cited in InvoiceEntry since WP 3.1). When the section
  * comes from the debited expense ledger's default, the base is just the debits to ledgers with
  * that default. A payment/advance's base is the amount paid (an advance carries no invoice to
- * separate GST from). Purchase returns (debit notes) do not reduce the aggregate — simplification,
- * listed in the WP 3.2 report.
+ * separate GST from). PURCHASE RETURNS (WP 2d, owner 13 Nov — all years): a debit note to the
+ * deductee is a 'return' event whose base (its credits to non-tax, non-cash ledgers) LOWERS the
+ * period aggregate for every later event, never below nil — "the aggregate of the amounts credited"
+ * net of what was taken back. It does not undo a liability that arose before it (the walk is in
+ * date order). The reading is CA question Q56 (`tds-threshold-returns`).
  */
 import type { VoucherKind } from './domain'
 import { taxableBase, thresholdPeriod, thresholdStatus, type TdsRateRow } from './tds'
@@ -61,7 +64,7 @@ export interface ClassifyLine {
   amount: number
 }
 
-export type TdsEventKind = 'credit' | 'payment'
+export type TdsEventKind = 'credit' | 'payment' | 'return'
 
 export interface TdsVoucherClass {
   eventKind: TdsEventKind
@@ -80,6 +83,9 @@ export interface TdsVoucherClass {
 /** Kinds that can carry a TDS deduction made by us as the payer. */
 export const TDS_CREDIT_KINDS: readonly VoucherKind[] = ['purchase', 'journal']
 export const TDS_KINDS: readonly VoucherKind[] = ['purchase', 'journal', 'payment']
+/** Kinds the aggregate walk reads (WP 2d): those, plus purchase returns (debit notes), which only
+ *  lower the aggregate — never carry a deduction (TDS_KINDS decides that). */
+export const TDS_EVENT_KINDS: readonly VoucherKind[] = [...TDS_KINDS, 'debit_note']
 
 /**
  * What a voucher means for TDS: a credit to or payment of a deductee, with its base — or null
@@ -91,8 +97,10 @@ export function classifyTdsVoucher(
   facts: (ledgerId: number) => TdsLedgerFacts | null,
   sectionOverride?: number | null
 ): TdsVoucherClass | null {
-  if (!TDS_KINDS.includes(v.kind)) return null
-  const side: 'dr' | 'cr' = v.kind === 'payment' ? 'dr' : 'cr'
+  if (!TDS_EVENT_KINDS.includes(v.kind)) return null
+  const isReturn = v.kind === 'debit_note'
+  // The party's side: Dr on a payment or a return (debit note), Cr on a credit.
+  const side: 'dr' | 'cr' = v.kind === 'payment' || isReturn ? 'dr' : 'cr'
   const partyOf = (): number | null => {
     const candidates = new Set<number>()
     for (const l of v.lines) {
@@ -119,10 +127,12 @@ export function classifyTdsVoucher(
     }
   }
 
-  const payableCredits = v.lines.filter((l) => l.drCr === 'cr' && facts(l.ledgerId)?.isTdsPayable).reduce((s, l) => s + l.amount, 0)
+  const payableCredits = isReturn ? 0 : v.lines.filter((l) => l.drCr === 'cr' && facts(l.ledgerId)?.isTdsPayable).reduce((s, l) => s + l.amount, 0)
   const grossPaise = partyAmount + payableCredits
+  // A credit's base is its debits to expense ledgers; a return's, its credits to them (mirror).
+  const baseSide: 'dr' | 'cr' = isReturn ? 'cr' : 'dr'
   const debits = v.lines.filter((l) => {
-    if (l.drCr !== 'dr' || l.ledgerId === party) return false
+    if (l.drCr !== baseSide || l.ledgerId === party) return false
     const f = facts(l.ledgerId)
     return !!f && !f.isTax && !f.isTdsPayable && !f.isCashBank
   })
@@ -156,7 +166,7 @@ export function classifyTdsVoucher(
   if (sectionId == null) return null
   const basePaise = sum(baseLines)
   if (basePaise <= 0 || grossPaise <= 0) return null
-  return { eventKind: 'credit', partyLedgerId: party, sectionId, sectionFrom, basePaise, grossPaise, expenseLedgerId: largest(baseLines) }
+  return { eventKind: isReturn ? 'return' : 'credit', partyLedgerId: party, sectionId, sectionFrom, basePaise, grossPaise, expenseLedgerId: largest(baseLines) }
 }
 
 /** Candidate sections for a voucher (the banner's / Eligible tab's choice): the party's own,
@@ -242,10 +252,25 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
       voucherId: e.voucherId, date: e.date, kind: e.kind, eventBasePaise: 0, priorPaise: 0, row,
       deducted: e.entryBasePaise != null, exempt: e.exempt, eligibleBasePaise: 0, reason: null
     }
+    // A return touches only the period aggregate (review of #280): lowering `credited` would turn
+    // later payments into advances (paid > credited) that were never paid ahead.
     if (e.kind === 'credit') credited += e.grossPaise
-    else paid += e.grossPaise
+    else if (e.kind === 'payment') paid += e.grossPaise
     if (e.exempt) {
       results.push(base)
+      continue
+    }
+    if (e.kind === 'return') {
+      // WP 2d: what was taken back lowers the period's aggregate (never below nil) for every later
+      // event; nothing about it is liable. Once the period's aggregate has exceeded the annual limit
+      // the return lowers nothing (review of #280, s.194C(5) proviso reading — CA point Q56): the
+      // limit was crossed, so later credits of the period stay liable, exactly as before WP 2d.
+      const periodKey = row ? thresholdPeriod(row.thresholdBasis, e.date).from : e.date.slice(0, 4)
+      const prior = aggregate.get(periodKey) ?? 0
+      const crossed = row != null && row.thresholdAnnualPaise > 0 && prior > row.thresholdAnnualPaise
+      const back = crossed ? 0 : Math.min(e.basePaise, prior)
+      aggregate.set(periodKey, prior - back)
+      results.push({ ...base, eventBasePaise: back > 0 ? -back : 0, priorPaise: prior })
       continue
     }
     let eventBase: number
