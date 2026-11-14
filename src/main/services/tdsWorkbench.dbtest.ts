@@ -106,6 +106,26 @@ describe('tdsEligible — thresholds over every qualifying credit', () => {
     expect(tdsEligible(db, '2025-10-01', '2025-12-31').map((r) => r.voucherId)).toEqual([d])
   })
 
+  it('WP 2d (owner, 13 Nov): a debit note for short work lowers the contractor\'s aggregate for later bills', () => {
+    const db = seededDb()
+    const fx = fixture(db)
+    journal(db, '2025-04-10', fx.contractor, fx.labour, 2500000)
+    journal(db, '2025-06-10', fx.contractor, fx.labour, 2500000)
+    journal(db, '2025-08-10', fx.contractor, fx.labour, 2500000)
+    // ₹10,000 taken back for short work: Dr Contractor / Cr Labour Charges.
+    saveVoucher(db, {
+      voucherTypeId: vtId(db, 'debit_note'), date: '2025-09-01', partyLedgerId: fx.contractor,
+      lines: [{ ledgerId: fx.contractor, drCr: 'dr', amount: 1000000 }, { ledgerId: fx.labour, drCr: 'cr', amount: 1000000 }]
+    })
+    // ₹75,000 − ₹10,000 + ₹26,000 = ₹91,000: under s.194C's ₹1,00,000 — nothing to deduct (₹1,01,000 before WP 2d).
+    journal(db, '2025-10-10', fx.contractor, fx.labour, 2600000)
+    expect(tdsEligible(db, FY.from, FY.to)).toEqual([])
+    // ₹10,000 more crosses it (₹1,01,000): every bill is liable again; the debit note itself never is.
+    const f = journal(db, '2025-11-10', fx.contractor, fx.labour, 1000000)
+    expect(tdsEligible(db, FY.from, FY.to).map((r) => r.reason)).toEqual(['aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate'])
+    expect(tdsEligible(db, FY.from, FY.to).at(-1)!.voucherId).toBe(f)
+  })
+
   it('counts bills that already carry TDS towards the aggregate, but never lists them', () => {
     const db = seededDb()
     const fx = fixture(db)

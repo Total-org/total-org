@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**TDS: a purchase return now lowers the supplier's yearly limit** (#280, owner's decision 13 Nov).
+When you give a supplier a debit note (goods sent back, short work), Total now takes it off what has
+been credited to them for the year. Later bills are tested against the lower total. A return does
+not cancel a deduction that was already due before it, and once the year's limit has been crossed
+a return lowers nothing (later bills of that year stay liable). A return never turns a payment into
+an advance. *For accountants*: this changes which bills
+Total lists as "TDS needed", in every year, including years already closed. The owner approved
+this. The reading is question 56 for your CA.
+
 ## [0.12.4] - 2026-11-14
 
 **Tally import: a debit note "against" an invoice stays part of that invoice** (#281, second audit COR2-4, owner's answer to Q5):
