@@ -29,6 +29,26 @@ an advance. *For accountants*: this changes which bills
 Total lists as "TDS needed", in every year, including years already closed. The owner approved
 this. The reading is question 56 for your CA.
 
+## [0.12.4] - 2026-11-14
+
+**Tally import: a debit note "against" an invoice stays part of that invoice** (#281, second audit COR2-4, owner's answer to Q5):
+when a Tally debit note (or journal) to a customer is set Agst Ref invoice S/1, Total now adds it to S/1
+(₹11,800 + ₹1,180 = ₹12,980 due on S/1), exactly as Tally shows it, instead of making a separate bill named
+after the note. A note against an invoice already paid opens that invoice again for the note's amount.
+Bill-wise lists, reminders and "pay this bill" now match Tally. The same holds on the supplier side: a
+journal or note crediting a supplier against their bill P/1 (freight, say) adds to P/1.
+- For accountants: only imports from now on; books imported before are unchanged. Party totals were already
+  right. Debit / credit notes and journals only — invoices keep the old path (GSTR-1 11B). An imported debit note against a B2CL invoice now goes to GSTR-1 9B CDNUR (typ B2CL),
+  like a note keyed into Total (it used to fall into B2CS); the added amount ages from the bill's own date
+  (MSME s.43B(h), Form 1, rule 37 — the A1 CA point).
+
+**Returning an old SEZ / export bill takes back the GST that bill charged** (#278, second audit COR2-3, owner's answer to Q4):
+a bill made before 8 Nov 2026 to a customer marked SEZ or export could carry GST (IGST, or CGST + SGST for
+an SEZ unit in your state). A return of such a bill now takes that GST back, in simple Returns and in the
+full credit-note editor, so the bill and its return net to nil (before, ₹180 on a ₹1,000 bill stayed owing).
+Both say so, with a "check with your CA" badge.
+- For accountants: only new credit notes change; every saved note and every return reads as before (CGST Act s.34).
+
 **GST you can't claim back now counts as cost** (#277, WP 2d, owner's decision 13 Nov). When Record a
 purchase or Money out's GST bill is answered "No, I can't claim it", Total now also posts a small
 entry that moves that GST from your GST accounts into the cost of what you bought. Your profit and

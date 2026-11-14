@@ -1179,7 +1179,11 @@ export const api = {
       call<OutstandingParty[]>('analysis:outstandings', { side, asOn })
   },
   bills: {
-    open: (partyLedgerId: number, asOn: string) => call<OutstandingBill[]>('bills:open', { partyLedgerId, asOn })
+    open: (partyLedgerId: number, asOn: string) => call<OutstandingBill[]>('bills:open', { partyLedgerId, asOn }),
+    /** Owner Q4 (audit 2 COR2-3): the supply a new credit note takes when the bills it returns /
+     *  is set against are SEZ / export sales saved before the zero-rated rule that charged GST. */
+    noteFollows: (q: { partyLedgerId: number | null; billNames: string[]; lineUids: string[] }) =>
+      call<'intra' | 'inter' | null>('voucher:noteFollows', q)
   },
   tds: {
     sections: () => call<TdsSection[]>('tds:sections'),

@@ -654,6 +654,7 @@
  { "channel": "voucher:get", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "voucher:list", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "voucher:nextNumber", "role": "accountant", "ungated": false, "capability": null },
+ { "channel": "voucher:noteFollows", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "voucher:numberExists", "role": "accountant", "ungated": false, "capability": null },
  { "channel": "voucher:purge", "role": "owner", "ungated": false, "capability": "canPost" },
  { "channel": "voucher:recentParties", "role": "viewer", "ungated": false, "capability": null },

@@ -653,6 +653,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.returns.cameInto': 'पैसे कहाँ आएँगे',
   'simple.returns.noAccount': 'आपने अभी तक कोई बैंक खाता नहीं जोड़ा है। उसे जोड़ें, या नकद चुनें।',
   'simple.returns.total': 'वापसी का कुल',
+  'simple.returns.followsBill': 'यह बिल 8 नवंबर 2026 से पहले बना था और इसमें SEZ या निर्यात वाले ग्राहक से GST लिया गया था, इसलिए यह वापसी वह GST वापस लेती है।',
   'simple.returns.previewProblem': 'यह वापसी अभी सेव नहीं हो सकती: {reason}',
   'simple.returns.save': 'वापसी सेव करें',
   'simple.returns.shortcuts': '⌘↵ से सेव',

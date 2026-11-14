@@ -691,6 +691,7 @@ export const en = {
   'simple.returns.cameInto': 'Money comes into',
   'simple.returns.noAccount': 'You have not added a bank account yet. Add it, or pick Cash.',
   'simple.returns.total': 'Return total',
+  'simple.returns.followsBill': 'This bill was made before 8 Nov 2026 and charged GST to an SEZ or export customer, so this return takes that GST back.',
   'simple.returns.previewProblem': 'This return can’t be saved yet: {reason}',
   'simple.returns.save': 'Save return',
   'simple.returns.shortcuts': '⌘↵ saves',
