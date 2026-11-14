@@ -617,6 +617,9 @@ function usePaletteFocus(): React.RefObject<HTMLDivElement | null> {
   useEffect(() => {
     const panel = ref.current
     return () => {
+      // Review of #282: StrictMode (dev) replays the effect while the palette is still mounted —
+      // only a real close (its DOM already gone) gives focus back.
+      if (panel?.isConnected) return
       const now = document.activeElement
       const stillHere = before && before.isConnected && before !== document.body
       // Only while focus is nowhere (the palette's own field went with it): never take it from

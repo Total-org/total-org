@@ -1,6 +1,7 @@
 // CommandPalette — books search: parsed-filter chips, per-kind groups with counts and "See all"
 // rows, highlighted matches, recent searches / recently opened records (per company, in
 // localStorage), and the unchanged ↑/↓/↵/Esc keyboard behaviour for commands.
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -239,6 +240,26 @@ describe('CommandPalette', () => {
     expect(document.activeElement).toBe(first)
     fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
     expect(document.activeElement).toBe(last)
+    view.unmount()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
+  })
+
+  it('review of #282: under StrictMode (dev) the box keeps focus when it opens; focus still goes back on close', async () => {
+    const outside = document.createElement('button')
+    outside.textContent = 'behind'
+    document.body.appendChild(outside)
+    outside.focus()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <CommandPalette onClose={vi.fn()} />
+        </QueryClientProvider>
+      </StrictMode>
+    )
+    await top()
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('input-palette')
     view.unmount()
     expect(document.activeElement).toBe(outside)
     outside.remove()
