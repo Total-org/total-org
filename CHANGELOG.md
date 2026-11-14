@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Bills print on a 2-inch (58 mm) receipt printer** (#PRNUM, audit PROD-11). Settings → Bills &
+**Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
 printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)
 or 2-inch (58 mm), the small till-roll printer most shops have. Pick one and Make a bill, the
 save card, the sales list and the counter print to fit it. The new "Receipt 58mm" print keeps

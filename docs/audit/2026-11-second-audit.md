@@ -122,7 +122,7 @@ Legend: ✅ fixed · ◐ partly · ✗ not fixed · ↺ regressed. "PR" is where
 | PROD-7 / PROD-8 share the bill, UPI QR | ✅ #239 | `invoice:share`, `upi:set`, QR on the A4 print and receipt. |
 | PROD-9 live e-invoice / e-way | — accepted | Sandbox only (owner); the "test mode" wording is shown (but see UX-19). |
 | PROD-10 phone / second device | — accepted | Offline by design. |
-| PROD-11 thermal / scan box | ✓ #240, #PRNUM | Scan box in Make a bill done; 58 mm receipt (`receipt-58mm`, Settings → Bills & printing) DONE — PR #PRNUM. |
+| PROD-11 thermal / scan box | ✓ #240, #284 | Scan box in Make a bill done; 58 mm receipt (`receipt-58mm`, Settings → Bills & printing) DONE — PR #284. |
 | PROD-12 usage insight | ✗ | No opt-in local usage list. |
 | PROD-13 IMS | ✗ (post-1.0) | — |
 | PROD-14 TDS returns | ✗ (post-1.0) | — |
