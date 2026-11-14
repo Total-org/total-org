@@ -139,7 +139,7 @@ describe('Taxes screen (simple) carries the badges beside its figures and dates'
     await screen.findByTestId('taxes-figures')
     expect(pointsOf('ca-check-simple-taxes-dueGstr1')).toEqual(['gst-due-dates'])
     expect(pointsOf('ca-check-simple-taxes-dueGstr3b')).toEqual(['gst-due-dates'])
-    expect(pointsOf('ca-check-simple-taxes-collected')).toEqual(['posted-tax-rupee'])
+    expect(pointsOf('ca-check-simple-taxes-collected')).toEqual(['posted-tax-rupee', 'gst-discount-net'])
     expect(pointsOf('ca-check-simple-taxes-onPurchases')).toEqual(['gstr2b-fields', 'itc-time-bar'])
     expect(pointsOf('ca-check-simple-taxes-toPay')).toEqual(['gstr3b-advances', 'gstr3b-negative'])
     expect(pointsOf('ca-check-simple-taxes-export')).toEqual(['gstr3b-schema-draft', 'hsn-table12'])

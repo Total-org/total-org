@@ -20,6 +20,18 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Discounts booked on an account now come off the GST value** (#279, WP 2d, owner's decision
+13 Nov). A sales bill, or a credit or debit note, with a discount booked on an income or expense
+account (for example "Discount given", or an account under Sales Accounts) whose GST was charged
+on the value after the discount now reports that value in GSTR-1, GSTR-3B and GSTR-9 (CGST Act
+s.15(3)(a)). *For accountants*: this changes the figures of such bills in every month, including
+months already filed. The owner approved this. A bill that charged GST on the value BEFORE the
+discount is still reported as charged — the tax collected is paid over — and the GSTR-1 checks
+list it. A round-off account is never a discount. A credit note is never netted, and a business that
+e-invoices keeps the value before the discount (owner, 14 Nov). The e-invoice and the print still show the value
+before the discount; that is question 58 for your CA. Bills with the discount on the item line
+were always right and do not change.
+
 **TDS: a purchase return now lowers the supplier's yearly limit** (#280, owner's decision 13 Nov).
 When you give a supplier a debit note (goods sent back, short work), Total now takes it off what has
 been credited to them for the year. Later bills are tested against the lower total. A return does

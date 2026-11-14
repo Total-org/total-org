@@ -182,8 +182,9 @@ describe('posted-tax rate — a simple "just an amount" sale and its return', ()
       inventory: [], billRefs: [], tds: null
     })
     const docs = extractOutwardDocs(db, INFO, '2025-07-01', '2025-07-31')
-    // As before the rule: the account's 18 %, with the value check flagging the difference.
-    expect(docs.map((d) => d.items.map((i) => i.rate))).toEqual([[18]])
-    expect(docs[0]!.validation!.valDiff).not.toBe(0)
+    // The account's 18 % (never 12 %). WP 2d (owner, 13 Nov): the discount is taken off the value
+    // (s.15(3)(a)) — ₹6,666.67 taxable, ₹600 + ₹600, and the value ties (₹7,866.67).
+    expect(docs.map((d) => d.items.map((i) => [i.rate, i.taxable, i.cgst, i.sgst]))).toEqual([[[18, 666_667, 60_000, 60_000]]])
+    expect(docs[0]!.validation!.valDiff).toBe(0)
   })
 })
