@@ -1,6 +1,7 @@
 // CommandPalette — books search: parsed-filter chips, per-kind groups with counts and "See all"
 // rows, highlighted matches, recent searches / recently opened records (per company, in
 // localStorage), and the unchanged ↑/↓/↵/Esc keyboard behaviour for commands.
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -190,6 +191,78 @@ describe('CommandPalette', () => {
     const r = loadRecents('acme-co')
     expect(r.vouchers[0]).toMatchObject({ id: 42, label: 'Sales INV-12' })
     expect(r.queries).toEqual(['umbrella'])
+  })
+
+  it('A9: the palette is a named modal dialog; a simple company gets a plain footer and placeholder, no filter syntax', async () => {
+    renderPalette()
+    await top()
+    let dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(screen.getByTestId('input-palette').getAttribute('aria-label')).toBe('Command palette')
+    expect(screen.getByTestId('palette-help').textContent).toContain('Filters:')
+    cleanup()
+    act(() => useSession.getState().setUi({ mode: 'simple' }))
+    renderPalette()
+    await top()
+    dialog = screen.getByRole('dialog', { name: 'Search and go' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    const input = screen.getByTestId('input-palette')
+    expect(input.getAttribute('aria-label')).toBe('Search and go')
+    expect(input.getAttribute('placeholder')).toBe('Find a customer, product, bill or screen…')
+    const help = screen.getByTestId('palette-help').textContent ?? ''
+    expect(help).toContain('Try: a customer’s name, an amount like 5000, a bill number like 12, or Taxes')
+    expect(help).not.toContain('Filters')
+    expect(help).not.toMatch(/amt:|gstin:|type:/)
+    // The example's last word is a row the simple palette has.
+    type('Taxes')
+    expect(screen.getByTestId('palette-section-simple').textContent).toContain('Taxes')
+  })
+
+  it('review of #282: Tab stays inside the palette, and focus goes back where it was on close', async () => {
+    const outside = document.createElement('button')
+    outside.textContent = 'behind'
+    document.body.appendChild(outside)
+    outside.focus()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CommandPalette onClose={vi.fn()} />
+      </QueryClientProvider>
+    )
+    await top()
+    const panel = screen.getByTestId('palette')
+    const stops = [...panel.querySelectorAll<HTMLElement>('input, button')]
+    expect(stops.length).toBeGreaterThan(1)
+    const first = stops[0]!
+    const last = stops[stops.length - 1]!
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+    view.unmount()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
+  })
+
+  it('review of #282: under StrictMode (dev) the box keeps focus when it opens; focus still goes back on close', async () => {
+    const outside = document.createElement('button')
+    outside.textContent = 'behind'
+    document.body.appendChild(outside)
+    outside.focus()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <CommandPalette onClose={vi.fn()} />
+        </QueryClientProvider>
+      </StrictMode>
+    )
+    await top()
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('input-palette')
+    view.unmount()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
   })
 
   it('empty query shows recent searches, recently opened records and the syntax help row', async () => {

@@ -8,7 +8,8 @@ import { aiApi } from '../../lib/aiClient'
 import { useNav, useSession, useToasts } from '../../state/stores'
 import { Badge, Button, Panel, SectionTitle, Skeleton } from '../../components/ui'
 import { DataTable, defineColumns } from '../../components/table'
-import { dataFolder, pathSep } from '../../lib/platform'
+import { pathSep } from '../../lib/platform'
+import { inDataFolder, useDataFolder } from '../../lib/dataFolder'
 import { CAPABILITY_REFUSED_TEXT, capabilityRefused } from '../../lib/capabilities'
 
 /**
@@ -130,9 +131,9 @@ export function AgentBridgeSection(): React.JSX.Element {
   const [exporting, setExporting] = useState(false)
   const [lastExport, setLastExport] = useState<{ dir: string; files: string[] } | null>(null)
 
-  // Display path — dataRoot() is ~/Documents/total (Documents\total on Windows) unless
-  // TOTAL_DATA_DIR overrides it (driver/CI scripts only, never a real install).
-  const companyPath = `${dataFolder}${pathSep}${slug ?? '<company>'}`
+  // A9 (audit UX-22): the folder Total really uses (moved or not); a company is under companies/.
+  const dataFolder = useDataFolder()
+  const companyPath = inDataFolder(dataFolder, 'companies', slug ?? '<company>')
 
   const toggle = async (): Promise<void> => {
     if (!config) return
@@ -179,7 +180,7 @@ export function AgentBridgeSection(): React.JSX.Element {
                   <p className="text-detail font-medium">CSV/JSON mirror</p>
                   <p className="mt-0.5 text-small text-muted">
                     Writes read-only copies of ledgers, items, vouchers and reports to{' '}
-                    <span className="num">{companyPath}/agent</span> — integer paise, lossless — for an agent or a script to read. Nothing
+                    <span className="num">{companyPath}{pathSep}agent</span> — integer paise, lossless — for an agent or a script to read. Nothing
                     an agent does there reaches the books.
                   </p>
                 </div>

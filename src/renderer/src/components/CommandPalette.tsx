@@ -82,6 +82,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   const user = useSession((s) => s.user)
   const features = useFeatures()
   const [query, setQuery] = useState('')
+  const panelRef = usePaletteFocus()
   const { recents, addQuery } = useSearchRecents()
   const openRecord = useOpenRecord()
   const ctx = useMemo(() => ({ today: todayISO(), fyStartYear: fyOf(from).startYear }), [from])
@@ -344,11 +345,18 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   }
 
   let index = 0
+  const paletteName = simpleMode ? t('simple.palette.dialog') : 'Command palette' // i18n-technical: the full app keeps its English
   return (
     <div className="t-fade-in fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[14vh]" data-esc-layer="" onMouseDown={onClose}>
       <div
         className="t-pop-in w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-raised shadow-elev-3"
         data-testid="palette"
+        // A9 (audit UX2-3): a named modal dialog, so a screen reader says what opened.
+        role="dialog"
+        aria-modal="true"
+        aria-label={paletteName}
+        ref={panelRef}
+        onKeyDown={trapTab}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseMove={() => {
           if (!pointerMoved.current) pointerMoved.current = true
@@ -372,7 +380,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
             }
             else if (e.key === 'Enter') runItem(navItems[active])
           }}
-          placeholder={t('palette.placeholder')}
+          aria-label={paletteName}
+          placeholder={simpleMode ? t('simple.palette.placeholder') : t('palette.placeholder')}
           className="w-full border-b border-line bg-transparent px-5 py-4 text-lead outline-none placeholder:text-muted"
         />
         {(parsed.chips.length > 0 || parsed.unknown.length > 0) && (
@@ -414,7 +423,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
           )}
         </div>
         <div data-testid="palette-help" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-panel2 px-5 py-2.5 text-caption text-muted">
-          {query.trim() === '' ? (
+          {query.trim() === '' && simpleMode ? (
+            // A9 (audit UX-17): a simple company gets plain words, not the filter syntax.
+            <span data-testid="palette-try">{t('simple.palette.try')}</span>
+          ) : query.trim() === '' ? (
             <>
               <span>Filters:</span>
               {SYNTAX_HINTS.slice(0, 6).map((h) => (
@@ -578,4 +590,42 @@ function PaletteRow({
       )
     }
   }
+}
+
+/** Review of #282: an `aria-modal` palette keeps Tab inside itself (the screen behind is inert to
+ *  a screen reader), and gives focus back to where it was when it closes — unless that element is
+ *  gone (the palette opened another screen). Not a kit dialog layer: its Esc stays its own. */
+function trapTab(e: React.KeyboardEvent<HTMLDivElement>): void {
+  if (e.key !== 'Tab') return
+  const stops = [...e.currentTarget.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])')].filter((el) => !el.hasAttribute('disabled'))
+  if (stops.length === 0) return
+  const first = stops[0]!
+  const last = stops[stops.length - 1]!
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
+function usePaletteFocus(): React.RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement | null>(null)
+  // Read during the first render: by the time an effect runs, the box's autoFocus has moved focus.
+  const [before] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null))
+  useEffect(() => {
+    const panel = ref.current
+    return () => {
+      // Review of #282: StrictMode (dev) replays the effect while the palette is still mounted —
+      // only a real close (its DOM already gone) gives focus back.
+      if (panel?.isConnected) return
+      const now = document.activeElement
+      const stillHere = before && before.isConnected && before !== document.body
+      // Only while focus is nowhere (the palette's own field went with it): never take it from
+      // something the palette's action focused on purpose.
+      if (stillHere && (now === null || now === document.body || !now.isConnected || !!panel?.contains(now))) before.focus()
+    }
+  }, [before])
+  return ref
 }

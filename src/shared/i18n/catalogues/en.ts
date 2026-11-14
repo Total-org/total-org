@@ -20,6 +20,7 @@ export const en = {
   'common.appName': 'Total',
   'common.companies.filter': 'Find a business — name, GSTIN or state',
   'common.companies.noMatch': 'No business matches.',
+  'common.companies.where': 'Your books, on this computer, nowhere else · {folder}',
   'common.save': 'Save',
   'common.saveShortcut': 'Save ⌘↵',
   'common.cancel': 'Cancel',
@@ -281,6 +282,9 @@ export const en = {
   'simple.palette.move': 'move',
   'simple.palette.open': 'open',
   'simple.palette.allResults': 'everything found',
+  'simple.palette.dialog': 'Search and go',
+  'simple.palette.placeholder': 'Find a customer, product, bill or screen…',
+  'simple.palette.try': 'Try: a customer’s name, an amount like 5000, a bill number like 12, or Taxes',
 
   // ---------- simple sections: the plain-named entries (§2.3, WP 8.1) ----------
   'simple.section.empty': 'Nothing to show here for your business yet. Turn more on in Settings → Features.',
@@ -1373,6 +1377,9 @@ export const en = {
   'simple.taxes.subtitle': 'What you owe the government, by when, and the steps to file. Total prepares; you file on gst.gov.in.',
   'simple.taxes.loadError': 'Total couldn’t load your taxes. Try again.',
   'simple.taxes.periodLabel': 'Period',
+  'simple.taxes.hub.title': 'GST for {period}',
+  'simple.taxes.hub.titlePlain': 'GST',
+  'simple.taxes.hub.open': 'See the figures and the steps to file',
   'simple.taxes.filing': '{filing, select, quarterly {You file GST every quarter.} other {You file GST every month.}}',
   'simple.taxes.gst.collectedLabel': 'GST you collected',
   'simple.taxes.gst.onPurchasesLabel': 'GST on purchases',

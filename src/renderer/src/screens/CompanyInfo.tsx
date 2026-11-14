@@ -8,7 +8,7 @@ import { todayISO, toDisplayDate } from '@shared/dates'
 import { GST_STATE_LIST } from '@shared/gst/states'
 import { gstinErrorMessage } from '../lib/gstinError'
 import { useUnsavedGuard } from '../lib/useUnsavedGuard'
-import { dataFolder, pathSep } from '../lib/platform'
+import { inDataFolder, useDataFolder } from '../lib/dataFolder'
 import { EinvoiceProfileSection, draftFromProfile, profileFromDraft, type EinvoiceProfileDraft } from './gst/EinvoiceProfile'
 import { CaCheck } from '../components/CaCheck'
 
@@ -17,6 +17,7 @@ const TAN_RE = /^[A-Z]{4}\d{5}[A-Z]$/
 
 export function CompanyInfoScreen(): React.JSX.Element {
   const { info, slug, setCompany, user } = useSession()
+  const dataFolder = useDataFolder()
   const queryClient = useQueryClient()
   // WP 8.3: GSTR-1 filing frequency (meta gstProfile) — part of this form, saved with it; owner only
   // (everyone in a company without users), like the server's gstProfile:set.
@@ -235,7 +236,7 @@ export function CompanyInfoScreen(): React.JSX.Element {
         </div>
       </Panel>
       <p className="mt-3 text-small text-muted">
-        Books from FY {info?.booksFrom}-{((info?.booksFrom ?? 0) + 1) % 100}. Data lives in {dataFolder}{pathSep}companies{pathSep}{slug} — back it up like any folder.
+        Books from FY {info?.booksFrom}-{((info?.booksFrom ?? 0) + 1) % 100}. Data lives in {inDataFolder(dataFolder, 'companies', slug ?? '')} — back it up like any folder.
       </p>
       <CsvImportCard />
     </Page>
