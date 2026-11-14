@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**Simple polish** (#A9PR, audit A9): the Taxes page now opens with the GST to pay and both due dates (the
+**Simple polish** (#282, audit A9): the Taxes page now opens with the GST to pay and both due dates (the
 same figure as Home) and one button to the plain GST screen; the full-app returns sit under "For your CA".
 ⌘K in a simple business says "Try: a customer's name, 5000, bill 12, Taxes" instead of filter codes, and is
 a named dialog for screen readers in both modes. GSTR-1 / GSTR-3B no longer show the test-portal card
