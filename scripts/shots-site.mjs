@@ -102,7 +102,11 @@ try {
   await language('en')
 
   // 2. Taxes
-  await openEntry('taxes', 'gst-summary', 'simple-taxes')
+  // A9 (#282): the Taxes page opens the plain GST screen from its GST card.
+  await h.click('simple-nav-taxes')
+  await h.page.waitForSelector('[data-testid="simple-taxes-hub-open"]', { state: 'attached', timeout: 10000 })
+  await h.click('simple-taxes-hub-open')
+  await h.waitScreen('simple-taxes', 20000)
   await h.page.waitForSelector('[data-testid="taxes-figures"]', { state: 'attached', timeout: 20000 })
   await shot('taxes-light')
 

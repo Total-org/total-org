@@ -51,6 +51,12 @@ export function journey(h) {
     await attached(`[data-testid="simple-entry-${entry}"]`)
     await h.click(`simple-entry-${entry}`)
   }
+  /** Taxes → the plain GST screen: since A9 (#282) the Taxes page opens it from its GST card, not an entry. */
+  const openGst = async () => {
+    await h.click('simple-nav-taxes')
+    await attached('[data-testid="simple-taxes-hub-open"]')
+    await h.click('simple-taxes-hub-open')
+  }
   const noBanned = async (where) => {
     const found = bannedWordsIn(await mainText())
     if (found.length) throw new Error(`accounting words on ${where}: ${found.join(', ')}`)
@@ -112,7 +118,7 @@ export function journey(h) {
   }
 
   return {
-    attached, gone, text, paise, has, mainText, waitText, fill, pick, open, noBanned, saveCard, settled, home, addBankIfAsked, createFromPicker,
+    attached, gone, text, paise, has, mainText, waitText, fill, pick, open, openGst, noBanned, saveCard, settled, home, addBankIfAsked, createFromPicker,
 
     /** First run: the wizard, every question as the screen asks it. */
     async setup(p) {
@@ -377,7 +383,7 @@ export function journey(h) {
 
     /** Taxes → GST summary: the three figures. */
     async gstAnswer() {
-      await open('taxes', 'gst-summary')
+      await openGst()
       await attached('[data-testid="taxes-figures"]')
       await h.waitIdle()
       await waitForSettled(page)

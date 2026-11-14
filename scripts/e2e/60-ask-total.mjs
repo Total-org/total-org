@@ -145,7 +145,7 @@ await scenario('60-ask-total', async (h) => {
 
   // ================= 10. the GST answer for this month =================
   await m.step('gst')
-  await j.open('taxes', 'gst-summary')
+  await j.openGst()
   await j.attached('[data-testid="taxes-figures"]')
   await h.waitIdle()
   if ((await page.inputValue('[data-testid="taxes-period"]')) !== month) {
