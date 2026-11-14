@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
+printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)
+or 2-inch (58 mm), the small till-roll printer most shops have. Pick one and Make a bill, the
+save card, the sales list and the counter print to fit it. The new "Receipt 58mm" print keeps
+about 32 characters a line, wraps long product names, prints the GST summary one line per rate
+and puts the UPI pay QR above its words. *For developers*: built-in template `receipt-58mm`
+(page `Roll58`); the A4 and 80 mm prints are byte-identical; the setting writes through the
+existing `template:setDefault` / `counter:setConfig`.
+
 **Discounts booked on an account now come off the GST value** (#279, WP 2d, owner's decision
 13 Nov). A sales bill, or a credit or debit note, with a discount booked on an income or expense
 account (for example "Discount given", or an account under Sales Accounts) whose GST was charged

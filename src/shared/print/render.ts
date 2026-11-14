@@ -9,6 +9,8 @@ import { chargesGstOn, COMPOSITION_DECLARATION, nonTaxInvoiceTitle, registration
 import { einvoiceQrPayload } from '../einvoiceQr'
 import {
   CHALLAN_COPY_LABELS,
+  isRollPage,
+  PAGE_MM,
   PRINT_COLUMN_DEFS,
   STOCK_NOTE_PRINT_KINDS,
   TRADE_DOC_PRINT_KINDS,
@@ -396,7 +398,7 @@ function baseCss(c: Ctx): string {
     table.rc-tax th { font-weight: 600; text-align: left; border-bottom: 1px solid #000; }
     .r { text-align: right; }
     .rc-foot { margin-top: 6px; text-align: center; font-size: ${px(10.5)}; }
-  `
+  ` + (t.page.size === 'Roll58' ? narrowReceiptCss(c) : '')
   }
   if (t.style === 'compact') {
     return `
@@ -502,7 +504,7 @@ function extraCss(c: Ctx): string {
 function pageCss(t: PrintTemplate): string {
   if (t.page.size === 'A4' && t.page.orientation === 'portrait') return ''
   // Roll paper: the PDF engine sets the custom page (pdfOptionsFor); no named CSS size exists.
-  if (t.page.size === 'Roll80') return ''
+  if (isRollPage(t.page.size)) return ''
   const size = t.page.size === 'Letter' ? 'letter' : t.page.size
   return `@page { size: ${size} ${t.page.orientation}; }`
 }
@@ -779,7 +781,40 @@ function einvoiceLine(c: Ctx, info: PrintEinvoiceInfo): string {
   return `<div class="einv">${parts.join(' · ')}</div>`
 }
 
-/** WP 2.6 — the till receipt (style 'receipt', Roll80 paper): company, bill no / date, the
+/** PROD-11 — the 58 mm receipt's additions (appended, so the 80 mm sheet is byte-identical):
+ *  long words (item names, a GSTIN, a UPI ID) break instead of running off the 48 mm line, a
+ *  two-part row wraps its right part under the left, the UPI block is centred. */
+function narrowReceiptCss(c: Ctx): string {
+  return `
+    body { overflow-wrap: anywhere; }
+    .rc-row { flex-wrap: wrap; column-gap: 4px; row-gap: 0; }
+    .rc-row > span:last-child { margin-left: auto; }
+    table.rc-items td.r { white-space: nowrap; padding-left: 4px; }
+    .rc-gst { margin-top: 1px; }
+    .rc-upi { margin-top: 8px; text-align: center; }
+    .rc-upi .rc-qr { display: flex; justify-content: center; margin: 2px 0; }
+    .rc-upi .rc-upi-text { font-size: ${c.px(10)}; }
+  `
+}
+
+/** The UPI QR on 58 mm paper: the QR (28 mm, never wider than the printable width) above its
+ *  words — beside them, as on 80 mm, the words would get under 22 mm. */
+function narrowUpiBlock(c: Ctx, upi: PrintUpiInfo | null | undefined): string {
+  if (!upi) return ''
+  return `<div class="rc-upi" data-upi-qr>
+         <div class="rc-title">${esc(c.L.payByUpi)}</div>
+         <div class="rc-qr">${qrSvg(upi.link, receiptQrMm(c.t))}</div>
+         <div class="rc-upi-text">${esc(c.L.upiScan(formatPaise(upi.amountPaise, { symbol: true }), upi.upiId))}</div>
+       </div>`
+}
+
+/** The 58 mm receipt's UPI QR side (mm): 28, or the printable width when the margins leave less. */
+export function receiptQrMm(t: PrintTemplate): number {
+  const printable = PAGE_MM[t.page.size].w - t.page.marginsMm.left - t.page.marginsMm.right
+  return Math.max(10, Math.min(28, printable))
+}
+
+/** WP 2.6 — the till receipt (style 'receipt', Roll80 / Roll58 paper): company, bill no / date, the
  *  customer, item lines as "qty × rate = amount", the GST lines, round off, total, the
  *  payments with cash tendered / change, a by-rate tax summary and the footer note. */
 function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): string {
@@ -817,7 +852,13 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
       }</table>`
     : ''
   const summaryRows = t.totals.taxSummary === 'none' || noGst ? [] : taxSummaryForInvoice(inv, 'rate', isIntra ? 'intra' : 'inter')
-  const summary = summaryRows.length
+  const narrow = t.page.size === 'Roll58'
+  // 58 mm: one line per rate, "18% on 1,000.00 … 180.00" (≤ 32 characters up to ₹99,99,999.99).
+  const summary = narrow && summaryRows.length
+    ? `<div class="rc-rule"></div><div class="rc-sm"><b>GST</b></div>${summaryRows
+        .map((r) => `<div class="rc-row rc-sm rc-gst"><span class="num">${r.rate}%${r.cessRate ? `+${r.cessRate}%` : ''} on ${m(r.taxable)}</span><span class="num">${m(r.cgst + r.sgst + r.igst + r.cess)}</span></div>`)
+        .join('')}`
+    : summaryRows.length
     ? `<div class="rc-rule"></div><table class="rc-tax"><thead><tr><th>GST</th><th class="r">Taxable</th><th class="r">Tax</th></tr></thead><tbody>${summaryRows
         .map((r) => `<tr><td class="num">${r.rate}%${r.cessRate ? `+${r.cessRate}%` : ''}</td><td class="r num">${m(r.taxable)}</td><td class="r num">${m(r.cgst + r.sgst + r.igst + r.cess)}</td></tr>`)
         .join('')}</tbody></table>`
@@ -845,7 +886,7 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
       <table class="rc-items"><tbody>${items}</tbody></table>
       <div class="rc-rule"></div>
       <div class="rc-row rc-sm"><span>${inv.items.length} item${inv.items.length === 1 ? '' : 's'}</span><span class="num">Qty ${formatQtyMilli(qtyTotal)}</span></div>
-      <table class="rc-tot">${tot}</table>${pays}${summary}${upiBlock(c, doc.upi)}
+      <table class="rc-tot">${tot}</table>${pays}${summary}${narrow ? narrowUpiBlock(c, doc.upi) : upiBlock(c, doc.upi)}
       ${foot ? `<div class="rc-foot">${foot}</div>` : ''}
     </div>`
   const copies = t.header.copyLabels.map(() => `<div class="copy">${sheet}</div>`).join('')

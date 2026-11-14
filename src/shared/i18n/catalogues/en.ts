@@ -2954,6 +2954,18 @@ export const en = {
   'simple.upi.cleared': 'Removed. Bills print no UPI QR.',
   'simple.upi.ownerOnly': 'Only the owner can change this.',
   'simple.upi.notOnNotes': 'Return notes and bills already paid in full print no QR.',
+  'simple.receiptPaper.title': 'How do you print your bills?',
+  'simple.receiptPaper.intro': 'Pick the paper your printer takes. Bills you make (and the counter receipt) print to fit it.',
+  'simple.receiptPaper.a4': 'On A4 paper',
+  'simple.receiptPaper.a4Hint': 'A normal office or home printer.',
+  'simple.receiptPaper.w80': 'Receipt printer, 3-inch (80 mm)',
+  'simple.receiptPaper.w80Hint': 'The wider till-roll printer.',
+  'simple.receiptPaper.w58': 'Receipt printer, 2-inch (58 mm)',
+  'simple.receiptPaper.w58Hint': 'The small till-roll printer most shops have.',
+  'simple.receiptPaper.counter80': 'The counter still prints its receipts on 3-inch (80 mm) paper.',
+  'simple.receiptPaper.counter58': 'The counter still prints its receipts on 2-inch (58 mm) paper.',
+  'simple.receiptPaper.saved': 'Saved. Your next bill prints this way.',
+  'simple.receiptPaper.viewerOnly': 'Only someone who can make bills can change this.',
   'simple.print.paymentRequest': 'Please pay the balance into the bank account below, with the bill numbers.',
 
   // ---------- command palette (shared chrome; wording unchanged from 0.10) ----------
