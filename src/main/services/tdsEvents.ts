@@ -6,7 +6,7 @@
 import type { DB } from '../db/connection'
 import type { VoucherKind } from '@shared/domain'
 import {
-  classifyTdsVoucher, TDS_KINDS, walkTdsEvents,
+  classifyTdsVoucher, TDS_EVENT_KINDS, walkTdsEvents,
   type TdsLedgerFacts, type TdsVoucherClass, type WalkEvent, type WalkResult
 } from '@shared/tdsEligibility'
 import { rateRowOn, resolveDeducteeType, type DeducteeType, type TdsRateRow } from '@shared/tds'
@@ -66,9 +66,9 @@ export interface LoadedVoucher {
  * closing journal) dated in [from, to] — optionally only those touching `partyLedgerId`.
  */
 export function loadTdsVouchers(db: DB, from: string, to: string, opts: { partyLedgerId?: number; excludeVoucherId?: number } = {}): LoadedVoucher[] {
-  const kinds = TDS_KINDS.map(() => '?').join(',')
+  const kinds = TDS_EVENT_KINDS.map(() => '?').join(',')
   const partyClause = opts.partyLedgerId != null ? 'AND v.id IN (SELECT voucher_id FROM voucher_lines WHERE ledger_id = ?)' : ''
-  const params: unknown[] = [from, to, ...TDS_KINDS, opts.excludeVoucherId ?? -1]
+  const params: unknown[] = [from, to, ...TDS_EVENT_KINDS, opts.excludeVoucherId ?? -1]
   if (opts.partyLedgerId != null) params.push(opts.partyLedgerId)
   const heads = db
     .prepare(

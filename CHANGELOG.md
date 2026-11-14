@@ -20,9 +20,18 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**TDS: a purchase return now lowers the supplier's yearly limit** (#280, owner's decision 13 Nov).
+When you give a supplier a debit note (goods sent back, short work), Total now takes it off what has
+been credited to them for the year. Later bills are tested against the lower total. A return does
+not cancel a deduction that was already due before it, and once the year's limit has been crossed
+a return lowers nothing (later bills of that year stay liable). A return never turns a payment into
+an advance. *For accountants*: this changes which bills
+Total lists as "TDS needed", in every year, including years already closed. The owner approved
+this. The reading is question 56 for your CA.
+
 **Simple polish** (#282, audit A9): the Taxes page now opens with the GST to pay and both due dates (the
 same figure as Home) and one button to the plain GST screen; the full-app returns sit under "For your CA".
-⌘K in a simple business says "Try: a customer's name, 5000, bill 12, Taxes" instead of filter codes, and is
+⌘K in a simple business says "Try: a customer's name, an amount like 5000, a bill number like 12, or Taxes" instead of filter codes, and is
 a named dialog for screen readers in both modes. GSTR-1 / GSTR-3B no longer show the test-portal card
 unless you switch it on under Options. The company list, Settings → About, Company details and the agent
 mirror name the folder Total really uses (a moved folder too), not always "~/Documents/total" — and the
