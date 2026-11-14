@@ -192,6 +192,28 @@ describe('CommandPalette', () => {
     expect(r.queries).toEqual(['umbrella'])
   })
 
+  it('A9: the palette is a named modal dialog; a simple company gets a plain footer and placeholder, no filter syntax', async () => {
+    renderPalette()
+    await top()
+    let dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    expect(screen.getByTestId('input-palette').getAttribute('aria-label')).toBe('Command palette')
+    expect(screen.getByTestId('palette-help').textContent).toContain('Filters:')
+    cleanup()
+    act(() => useSession.getState().setUi({ mode: 'simple' }))
+    renderPalette()
+    await top()
+    dialog = screen.getByRole('dialog', { name: 'Search and go' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    const input = screen.getByTestId('input-palette')
+    expect(input.getAttribute('aria-label')).toBe('Search and go')
+    expect(input.getAttribute('placeholder')).toBe('Find a customer, product, bill or screen…')
+    const help = screen.getByTestId('palette-help').textContent ?? ''
+    expect(help).toContain('Try: a customer’s name, 5000, bill 12, Taxes')
+    expect(help).not.toContain('Filters')
+    expect(help).not.toMatch(/amt:|gstin:|type:/)
+  })
+
   it('empty query shows recent searches, recently opened records and the syntax help row', async () => {
     let r = withQuery(EMPTY_RECENTS, 'amt:>50000')
     r = withRecord(r, 'ledger', { id: 7, label: 'Umbrella Retail', sub: 'Sundry Debtors' })

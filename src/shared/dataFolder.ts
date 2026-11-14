@@ -7,6 +7,8 @@ export type DataFolderProblem = 'same' | 'inside_current' | 'contains_current' |
 export interface DataFolderView {
   /** The folder in use this session. */
   path: string
+  /** A9 (audit UX-22): `path` as the company list and Settings → About show it — `shownFolder`. */
+  shown: string
   source: DataFolderSource
   defaultPath: string
   /** In a OneDrive folder (shared/windowsPaths.ts `isOneDrivePath`). */
@@ -38,4 +40,23 @@ export interface DataFolderMoved {
   files: number
   /** The app restarts on its own a moment after this answer. */
   relaunching: boolean
+}
+
+/**
+ * A9 (audit UX-22): the data folder in plain words — under the user's home it is shown from there
+ * ("~/Documents/total" on a Mac, "Documents\\total" on Windows, as before when it is the default),
+ * anywhere else as the full path. Pure.
+ */
+export function shownFolder(path: string, home: string, platform: string): string {
+  const win = platform === 'win32'
+  const sep = win ? '\\' : '/'
+  const trim = (p: string): string => (p.length > 1 && (p.endsWith('/') || p.endsWith('\\')) ? p.slice(0, -1) : p)
+  const h = trim(home)
+  const p = trim(path)
+  if (!h) return p
+  const same = (a: string, b: string): boolean => (win ? a.toLowerCase() === b.toLowerCase() : a === b)
+  const under = p.length > h.length && same(p.slice(0, h.length), h) && (p[h.length] === sep || (win && p[h.length] === '/'))
+  if (!under) return same(p, h) ? (win ? p : '~') : p
+  const rest = p.slice(h.length + 1)
+  return win ? rest : `~/${rest}`
 }

@@ -1,12 +1,18 @@
+import { useQuery } from '@tanstack/react-query'
+import { toPlainDate } from '@shared/dates'
+import { taxesPeriodLabel } from '@shared/simple/explain'
+import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
 import { useAiAffordances } from '../lib/explain'
 import { screenDef, simpleEntriesOf, simpleEntryVisible, SIMPLE_SECTIONS, type ResolvedSimpleEntry } from '../lib/screens'
 import { useFeatures } from '../lib/useFeatures'
 import { useNav, useSession } from '../state/stores'
-import { Page } from '../components/ui'
+import { Button, Page } from '../components/ui'
 import { useAccountantView } from '../lib/handoff'
 import { AccountantViewButton } from './AccountantViewButton'
+import { money } from './reports/parts'
 import type { SimpleSectionId } from '@shared/simple/uiMode'
+import type { SimpleTaxes } from '@shared/simple/taxes'
 
 /** Entries a section shows for this company: features on, the GST returns (GSTR-1 / 3B / 2B) only
  *  for a REGULAR registration (never while the company details are still loading), "Snap a bill"
@@ -32,8 +38,14 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
   const openFull = useAccountantView({ name: 'simple-section', section })
   const meta = SIMPLE_SECTIONS.find((s) => s.id === section)
   const title = meta ? t(meta.label) : '' // i18n-technical: registry key (simple.nav.*)
-  const main = entries.filter((e) => e.group === null)
-  const ca = entries.filter((e) => e.group === 'forYourCa')
+  // A9 (audit UX-5): on Taxes the plain GST screen is the card at the top (figure + due date), so
+  // its entry is not listed again, and the screens that open in the full app go under "For your CA"
+  // as on Reports.
+  const taxes = section === 'taxes'
+  const gstCard = taxes && gstType === 'regular'
+  const listed = gstCard ? entries.filter((e) => e.screenName !== 'simple-taxes') : entries
+  const main = listed.filter((e) => e.group === null && !(taxes && accountantOnly(e)))
+  const ca = listed.filter((e) => e.group === 'forYourCa' || (taxes && e.group === null && accountantOnly(e)))
 
   return (
     <Page data-testid={`simple-section-${section}`}>
@@ -67,6 +79,7 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
           </button>
         </section>
       )}
+      {gstCard && <TaxesGstCard />}
       {entries.length === 0 && <p className="text-detail text-muted">{t('simple.section.empty')}</p>}
       <EntryGrid entries={main} />
       {ca.length > 0 && (
@@ -80,6 +93,44 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
 }
 
 const taxesScreen = { name: 'simple-taxes' } as const // i18n-technical
+
+/**
+ * A9 (audit UX-5): the Taxes hub's GST card for a regular registration — what the Home tile and
+ * the Taxes screen show by default (simple:taxes with no period: dashGst's period), the cash to
+ * pay and both due dates, and one button to the plain GST screen. The same query as TaxesScreen's
+ * default, so opening it next is instant. While it loads (or if it fails) the button still works.
+ */
+function TaxesGstCard(): React.JSX.Element {
+  const t = useT()
+  const nav = useNav()
+  const today = useSession((s) => s.workingDate)
+  const q = useQuery({ queryKey: ['simpleTaxes', null, today], queryFn: () => api.simpleTaxes.get(undefined, today) }) // i18n-technical
+  const x = q.data?.kind === 'regular' ? (q.data as Extract<SimpleTaxes, { kind: 'regular' }>) : null
+  return (
+    <section className="mb-6 rounded-xl border border-line bg-panel p-panel shadow-elev-1" data-testid="simple-taxes-gst-card" aria-busy={q.isLoading}>
+      <h2 className="text-lead font-semibold text-ink">
+        {x ? t('simple.taxes.hub.title', { period: taxesPeriodLabel(x.period, t) }) : t('simple.taxes.hub.titlePlain')}
+      </h2>
+      {x ? (
+        <>
+          <p className="mt-2 text-detail text-muted">{t('simple.taxes.gst.toPayLabel')}</p>
+          <p className="num text-display font-semibold text-ink" data-testid="simple-taxes-hub-to-pay">
+            {money(x.figures.toPay)}
+          </p>
+          <ul className="mt-2 space-y-0.5 text-detail text-muted">
+            <li data-testid="simple-taxes-hub-due-gstr1">{t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) })}</li>
+            <li data-testid="simple-taxes-hub-due-gstr3b">{t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) })}</li>
+          </ul>
+        </>
+      ) : (
+        <div className="mt-2 h-[5.5rem]" aria-hidden="true" />
+      )}
+      <Button variant="primary" className="mt-3" data-testid="simple-taxes-hub-open" onClick={() => nav.go(taxesScreen)}>
+        {t('simple.taxes.hub.open')}
+      </Button>
+    </section>
+  )
+}
 
 /** The entry opens a screen that only has an accountant view (it shows in the full app). */
 const accountantOnly = (e: ResolvedSimpleEntry): boolean => !screenDef(e.screenName)?.modes.includes('simple')

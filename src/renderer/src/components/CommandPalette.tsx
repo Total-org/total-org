@@ -344,11 +344,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   }
 
   let index = 0
+  const paletteName = simpleMode ? t('simple.palette.dialog') : 'Command palette' // i18n-technical: the full app keeps its English
   return (
     <div className="t-fade-in fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[14vh]" data-esc-layer="" onMouseDown={onClose}>
       <div
         className="t-pop-in w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-raised shadow-elev-3"
         data-testid="palette"
+        // A9 (audit UX2-3): a named modal dialog, so a screen reader says what opened.
+        role="dialog"
+        aria-modal="true"
+        aria-label={paletteName}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseMove={() => {
           if (!pointerMoved.current) pointerMoved.current = true
@@ -372,7 +377,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
             }
             else if (e.key === 'Enter') runItem(navItems[active])
           }}
-          placeholder={t('palette.placeholder')}
+          aria-label={paletteName}
+          placeholder={simpleMode ? t('simple.palette.placeholder') : t('palette.placeholder')}
           className="w-full border-b border-line bg-transparent px-5 py-4 text-lead outline-none placeholder:text-muted"
         />
         {(parsed.chips.length > 0 || parsed.unknown.length > 0) && (
@@ -414,7 +420,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
           )}
         </div>
         <div data-testid="palette-help" className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line bg-panel2 px-5 py-2.5 text-caption text-muted">
-          {query.trim() === '' ? (
+          {query.trim() === '' && simpleMode ? (
+            // A9 (audit UX-17): a simple company gets plain words, not the filter syntax.
+            <span data-testid="palette-try">{t('simple.palette.try')}</span>
+          ) : query.trim() === '' ? (
             <>
               <span>Filters:</span>
               {SYNTAX_HINTS.slice(0, 6).map((h) => (

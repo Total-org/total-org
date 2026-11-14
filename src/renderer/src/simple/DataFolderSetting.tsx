@@ -4,12 +4,12 @@ import type { DataFolderPick, DataFolderProblem } from '@shared/dataFolder'
 import type { MessageKey } from '@shared/i18n/catalogues/en'
 import { mapError } from '@shared/errors'
 import { api } from '../lib/client'
+import { DATA_ROOT_KEY } from '../lib/dataFolder'
 import { useT } from '../lib/i18n'
 import { useCanSetMode } from '../lib/mode'
 import { useNav, useSession } from '../state/stores'
 import { Button } from '../components/ui'
 
-const DATA_ROOT_KEY = ['appDataRoot'] // i18n-technical: query key
 
 const PROBLEM_KEYS: Record<DataFolderProblem, MessageKey> = {
   same: 'errors.dataFolder.same',
