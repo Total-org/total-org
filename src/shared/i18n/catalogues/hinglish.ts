@@ -268,7 +268,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.palette.allResults': 'jo kuch mila',
   'simple.palette.dialog': 'Khojein aur kholein',
   'simple.palette.placeholder': 'Customer, product, bill ya screen dhoondhein…',
-  'simple.palette.try': 'Jaise: customer ka naam, 5000, bill 12, Taxes',
+  'simple.palette.try': 'Jaise: customer ka naam, amount jaise 5000, bill number jaise 12, ya Tax',
   'simple.section.empty': 'Aapke business ke liye yahan abhi dikhane ko kuch nahi hai. Settings → Features mein aur cheezein chalu karein.',
   'simple.entries.makeBill': 'Bill banayein',
   'simple.entries.salesList': 'Sale ki list',

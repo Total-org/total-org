@@ -284,7 +284,7 @@ export const en = {
   'simple.palette.allResults': 'everything found',
   'simple.palette.dialog': 'Search and go',
   'simple.palette.placeholder': 'Find a customer, product, bill or screen…',
-  'simple.palette.try': 'Try: a customer’s name, 5000, bill 12, Taxes',
+  'simple.palette.try': 'Try: a customer’s name, an amount like 5000, a bill number like 12, or Taxes',
 
   // ---------- simple sections: the plain-named entries (§2.3, WP 8.1) ----------
   'simple.section.empty': 'Nothing to show here for your business yet. Turn more on in Settings → Features.',

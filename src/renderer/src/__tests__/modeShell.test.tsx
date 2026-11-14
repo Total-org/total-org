@@ -194,12 +194,30 @@ describe('the simple shell', () => {
     expect(caHeading.compareDocumentPosition(screen.getByTestId('simple-entry-gst-sales')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(screen.getByTestId('simple-taxes-hub-open'))
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'simple-taxes' }))
+    expect(screen.queryByTestId('simple-taxes-hub-unverified')).toBeNull()
+    cleanup()
+    // Review of #282: a quarterly filer whose 3B date is the UNVERIFIED 22nd — the card says so,
+    // as the Taxes screen does, and carries the same "check with your CA" points.
+    taxesAnswer = {
+      kind: 'regular', today: '2026-10-05', filing: 'quarterly',
+      period: { period: '2026-09', from: '2026-07-01', to: '2026-09-30', quarterly: true, soFar: false },
+      figures: { toPay: 500000 },
+      due: { gstr1: '2026-10-13', gstr3b: '2026-10-22', gstr3bUnverified: true, pmt06: ['2026-08-25', '2026-09-25'] }
+    }
+    render(withClient(<SimpleSection section="taxes" />))
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-unverified').textContent).not.toBe(''))
+    expect(screen.getByTestId('simple-taxes-gst-card').textContent).toContain('GST for')
+    expect(screen.getByTestId('simple-taxes-gst-card').querySelector('[data-testid="ca-check-simple-taxes-dueGstr3b"]')).not.toBeNull()
     cleanup()
     act(() => useSession.setState({ info: { ...INFO, gstRegistrationType: 'unregistered' } as never }))
     render(withClient(<SimpleSection section="taxes" />))
     await waitFor(() => expect(screen.getByTestId('simple-entry-tds')).toBeTruthy())
     expect(screen.queryByTestId('simple-entry-gst-summary')).toBeNull()
     expect(screen.getByTestId('simple-taxes-unregistered')).toBeTruthy()
+    // A9: no GST card for an unregistered business; its full-app entries (TDS) sit under "For your CA" too.
+    expect(screen.queryByTestId('simple-taxes-gst-card')).toBeNull()
+    const ca = screen.getByRole('heading', { name: 'For your CA' })
+    expect(ca.compareDocumentPosition(screen.getByTestId('simple-entry-tds')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('composition: no GSTR-1 / 3B / 2B entries, the composition note instead; nothing GST while details load', async () => {

@@ -273,7 +273,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.palette.allResults': 'जो कुछ मिला',
   'simple.palette.dialog': 'खोजें और खोलें',
   'simple.palette.placeholder': 'ग्राहक, सामान, बिल या स्क्रीन खोजें…',
-  'simple.palette.try': 'जैसे: ग्राहक का नाम, 5000, बिल 12, टैक्स',
+  'simple.palette.try': 'जैसे: ग्राहक का नाम, रकम जैसे 5000, बिल नंबर जैसे 12, या टैक्स',
   'simple.section.empty': 'आपके बिज़नेस के लिए यहाँ अभी दिखाने को कुछ नहीं है। सेटिंग्स → सुविधाएँ में और चीज़ें चालू करें।',
   'simple.entries.makeBill': 'बिल बनाएँ',
   'simple.entries.salesList': 'बिक्री की सूची',

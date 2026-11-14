@@ -209,9 +209,39 @@ describe('CommandPalette', () => {
     expect(input.getAttribute('aria-label')).toBe('Search and go')
     expect(input.getAttribute('placeholder')).toBe('Find a customer, product, bill or screen…')
     const help = screen.getByTestId('palette-help').textContent ?? ''
-    expect(help).toContain('Try: a customer’s name, 5000, bill 12, Taxes')
+    expect(help).toContain('Try: a customer’s name, an amount like 5000, a bill number like 12, or Taxes')
     expect(help).not.toContain('Filters')
     expect(help).not.toMatch(/amt:|gstin:|type:/)
+    // The example's last word is a row the simple palette has.
+    type('Taxes')
+    expect(screen.getByTestId('palette-section-simple').textContent).toContain('Taxes')
+  })
+
+  it('review of #282: Tab stays inside the palette, and focus goes back where it was on close', async () => {
+    const outside = document.createElement('button')
+    outside.textContent = 'behind'
+    document.body.appendChild(outside)
+    outside.focus()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CommandPalette onClose={vi.fn()} />
+      </QueryClientProvider>
+    )
+    await top()
+    const panel = screen.getByTestId('palette')
+    const stops = [...panel.querySelectorAll<HTMLElement>('input, button')]
+    expect(stops.length).toBeGreaterThan(1)
+    const first = stops[0]!
+    const last = stops[stops.length - 1]!
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+    view.unmount()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
   })
 
   it('empty query shows recent searches, recently opened records and the syntax help row', async () => {

@@ -10,6 +10,7 @@ import { useNav, useSession } from '../state/stores'
 import { Button, Page } from '../components/ui'
 import { useAccountantView } from '../lib/handoff'
 import { AccountantViewButton } from './AccountantViewButton'
+import { CaCheck } from '../components/CaCheck'
 import { money } from './reports/parts'
 import type { SimpleSectionId } from '@shared/simple/uiMode'
 import type { SimpleTaxes } from '@shared/simple/taxes'
@@ -113,18 +114,33 @@ function TaxesGstCard(): React.JSX.Element {
       </h2>
       {x ? (
         <>
-          <p className="mt-2 text-detail text-muted">{t('simple.taxes.gst.toPayLabel')}</p>
+          <p className="mt-2 flex items-center gap-2 text-detail text-muted">
+            {t('simple.taxes.gst.toPayLabel')}
+            <CaCheck place="simple.taxes.toPay" />
+          </p>
           <p className="num text-display font-semibold text-ink" data-testid="simple-taxes-hub-to-pay">
             {money(x.figures.toPay)}
           </p>
           <ul className="mt-2 space-y-0.5 text-detail text-muted">
-            <li data-testid="simple-taxes-hub-due-gstr1">{t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) })}</li>
-            <li data-testid="simple-taxes-hub-due-gstr3b">{t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) })}</li>
+            <li className="flex flex-wrap items-center gap-x-2">
+              <span data-testid="simple-taxes-hub-due-gstr1">{t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) })}</span>
+              <CaCheck place="simple.taxes.dueGstr1" />
+            </li>
+            <li className="flex flex-wrap items-center gap-x-2">
+              <span data-testid="simple-taxes-hub-due-gstr3b">{t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) })}</span>
+              <CaCheck place="simple.taxes.dueGstr3b" quarterly={x.period.quarterly} />
+            </li>
           </ul>
+          {/* Review of #282: the same "check with your CA" points and UNVERIFIED note as the Taxes screen. */}
+          {x.due.gstr3bUnverified && (
+            <p className="mt-1 text-small text-muted" data-testid="simple-taxes-hub-unverified">
+              {t('simple.taxes.due.unverified')}
+            </p>
+          )}
         </>
-      ) : (
+      ) : q.isLoading ? (
         <div className="mt-2 h-[5.5rem]" aria-hidden="true" />
-      )}
+      ) : null}
       <Button variant="primary" className="mt-3" data-testid="simple-taxes-hub-open" onClick={() => nav.go(taxesScreen)}>
         {t('simple.taxes.hub.open')}
       </Button>

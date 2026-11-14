@@ -44,6 +44,14 @@ function OtpEntry({ testId, label, hint, onSubmit, onResend, busy }: { testId: s
   )
 }
 
+/** Review of #282: whether a return of this period already went through the test portal (sent,
+ *  checked or filed in test mode) — the screen then shows its card even with the Options switch
+ *  off, so a status is never hidden. The same query the panel reads. */
+export function useGatewayRecord(form: GatewayForm, period: string | undefined, enabled: boolean): boolean {
+  const { data } = useQuery({ queryKey: ['gatewayReturn', form, period], queryFn: () => api.gateway.returnGet(form, period!), enabled: enabled && !!period })
+  return !!data
+}
+
 export function GatewayReturnPanel({ form, period, blocked }: { form: GatewayForm; period: string; blocked: string | null }): React.JSX.Element {
   const toast = useToasts()
   const queryClient = useQueryClient()

@@ -82,6 +82,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   const user = useSession((s) => s.user)
   const features = useFeatures()
   const [query, setQuery] = useState('')
+  const panelRef = usePaletteFocus()
   const { recents, addQuery } = useSearchRecents()
   const openRecord = useOpenRecord()
   const ctx = useMemo(() => ({ today: todayISO(), fyStartYear: fyOf(from).startYear }), [from])
@@ -354,6 +355,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
         role="dialog"
         aria-modal="true"
         aria-label={paletteName}
+        ref={panelRef}
+        onKeyDown={trapTab}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseMove={() => {
           if (!pointerMoved.current) pointerMoved.current = true
@@ -587,4 +590,39 @@ function PaletteRow({
       )
     }
   }
+}
+
+/** Review of #282: an `aria-modal` palette keeps Tab inside itself (the screen behind is inert to
+ *  a screen reader), and gives focus back to where it was when it closes — unless that element is
+ *  gone (the palette opened another screen). Not a kit dialog layer: its Esc stays its own. */
+function trapTab(e: React.KeyboardEvent<HTMLDivElement>): void {
+  if (e.key !== 'Tab') return
+  const stops = [...e.currentTarget.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])')].filter((el) => !el.hasAttribute('disabled'))
+  if (stops.length === 0) return
+  const first = stops[0]!
+  const last = stops[stops.length - 1]!
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
+function usePaletteFocus(): React.RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement | null>(null)
+  // Read during the first render: by the time an effect runs, the box's autoFocus has moved focus.
+  const [before] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null))
+  useEffect(() => {
+    const panel = ref.current
+    return () => {
+      const now = document.activeElement
+      const stillHere = before && before.isConnected && before !== document.body
+      // Only while focus is nowhere (the palette's own field went with it): never take it from
+      // something the palette's action focused on purpose.
+      if (stillHere && (now === null || now === document.body || !now.isConnected || !!panel?.contains(now))) before.focus()
+    }
+  }, [before])
+  return ref
 }

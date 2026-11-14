@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/client'
 import { useFeatures } from '../lib/useFeatures'
 import { useNav, useSession, useToasts } from '../state/stores'
-import { GatewayReturnPanel } from './gst/GatewayPanel'
+import { GatewayReturnPanel, useGatewayRecord } from './gst/GatewayPanel'
 import { AmountInput, Banner, Button, DrawerSection, EmptyState, Money, Page, PageHeader, Panel, Select, SkeletonRows, Spinner, TabBar } from '../components/ui'
 import { OptionChoice, OptionToggle, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
@@ -268,7 +268,6 @@ function IssueRow({
   )
 }
 
-/** The return screens' shared options: which month to open on (the month select stays visible). */
 /** A9 (audit UX-19): the Test GSP card ("Send to the portal (test mode)") is off the return
  *  until it is switched on here — a beginner opens the figures, not a simulated OTP flow. */
 function PortalOption({ on, onChange, form }: { on: boolean; onChange: (v: boolean) => void; form: 'gstr1' | 'gstr3b' }): React.JSX.Element {
@@ -280,6 +279,7 @@ function PortalOption({ on, onChange, form }: { on: boolean; onChange: (v: boole
   )
 }
 
+/** The return screens' shared options: which month to open on (the month select stays visible). */
 function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: OpenOn) => void }): React.JSX.Element {
   return (
     <DrawerSection title="Return period">
@@ -301,6 +301,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
   }, [initialMonth, months])
   const { info } = useSession()
   const portalShown = !!info?.gstin && info.gstRegistrationType === 'regular'
+  const gatewayRecord = useGatewayRecord('gstr1', month?.period, portalShown)
   const nav = useNav()
   const toast = useToasts()
   const { data, isLoading } = useQuery({
@@ -391,7 +392,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
         </Banner>
       )}
 
-      {portalShown && opts.options.portal && <GatewayReturnPanel form="gstr1" period={month.period} blocked={exportBlockedReason} />}
+      {portalShown && (opts.options.portal || gatewayRecord) && <GatewayReturnPanel form="gstr1" period={month.period} blocked={exportBlockedReason} />}
 
       {validating ? (
         <Panel className="mb-section">
@@ -590,6 +591,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
   }, [initialMonth, months])
   const { info } = useSession()
   const portalShown = !!info?.gstin && info.gstRegistrationType === 'regular'
+  const gatewayRecord = useGatewayRecord('gstr3b', month?.period, portalShown)
   const toast = useToasts()
   const { data, isLoading } = useQuery({
     queryKey: ['gstr3b', month?.key],
@@ -704,7 +706,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         </Panel>
       )}
 
-      {portalShown && opts.options.portal && <GatewayReturnPanel form="gstr3b" period={month.period} blocked={null} />}
+      {portalShown && (opts.options.portal || gatewayRecord) && <GatewayReturnPanel form="gstr3b" period={month.period} blocked={null} />}
 
       <Panel>
         {isLoading || !data ? (
