@@ -7,7 +7,7 @@ import { Button, DateInput, Field, Modal, Panel, SectionTitle } from '../../comp
 import { toDisplayDate, todayISO } from '@shared/dates'
 import type { UpdateCheckResult } from '@shared/updates'
 import { TotalLogo } from '../../components/TotalLogo'
-import { dataFolder } from '../../lib/platform'
+import { useDataFolder } from '../../lib/dataFolder'
 import { DataFolderSetting } from '../../simple/DataFolderSetting'
 import { runUpdatesWrite, useUpdatesCanSet } from '../../lib/updatesGate'
 import { confirmDialog } from '../../lib/dialogs'
@@ -34,6 +34,7 @@ function statusToast(r: UpdateCheckResult): {
 
 export function AboutSection(): React.JSX.Element {
   const toast = useToasts()
+  const dataFolder = useDataFolder()
   const { data: info } = useQuery({ queryKey: ['appInfo'], queryFn: api.app.info })
   const [checking, setChecking] = useState(false)
 

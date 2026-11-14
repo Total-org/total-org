@@ -21,7 +21,7 @@ const wrap = (ui: ReactNode): ReactNode => (
 
 beforeEach(() => {
   localStorage.clear()
-  view = { path: 'C:\\Users\\asha\\OneDrive\\Documents\\total', source: 'default', defaultPath: 'C:\\Users\\asha\\OneDrive\\Documents\\total', oneDrive: true, synced: false, missingPointer: null, oldCopy: false }
+  view = { path: 'C:\\Users\\asha\\OneDrive\\Documents\\total', shown: '~/OneDrive/Documents/total', source: 'default', defaultPath: 'C:\\Users\\asha\\OneDrive\\Documents\\total', oneDrive: true, synced: false, missingPointer: null, oldCopy: false }
   pick = { path: 'D:\\Total', ok: true, kind: 'new', bytes: 5 * 1024 * 1024, oneDrive: false, synced: false }
   invoke.mockReset()
   invoke.mockImplementation(async (channel: string, payload?: { path?: string }) => {

@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/client'
 import { useFeatures } from '../lib/useFeatures'
 import { useNav, useSession, useToasts } from '../state/stores'
-import { GatewayReturnPanel } from './gst/GatewayPanel'
+import { GatewayReturnPanel, useGatewayRecord } from './gst/GatewayPanel'
 import { AmountInput, Banner, Button, DrawerSection, EmptyState, Money, Page, PageHeader, Panel, Select, SkeletonRows, Spinner, TabBar } from '../components/ui'
-import { OptionChoice, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
+import { OptionChoice, OptionToggle, OptionsTable, useScreenOptions } from '../components/ScreenOptions'
 import { DataTable, defineColumns } from '../components/table'
 import { toMonthLabel, todayISO } from '@shared/dates'
 import { formatPaise } from '@shared/money'
@@ -268,6 +268,17 @@ function IssueRow({
   )
 }
 
+/** A9 (audit UX-19): the Test GSP card ("Send to the portal (test mode)") is off the return
+ *  until it is switched on here — a beginner opens the figures, not a simulated OTP flow. */
+function PortalOption({ on, onChange, form }: { on: boolean; onChange: (v: boolean) => void; form: 'gstr1' | 'gstr3b' }): React.JSX.Element {
+  return (
+    <DrawerSection title="Send to the portal (test mode)">
+      <OptionToggle label="Show the test portal card" checked={on} onChange={onChange} testId={`input-${form}-portal`} />
+      <p className="text-hint text-muted">The built-in test portal only: nothing reaches the GST portal.</p>
+    </DrawerSection>
+  )
+}
+
 /** The return screens' shared options: which month to open on (the month select stays visible). */
 function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: OpenOn) => void }): React.JSX.Element {
   return (
@@ -282,13 +293,15 @@ function ReturnOptions({ openOn, onOpenOn }: { openOn: OpenOn; onOpenOn: (v: Ope
  *  period, as GSTR-3B is. Without it: unchanged. */
 export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
   const features = useFeatures()
-  const opts = useScreenOptions('gstr1', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const opts = useScreenOptions('gstr1', { openOn: 'due' as OpenOn, portal: false }, { openOn: OPEN_ON_VALUES })
   const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- apply the linked period once the month list has it; setMonthKey is the month hook's setter
   }, [initialMonth, months])
   const { info } = useSession()
+  const portalShown = !!info?.gstin && info.gstRegistrationType === 'regular'
+  const gatewayRecord = useGatewayRecord('gstr1', month?.period, portalShown)
   const nav = useNav()
   const toast = useToasts()
   const { data, isLoading } = useQuery({
@@ -364,6 +377,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
             <>
               <ReturnOptions openOn={opts.options.openOn} onOpenOn={(v) => opts.set('openOn', v)} />
               <OptionsTable area="gstr1" label="Summary table" />
+              {portalShown && <PortalOption form="gstr1" on={opts.options.portal} onChange={(v) => opts.set('portal', v)} />}
               <DrawerSection title="About the export">
                 <p className="text-hint text-muted">{GSTR1_NOTE}</p>
               </DrawerSection>
@@ -378,7 +392,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
         </Banner>
       )}
 
-      {info?.gstin && info.gstRegistrationType === 'regular' && <GatewayReturnPanel form="gstr1" period={month.period} blocked={exportBlockedReason} />}
+      {portalShown && (opts.options.portal || gatewayRecord) && <GatewayReturnPanel form="gstr1" period={month.period} blocked={exportBlockedReason} />}
 
       {validating ? (
         <Panel className="mb-section">
@@ -569,13 +583,15 @@ function ManualAdjustments({ period }: { period: string }): React.JSX.Element {
 
 /** `initialMonth` (WP 8.6, 'YYYY-MM'): opened from the simple Home's GST tile on its period. */
 export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): React.JSX.Element {
-  const opts = useScreenOptions('gstr3b', { openOn: 'due' as OpenOn }, { openOn: OPEN_ON_VALUES })
+  const opts = useScreenOptions('gstr3b', { openOn: 'due' as OpenOn, portal: false }, { openOn: OPEN_ON_VALUES })
   const { months, month, monthKey, setMonthKey, pending, dueQuarter } = useMonth(opts.options.openOn)
   useEffect(() => {
     if (initialMonth && months.some((m) => m.key === initialMonth)) setMonthKey(initialMonth)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- apply the linked period once the month list has it; setMonthKey is the month hook's setter
   }, [initialMonth, months])
   const { info } = useSession()
+  const portalShown = !!info?.gstin && info.gstRegistrationType === 'regular'
+  const gatewayRecord = useGatewayRecord('gstr3b', month?.period, portalShown)
   const toast = useToasts()
   const { data, isLoading } = useQuery({
     queryKey: ['gstr3b', month?.key],
@@ -665,6 +681,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
             <>
               <ReturnOptions openOn={opts.options.openOn} onOpenOn={(v) => opts.set('openOn', v)} />
               {data && data.interState.length > 0 && <OptionsTable area="gstr3b-interstate" label="3.2 inter-state table" />}
+              {portalShown && <PortalOption form="gstr3b" on={opts.options.portal} onChange={(v) => opts.set('portal', v)} />}
               <DrawerSection title="About the adjustments">
                 <p className="text-hint text-muted">{GSTR3B_NOTE}</p>
               </DrawerSection>
@@ -689,7 +706,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         </Panel>
       )}
 
-      {info?.gstin && info.gstRegistrationType === 'regular' && <GatewayReturnPanel form="gstr3b" period={month.period} blocked={null} />}
+      {portalShown && (opts.options.portal || gatewayRecord) && <GatewayReturnPanel form="gstr3b" period={month.period} blocked={null} />}
 
       <Panel>
         {isLoading || !data ? (

@@ -18,6 +18,8 @@ import { DEFAULT_FEATURES } from '@shared/features'
 import type { UiSettings } from '@shared/simple/uiMode'
 
 const invoke = vi.fn()
+/** A9: what `simple:taxes` answers in a test (null = unmocked). */
+let taxesAnswer: unknown = null
 let currentUi: UiSettings | undefined
 const INFO = { name: 'Mode Co', stateCode: '27', gstin: null, gstRegistrationType: 'regular', address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null }
 
@@ -47,12 +49,14 @@ beforeEach(() => {
   invoke.mockReset()
   invoke.mockImplementation(async (channel: string, payload?: unknown) => {
     if (channel === 'config:features:get') return { ok: true, data: DEFAULT_FEATURES }
+    if (channel === 'simple:taxes' && taxesAnswer) return { ok: true, data: taxesAnswer }
     if (channel === 'ui:mode:set') return { ok: true, data: { ...useSession.getState().ui, ...(payload as object) } }
     if (channel === 'company:current') return { ok: true, data: currentUi === undefined ? null : { slug: 'mode-co', info: INFO, locked: false, ui: currentUi } }
     return { ok: false, error: `unmocked channel ${channel}` }
   })
   window.total = { platform: 'test', invoke } as unknown as typeof window.total
   currentUi = undefined
+  taxesAnswer = null
   act(() => useNav.setState({ stack: [{ name: 'gateway' }] }))
 })
 afterEach(() => cleanup())
@@ -171,14 +175,49 @@ describe('the simple shell', () => {
     fireEvent.click(screen.getByTestId('simple-entry-all-entries'))
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'registers', tab: 'entries' }))
     cleanup()
+    // A9 (audit UX-5): a regular business's Taxes hub leads with the GST card (Home's figure and
+    // both due dates, one button to the plain GST screen); the full-app screens sit under "For your CA".
+    taxesAnswer = {
+      kind: 'regular', today: '2026-10-05', filing: 'monthly',
+      period: { period: '2026-09', from: '2026-09-01', to: '2026-09-30', quarterly: false, soFar: false },
+      figures: { toPay: 1234500 },
+      due: { gstr1: '2026-10-11', gstr3b: '2026-10-20', gstr3bUnverified: false, pmt06: [] }
+    }
     render(withClient(<SimpleSection section="taxes" />))
-    expect(await screen.findByTestId('simple-entry-gst-summary')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-to-pay').textContent).toBe('₹12,345.00'))
+    expect(screen.getByTestId('simple-taxes-gst-card').textContent).toContain('GST for Sep 2026')
+    expect(screen.getByTestId('simple-taxes-hub-due-gstr1').textContent).toContain('by 11 Oct 2026')
+    expect(screen.getByTestId('simple-taxes-hub-due-gstr3b').textContent).toContain('by 20 Oct 2026')
+    expect(invoke.mock.calls.some(([c]) => c === 'simple:taxes')).toBe(true)
+    expect(screen.queryByTestId('simple-entry-gst-summary')).toBeNull()
+    const caHeading = screen.getByRole('heading', { name: 'For your CA' })
+    expect(caHeading.compareDocumentPosition(screen.getByTestId('simple-entry-gst-sales')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(screen.getByTestId('simple-taxes-hub-open'))
+    await waitFor(() => expect(useNav.getState().stack.at(-1)).toEqual({ name: 'simple-taxes' }))
+    expect(screen.queryByTestId('simple-taxes-hub-unverified')).toBeNull()
+    cleanup()
+    // Review of #282: a quarterly filer whose 3B date is the UNVERIFIED 22nd — the card says so,
+    // as the Taxes screen does, and carries the same "check with your CA" points.
+    taxesAnswer = {
+      kind: 'regular', today: '2026-10-05', filing: 'quarterly',
+      period: { period: '2026-09', from: '2026-07-01', to: '2026-09-30', quarterly: true, soFar: false },
+      figures: { toPay: 500000 },
+      due: { gstr1: '2026-10-13', gstr3b: '2026-10-22', gstr3bUnverified: true, pmt06: ['2026-08-25', '2026-09-25'] }
+    }
+    render(withClient(<SimpleSection section="taxes" />))
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-unverified').textContent).not.toBe(''))
+    expect(screen.getByTestId('simple-taxes-gst-card').textContent).toContain('GST for')
+    expect(screen.getByTestId('simple-taxes-gst-card').querySelector('[data-testid="ca-check-simple-taxes-dueGstr3b"]')).not.toBeNull()
     cleanup()
     act(() => useSession.setState({ info: { ...INFO, gstRegistrationType: 'unregistered' } as never }))
     render(withClient(<SimpleSection section="taxes" />))
     await waitFor(() => expect(screen.getByTestId('simple-entry-tds')).toBeTruthy())
     expect(screen.queryByTestId('simple-entry-gst-summary')).toBeNull()
     expect(screen.getByTestId('simple-taxes-unregistered')).toBeTruthy()
+    // A9: no GST card for an unregistered business; its full-app entries (TDS) sit under "For your CA" too.
+    expect(screen.queryByTestId('simple-taxes-gst-card')).toBeNull()
+    const ca = screen.getByRole('heading', { name: 'For your CA' })
+    expect(ca.compareDocumentPosition(screen.getByTestId('simple-entry-tds')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('composition: no GSTR-1 / 3B / 2B entries, the composition note instead; nothing GST while details load', async () => {

@@ -5,12 +5,13 @@
 // renderer never hands a path in (the move uses the folder the picker returned, and the payload
 // only has to name the same one, so a stale screen cannot move to an older pick).
 import { app, BrowserWindow, dialog } from 'electron'
+import { homedir } from 'node:os'
 import { z } from 'zod'
 import type { Role } from './services/roles'
 import { AppError } from '@shared/errors'
 import { isOneDrivePath } from '@shared/windowsPaths'
 import { syncFolderWarning } from '@shared/syncpath'
-import type { DataFolderMoved, DataFolderPick, DataFolderView } from '@shared/dataFolder'
+import { shownFolder, type DataFolderMoved, type DataFolderPick, type DataFolderView } from '@shared/dataFolder'
 import { dataRootChoice, dataRootPointerFile } from './paths'
 import { inspectTarget, isOldCopy, moveDataRoot, problemMessage } from './services/dataRootMove'
 import { log } from './log'
@@ -27,6 +28,7 @@ function view(): DataFolderView {
   const c = dataRootChoice()
   return {
     path: c.path,
+    shown: shownFolder(c.path, homedir(), process.platform),
     source: c.source,
     defaultPath: c.defaultPath,
     oneDrive: isOneDrivePath(c.path),

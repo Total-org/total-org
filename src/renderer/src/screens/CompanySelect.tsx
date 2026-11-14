@@ -16,7 +16,7 @@ import type { SimpleSetupInput } from '@shared/simple/setup'
 import { SetupWizard } from '../simple/SetupWizard'
 import { markTourPending } from '../help/tour'
 import { useT } from '../lib/i18n'
-import { dataFolder } from '../lib/platform'
+import { useDataFolder } from '../lib/dataFolder'
 import { errorEntry } from '@shared/errors'
 import { filterCompanies, orderCompanies, useCompanySwitch } from '../lib/companySwitch'
 
@@ -33,6 +33,7 @@ export function CompanySelect(): React.JSX.Element {
   // companies yet) it IS the company-select screen. The accountant ways in stay reachable here.
   const [wizard, setWizard] = useState(false)
   const t = useT()
+  const dataFolder = useDataFolder()
   const [deleting, setDeleting] = useState<CompanySummary | null>(null)
   const [integrityIssue, setIntegrityIssue] = useState<{
     pending: { slug: string; info: CompanyInfo; locked: boolean; ui: UiSettings }
@@ -158,7 +159,7 @@ export function CompanySelect(): React.JSX.Element {
         <TotalLogo size={88} className="mx-auto mb-3" />
         <h1 className="text-center font-serif text-hero font-semibold tracking-tight">Total</h1>
         <p className="mt-1 mb-8 text-center text-detail text-muted">
-          Your books, on this computer, nowhere else · {dataFolder}
+          {t('common.companies.where', { folder: dataFolder })}
         </p>
 
         {allCompanies.length > 5 && (

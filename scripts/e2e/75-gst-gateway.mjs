@@ -117,6 +117,11 @@ await scenario('75-gst-gateway', async (h) => {
   await h.goto('gstr1')
   await h.page.waitForSelector('[data-testid="input-gstr1-month"]', { timeout: 15000 })
   await h.page.selectOption('[data-testid="input-gstr1-month"]', { value: month })
+  // A9 (audit UX-19): the test portal card is off the return until Options switches it on.
+  assert(!(await h.page.$('[data-testid="gw-gstr1-panel"]')), 'the test portal card is not shown on the return by default')
+  await h.click('btn-gstr1-options')
+  await h.click('input-gstr1-portal')
+  await h.click('options-gstr1-done')
   await h.page.waitForSelector('[data-testid="gw-gstr1-panel"]', { timeout: 15000 })
   assert((await h.page.textContent('[data-testid="gw-gstr1-test-note"]')).includes('nothing is sent to the GST portal'), 'the panel says test mode')
   await h.click('gw-gstr1-signin')
