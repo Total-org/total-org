@@ -21,6 +21,7 @@ import { approvalPayload, openOfferFor } from './ai/queue'
 import { creditOverrideSchema } from '@shared/receivables/schemas'
 import { rememberSalePrices } from './services/pricing'
 import * as agentBridge from './services/agentBridge'
+import { noteFollowsSupply } from './services/noteFollows'
 import { simpleIntentSchema } from '@shared/simple/intents'
 import { idSchema, type IpcContext, type IpcHandle, type PostSimpleIntent } from './ipcCommon'
 
@@ -170,5 +171,18 @@ export function registerVouchersIpc(handle: IpcHandle, { requireCompany, canSeeP
   handle('bills:open', (p) => {
     const { partyLedgerId, asOn } = billsOpenSchema.parse(p)
     return analysis.openBills(requireCompany().db, partyLedgerId, asOn)
+  }, 'viewer')
+  // Owner Q4 (audit 2 COR2-3): the supply a new credit note takes when its bills are SEZ / export
+  // sales saved before the zero-rated rule that charged GST (services/noteFollows.ts). Read-only.
+  handle('voucher:noteFollows', (p) => {
+    const q = z
+      .object({
+        partyLedgerId: z.number().int().positive().nullable(),
+        billNames: z.array(z.string().min(1).max(200)).max(500),
+        lineUids: z.array(z.string().min(1).max(100)).max(2000)
+      })
+      .strict()
+      .parse(p)
+    return noteFollowsSupply(requireCompany().db, q)
   }, 'viewer')
 }

@@ -945,7 +945,10 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
     // WP 2d (review of #266): a debit note's party side is recorded on a NEW voucher, or re-recorded
     // on one that already has it (saved since WP 2d) — never first recorded on an older note, so
     // re-saving a note of a filed month keeps the rule it was filed under (owner, 4 Nov).
-    else snapshotTaxFacts(db, voucherId, { recordSide: !existingId || sideRecorded })
+    // Owner Q4 (review of #278): a credit note takes its bill's read class only when NEW, or when it
+    // already followed it (its snapshot class differs from the party's) — an older note re-saved
+    // keeps the class its month was filed under.
+    else snapshotTaxFacts(db, voucherId, { recordSide: !existingId || sideRecorded, followBill: !existingId || followedBefore })
 
     hooks.withinTransaction?.(voucherId)
 
@@ -1046,6 +1049,9 @@ export function saveVoucher(db: DB, raw: VoucherInput, existingId?: number, hook
   // return — before an alteration, to say so if the save moves it (a side recorded for the first
   // time on a note saved before, with or without a tax-fact snapshot).
   const beforeKind = before ? getVoucherType(db, before.voucherTypeId).kind : null
+  const liveExportType = (id: number | null | undefined): string | null =>
+    id == null ? null : ((db.prepare('SELECT export_type AS e FROM ledgers WHERE id = ?').get(id) as { e: string | null } | undefined)?.e ?? null)
+  const followedBefore = !!beforeFacts && beforeKind === 'credit_note' && (beforeFacts.party.exportType ?? null) !== liveExportType(before?.partyLedgerId)
   const outwardBefore = existingId && before && beforeKind === 'debit_note' && vt.kind === 'debit_note' ? outwardDebitNoteIds(db, before.date, before.date).has(existingId) : null
   const sideRecorded = existingId ? hasRecordedSide(db, existingId) : false
   // COR2-1 (owner Q2): the notes that returned a purchase as the books stand BEFORE the save (a save

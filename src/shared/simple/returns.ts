@@ -67,6 +67,9 @@ export interface ReturnBill {
   carriesGst: boolean
   /** The GST rates as the bill posted them (null = can't be told: a rate changed since). */
   rates: number[] | null
+  /** Owner Q4 (audit 2 COR2-3): a sale saved before the zero-rated rule that charged GST the rule
+   *  wouldn't — its return takes back that tax at this supply. Optional (absent = today's rule). */
+  follows?: 'intra' | 'inter' | null
   /** The sales / purchase account it posts to (null = more than one). */
   accountId: number | null
   /** The bill's own note (its narration), shown on the picked bill's card. Optional (absent /
@@ -161,7 +164,10 @@ export function returnTotals(form: ReturnForm, bill: ReturnBill, ctx: ReturnCont
     // The rate the intent will carry when 9.1 asks, else the bill's own (mapReturn's choice).
     // Phase 2: mapReturn's tax class — a credit note to an SEZ / export customer is inter-state, and
     // without payment carries no GST (shared/gst/zeroRated.ts).
-    const cls = billTaxClass(ctx.invoice.companyStateCode, noteKind(bill.side), { stateCode: bill.partyStateCode, exportType: ctx.invoice.ledgers.get(bill.partyId)?.exportType ?? null }, null)
+    // Owner Q4: a return of an old SEZ / export bill that charged GST follows that bill (loadOriginal's `follows`).
+    const cls = bill.side === 'sale' && bill.follows
+      ? { supply: bill.follows, zeroTax: false }
+      : billTaxClass(ctx.invoice.companyStateCode, noteKind(bill.side), { stateCode: bill.partyStateCode, exportType: ctx.invoice.ledgers.get(bill.partyId)?.exportType ?? null }, null)
     const rate = !charges || cls.zeroTax ? 0 : returnAsks(form, bill, ctx).rate ? (form.gstRate ?? 0) : bill.carriesGst && bill.rates?.length === 1 ? bill.rates[0]! : 0
     const supply = cls.supply
     // The running total's tax and round off; the return of all that is left takes what the bill
@@ -185,7 +191,8 @@ export function returnTotals(form: ReturnForm, bill: ReturnBill, ctx: ReturnCont
     partyId: bill.partyId,
     accountId: bill.accountId,
     rows: picked.map((p) => returnRow(p.line, p.q)),
-    ...(taxedOriginal ? { taxedOriginal: true } : {})
+    ...(taxedOriginal ? { taxedOriginal: true } : {}),
+    ...(bill.side === 'sale' && bill.follows ? { followsBill: bill.follows } : {})
   }
   const ictx = { ...ctx.invoice, kind: noteKind(bill.side) }
   // The running total's tax and round off; the return that empties the bill takes what it still

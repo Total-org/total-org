@@ -39,6 +39,19 @@
 // purchase-side document (a purchase or debit note — the flag describes the party as a buyer), and
 // every SAVED bill (invoice.ts `legacyZeroRated`: a bill saved before this rule loads and saves
 // back exactly as it was saved until its inputs change).
+//
+// A RETURN of such a saved bill (owner, 13 Nov — audit 2 COR2-3, Q4): a credit note against a sales
+// bill to a flagged party that charged GST the rule would not charge (any tax where the flag says
+// "without payment", or CGST + SGST where it says IGST) takes back what that bill charged, at the
+// supply it posted (`noteFollowsBill` → InvoiceFormState.followsBill). CGST Act s.34(1) (CBIC tax
+// information portal, read 2026-11-14, GST_SOURCES.s34): "Where one or more tax invoices have been
+// issued for supply of any goods or services or both and the taxable value or tax charged in that
+// tax invoice is found to exceed the taxable value or tax payable in respect of such supply, or where
+// the goods supplied are returned by the recipient, … the registered person, who has supplied such
+// goods or services or both, may issue to the recipient one or more credit notes for supplies made in
+// a financial year …"; (2): "… the tax liability shall be adjusted in such manner as may be
+// prescribed" — the note adjusts the tax charged in THAT invoice. UNVERIFIED (same CA point, Q55): whether the old bill's tax
+// should instead be corrected some other way; the owner chose "the note follows its bill".
 
 import type { VoucherKind } from '../domain'
 import { supplyTypeFor, type SupplyType } from './calc'
@@ -90,4 +103,25 @@ export function billTaxClass(
   const zeroRated = zeroRatedKind(kind) ? zeroRatedClass(party?.exportType) : null
   if (zeroRated) return { supply: 'inter', zeroTax: !zeroRated.withPayment, zeroRated }
   return { supply: supplyTypeFor(companyStateCode, posOverride ?? party?.stateCode ?? companyStateCode), zeroTax: false, zeroRated: null }
+}
+
+/**
+ * Owner, 13 Nov (audit 2 COR2-3, Q4): the supply a credit note against this SAVED sales bill takes
+ * when the bill charged GST that today's rule for its party would not charge — a bill saved before
+ * the zero-rated rule (#244, 8 Nov) to a party flagged SEZ / export: any tax on a "without payment"
+ * party, or CGST + SGST where the rule says IGST. Null = the note follows today's rule (an ordinary
+ * party, a bill with no tax, or one the rule already gives — IGST to a "with payment" party).
+ */
+export function noteFollowsBill(
+  billKind: VoucherKind,
+  exportType: PartyExportType | null | undefined,
+  posted: { cgst: number; sgst: number; igst: number }
+): SupplyType | null {
+  if (billKind !== 'sales') return null
+  const cls = zeroRatedClass(exportType)
+  if (!cls) return null
+  const intra = posted.cgst + posted.sgst > 0
+  if (!intra && posted.igst <= 0) return null
+  if (cls.withPayment && !intra) return null
+  return intra ? 'intra' : 'inter'
 }

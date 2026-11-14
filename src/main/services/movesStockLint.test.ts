@@ -15,6 +15,7 @@ const AI_DIR = join(__dirname, '..', 'ai')
 
 /** `file` + a substring unique to the SQL string → why it may read every line. */
 const ALLOW: { file: string; contains: string; reason: string }[] = [
+  { file: 'noteFollows.ts', contains: 'FROM inventory_lines il JOIN vouchers v ON v.id = il.voucher_id JOIN voucher_types vt', reason: 'which sales bill a credit note\'s return line comes from (a lookup by line uid, not stock)' },
   { file: 'simplePost.ts', contains: 'SELECT COALESCE(SUM(il.amount), 0) AS t, COALESCE(SUM(il.discount_paise), 0) AS d FROM line_links ll', reason: 'the value and discount earlier return notes took off a bill line (money, not stock)' },
   { file: 'stockAnalysis.ts', contains: "SELECT 1 FROM pragma_table_info('inventory_lines') WHERE name = 'count_cost'", reason: 'a schema probe (does the count-cost column exist), no lines read' },
   { file: 'vouchers.ts', contains: 'UPDATE inventory_lines SET count_cost = 1 WHERE id = ?', reason: 'marks a line saveVoucher just inserted (a write, not a reader)' },

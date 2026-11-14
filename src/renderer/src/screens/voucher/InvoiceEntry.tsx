@@ -35,6 +35,7 @@ import { TransportModal } from './TransportModal'
 import { einvoiceDocNoWarning } from '@shared/gst/einvoiceSchema'
 import { useTcsCollection, useTdsDeduction, type TcsCandidate } from './useTdsDeduction'
 import { TdsBanner, TdsNotApplicableNote } from './TdsBanner'
+import { CaCheck } from '../../components/CaCheck'
 import { blankItemRow, ItemLineGrid, type ItemRow } from './ItemLineGrid'
 import { useInvoicePricing } from './useLinePricing'
 import { AddFromDrawer } from './AddFromDrawer'
@@ -247,6 +248,17 @@ export function InvoiceEntry({
   const taxedOriginal =
     isNoteKind && !chargesGstOn(info!, date) &&
     noteBillRefs.some((r) => (openBillsForNote ?? []).some((b) => b.number === r.name && chargesGstOn(info!, b.date)))
+  // Owner Q4 (audit 2 COR2-3): a NEW credit note returning / set against a sale to an SEZ / export
+  // customer saved before the zero-rated rule (#244) that charged GST takes back what that bill
+  // charged (shared/gst/zeroRated.ts noteFollowsBill). A saved note carries it from its load.
+  const followLineUids = useMemo(() => rows.flatMap((r) => (r.source?.linkType === 'return' && r.source.lineUid ? [r.source.lineUid] : [])), [rows])
+  const followNames = useMemo(() => noteBillRefs.filter((r) => r.kind === 'against').map((r) => r.name), [noteBillRefs])
+  const { data: fetchedFollows, isFetching: followsPending } = useQuery({
+    queryKey: ['noteFollows', partyId, followNames, followLineUids],
+    queryFn: () => api.bills.noteFollows({ partyLedgerId: partyId, billNames: followNames, lineUids: followLineUids }),
+    enabled: kind === 'credit_note' && !isEdit && initial?.followsBill == null && (followNames.length > 0 || followLineUids.length > 0)
+  })
+  const followsBill = kind !== 'credit_note' ? undefined : (initial?.followsBill ?? (isEdit ? undefined : fetchedFollows ?? undefined))
   // An unregistered business files no GST: no e-way / place-of-supply fields on its bills.
   const unregisteredNow = registrationOn(info!, date) === 'unregistered'
   // The e-way bill's dispatch fields (a sales invoice of a GST-charging date) — in GST details.
@@ -299,9 +311,10 @@ export function InvoiceEntry({
       // (legacyZeroRated, shared/gst/zeroRated.ts) keeps its own computation while its tax inputs
       // are unchanged (taxInputsKey) — so opening and saving it changes nothing.
       ...(initial?.legacyGroupTax != null ? { legacyGroupTax: initial.legacyGroupTax } : {}),
-      ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {})
+      ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {}),
+      ...(followsBill ? { followsBill } : {})
     }),
-    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal]
+    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal, followsBill]
   )
   // A bill name still following the number (not typed) is reported as the hand-off had it: blank —
   // the number arriving from the numbering query is no change of the user's.
@@ -434,7 +447,8 @@ export function InvoiceEntry({
   const saveCard = useSaveCard()
 
   const save = useCallback(async (andPdf = false): Promise<void> => {
-    if (saving) return
+    // Review of #278: never save a new credit note before it knows whether it follows its bill.
+    if (saving || followsPending) return
     if (!partyId && pendingParty) {
       // The hand-off's walk-in: created now (first use), then this save runs again with it.
       setSaving(true)
@@ -537,7 +551,7 @@ export function InvoiceEntry({
       setSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
-  }, [saving, partyId, accountId, computed, buildPayload, isSalesSide, kind, typeId, voucherId, isEdit, date, toast, setWorkingDate, queryClient, numberField.reset, leave, tdsDeduction.reset, tdsDeduction.afterSave, tdsStale, tcsStale, tcsCollection.reset, tcsCollection.afterSave, features.tcs, grandTotal, onHold, overrideReason, canOverrideHold, party, draft?.aiDraftId, formErrors, errorShell, saveCard, pendingParty, createPending])
+  }, [saving, partyId, accountId, computed, buildPayload, isSalesSide, kind, typeId, voucherId, isEdit, date, toast, setWorkingDate, queryClient, numberField.reset, leave, tdsDeduction.reset, tdsDeduction.afterSave, tdsStale, tcsStale, tcsCollection.reset, tcsCollection.afterSave, features.tcs, grandTotal, onHold, overrideReason, canOverrideHold, party, draft?.aiDraftId, formErrors, errorShell, saveCard, pendingParty, createPending, followsPending])
   useEffect(() => {
     if (resave.current == null || partyId == null || saving || !party) return
     const andPdf = resave.current
@@ -779,6 +793,13 @@ export function InvoiceEntry({
             : canOverrideHold
               ? 'Saving is blocked until the hold is released (Credit control) or you override it with a reason.'
               : 'Saving is blocked until the hold is released — an owner can override it.'}
+        </Banner>
+      )}
+      {followsBill && (
+        <Banner tone="info" className="mt-2" testId="invoice-follows-bill" title="Takes back the GST its bill charged">
+          The bill this note returns was saved before SEZ / export bills were taxed by the customer’s flag, and it charged{' '}
+          {followsBill === 'inter' ? 'IGST' : 'CGST + SGST'}. The note takes that GST back (CGST Act s.34), so the bill and its return net to nil.{' '}
+          <CaCheck place="notes.followsBill" />
         </Banner>
       )}
       {initial?.legacyTax && (
@@ -1162,11 +1183,11 @@ export function InvoiceEntry({
         {/* Audit A8 / UX-18: Save comes first in the tab order (row-reverse keeps the look:
             … Cancel · Save + invoice PDF · Save). */}
         <div className="flex flex-row-reverse gap-2">
-          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={saving} onClick={() => void save()}>
+          <PostButton variant="primary" data-testid="btn-save-voucher" disabled={saving || followsPending} onClick={() => void save()}>
             {isEdit ? 'Save changes' : 'Save voucher'} ⌘↵
           </PostButton>
           {kind === 'sales' && (
-            <Button disabled={saving} onClick={() => void save(true)}>
+            <Button disabled={saving || followsPending} onClick={() => void save(true)}>
               Save + invoice PDF
             </Button>
           )}

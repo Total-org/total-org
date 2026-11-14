@@ -193,6 +193,7 @@ export function returnBill(db: DB, company: CompanyInfo, side: ReturnSide, id: n
     pending: o.pending,
     carriesGst: o.carriesGst,
     rates: o.rates,
+    ...(o.follows ? { follows: o.follows } : {}),
     accountId: o.accountId,
     narration: v.narration?.trim() || null,
     mode: v.inventory.length ? 'items' : 'amount',
