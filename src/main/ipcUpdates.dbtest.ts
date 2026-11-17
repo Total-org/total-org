@@ -4,8 +4,9 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import type { UpdatesView } from '@shared/updates'
 
-const handlers = new Map<string, (event: unknown, payload: unknown) => Promise<{ ok: boolean; data?: any; error?: string }>>()
+const handlers = new Map<string, (event: unknown, payload: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string }>>()
 
 vi.mock('electron', () => ({
   app: { getVersion: () => '0.12.0-test', getPath: () => tmpdir(), isPackaged: false, on: () => {} },
@@ -23,6 +24,12 @@ process.env.TOTAL_DATA_DIR = root
 process.env.TOTAL_SUPPRESS_SYNC_WARNING = '1'
 
 const call = (ch: string, payload?: unknown) => handlers.get(ch)!(TRUSTED_EVENT, payload)
+/** A call that must succeed; `T` is the channel's reply type (the handler map holds it as unknown). */
+const ok = async <T>(ch: string, p?: unknown): Promise<T> => {
+  const r = await call(ch, p)
+  if (!r.ok) throw new Error(`${ch}: ${r.error}`)
+  return r.data as T
+}
 let ipc: typeof import('./ipc')
 
 beforeAll(async () => {
@@ -38,11 +45,11 @@ describe('app:updates:*', () => {
   })
 
   it('turns the check off and on, stored in the app-level file', async () => {
-    const off = await call('app:updates:set', { autoCheck: false, confirmNoUsers: true })
-    expect(off.data.settings.autoCheck).toBe(false)
+    const off = await ok<UpdatesView>('app:updates:set', { autoCheck: false, confirmNoUsers: true })
+    expect(off.settings.autoCheck).toBe(false)
     expect(JSON.parse(readFileSync(join(root, 'app-settings.json'), 'utf8')).updates.autoCheck).toBe(false)
-    expect((await call('app:updates:get')).data.settings.autoCheck).toBe(false)
-    expect((await call('app:updates:set', { autoCheck: true, confirmNoUsers: true })).data.settings.autoCheck).toBe(true)
+    expect((await ok<UpdatesView>('app:updates:get')).settings.autoCheck).toBe(false)
+    expect((await ok<UpdatesView>('app:updates:set', { autoCheck: true, confirmNoUsers: true })).settings.autoCheck).toBe(true)
   })
 
   it('parses payloads strictly', async () => {
@@ -62,11 +69,6 @@ describe('app:updates:*', () => {
     const co = (name: string): Record<string, unknown> => ({
       name, stateCode: '27', gstin: null, gstRegistrationType: 'regular', address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null
     })
-    const ok = async <T>(ch: string, p?: unknown): Promise<T> => {
-      const r = await call(ch, p)
-      if (!r.ok) throw new Error(`${ch}: ${r.error}`)
-      return r.data as T
-    }
     const audit = (): string[] => readFileSync(join(root, 'app-settings-audit.jsonl'), 'utf8').trim().split('\n')
     expect(ipc.CHANNEL_ROLES.get('app:updates:canSet')).toBe('viewer')
     // No company open (the notice on the company-select screen), no company anywhere: the data-root rule.

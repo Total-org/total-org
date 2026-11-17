@@ -3,6 +3,9 @@
 //   stale total; every disable carries its reason on the same line.
 // - @typescript-eslint/no-floating-promises: an un-awaited promise drops its error silently. A
 //   deliberate fire-and-forget is written `void promise` (the rule's own escape hatch).
+// - @typescript-eslint/no-explicit-any: `any` turns the type checker off for everything it touches
+//   (a driver row read as `any` hides a misspelt column; a paise field typed `any` takes a float).
+//   Use the real type, or `unknown` narrowed at the boundary (src/CLAUDE.md §4).
 // src/shared/fixtures/ holds frozen copies of old code (differential tests) and is not linted.
 // Formatting and style are not linted. A new rule goes here with its reason.
 import tseslint from 'typescript-eslint'
@@ -22,7 +25,8 @@ export default tseslint.config(
     linterOptions: { reportUnusedDisableDirectives: 'error' },
     plugins: { '@typescript-eslint': tseslint.plugin },
     rules: {
-      '@typescript-eslint/no-floating-promises': 'error'
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-explicit-any': 'error'
     }
   },
   // Hooks exist only in the renderer; main / shared have plain functions named use… (usePerfDataRoot,

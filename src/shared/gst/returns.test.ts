@@ -19,8 +19,10 @@ import {
 import { validateGstr1 } from './validate'
 import { backOutAdvance } from './calc'
 import { isUqc, toUqc, UQC_CODES } from './uqc'
+import { singleEinvoiceDoc, singleEwbBill } from './edocs.testutil'
+import { jsonAt } from '../jsonAt.testutil'
 
-const fixture = (name: string): Record<string, any> =>
+const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url), 'utf8'))
 
 const COMPANY_GSTIN = '27AAPFU0939F1ZV'
@@ -159,7 +161,7 @@ const fixtureExtras: Gstr1Extras = {
 
 describe('GSTR-1 golden fixture', () => {
   const result = buildGstr1(fixtureDocs(), COMPANY_GSTIN, COMPANY_STATE, PERIOD, fixtureExtras)
-  const json = result.json as Record<string, any>
+  const json = result.json
   const golden = fixture('gstr1-golden.json')
 
   it('every expected table is PRESENT (missing sections are visible failures forever)', () => {
@@ -171,61 +173,71 @@ describe('GSTR-1 golden fixture', () => {
   })
 
   it('header matches (gt/cur_gt computed, not hardcoded zeros)', () => {
-    expect(json.gstin).toBe(golden.gstin)
-    expect(json.fp).toBe(golden.fp)
-    expect(json.gt).toBe(golden.gt)
-    expect(json.cur_gt).toBe(golden.cur_gt)
+    expect(json.gstin).toBe(jsonAt(golden, 'gstin'))
+    expect(json.fp).toBe(jsonAt(golden, 'fp'))
+    expect(json.gt).toBe(jsonAt(golden, 'gt'))
+    expect(json.cur_gt).toBe(jsonAt(golden, 'cur_gt'))
   })
 
   it('b2b (4A) — grouped by ctin, inv_typ R/SEWOP, rchrg, D1 single-rate bucket with summed cess', () => {
-    expect(json.b2b).toEqual(golden.b2b)
+    expect(json.b2b).toEqual(jsonAt(golden, 'b2b'))
   })
   it('b2cl (5) — inter-state unregistered above ₹1,00,000', () => {
-    expect(json.b2cl).toEqual(golden.b2cl)
+    expect(json.b2cl).toEqual(jsonAt(golden, 'b2cl'))
     expect(B2CL_THRESHOLD_PAISE).toBe(10000000)
   })
   it('b2cs (7) — aggregated by pos+rate, small unregistered notes netted in', () => {
-    expect(json.b2cs).toEqual(golden.b2cs)
+    expect(json.b2cs).toEqual(jsonAt(golden, 'b2cs'))
   })
   it('cdnr (9B registered) — C and D note types', () => {
-    expect(json.cdnr).toEqual(golden.cdnr)
+    expect(json.cdnr).toEqual(jsonAt(golden, 'cdnr'))
   })
   it('cdnur (9B unregistered) — B2CL-type only', () => {
-    expect(json.cdnur).toEqual(golden.cdnur)
+    expect(json.cdnur).toEqual(jsonAt(golden, 'cdnur'))
   })
   it('exp (6A) — WPAY group with shipping bill fields', () => {
-    expect(json.exp).toEqual(golden.exp)
+    expect(json.exp).toEqual(jsonAt(golden, 'exp'))
   })
   it('nil (8) — split by supply/audience', () => {
-    expect(json.nil).toEqual(golden.nil)
+    expect(json.nil).toEqual(jsonAt(golden, 'nil'))
   })
   it('at (11A) — advances received, rate-wise by pos', () => {
-    expect(json.at).toEqual(golden.at)
+    expect(json.at).toEqual(jsonAt(golden, 'at'))
   })
   it('doc_issue (13) — series per document category, deleted counted as cancelled', () => {
-    expect(json.doc_issue).toEqual(golden.doc_issue)
+    expect(json.doc_issue).toEqual(jsonAt(golden, 'doc_issue'))
   })
   it('hsn (12) — B2B/B2C bifurcation, netted notes, 2-decimal qty', () => {
-    expect(json.hsn).toEqual(golden.hsn)
+    expect(json.hsn).toEqual(jsonAt(golden, 'hsn'))
   })
   it('txpd (11B) omitted when there are no adjustments', () => {
     expect(json).not.toHaveProperty('txpd')
   })
 
   it('rounding tie: signed taxable across tables 4+5+6+7+8+9B equals table 12 taxable', () => {
-    const itmsTotal = (invs: any[]): number =>
-      invs.reduce((s, i) => s + i.itms.reduce((s2: number, x: any) => s2 + (x.itm_det?.txval ?? x.txval), 0), 0)
-    const b2b = json.b2b.reduce((s: number, g: any) => s + itmsTotal(g.inv), 0)
-    const b2cl = json.b2cl.reduce((s: number, g: any) => s + itmsTotal(g.inv), 0)
-    const b2cs = json.b2cs.reduce((s: number, r: any) => s + r.txval, 0)
-    const exp = json.exp.reduce((s: number, g: any) => s + itmsTotal(g.inv), 0)
-    const cdnr = json.cdnr.reduce(
-      (s: number, g: any) => s + g.nt.reduce((s2: number, n: any) => s2 + (n.ntty === 'C' ? -1 : 1) * itmsTotal([n]), 0),
-      0
-    )
-    const cdnur = json.cdnur.reduce((s: number, n: any) => s + (n.ntty === 'C' ? -1 : 1) * itmsTotal([n]), 0)
-    const nil = json.nil.inv.reduce((s: number, r: any) => s + r.nil_amt, 0)
-    const hsn = [...json.hsn.hsn_b2b, ...json.hsn.hsn_b2c].reduce((s: number, r: any) => s + r.txval, 0)
+    // The offline-tool JSON is built as Record<string, unknown>: read each list / figure, failing
+    // the test when it is not one.
+    const listAt = (node: unknown, ...path: (string | number)[]): unknown[] => {
+      const x = jsonAt(node, ...path)
+      if (!Array.isArray(x)) throw new Error(`${path.join('.')} is not a list`)
+      return x
+    }
+    const num = (x: unknown): number => {
+      if (typeof x !== 'number') throw new Error(`${JSON.stringify(x)} is not a number`)
+      return x
+    }
+    const sum = (rows: unknown[], value: (row: unknown) => number): number => rows.reduce<number>((s, r) => s + value(r), 0)
+    const itmsTotal = (invs: unknown[]): number =>
+      sum(invs, (i) => sum(listAt(i, 'itms'), (x) => num(jsonAt(x, 'itm_det', 'txval') ?? jsonAt(x, 'txval'))))
+    const noteSign = (n: unknown): number => (jsonAt(n, 'ntty') === 'C' ? -1 : 1)
+    const b2b = sum(listAt(json, 'b2b'), (g) => itmsTotal(listAt(g, 'inv')))
+    const b2cl = sum(listAt(json, 'b2cl'), (g) => itmsTotal(listAt(g, 'inv')))
+    const b2cs = sum(listAt(json, 'b2cs'), (r) => num(jsonAt(r, 'txval')))
+    const exp = sum(listAt(json, 'exp'), (g) => itmsTotal(listAt(g, 'inv')))
+    const cdnr = sum(listAt(json, 'cdnr'), (g) => sum(listAt(g, 'nt'), (n) => noteSign(n) * itmsTotal([n])))
+    const cdnur = sum(listAt(json, 'cdnur'), (n) => noteSign(n) * itmsTotal([n]))
+    const nil = sum(listAt(json, 'nil', 'inv'), (r) => num(jsonAt(r, 'nil_amt')))
+    const hsn = sum([...listAt(json, 'hsn', 'hsn_b2b'), ...listAt(json, 'hsn', 'hsn_b2c')], (r) => num(jsonAt(r, 'txval')))
     expect(b2b + b2cl + b2cs + exp + cdnr + cdnur + nil).toBeCloseTo(hsn, 6)
   })
 
@@ -324,7 +336,7 @@ describe('zero-rated documents with rate-0 lines (F1 #4)', () => {
 
   it('an EXPWOP invoice of nil-rated goods appears in Table 6A at rt 0 — never in Table 8', () => {
     const r = buildGstr1([expDoc()], COMPANY_GSTIN, COMPANY_STATE, PERIOD)
-    const json = r.json as Record<string, any>
+    const json = r.json
     expect(json.exp).toEqual([
       {
         exp_typ: 'WOPAY',
@@ -346,10 +358,10 @@ describe('zero-rated documents with rate-0 lines (F1 #4)', () => {
       pos: '27', invTyp: 'SEWOP',
       items: [{ rate: 0, taxable: 500000, cgst: 0, sgst: 0, igst: 0, cess: 0 }], nilLines: []
     })
-    const json = buildGstr1([sez], COMPANY_GSTIN, COMPANY_STATE, PERIOD).json as Record<string, any>
+    const json = buildGstr1([sez], COMPANY_GSTIN, COMPANY_STATE, PERIOD).json
     expect(json.b2b).toHaveLength(1)
-    expect(json.b2b[0].inv[0]).toMatchObject({ inum: 'SEZ-9', inv_typ: 'SEWOP' })
-    expect(json.b2b[0].inv[0].itms[0].itm_det).toMatchObject({ rt: 0, txval: 5000 })
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0)).toMatchObject({ inum: 'SEZ-9', inv_typ: 'SEWOP' })
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'itms', 0, 'itm_det')).toMatchObject({ rt: 0, txval: 5000 })
     expect(json.nil).toBeUndefined()
   })
 
@@ -383,14 +395,14 @@ describe('outward RCM (rchrg) in GSTR-3B (F1 #2)', () => {
     expect(r.outward.taxable).toBe(100000)
     expect(r.outward.igst).toBe(0) // recipient pays via their 3.1(d) — not this supplier
     expect(r.netPayable).toEqual({ igst: 0, cgst: 0, sgst: 0, cess: 0 })
-    const sup = (r.json as any).sup_details.osup_det
+    const sup = jsonAt(r.json, 'sup_details', 'osup_det')
     expect(sup).toEqual({ txval: 1000, iamt: 0, camt: 0, samt: 0, csamt: 0 })
   })
 
   it('GSTR-1 still reports the invoice with rchrg Y and its tax (recipient-side visibility)', () => {
-    const json = buildGstr1([rcmSale], COMPANY_GSTIN, COMPANY_STATE, PERIOD).json as Record<string, any>
-    expect(json.b2b[0].inv[0].rchrg).toBe('Y')
-    expect(json.b2b[0].inv[0].itms[0].itm_det).toMatchObject({ rt: 5, txval: 1000, iamt: 50 })
+    const json = buildGstr1([rcmSale], COMPANY_GSTIN, COMPANY_STATE, PERIOD).json
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'rchrg')).toBe('Y')
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'itms', 0, 'itm_det')).toMatchObject({ rt: 5, txval: 1000, iamt: 50 })
   })
 })
 
@@ -411,9 +423,9 @@ describe('GSTR-1 summary rate-0 double-count (F1 minor)', () => {
     expect(r.summary.find((s) => s.section === 'b2b')).toMatchObject({ taxable: 5000000 })
     expect(r.summary.find((s) => s.section === 'nil')).toMatchObject({ taxable: 1000000 })
     // JSON agrees: the rt-0 line reaches Table 8, not the b2b itms.
-    const json = r.json as Record<string, any>
-    expect(json.b2b[0].inv[0].itms).toHaveLength(1)
-    expect(json.nil.inv).toEqual([{ sply_ty: 'INTRAB2B', nil_amt: 10000, expt_amt: 0, ngsup_amt: 0 }])
+    const json = r.json
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'itms')).toHaveLength(1)
+    expect(jsonAt(json, 'nil', 'inv')).toEqual([{ sply_ty: 'INTRAB2B', nil_amt: 10000, expt_amt: 0, ngsup_amt: 0 }])
   })
 })
 
@@ -480,9 +492,8 @@ describe('e-way bill golden fixture', () => {
 
   it('transactionType is 1 (regular) without a ship-to block, 2 with one', () => {
     const plain = { ...ewbInvoice(), shipTo: null }
-    const bills = (buildEwbJson([plain], ewbCompany) as any).billLists
-    expect(bills[0].transactionType).toBe(1)
-    expect((buildEwbJson([ewbInvoice()], ewbCompany) as any).billLists[0].transactionType).toBe(2)
+    expect(singleEwbBill(buildEwbJson([plain], ewbCompany)).transactionType).toBe(1)
+    expect(singleEwbBill(buildEwbJson([ewbInvoice()], ewbCompany)).transactionType).toBe(2)
   })
 
   it('rates come from the item master rate, not back-derived from rounded tax (D9)', () => {
@@ -490,14 +501,14 @@ describe('e-way bill golden fixture', () => {
     // 1 paisa taxable at 18% inter — igst rounds to 0 but the rate must survive
     tiny.items[0]! .taxablePaise = 1
     tiny.items[0]!.igst = 0
-    const bill = (buildEwbJson([tiny], ewbCompany) as any).billLists[0]
-    expect(bill.itemList[0].igstRate).toBe(18)
-    expect(bill.itemList[0].cgstRate).toBe(0)
+    const bill = singleEwbBill(buildEwbJson([tiny], ewbCompany))
+    expect(bill.itemList[0]?.igstRate).toBe(18)
+    expect(bill.itemList[0]?.cgstRate).toBe(0)
   })
 
   it('maps GST state 96/97 to EWB 99 (Other Country) for export buyers', () => {
     const exp: EdocInvoice = { ...ewbInvoice(), supTyp: 'EXPWP', partyStateCode: '96', pos: '96', shipTo: null, partyAddress: null }
-    const bill = (buildEwbJson([exp], ewbCompany) as any).billLists[0]
+    const bill = singleEwbBill(buildEwbJson([exp], ewbCompany))
     expect(bill.toStateCode).toBe(99)
     expect(bill.actualToStateCode).toBe(99)
     expect(bill.toGstin).toBe('URP')
@@ -544,7 +555,7 @@ describe('e-invoice — export, service and note details (G6)', () => {
       transport: { mode: '3', docNo: 'SB-77', docDate: '2026-07-10', transporterName: null, vehicleType: null },
       shipTo: null
     }
-    const [doc] = buildEInvoiceJson([exp], ewbCompany) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([exp], ewbCompany))
     // WP 3.5: uncaptured Port/ForCur/CntCode are omitted, not null (the IRN schema types them as strings).
     expect(doc.ExpDtls).toEqual({ ShipBNo: 'SB-77', ShipBDt: '10/07/2026' })
     expect(doc.BuyerDtls.Stcd).toBe('96')
@@ -554,7 +565,7 @@ describe('e-invoice — export, service and note details (G6)', () => {
   })
 
   it('non-export invoices carry no ExpDtls', () => {
-    const [doc] = buildEInvoiceJson([ewbInvoice()], ewbCompany) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([ewbInvoice()], ewbCompany))
     expect(doc.ExpDtls).toBeUndefined()
   })
 
@@ -564,39 +575,39 @@ describe('e-invoice — export, service and note details (G6)', () => {
       name: 'Consulting', hsn: '9983', qtyMilli: 0, uqc: 'OTH', unitPricePaise: 0,
       taxablePaise: 250000, rate: 18, cessRate: 0, cgst: 22500, sgst: 22500, igst: 0, cess: 0, isService: true
     }]
-    const [doc] = buildEInvoiceJson([svc], ewbCompany) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([svc], ewbCompany))
     expect(doc.ItemList).toHaveLength(1)
     expect(doc.ItemList[0]).toMatchObject({ IsServc: 'Y', HsnCd: '9983', Qty: 1, Unit: 'OTH', UnitPrice: 2500, AssAmt: 2500 })
   })
 
   it('CRN/DBN carry RefDtls.PrecDocDtls when the original invoice resolves (null-safe otherwise)', () => {
     const crn: EdocInvoice = { ...ewbInvoice(), docType: 'CRN', precedingDoc: { invNo: 'INV-2', invDate: '2026-07-06' } }
-    const [doc] = buildEInvoiceJson([crn], ewbCompany) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([crn], ewbCompany))
     expect(doc.RefDtls).toEqual({ PrecDocDtls: [{ InvNo: 'INV-2', InvDt: '06/07/2026' }] })
 
     const orphan: EdocInvoice = { ...ewbInvoice(), docType: 'CRN', precedingDoc: null }
-    const [doc2] = buildEInvoiceJson([orphan], ewbCompany) as any[]
+    const doc2 = singleEinvoiceDoc(buildEInvoiceJson([orphan], ewbCompany))
     expect(doc2.RefDtls).toBeUndefined()
   })
 
   it('ship-to block becomes ShipDtls', () => {
-    const [doc] = buildEInvoiceJson([ewbInvoice()], ewbCompany) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([ewbInvoice()], ewbCompany))
     expect(doc.ShipDtls).toMatchObject({ LglNm: 'Cash buyer Whitefield', Addr1: 'Plot 9, ITPL', Loc: 'Bengaluru', Pin: 560066, Stcd: '29' })
   })
 
   it('TranDtls.RegRev is Y for reverse-charge invoices, N otherwise', () => {
-    const [plain] = buildEInvoiceJson([ewbInvoice()], ewbCompany) as any[]
+    const plain = singleEinvoiceDoc(buildEInvoiceJson([ewbInvoice()], ewbCompany))
     expect(plain.TranDtls.RegRev).toBe('N')
-    const [rcm] = buildEInvoiceJson([{ ...ewbInvoice(), rchrg: true }], ewbCompany) as any[]
+    const rcm = singleEinvoiceDoc(buildEInvoiceJson([{ ...ewbInvoice(), rchrg: true }], ewbCompany))
     expect(rcm.TranDtls.RegRev).toBe('Y')
   })
 
   it('SEZ e-way bills use IGST rates even when the SEZ unit is in the company state', () => {
     const sez: EdocInvoice = { ...ewbInvoice(), supTyp: 'SEZWP', partyStateCode: '27', pos: '27', shipTo: null }
-    const bill = (buildEwbJson([sez], ewbCompany) as any).billLists[0]
-    expect(bill.itemList[0].igstRate).toBe(18)
-    expect(bill.itemList[0].cgstRate).toBe(0)
-    expect(bill.itemList[0].sgstRate).toBe(0)
+    const bill = singleEwbBill(buildEwbJson([sez], ewbCompany))
+    expect(bill.itemList[0]?.igstRate).toBe(18)
+    expect(bill.itemList[0]?.cgstRate).toBe(0)
+    expect(bill.itemList[0]?.sgstRate).toBe(0)
   })
 })
 

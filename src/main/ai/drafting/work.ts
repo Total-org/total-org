@@ -367,7 +367,13 @@ export class DraftWork {
 }
 
 /** The tool result when names need the user's answer: no draft was made. */
-export function clarificationResult(work: DraftWork): { status: 'needs_clarification'; questions: Clarification[]; note: string } {
+export interface ClarificationResult {
+  status: 'needs_clarification'
+  questions: Clarification[]
+  note: string
+}
+
+export function clarificationResult(work: DraftWork): ClarificationResult {
   return {
     status: 'needs_clarification',
     questions: work.clarifications,

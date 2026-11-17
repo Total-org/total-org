@@ -86,6 +86,24 @@ function supTypFor(exportType: string | null, partyStateCode: string | null): 'B
   return 'B2B'
 }
 
+/** One row of listSalesInvoices' scan, as the driver returns it (SQLite booleans are 0 / 1). */
+interface EdocScanRow {
+  voucherId: number
+  number: string
+  date: string
+  kind: (typeof EDOC_KINDS)[number]
+  partyLedgerId: number | null
+  partyName: string | null
+  partyGstin: string | null
+  total: number
+  vehicleNo: string | null
+  irn: string | null
+  irnCancelledAt: string | null
+  ewbNo: string | null
+  hasHsn: number
+  hasGoods: number
+}
+
 export function listSalesInvoices(db: DB, from: string, to: string, company?: CompanyInfo): EdocListRow[] {
   const kindPlaceholders = EDOC_KINDS.map(() => '?').join(', ')
   const outwardDbn = outwardDebitNoteIds(db, from, to)
@@ -107,11 +125,11 @@ export function listSalesInvoices(db: DB, from: string, to: string, company?: Co
        WHERE vt.kind IN (${kindPlaceholders}) AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
        ORDER BY v.date, v.id`
     )
-    .all(...EDOC_KINDS, from, to) as any[]
-  const listSnaps = partySnapshots(db, scanned.map((r: { voucherId: number }) => r.voucherId))
-  const rows = scanned.map((r: { voucherId: number; partyGstin: string | null }) => withPartySnap(r, listSnaps.get(r.voucherId))) as any[]
+    .all(...EDOC_KINDS, from, to) as EdocScanRow[]
+  const listSnaps = partySnapshots(db, scanned.map((r) => r.voucherId))
+  const rows = scanned.map((r) => withPartySnap(r, listSnaps.get(r.voucherId)))
   const onChallan = goodsMovedOnChallan(db, rows.filter((r) => r.kind === 'sales').map((r) => r.voucherId))
-  const invoiceRows = rows.map((r: any) => {
+  const invoiceRows = rows.map((r): EdocListRow => {
       const { kind, hasGoods, ...rest } = r
       const docType = docTypeFor(kind)
       const isOutwardDbn = docType === 'DBN' && outwardDbn.has(r.voucherId)
@@ -129,7 +147,7 @@ export function listSalesInvoices(db: DB, from: string, to: string, company?: Co
                 ? 'At or below ₹50,000 — per-bill export overrides'
                 : null
       return { ...rest, docType, hasHsn: !!r.hasHsn, outwardDbn: isOutwardDbn, ewbReason }
-    }) as EdocListRow[]
+    })
   // Delivery challans (WP 2.5b): an e-way bill row each (rule 138(1) CGST Rules: the consignment
   // value may be the one declared on a delivery challan); their value is computed, not posted.
   const challanRows: EdocListRow[] = hasTradeSchema(db)

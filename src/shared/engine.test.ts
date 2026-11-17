@@ -6,6 +6,7 @@ import { computeGst, supplyTypeFor } from './gst/calc'
 import { validateVoucher, type VoucherInput, type LedgerFacts } from './posting'
 import { buildGstr1, buildGstr3b, type GstDoc } from './gst/returns'
 import { DEFAULT_GROUPS, DEFAULT_VOUCHER_TYPES } from './seed'
+import { jsonAt } from './jsonAt.testutil'
 
 describe('money', () => {
   it('parses rupee strings to paise', () => {
@@ -461,17 +462,17 @@ describe('GSTR-1 builder', () => {
 
   it('routes documents into the right sections', () => {
     const r = buildGstr1([b2bDoc, b2csDoc, b2clDoc], '27AAPFU0939F1ZV', '27', '082025')
-    const json = r.json as any
-    expect(json.b2b).toHaveLength(1)
-    expect(json.b2b[0].ctin).toBe('27AAPFU0939F1ZV')
-    expect(json.b2b[0].inv[0].inum).toBe('S/1')
-    expect(json.b2b[0].inv[0].idt).toBe('05-08-2025')
-    expect(json.b2b[0].inv[0].val).toBe(1180)
-    expect(json.b2b[0].inv[0].itms[0].itm_det).toEqual({ rt: 18, txval: 1000, camt: 90, samt: 90, csamt: 0 })
-    expect(json.b2cl[0].pos).toBe('29')
-    expect(json.b2cs[0]).toMatchObject({ sply_ty: 'INTRA', pos: '27', rt: 18, txval: 500 })
+    const json = r.json
+    expect(jsonAt(json, 'b2b')).toHaveLength(1)
+    expect(jsonAt(json, 'b2b', 0, 'ctin')).toBe('27AAPFU0939F1ZV')
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'inum')).toBe('S/1')
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'idt')).toBe('05-08-2025')
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'val')).toBe(1180)
+    expect(jsonAt(json, 'b2b', 0, 'inv', 0, 'itms', 0, 'itm_det')).toEqual({ rt: 18, txval: 1000, camt: 90, samt: 90, csamt: 0 })
+    expect(jsonAt(json, 'b2cl', 0, 'pos')).toBe('29')
+    expect(jsonAt(json, 'b2cs', 0)).toMatchObject({ sply_ty: 'INTRA', pos: '27', rt: 18, txval: 500 })
     // Table 12 is bifurcated B2B/B2C per the current offline-tool schema; this doc is registered.
-    expect(json.hsn.hsn_b2b[0]).toMatchObject({ hsn_sc: '8471', uqc: 'NOS', qty: 2, txval: 1000 })
+    expect(jsonAt(json, 'hsn', 'hsn_b2b', 0)).toMatchObject({ hsn_sc: '8471', uqc: 'NOS', qty: 2, txval: 1000 })
   })
 
   it('aggregates b2cs by pos + rate and nets credit notes in hsn', () => {
@@ -483,10 +484,10 @@ describe('GSTR-1 builder', () => {
       hsnLines: [{ ...b2bDoc.hsnLines[0]!, taxable: 20000, cgst: 1800, sgst: 1800, qtyMilli: 500 }]
     }
     const r = buildGstr1([b2bDoc, cn], '27AAPFU0939F1ZV', '27', '082025')
-    const json = r.json as any
-    expect(json.cdnr[0].nt[0].ntty).toBe('C')
-    expect(json.hsn.hsn_b2b[0].txval).toBe(800) // 1000 - 200
-    expect(json.hsn.hsn_b2b[0].qty).toBe(1.5)
+    const json = r.json
+    expect(jsonAt(json, 'cdnr', 0, 'nt', 0, 'ntty')).toBe('C')
+    expect(jsonAt(json, 'hsn', 'hsn_b2b', 0, 'txval')).toBe(800) // 1000 - 200
+    expect(jsonAt(json, 'hsn', 'hsn_b2b', 0, 'qty')).toBe(1.5)
   })
 })
 
@@ -527,8 +528,8 @@ describe('GSTR-3B builder', () => {
     expect(r.nilExempt.taxable).toBe(5000)
     expect(r.netPayable.cgst).toBe(3100)
     expect(r.netPayable.sgst).toBe(3100)
-    const json = r.json as any
-    expect(json.sup_details.osup_det.txval).toBe(900)
-    expect(json.itc_elg.itc_net.camt).toBe(50)
+    const json = r.json
+    expect(jsonAt(json, 'sup_details', 'osup_det', 'txval')).toBe(900)
+    expect(jsonAt(json, 'itc_elg', 'itc_net', 'camt')).toBe(50)
   })
 })

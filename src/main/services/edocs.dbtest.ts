@@ -3,6 +3,8 @@ import { existsSync, mkdtempSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { CompanyInfo, DrCr } from '@shared/domain'
+import type { EwbBulkJson } from '@shared/gst/edocs'
+import { einvoiceDocs, singleEinvoiceDoc, singleEwbBill } from '@shared/gst/edocs.testutil'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import { ensureCompanyTree } from '../paths'
 import { createLedger } from './masters'
@@ -89,7 +91,8 @@ describe('edocs service — transport, per-bill EWB, service invoices, preceding
     expect(existsSync(r.path)).toBe(true)
     const perBill = join(r.dir, `ewb-${v.number}-v${v.id}.json`)
     expect(existsSync(perBill)).toBe(true)
-    const bill = (JSON.parse(readFileSync(perBill, 'utf8')) as any).billLists[0]
+    // The file exportEwb just wrote with buildEwbJson.
+    const bill = singleEwbBill(JSON.parse(readFileSync(perBill, 'utf8')) as EwbBulkJson)
     expect(bill.transactionType).toBe(2)
     expect(bill.fromPlace).toBe('Pune')
     expect(bill.toPlace).toBe('Nashik')
@@ -114,7 +117,7 @@ describe('edocs service — transport, per-bill EWB, service invoices, preceding
 
     const e = exportEInvoices(s.db, INFO, SLUG, '2026-07-01', '2026-07-31', '072026')
     expect(e.count).toBe(1)
-    const [doc] = JSON.parse(readFileSync(e.path, 'utf8')) as any[]
+    const doc = singleEinvoiceDoc(JSON.parse(readFileSync(e.path, 'utf8')))
     expect(doc.ItemList).toHaveLength(1)
     expect(doc.ItemList[0]).toMatchObject({ IsServc: 'Y', HsnCd: '9983', Qty: 1, Unit: 'OTH' })
 
@@ -224,7 +227,7 @@ describe('edocs service — transport, per-bill EWB, service invoices, preceding
 
     const e = exportEInvoices(s.db, INFO, SLUG, '2026-07-01', '2026-07-31', '072026')
     expect(e.count).toBe(2)
-    const docs = JSON.parse(readFileSync(e.path, 'utf8')) as any[]
+    const docs = einvoiceDocs(JSON.parse(readFileSync(e.path, 'utf8')))
     const numbers = docs.map((d) => d.DocDtls.No)
     expect(numbers).toContain(outDbn.number)
     expect(numbers).not.toContain(purDbn.number)
@@ -257,7 +260,7 @@ describe('edocs service — transport, per-bill EWB, service invoices, preceding
 
     const part = exportEInvoices(s.db, INFO, SLUG, '2026-07-01', '2026-07-31', '072026', { range: { from: '2026-07-10', to: '2026-07-28' } })
     expect(part.count).toBe(2)
-    const nos = (JSON.parse(readFileSync(part.path, 'utf8')) as any[]).map((d) => d.DocDtls.No)
+    const nos = einvoiceDocs(JSON.parse(readFileSync(part.path, 'utf8'))).map((d) => d.DocDtls.No)
     expect(nos).toEqual([mid.number, late.number])
     expect(nos).not.toContain(early.number)
     // The whole-period file is untouched by a range export.
@@ -304,7 +307,7 @@ describe('edocs service — transport, per-bill EWB, service invoices, preceding
       { ledgerId: s.sgstL, drCr: 'cr', amount: 9000 }
     ])
     const e = exportEInvoices(s.db, INFO, SLUG, '2026-07-01', '2026-07-31', '072026')
-    const [doc] = JSON.parse(readFileSync(e.path, 'utf8')) as any[]
+    const doc = singleEinvoiceDoc(JSON.parse(readFileSync(e.path, 'utf8')))
     expect(doc.TranDtls.RegRev).toBe('Y')
   })
 

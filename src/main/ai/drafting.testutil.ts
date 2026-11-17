@@ -12,6 +12,8 @@ import { getVoucher, nextVoucherNumber } from '../services/vouchers'
 import { getManufactureDetails } from '../services/manufacture'
 import { saveBomVersion } from '../services/bom'
 import { createToolRegistry } from './tools'
+import type { DraftToolData, StoredDraftData } from './drafting/tools'
+import type { ClarificationResult } from './drafting/work'
 import type { ToolContext } from './tools/registry'
 import * as store from './store'
 
@@ -68,9 +70,37 @@ export function ctx(over: Partial<ToolContext> = {}): ToolContext {
 }
 
 export const registry = createToolRegistry()
-export async function draft(tool: string, args: Record<string, unknown>, over: Partial<ToolContext> = {}): Promise<{ ok: boolean; data: any; error?: string; draftId: number | null }> {
+export interface DraftRun {
+  ok: boolean
+  /** The draft tool's result; null when the run was refused (`error`). */
+  data: DraftToolData | null
+  error?: string
+  draftId: number | null
+}
+
+/** The registry hands back any tool's result as `unknown`; a draft tool's carries its status. */
+function isDraftToolData(data: unknown): data is DraftToolData {
+  if (typeof data !== 'object' || data === null || !('status' in data)) return false
+  return data.status === 'open' || data.status === 'needs_clarification'
+}
+
+export async function draft(tool: string, args: Record<string, unknown>, over: Partial<ToolContext> = {}): Promise<DraftRun> {
   const r = await registry.run(tool, JSON.stringify(args), ctx(over))
-  return r.ok ? { ok: true, data: r.data, draftId: r.draftId } : { ok: false, data: null, error: r.error, draftId: null }
+  if (!r.ok) return { ok: false, data: null, error: r.error, draftId: null }
+  if (!isDraftToolData(r.data)) throw new Error(`${tool} is not a draft tool: ${JSON.stringify(r.data)}`)
+  return { ok: true, data: r.data, draftId: r.draftId }
+}
+
+/** The stored draft a run made; fails the test when it was refused or asked a question instead. */
+export function drafted(run: DraftRun): StoredDraftData {
+  if (run.data?.status !== 'open') throw new Error(`expected a stored draft, got ${run.error ?? JSON.stringify(run.data)}`)
+  return run.data
+}
+
+/** The questions a run asked; fails the test when it was refused or stored a draft instead. */
+export function clarified(run: DraftRun): ClarificationResult {
+  if (run.data?.status !== 'needs_clarification') throw new Error(`expected questions, got ${run.error ?? JSON.stringify(run.data)}`)
+  return run.data
 }
 export const payloadOf = (draftId: number): AiVoucherDraftPayload => store.getDraft(db, draftId)!.payload
 

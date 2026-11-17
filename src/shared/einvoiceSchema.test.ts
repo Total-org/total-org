@@ -3,7 +3,8 @@
 // validator itself rejects what the published schema rejects.
 import { describe, expect, it } from 'vitest'
 import { buildEInvoiceJson, buildEwbByIrnPayload, type EdocCompany, type EdocInvoice, type EdocItem } from './gst/edocs'
-import { EINVOICE_DOC_NO_MAX, einvoiceDocNoWarning, einvoiceIssues, einvoiceSchema, withinNicTolerance } from './gst/einvoiceSchema'
+import { EINVOICE_DOC_NO_MAX, einvoiceDocNoWarning, einvoiceIssues, einvoiceSchema, withinNicTolerance, type EInvoiceDoc } from './gst/einvoiceSchema'
+import { singleEinvoiceDoc } from './gst/edocs.testutil'
 import { GST_SOURCES } from './gst/sources'
 import { computeGst } from './gst/calc'
 
@@ -79,6 +80,13 @@ function makeInvoice(spec: Spec): EdocInvoice {
 }
 
 const doc = (spec: Spec): Record<string, unknown> => buildEInvoiceJson([makeInvoice(spec)], company)[0]!
+/** The same document, checked against the schema and typed (for tests that read or change its fields). */
+const typedDoc = (spec: Spec): EInvoiceDoc => singleEinvoiceDoc(buildEInvoiceJson([makeInvoice(spec)], company))
+const firstItem = (d: EInvoiceDoc): EInvoiceDoc['ItemList'][number] => {
+  const [item] = d.ItemList
+  if (!item) throw new Error('the document has no item')
+  return item
+}
 const goods = (over: Partial<Spec['lines'][number]> = {}): Spec['lines'][number] =>
   ({ hsn: '84713010', rate: 18, qtyMilli: 2000, ratePaise: 4_500_000, ...over })
 
@@ -111,21 +119,21 @@ describe('every invoice shape the app produces validates against the IRN schema 
   }
 
   it('the discount line carries the gross in TotAmt and AssAmt = TotAmt − Discount', () => {
-    const d = doc({ shape: 'B2B', intra: true, lines: [goods({ discountPaise: 123_456 })] }) as any
+    const d = typedDoc({ shape: 'B2B', intra: true, lines: [goods({ discountPaise: 123_456 })] })
     expect(d.ItemList[0]).toMatchObject({ TotAmt: 90000, Discount: 1234.56, AssAmt: 88765.44 })
   })
 
   it('exports carry URP / 96 / PIN 999999 and no null ExpDtls members', () => {
-    const d = doc({ shape: 'EXPWOP', lines: [goods()] }) as any
+    const d = typedDoc({ shape: 'EXPWOP', lines: [goods()] })
     expect(d.BuyerDtls).toMatchObject({ Gstin: 'URP', Pos: '96', Stcd: '96', Pin: 999999 })
     expect(d.ExpDtls).toEqual({ ShipBNo: 'SB1234567', ShipBDt: '16/08/2026' })
-    expect(Object.values(d.ExpDtls)).not.toContain(null)
+    expect(Object.values(d.ExpDtls ?? {})).not.toContain(null) // defined: the line above
   })
 })
 
 describe('the validator rejects what the published schema rejects', () => {
-  const base = (): any => doc({ shape: 'B2B', intra: true, lines: [goods()] })
-  const reject = (mutate: (d: any) => void, needle: string): void => {
+  const base = (): EInvoiceDoc => typedDoc({ shape: 'B2B', intra: true, lines: [goods()] })
+  const reject = (mutate: (d: EInvoiceDoc) => void, needle: string): void => {
     const d = base()
     mutate(d)
     expect(einvoiceIssues(d).join('\n')).toContain(needle)
@@ -138,19 +146,20 @@ describe('the validator rejects what the published schema rejects', () => {
   })
   it('PIN 0, HSN of 5 digits, Loc over 50, quote in a name, bad GSTIN, null optional', () => {
     reject((d) => { d.SellerDtls.Pin = 0 }, 'SellerDtls.Pin')
-    reject((d) => { d.ItemList[0].HsnCd = '84713' }, 'HsnCd')
+    reject((d) => { firstItem(d).HsnCd = '84713' }, 'HsnCd')
     reject((d) => { d.BuyerDtls.Loc = 'x'.repeat(51) }, 'BuyerDtls.Loc')
-    reject((d) => { d.ItemList[0].PrdDesc = 'Laptop 14"' }, 'PrdDesc')
+    reject((d) => { firstItem(d).PrdDesc = 'Laptop 14"' }, 'PrdDesc')
     reject((d) => { d.BuyerDtls.Gstin = '27AAACU1234F1Z' }, 'BuyerDtls.Gstin')
-    reject((d) => { d.ExpDtls = { Port: null } }, 'ExpDtls.Port')
+    // A null the schema's type can't hold: what the builder's compact() exists to prevent.
+    reject((d) => { Object.assign(d, { ExpDtls: { Port: null } }) }, 'ExpDtls.Port')
   })
   it('round-off outside ±99.99, total that does not add up, IGST on an intra-state line', () => {
     reject((d) => { d.ValDtls.RndOffAmt = 100 }, 'RndOffAmt')
     reject((d) => { d.ValDtls.TotInvVal += 5 }, '2189')
-    reject((d) => { d.ItemList[0].IgstAmt = 16200; d.ItemList[0].CgstAmt = 0; d.ItemList[0].SgstAmt = 0 }, '2172')
+    reject((d) => { const item = firstItem(d); item.IgstAmt = 16200; item.CgstAmt = 0; item.SgstAmt = 0 }, '2172')
   })
   it('an export must be URP / 96 / 999999', () => {
-    const d: any = doc({ shape: 'EXPWP', lines: [goods()] })
+    const d = typedDoc({ shape: 'EXPWP', lines: [goods()] })
     d.BuyerDtls.Pin = 400001
     expect(einvoiceIssues(d).join()).toContain('Export')
   })
@@ -162,8 +171,7 @@ describe('the validator rejects what the published schema rejects', () => {
   })
   it('the schema keeps the published required list (Version … ValDtls)', () => {
     for (const key of ['Version', 'TranDtls', 'DocDtls', 'SellerDtls', 'BuyerDtls', 'ItemList', 'ValDtls']) {
-      const d = base()
-      delete d[key]
+      const d = Object.fromEntries(Object.entries(base()).filter(([k]) => k !== key))
       expect(einvoiceSchema.safeParse(d).success, key).toBe(false)
     }
   })
