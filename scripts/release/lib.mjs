@@ -10,12 +10,19 @@ export const NON_RELEASE_PREFIXES = ['docs/', 'site/', '.github/', 'scripts/rele
 /** Test-only files (unit / renderer / DB tests, their fixtures and helpers) never ship either. */
 const TEST_ONLY = [/\.(test|dbtest)\.tsx?$/, /(^|\/)__tests__\//, /(^|\/)__fixtures__\//]
 
+/** Agent instruction files: a `CLAUDE.md` anywhere (src/CLAUDE.md holds the code quality rules).
+ *  Nothing imports one, so it never reaches the app. `AGENTS.md` is not matched here because
+ *  agent-skill/AGENTS.md is imported by the CLI (src/main/cli/docs.ts); counting it is the safe
+ *  side, though the CLI ships in no release asset today. */
+const AGENT_NOTES = [/(^|\/)CLAUDE\.md$/]
+
 /** Does a change to `path` (repo-relative, forward slashes) count toward a release? */
 export function countsForRelease(path) {
   const p = path.replace(/\\/g, '/').replace(/^\.\//, '')
   if (NON_RELEASE_PREFIXES.some((prefix) => p.startsWith(prefix))) return false
   if (!p.includes('/') && /\.md$/i.test(p)) return false
   if (TEST_ONLY.some((re) => re.test(p))) return false
+  if (AGENT_NOTES.some((re) => re.test(p))) return false
   return true
 }
 

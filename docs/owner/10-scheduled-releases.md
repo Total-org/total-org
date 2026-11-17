@@ -18,7 +18,7 @@ All of these, every time:
 
 1. **Something new.** At least one change since the last release that reaches users. Changes only
    to the docs, the website, the GitHub setup or the root notes (README, CHANGELOG, CLAUDE.md,
-   to-do.md) do not count. If nothing counts, the slot skips quietly.
+   to-do.md), or any CLAUDE.md (the agents' rules), do not count. If nothing counts, the slot skips quietly.
 2. **The checks on `main` are green.** Every test job on the newest commit of `main` finished and
    passed, including the long Mac end-to-end tests and the speed tests. If they are still running,
    the slot waits for the next one.
