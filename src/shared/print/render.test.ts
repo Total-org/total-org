@@ -18,7 +18,7 @@ import {
   type PrintTemplate
 } from '../printTemplates'
 import { legacyBuildInvoiceHtml } from './legacyInvoiceHtml.fixture'
-import { normaliseHtml, receiptQrMm, renderDocument, type InvoiceDocument } from './render'
+import { normaliseHtml, receiptNeedsFullInvoice, receiptQrMm, renderDocument, type InvoiceDocument } from './render'
 import { sampleDocument } from './sample'
 import { taxSummaryForInvoice } from './taxSummary'
 
@@ -396,5 +396,26 @@ describe('58 mm (2-inch) receipt (PROD-11)', () => {
     const html = renderDocument(R58, sampleDocument(COMPANY, 'receipt'))
     expect(html).toContain('RECEIPT')
     expect(html).not.toContain('rc-items')
+  })
+})
+
+describe('receiptNeedsFullInvoice (PROD-11, owner 18 Nov)', () => {
+  const b2c = { ...INV, partyGstin: null }
+  it('B2B → b2b; inter-state (IGST, or no tax to another state) → inter_state; same-state B2C → none', () => {
+    expect(receiptNeedsFullInvoice(doc(INV))).toBe('b2b')
+    expect(receiptNeedsFullInvoice(doc(b2c))).toBeNull()
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, pos: '07', cgst: 0, sgst: 0, igst: 180000 }))).toBe('inter_state')
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, pos: '07', cgst: 0, sgst: 0, igst: 0, total: 1000000 }))).toBe('inter_state')
+  })
+  it('never for a business that charges no GST on the date, a credit note or a voucher', () => {
+    const unregistered = { ...COMPANY, gstin: null, gstRegistrationType: 'unregistered' as const }
+    expect(receiptNeedsFullInvoice({ ...doc({ ...INV, cgst: 0, sgst: 0, total: 1000000 }), company: unregistered })).toBeNull()
+    expect(receiptNeedsFullInvoice({ ...doc(INV), kind: 'credit_note' })).toBeNull()
+    expect(receiptNeedsFullInvoice(sampleDocument(COMPANY, 'receipt'))).toBeNull()
+  })
+  it('the one line prints only when the document carries it (absent = byte-identical)', () => {
+    const plain = renderDocument(CLASSIC_DEFAULT, doc(INV))
+    expect(renderDocument(CLASSIC_DEFAULT, { ...doc(INV), fullInvoice: null })).toBe(plain)
+    expect(renderDocument(CLASSIC_DEFAULT, { ...doc(INV), fullInvoice: 'inter_state' })).toContain('data-full-invoice-note>Printed as the full tax invoice, not a receipt: the bill goes to another state.</div>')
   })
 })

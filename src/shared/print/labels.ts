@@ -81,6 +81,9 @@ export interface PrintLabels {
   /** A10: heading of the UPI pay QR, and the line under it (amount formatted, the UPI ID). */
   payByUpi: string
   upiScan: (amount: string, upiId: string) => string
+  /** PROD-11: why a sales bill set to print on a receipt printed as the full A4 tax invoice. */
+  fullInvoiceB2b: string
+  fullInvoiceInterState: string
   balance: string
   openingBalance: string
   totalsClosing: string
@@ -185,6 +188,8 @@ export const ENGLISH_PRINT_LABELS: PrintLabels = {
   signedQr: 'e-Invoice QR (signed by the IRP)',
   payByUpi: 'Pay by UPI',
   upiScan: (amount, upiId) => `Scan with any UPI app to pay ${amount} to ${upiId}`,
+  fullInvoiceB2b: 'Printed as the full tax invoice, not a receipt: the buyer is registered for GST.',
+  fullInvoiceInterState: 'Printed as the full tax invoice, not a receipt: the bill goes to another state.',
   balance: 'Balance',
   openingBalance: 'Opening balance',
   totalsClosing: 'Totals / closing balance',
@@ -290,6 +295,8 @@ export function printLabelsFor(t: Translate): PrintLabels {
     signedQr: t('simple.print.signedQr'),
     payByUpi: t('simple.print.payByUpi'),
     upiScan: (amount, upiId) => t('simple.print.upiScan', { amount, upiId }),
+    fullInvoiceB2b: t('simple.print.fullInvoiceB2b'),
+    fullInvoiceInterState: t('simple.print.fullInvoiceInterState'),
     balance: t('simple.print.balance'),
     openingBalance: t('simple.print.openingBalance'),
     totalsClosing: t('simple.print.totalsClosing'),

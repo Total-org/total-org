@@ -84,6 +84,9 @@ export interface InvoiceDocument {
   /** A10: the UPI pay QR — only on a sales invoice with an amount due and a UPI ID set
    *  (shared/upi.ts). Absent / null = nothing printed (the print is byte-identical to before). */
   upi?: PrintUpiInfo | null
+  /** PROD-11: a sales bill whose default is a receipt printed as the full tax invoice, and why
+   *  (`receiptNeedsFullInvoice`) — one line on the print. Absent = byte-identical print. */
+  fullInvoice?: FullInvoiceReason | null
 }
 
 export interface PrintUpiInfo {
@@ -256,6 +259,29 @@ function compositionNote(company: CompanyInfo, kind: PrintDocKind, date: string,
 function printsWithoutGst(company: CompanyInfo, kind: PrintDocKind, inv: EdocInvoice): boolean {
   return (kind === 'sales' || kind === 'credit_note' || kind === 'debit_note') && !chargesGstOn(company, inv.date) &&
     inv.cgst + inv.sgst + inv.igst + inv.cess === 0
+}
+
+export type FullInvoiceReason = 'b2b' | 'inter_state'
+
+/**
+ * PROD-11 (owner, 18 Nov): a till receipt prints no HSN, place of supply or buyer address, so a
+ * sales bill that GST makes a full tax invoice — the buyer has a GSTIN, or the supply goes to
+ * another state — prints on the A4 template even when a receipt is chosen. Only while the bill's
+ * date charges GST (a composition / unregistered business issues no tax invoice). Inter-state =
+ * IGST posted, or no tax posted and the place of supply is another state.
+ */
+export function receiptNeedsFullInvoice(doc: PrintDocument): FullInvoiceReason | null {
+  if (doc.shape !== 'invoice' || doc.kind !== 'sales') return null
+  const { company, invoice: inv } = doc
+  if (printsWithoutGst(company, doc.kind, inv)) return null
+  if (inv.partyGstin && inv.partyGstin.trim() !== '') return 'b2b'
+  const inter = inv.igst > 0 || (inv.cgst === 0 && inv.sgst === 0 && !!inv.pos && inv.pos !== company.stateCode)
+  return inter ? 'inter_state' : null
+}
+
+function fullInvoiceLine(c: Ctx, why: FullInvoiceReason | null | undefined): string {
+  if (!why) return ''
+  return `<div style="margin-top:10px;font-size:${c.px(10)}" data-full-invoice-note>${esc(why === 'b2b' ? c.L.fullInvoiceB2b : c.L.fullInvoiceInterState)}</div>`
 }
 
 /** "…this invoice…" in the declaration reads "this bill" on a print that is not a tax invoice. */
@@ -1044,7 +1070,7 @@ function renderInvoice(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
           ${wordsBlock}
           ${declarationBlock}
           ${bankBlock}${notInvoice ? '' : upiBlock(c, doc.upi)}
-          ${termsBlock}${ruleNote}
+          ${termsBlock}${ruleNote}${fullInvoiceLine(c, doc.fullInvoice)}
         </div>
         <table class="tot">
           <tr><td>${esc(c.L.taxableValue)}</td><td class="r num">${m(inv.taxable)}</td></tr>

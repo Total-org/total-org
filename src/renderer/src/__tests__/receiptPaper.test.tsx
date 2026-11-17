@@ -53,6 +53,7 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
     await ready()
     expect(screen.getByTestId('receipt-paper-a4').getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('How do you print your bills?')).toBeTruthy()
+    expect(screen.queryByTestId('receipt-paper-full-invoice')).toBeNull()
     fireEvent.click(screen.getByTestId('receipt-paper-58'))
     await waitFor(() => expect(screen.getByTestId('receipt-paper-58').getAttribute('aria-checked')).toBe('true'))
     expect(writes()).toEqual([
@@ -60,6 +61,8 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
       ['counter:setConfig', { ...COUNTER, templateId: 'receipt-58mm' }]
     ])
     expect(screen.getByTestId('receipt-paper-note').textContent).toBe('Saved. Your next bill prints this way.')
+    // A receipt choice says B2B / other-state bills still print as the full A4 invoice.
+    expect(screen.getByTestId('receipt-paper-full-invoice').textContent).toContain('still prints as the full A4 tax invoice')
   })
 
   it('back to A4 puts sales on Classic and leaves the counter receipt alone', async () => {

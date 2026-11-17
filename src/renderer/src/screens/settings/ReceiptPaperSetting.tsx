@@ -113,6 +113,11 @@ export function ReceiptPaperSetting(): React.JSX.Element {
           )
         })}
       </div>
+      {current != null && current !== 'a4' && (
+        <p className="mt-2 text-small text-muted" data-testid="receipt-paper-full-invoice">
+          {t('simple.receiptPaper.fullInvoice')}
+        </p>
+      )}
       {ownReceipt && (
         <p className="mt-2 text-small text-muted" data-testid="receipt-paper-own">
           {t('simple.receiptPaper.own', { name: ownReceipt.name })}

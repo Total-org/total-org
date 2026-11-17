@@ -25,7 +25,9 @@ printing asks "How do you print your bills?" — on A4 paper, or on a receipt pr
 or 2-inch (58 mm), the small till-roll printer most shops have. Pick one and Make a bill, the
 save card, the sales list and the counter print to fit it. The new "Receipt 58mm" print keeps
 about 32 characters a line, wraps long product names, prints the GST summary one line per rate
-and puts the UPI pay QR above its words. *For developers*: built-in template `receipt-58mm`
+and puts the UPI pay QR above its words. A bill to a GST-registered buyer, or to another state,
+still prints as the full A4 tax invoice (a receipt has no HSN or place of supply), and the print
+says why in one line — on the counter too. *For developers*: built-in template `receipt-58mm`
 (page `Roll58`); the A4 and 80 mm prints are byte-identical; the setting writes through the
 existing `template:setDefault` / `counter:setConfig`.
 
