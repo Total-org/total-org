@@ -420,7 +420,9 @@ export function documentHtml(
   const fullInvoice = template.style === 'receipt' ? receiptNeedsFullInvoice(doc) : null
   if (fullInvoice) {
     template = getTemplate(db, 'classic')
-    doc = { ...loadPrintDocument(db, company, voucherId, template.totals.showOutstanding), fullInvoice } as typeof doc
+    // Reloaded with Classic's outstanding option; `fullInvoice` is only ever set on an invoice.
+    const reloaded = loadPrintDocument(db, company, voucherId, template.totals.showOutstanding)
+    doc = reloaded.shape === 'invoice' ? { ...reloaded, fullInvoice } : reloaded
   }
   const itemCount = doc.shape === 'invoice' ? doc.invoice.items.length : doc.voucher.lines.length
   // WP 10.4: a simple company in Hindi / Hinglish prints in its language (identity otherwise).

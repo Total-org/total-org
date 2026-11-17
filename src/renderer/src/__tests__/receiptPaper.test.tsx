@@ -5,9 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReceiptPaperSetting } from '../screens/settings/ReceiptPaperSetting'
+import type { CompanyInfo } from '@shared/domain'
 import { useSession } from '../state/stores'
 
 const invoke = vi.fn()
+const info = (gstRegistrationType: CompanyInfo['gstRegistrationType']): CompanyInfo => ({
+  name: 'Shop', stateCode: '27', gstin: null, gstRegistrationType, address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null
+})
 let salesDefault = 'classic'
 let counterTemplate = 'receipt-80mm'
 const COUNTER = { walkInLedgerId: null, salesLedgerId: null, voucherTypeId: null, receiptTypeId: null, cashLedgerId: null, upiLedgerId: null, cardLedgerId: null, godownId: null, autoPrint: false }
@@ -28,18 +32,19 @@ beforeEach(() => {
   invoke.mockImplementation(async (channel: string, p: { kind?: string; id?: string; templateId?: string }) => {
     if (channel === 'template:list') return { ok: true, data: { templates: TEMPLATES, defaults: { sales: salesDefault } } }
     if (channel === 'template:setDefault') {
-      salesDefault = p.id!
+      salesDefault = p.id ?? salesDefault
       return { ok: true, data: { templates: TEMPLATES, defaults: { sales: salesDefault } } }
     }
     if (channel === 'counter:config') return { ok: true, data: { config: { ...COUNTER, templateId: counterTemplate }, accounts: {} } }
     if (channel === 'counter:setConfig') {
-      counterTemplate = p.templateId!
+      counterTemplate = p.templateId ?? counterTemplate
       return { ok: true, data: p }
     }
     return { ok: false, error: `unmocked ${channel}` }
   })
+  // The preload bridge's full type isn't built in jsdom; the component calls only `invoke`.
   window.total = { platform: 'test', invoke } as unknown as typeof window.total
-  act(() => useSession.setState({ slug: 'shop', ui: { mode: 'simple' }, user: null, info: { gstRegistrationType: 'regular' } as never }))
+  act(() => useSession.setState({ slug: 'shop', ui: { mode: 'simple' }, user: null, info: info('regular') }))
 })
 afterEach(() => cleanup())
 
@@ -98,16 +103,16 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
     expect((screen.getByTestId('receipt-paper-80') as HTMLButtonElement).disabled).toBe(false)
     expect(screen.queryByTestId('receipt-paper-full-invoice')).not.toBeNull()
     // A composition dealer is told about its bill of supply to a registered buyer; an unregistered business nothing.
-    act(() => useSession.setState({ info: { gstRegistrationType: 'composition' } as never }))
+    act(() => useSession.setState({ info: info('composition') }))
     expect(screen.getByTestId('receipt-paper-full-invoice').textContent).toContain('full A4 bill of supply')
-    act(() => useSession.setState({ info: { gstRegistrationType: 'unregistered' } as never }))
+    act(() => useSession.setState({ info: info('unregistered') }))
     expect(screen.queryByTestId('receipt-paper-full-invoice')).toBeNull()
     expect(writes()).toEqual([['template:setDefault', { kind: 'sales', id: 'receipt-80mm' }]])
   })
 
   it('A4 with a custom sales template writes nothing; a viewer cannot change it', async () => {
     salesDefault = 'tpl-a4'
-    act(() => useSession.setState({ user: { id: 2, name: 'V', role: 'viewer' } as never }))
+    act(() => useSession.setState({ user: { id: 2, name: 'V', role: 'viewer' } }))
     render(wrap(<ReceiptPaperSetting />))
     await waitFor(() => expect(screen.getByTestId('receipt-paper-a4').getAttribute('aria-checked')).toBe('true'))
     expect((screen.getByTestId('receipt-paper-58') as HTMLButtonElement).disabled).toBe(true)

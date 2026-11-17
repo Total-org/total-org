@@ -306,10 +306,12 @@ describe('58 mm (2-inch) receipt (PROD-11)', () => {
   const R80 = RECEIPT_80MM_DEFAULT
   /** Visible text of an HTML fragment (tags dropped, entities the receipt uses decoded). */
   const text = (h: string): string => h.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
-  /** Each two-part line of the receipt (a totals row, a summary row, a flex row) as printed. */
+  /** Each two-part line of the receipt (a totals row, a summary row, a flex row) as printed.
+   *  `group(m)` is the regex's one capture group, which always matches (possibly empty). */
+  const group = (m: RegExpMatchArray): string => m[1] ?? ''
   const lines = (html: string): string[] => [
-    ...[...html.matchAll(/<table class="rc-tot">([\s\S]*?)<\/table>/g)].flatMap((m) => [...m[1]!.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((r) => text(r[1]!))),
-    ...[...html.matchAll(/<div class="rc-row rc-sm rc-gst">([\s\S]*?)<\/div>/g)].map((m) => text(m[1]!))
+    ...[...html.matchAll(/<table class="rc-tot">([\s\S]*?)<\/table>/g)].flatMap((m) => [...group(m).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((r) => text(group(r)))),
+    ...[...html.matchAll(/<div class="rc-row rc-sm rc-gst">([\s\S]*?)<\/div>/g)].map((m) => text(group(m)))
   ]
 
   it('is a built-in sales receipt on 58 mm roll paper, 48 mm printable', () => {
