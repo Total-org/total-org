@@ -388,6 +388,20 @@ describe('58 mm (2-inch) receipt (PROD-11)', () => {
     expect(h80).not.toContain('flex-wrap')
   })
 
+  it('the per-head lines are the tax the lines posted, so they agree with the totals (rule 46(l) / (m))', () => {
+    // Two lines of ₹1.05 at 5 %: per line 1.05 × 2.5 % = 0.02625 → 0.03 CGST and 0.03 SGST, so the
+    // bill posted CGST 0.06 / SGST 0.06. Recomputing the bucket (2.10 × 2.5 % = 0.0525 → 0.05)
+    // would print 0.05 under a 0.06 total.
+    const small = item({ rate: 5, qtyMilli: 1000, unitPricePaise: 105, taxablePaise: 105, cgst: 3, sgst: 3 })
+    const inv = { ...INV, partyGstin: null, items: [small, { ...small, name: 'Second' }], taxable: 210, cgst: 6, sgst: 6, total: 222 }
+    for (const t of [R58, R80]) {
+      const html = renderDocument(t, doc(inv))
+      expect(html).toContain('<tr><td>CGST</td><td class="r num">0.06</td></tr>')
+      if (t === R58) expect(lines(html)).toEqual(expect.arrayContaining(['CGST 2.5% on 2.10 0.06', 'SGST 2.5% on 2.10 0.06']))
+      else expect(html).toContain('<tr><td class="num">CGST 2.5%</td><td class="r num">2.10</td><td class="r num">0.06</td></tr>')
+    }
+  })
+
   it('prints each tax head with its rate (rule 46(l)): one line each on 58 mm, a row each on 80 mm', () => {
     const two = [item({ rate: 5, taxablePaise: 100000, cgst: 2500, sgst: 2500 }), item({ name: 'B', rate: 18, taxablePaise: 200000, cgst: 18000, sgst: 18000 })]
     const inv = { ...INV, items: two, taxable: 300000, cgst: 20500, sgst: 20500, total: 341000 }
@@ -458,10 +472,15 @@ describe('receiptNeedsFullInvoice (PROD-11, owner 18 Nov)', () => {
     expect(receiptNeedsFullInvoice({ ...doc(b2c), einvoice: { irn: 'IRN9', ackNo: null, ackDate: null, ewbNo: null } })).toBe('e_invoice')
     expect(receiptNeedsFullInvoice(doc({ ...INV, taxable: 5000000, shipTo }))).toBe('b2b')
   })
-  it('rule 49(d): a composition bill of supply to a registered buyer → b2b; the rest of rule 46 does not apply to it', () => {
+  it('rule 49(d): a composition bill of supply to a registered buyer → b2b_bill_of_supply; the rest of rule 46 does not apply to it', () => {
     const composition = { ...COMPANY, gstRegistrationType: 'composition' as const }
     const bos = { ...INV, cgst: 0, sgst: 0, total: 1000000 }
-    expect(receiptNeedsFullInvoice({ ...doc(bos), company: composition })).toBe('b2b')
+    expect(receiptNeedsFullInvoice({ ...doc(bos), company: composition })).toBe('b2b_bill_of_supply')
+    // Its A4 print is titled BILL OF SUPPLY and the line names the same document.
+    const html = renderDocument(CLASSIC_DEFAULT, { ...doc(bos), company: composition, fullInvoice: 'b2b_bill_of_supply' })
+    expect(html).toContain('BILL OF SUPPLY')
+    expect(html).toContain('data-full-invoice-note>Printed as the full bill of supply, not a receipt: the buyer is registered for GST.</div>')
+    expect(html).not.toContain('full tax invoice')
     expect(receiptNeedsFullInvoice({ ...doc({ ...bos, partyGstin: null, pos: '07', taxable: 9000000 }), company: composition })).toBeNull()
   })
   it('never for a business that charges no GST on the date, a credit note or a voucher', () => {

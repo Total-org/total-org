@@ -23,7 +23,7 @@ export interface Around {
 
 /** PROD-11: why a sales bill set to print on a receipt prints as the full tax invoice — each a
  *  particular of CGST rule 46 / 49 the till receipt doesn't print (`receiptNeedsFullInvoice`). */
-export type FullInvoiceReason = 'b2b' | 'inter_state' | 'large_b2c' | 'delivery_address' | 'e_invoice'
+export type FullInvoiceReason = 'b2b' | 'b2b_bill_of_supply' | 'inter_state' | 'large_b2c' | 'delivery_address' | 'e_invoice'
 
 export interface PrintLabels {
   unregistered: string
@@ -193,6 +193,7 @@ export const ENGLISH_PRINT_LABELS: PrintLabels = {
   upiScan: (amount, upiId) => `Scan with any UPI app to pay ${amount} to ${upiId}`,
   fullInvoice: {
     b2b: 'Printed as the full tax invoice, not a receipt: the buyer is registered for GST.',
+    b2b_bill_of_supply: 'Printed as the full bill of supply, not a receipt: the buyer is registered for GST.',
     inter_state: 'Printed as the full tax invoice, not a receipt: the bill goes to another state.',
     large_b2c: 'Printed as the full tax invoice, not a receipt: a bill of ₹50,000 or more to a buyer without a GSTIN carries their name, address and state.',
     delivery_address: 'Printed as the full tax invoice, not a receipt: the bill has a delivery address.',
@@ -305,6 +306,7 @@ export function printLabelsFor(t: Translate): PrintLabels {
     upiScan: (amount, upiId) => t('simple.print.upiScan', { amount, upiId }),
     fullInvoice: {
       b2b: t('simple.print.fullInvoice.b2b'),
+      b2b_bill_of_supply: t('simple.print.fullInvoice.b2bBillOfSupply'),
       inter_state: t('simple.print.fullInvoice.interState'),
       large_b2c: t('simple.print.fullInvoice.largeB2c'),
       delivery_address: t('simple.print.fullInvoice.delivery'),

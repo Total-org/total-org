@@ -96,9 +96,11 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
     expect(screen.getByTestId('receipt-paper-80').tabIndex).toBe(0)
     // The radios are never `disabled` while the save runs (Chromium would drop the focus).
     expect((screen.getByTestId('receipt-paper-80') as HTMLButtonElement).disabled).toBe(false)
-    // A composition shop's B2B bills stay on the receipt, so it is not told otherwise.
     expect(screen.queryByTestId('receipt-paper-full-invoice')).not.toBeNull()
+    // A composition dealer is told about its bill of supply to a registered buyer; an unregistered business nothing.
     act(() => useSession.setState({ info: { gstRegistrationType: 'composition' } as never }))
+    expect(screen.getByTestId('receipt-paper-full-invoice').textContent).toContain('full A4 bill of supply')
+    act(() => useSession.setState({ info: { gstRegistrationType: 'unregistered' } as never }))
     expect(screen.queryByTestId('receipt-paper-full-invoice')).toBeNull()
     expect(writes()).toEqual([['template:setDefault', { kind: 'sales', id: 'receipt-80mm' }]])
   })

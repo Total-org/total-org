@@ -36,8 +36,9 @@ export function ReceiptPaperSetting(): React.JSX.Element {
   const userT = useT()
   const t: Translate = simple ? userT : ENGLISH
   const canWrite = useCanWrite()
-  // The A4 rule applies only to a business that charges GST (`receiptNeedsFullInvoice`).
-  const regular = useSession((st) => st.info?.gstRegistrationType === 'regular') // i18n-technical
+  // Which bills still go to A4 (`receiptNeedsFullInvoice`): a regular business's under rule 46,
+  // a composition dealer's bill of supply to a registered buyer (rule 49(d)); none otherwise.
+  const registration = useSession((st) => st.info?.gstRegistrationType)
   const queryClient = useQueryClient()
   const { data: list } = useQuery({ queryKey: TEMPLATES_KEY, queryFn: api.templates.list })
   const { data: counter } = useQuery({ queryKey: COUNTER_KEY, queryFn: counterApi.config })
@@ -119,9 +120,9 @@ export function ReceiptPaperSetting(): React.JSX.Element {
           )
         })}
       </div>
-      {regular && current != null && current !== 'a4' && (
+      {current != null && current !== 'a4' && (registration === 'regular' || registration === 'composition') && (
         <p className="mt-2 text-small text-muted" data-testid="receipt-paper-full-invoice">
-          {t('simple.receiptPaper.fullInvoice')}
+          {t(registration === 'regular' ? 'simple.receiptPaper.fullInvoice' : 'simple.receiptPaper.fullInvoiceComposition')}
         </p>
       )}
       {ownReceipt && (

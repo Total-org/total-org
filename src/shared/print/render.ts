@@ -273,22 +273,23 @@ export const RULE46E_LIMIT_PAISE = 5_000_000
  * and unit, value, the taxable value, each tax head with its rate and amount, the total and a
  * signature — but not the recipient's address or state, the place of supply, a delivery address
  * or the e-invoice QR. A sales bill that needs one of those prints on the A4 template instead:
- * - `b2b`: the recipient has a GSTIN / UIN (rule 46(d); rule 49(d) for a composition bill of
- *   supply too);
+ * - `b2b`: the recipient has a GSTIN / UIN (rule 46(d)); `b2b_bill_of_supply` the same for a
+ *   composition dealer's bill of supply (rule 49(d) — its print is a BILL OF SUPPLY, never a tax
+ *   invoice, s.31(3)(c));
  * - `inter_state` (46(n)): IGST posted, or no tax posted and the place of supply is another state;
  * - `large_b2c` (46(e)): an unregistered recipient and a taxable value of ₹50,000 or more;
  * - `delivery_address` (46(o)): the bill carries a ship-to address (the receipt prints none);
  * - `e_invoice` (46(r)): the bill has an IRN (its QR is not on the receipt).
  * The (n) / (e) / (o) / (r) reasons apply to a tax invoice only; a business that charges no GST
  * on the bill's date and posted none issues no tax invoice (unregistered: no rule; composition:
- * rule 49, whose (d) is the `b2b` reason). Credit notes and vouchers never print on a receipt.
+ * rule 49, whose (d) is the `b2b_bill_of_supply` reason). Credit notes and vouchers never print on a receipt.
  */
 export function receiptNeedsFullInvoice(doc: PrintDocument): FullInvoiceReason | null {
   if (doc.shape !== 'invoice' || doc.kind !== 'sales') return null
   const { company, invoice: inv } = doc
   const registeredBuyer = !!inv.partyGstin && inv.partyGstin.trim() !== ''
   if (printsWithoutGst(company, doc.kind, inv)) {
-    return registeredBuyer && registrationOn(company, inv.date) === 'composition' ? 'b2b' : null
+    return registeredBuyer && registrationOn(company, inv.date) === 'composition' ? 'b2b_bill_of_supply' : null
   }
   if (registeredBuyer) return 'b2b'
   if (inv.igst > 0 || (inv.cgst === 0 && inv.sgst === 0 && !!inv.pos && inv.pos !== company.stateCode)) return 'inter_state'
@@ -899,11 +900,12 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
         counter.tenderedPaise > 0 ? `<tr><td>Cash tendered</td><td class="r num">${m(counter.tenderedPaise)}</td></tr><tr><td>Change</td><td class="r num">${m(counter.changePaise)}</td></tr>` : ''
       }</table>`
     : ''
-  // Rule 46(l): the rate of each tax head (CGST / SGST or IGST, and cess) — the receipt has no
-  // per-line tax columns, so this summary is where they print. It prints on every bill that
-  // carries GST, whatever the template's tax-summary option (a legal particular, not a layout one).
+  // Rule 46(l) / (m): the rate and amount of each tax head (CGST / SGST or IGST, and cess) — the
+  // receipt has no per-line tax columns, so this summary is where they print. It prints on every
+  // bill that carries GST, whatever the template's tax-summary option (a legal particular, not a
+  // layout one), and sums the lines' posted tax so it agrees with the totals above it.
   const pct = (n: number): string => `${n}%`
-  const heads = noGst ? [] : taxSummaryForInvoice(inv, 'rate', isIntra ? 'intra' : 'inter').flatMap((r) => {
+  const heads = noGst ? [] : taxSummaryForInvoice(inv, 'rate', isIntra ? 'intra' : 'inter', 'lines').flatMap((r) => {
     const rows: { label: string; taxable: number; tax: number }[] =
       r.rate === 0 ? [{ label: 'GST 0%', taxable: r.taxable, tax: 0 }]
       : isIntra ? [{ label: `CGST ${pct(r.rate / 2)}`, taxable: r.taxable, tax: r.cgst }, { label: `SGST ${pct(r.rate / 2)}`, taxable: r.taxable, tax: r.sgst }]
