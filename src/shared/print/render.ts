@@ -788,7 +788,7 @@ function narrowReceiptCss(c: Ctx): string {
   return `
     body { overflow-wrap: anywhere; }
     .rc-row { flex-wrap: wrap; column-gap: 4px; row-gap: 0; }
-    .rc-row > span:last-child { margin-left: auto; }
+    .rc-row > span:last-child:not(:first-child) { margin-left: auto; }
     table.rc-items td.r { white-space: nowrap; padding-left: 4px; }
     .rc-gst { margin-top: 1px; }
     .rc-upi { margin-top: 8px; text-align: center; }

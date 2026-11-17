@@ -7,6 +7,7 @@ import { counterApi } from '../../lib/pricingClient'
 import { useT } from '../../lib/i18n'
 import { useMode } from '../../lib/mode'
 import { useCanWrite } from '../../simple/ViewerNote'
+import { handleRadioArrows } from '../../lib/simpleKeys'
 
 const ENGLISH = translator('en')
 const TEMPLATES_KEY = ['printTemplates'] // i18n-technical: the designer's key, so its defaults follow
@@ -22,9 +23,12 @@ const widthOf = (id: string | undefined): ReceiptWidth | null => (id === RECEIPT
  * receipt printer 3-inch (80 mm) / 2-inch (58 mm). Written through the existing channels only:
  * the sales bills' default print template (`template:setDefault`, what Make a bill / the save
  * card / the sales list print with) and the counter's receipt (`counter:setConfig` templateId).
- * A receipt width also moves the counter's receipt; "A4 paper" leaves the counter's receipt as it
- * is (a till prints receipts) and puts sales back on Classic only when they printed a receipt.
- * Plain words in a simple-mode company, English in the full app; viewers see it read-only.
+ * A receipt width also moves the counter's receipt while that is a built-in one; "A4 paper"
+ * leaves the counter's receipt as it is (a till prints receipts) and puts sales back on Classic
+ * only when they printed a receipt. "A receipt" is the template's STYLE: a shop's own receipt
+ * template is said by name (no size picked) and replaced only by a click on a size. Plain words
+ * in a simple-mode company, English in the full app; viewers see it read-only. The group takes
+ * the arrow keys itself (Settings is a full-app screen in both modes).
  */
 export function ReceiptPaperSetting(): React.JSX.Element {
   const simple = useMode() === 'simple'
@@ -38,8 +42,11 @@ export function ReceiptPaperSetting(): React.JSX.Element {
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const salesWidth = widthOf(list?.defaults.sales)
-  const current: 'a4' | ReceiptWidth | null = list ? (salesWidth ?? 'a4') : null // i18n-technical
+  const salesId = list?.defaults.sales
+  const salesWidth = widthOf(salesId)
+  const salesTpl = list?.templates.find((x) => x.id === salesId)
+  const ownReceipt = salesWidth == null && salesTpl?.style === 'receipt' ? salesTpl : null // i18n-technical
+  const current: 'a4' | 'own' | ReceiptWidth | null = list ? (salesWidth ?? (ownReceipt ? 'own' : 'a4')) : null // i18n-technical
   const counterWidth = widthOf(counter?.config.templateId)
 
   const choose = async (choice: 'a4' | ReceiptWidth): Promise<void> => {
@@ -50,11 +57,12 @@ export function ReceiptPaperSetting(): React.JSX.Element {
     try {
       if (choice === 'a4') {
         // i18n-technical: the Classic built-in
-        if (salesWidth != null) await api.templates.setDefault('sales', 'classic')
+        if (salesWidth != null || ownReceipt) await api.templates.setDefault('sales', 'classic')
       } else {
         const id = RECEIPT_IDS[choice]
         await api.templates.setDefault('sales', id)
-        if (counter.config.templateId !== id) await counterApi.setConfig({ ...counter.config, templateId: id })
+        // The counter follows only from a built-in receipt — never over a shop's own template.
+        if (counterWidth != null && counter.config.templateId !== id) await counterApi.setConfig({ ...counter.config, templateId: id })
       }
       setNote(t('simple.receiptPaper.saved'))
     } catch (err) {
@@ -75,15 +83,23 @@ export function ReceiptPaperSetting(): React.JSX.Element {
     <section className="mb-6 rounded-xl border border-line bg-panel px-4 py-3" aria-labelledby="receipt-paper-title" data-testid="receipt-paper-setting">
       <h2 id="receipt-paper-title" className="text-body font-semibold text-ink">{t('simple.receiptPaper.title')}</h2>
       <p className="mt-1 text-detail text-muted">{t('simple.receiptPaper.intro')}</p>
-      <div role="radiogroup" aria-labelledby="receipt-paper-title" className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-        {options.map((o) => {
+      <div
+        role="radiogroup"
+        aria-labelledby="receipt-paper-title"
+        className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3"
+        onKeyDown={(e) => void handleRadioArrows(e.nativeEvent)}
+      >
+        {options.map((o, i) => {
           const on = current === o.value
+          // One tab stop: the picked choice, else the first (a shop's own receipt picks none).
+          const stop = on || (i === 0 && !options.some((x) => x.value === current))
           return (
             <button
               key={o.value}
               type="button"
               role="radio"
               aria-checked={on}
+              tabIndex={stop ? 0 : -1}
               data-testid={`receipt-paper-${o.value}`}
               disabled={!canWrite || busy || current == null || counter == null}
               onClick={() => void choose(o.value)}
@@ -97,6 +113,11 @@ export function ReceiptPaperSetting(): React.JSX.Element {
           )
         })}
       </div>
+      {ownReceipt && (
+        <p className="mt-2 text-small text-muted" data-testid="receipt-paper-own">
+          {t('simple.receiptPaper.own', { name: ownReceipt.name })}
+        </p>
+      )}
       {!simple && current === 'a4' && counterWidth != null && (
         <p className="mt-2 text-small text-muted" data-testid="receipt-paper-counter">
           {t(counterWidth === 58 ? 'simple.receiptPaper.counter58' : 'simple.receiptPaper.counter80')}

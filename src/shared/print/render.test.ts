@@ -354,6 +354,9 @@ describe('58 mm (2-inch) receipt (PROD-11)', () => {
     expect(html).toContain('body { overflow-wrap: anywhere; }')
     expect(html).toContain('.rc-row { flex-wrap: wrap;')
     expect(html).toContain('table.rc-items td.r { white-space: nowrap;')
+    // A row with one part (a customer without a GSTIN, a cash sale) stays on the left.
+    expect(html).toContain('.rc-row > span:last-child:not(:first-child) { margin-left: auto; }')
+    expect(renderDocument(R58, doc({ ...INV, partyGstin: null }))).toContain('<div class="rc-row"><span>Sample Buyer Pvt Ltd</span></div>')
     const h80 = renderDocument(R80, doc({ ...INV, items: [long] }))
     expect(h80).not.toContain('overflow-wrap: anywhere; }')
     expect(h80).not.toContain('flex-wrap')
