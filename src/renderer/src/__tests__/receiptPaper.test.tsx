@@ -39,7 +39,7 @@ beforeEach(() => {
     return { ok: false, error: `unmocked ${channel}` }
   })
   window.total = { platform: 'test', invoke } as unknown as typeof window.total
-  act(() => useSession.setState({ slug: 'shop', ui: { mode: 'simple' }, user: null }))
+  act(() => useSession.setState({ slug: 'shop', ui: { mode: 'simple' }, user: null, info: { gstRegistrationType: 'regular' } as never }))
 })
 afterEach(() => cleanup())
 
@@ -94,6 +94,12 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
     await waitFor(() => expect(screen.getByTestId('receipt-paper-80').getAttribute('aria-checked')).toBe('true'))
     expect(document.activeElement).toBe(screen.getByTestId('receipt-paper-80'))
     expect(screen.getByTestId('receipt-paper-80').tabIndex).toBe(0)
+    // The radios are never `disabled` while the save runs (Chromium would drop the focus).
+    expect((screen.getByTestId('receipt-paper-80') as HTMLButtonElement).disabled).toBe(false)
+    // A composition shop's B2B bills stay on the receipt, so it is not told otherwise.
+    expect(screen.queryByTestId('receipt-paper-full-invoice')).not.toBeNull()
+    act(() => useSession.setState({ info: { gstRegistrationType: 'composition' } as never }))
+    expect(screen.queryByTestId('receipt-paper-full-invoice')).toBeNull()
     expect(writes()).toEqual([['template:setDefault', { kind: 'sales', id: 'receipt-80mm' }]])
   })
 

@@ -8,6 +8,7 @@ import { useT } from '../../lib/i18n'
 import { useMode } from '../../lib/mode'
 import { useCanWrite } from '../../simple/ViewerNote'
 import { handleRadioArrows } from '../../lib/simpleKeys'
+import { useSession } from '../../state/stores'
 
 const ENGLISH = translator('en')
 const TEMPLATES_KEY = ['printTemplates'] // i18n-technical: the designer's key, so its defaults follow
@@ -35,6 +36,8 @@ export function ReceiptPaperSetting(): React.JSX.Element {
   const userT = useT()
   const t: Translate = simple ? userT : ENGLISH
   const canWrite = useCanWrite()
+  // The A4 rule applies only to a business that charges GST (`receiptNeedsFullInvoice`).
+  const regular = useSession((st) => st.info?.gstRegistrationType === 'regular') // i18n-technical
   const queryClient = useQueryClient()
   const { data: list } = useQuery({ queryKey: TEMPLATES_KEY, queryFn: api.templates.list })
   const { data: counter } = useQuery({ queryKey: COUNTER_KEY, queryFn: counterApi.config })
@@ -50,7 +53,7 @@ export function ReceiptPaperSetting(): React.JSX.Element {
   const counterWidth = widthOf(counter?.config.templateId)
 
   const choose = async (choice: 'a4' | ReceiptWidth): Promise<void> => {
-    if (!list || !counter || choice === current) return
+    if (!list || !counter || busy || choice === current) return
     setBusy(true)
     setNote(null)
     setError(null)
@@ -101,7 +104,10 @@ export function ReceiptPaperSetting(): React.JSX.Element {
               aria-checked={on}
               tabIndex={stop ? 0 : -1}
               data-testid={`receipt-paper-${o.value}`}
-              disabled={!canWrite || busy || current == null || counter == null}
+              // Not `disabled` while saving: disabling the focused radio drops keyboard focus to
+              // the page (an arrow-key pick would lose its place) — `choose` ignores clicks then.
+              disabled={!canWrite || current == null || counter == null}
+              aria-disabled={busy || undefined}
               onClick={() => void choose(o.value)}
               className={`rounded-md border px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-amber/70 ${
                 on ? 'border-amber bg-amberbar/15' : 'border-line bg-panel hover:border-amber/60'
@@ -113,7 +119,7 @@ export function ReceiptPaperSetting(): React.JSX.Element {
           )
         })}
       </div>
-      {current != null && current !== 'a4' && (
+      {regular && current != null && current !== 'a4' && (
         <p className="mt-2 text-small text-muted" data-testid="receipt-paper-full-invoice">
           {t('simple.receiptPaper.fullInvoice')}
         </p>
