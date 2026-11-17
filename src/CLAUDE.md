@@ -48,7 +48,7 @@ The rules come from what the reviews of PRs #254–#283 kept finding: returns th
 
 - **One transaction per user action.** A refusal leaves no trace: no row, no used number, no audit row. Test it.
 - **Every write is audited** (`writeAudit`, mapped in `auditCoverage.ts`) with the whole before and after.
-- **Locked and closed periods.** Any new write that can change a figure checks the lock date (`getLockDate`, refused as `books_locked`) and closed years (as `simple:post`'s `simple_year_closed`), as `saveVoucher` does. Test both.
+- **Locked and closed periods.** Any new write that can change a figure checks the lock date (`getLockDate`, refused as `books_locked`, as `saveVoucher` does) and closed years (`fyIsClosed`, as `simple:post`'s `simple_year_closed`). Test both.
 - **Profit privacy.** A new channel, AI tool or Ask Total answer that returns profit, or sale value minus cost, goes through `canSeeProfit` (`PROFIT_CHANNELS` in `src/main/capabilities.ts`, `ai/tools/profitGuard.ts`). Test it with a user whose flag is false.
 - **Imports, undo and round trips** never overwrite what the user changed after them. A source that doesn't carry a field leaves the stored value alone. Test the round trip.
 - **Inputs.**
@@ -111,10 +111,10 @@ The rules come from what the reviews of PRs #254–#283 kept finding: returns th
 - **A fix comes with a test that fails on the old code.** Run it there once to be sure.
 - **Where expected figures come from.** Work them out by hand, with the arithmetic in a comment, and never make them by running the code under test. A parity fixture (hash, snapshot, `__fixtures__`) is made only from origin/main or the pre-change code, with its documented switch.
 - **The right suite.**
-  - `npm test`: pure `src/shared` / `src/main` `*.test.ts` (never imports the SQLite driver) and `scripts/release`, `scripts/lib`.
+  - `npm test`: pure `src/shared` / `src/main` / `src/preload` `*.test.ts` (never imports the SQLite driver) and `scripts/release`, `scripts/lib`.
   - `npm run test:db`: `*.dbtest.ts`.
   - `npm run test:renderer`: every test under `src/renderer` (`__tests__/` and files like `help/articles.test.ts`).
-  - e2e: user flows, run against a fresh `npm run build`.
+  - `npm run e2e` (or `node scripts/run-e2e.mjs NN`): user flows, run against a fresh `npm run build`.
   - `site/`: `cd site && npm test && npm run build`.
 - **Dates.** App code takes today from `todayISO()` and does day arithmetic with `addDaysISO` / `daysBetweenISO` (`dates.ts`). e2e scenarios use `localToday()`. Never `toISOString()` for today.
 - **No sleeps and no retries.** Wait on a state (`data-loading`, a row, `until(fn)`). A check that something did NOT happen first waits for what would make it happen: `h.ipcDrained()`, `h.frames()`, or the data it depends on being loaded.
