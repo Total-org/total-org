@@ -179,7 +179,10 @@ await scenario('61-reports-taxes', async (h) => {
   await shoot('05-cash')
 
   // ================= 4. Taxes =================
-  await openEntry('taxes', 'gst-summary')
+  // A9 (#282): the Taxes page opens the plain GST screen from its GST card.
+  await h.click('simple-nav-taxes')
+  await attached(h, '[data-testid="simple-taxes-hub-open"]')
+  await h.click('simple-taxes-hub-open')
   await attached(h, '[data-testid="taxes-figures"]')
   if ((await page.inputValue('[data-testid="taxes-period"]')) !== month) {
     await page.selectOption('[data-testid="taxes-period"]', month)
