@@ -215,12 +215,12 @@ describe('a receipt never prints a B2B or inter-state tax invoice', () => {
     const walkIn = createLedger(s.db, { name: 'Walk-in Ramesh', groupId: groupId('Sundry Debtors'), stateCode: '27' }).id
     const delhi = createLedger(s.db, { name: 'Delhi Kumar', groupId: groupId('Sundry Debtors'), stateCode: '07' }).id
     const igst = createLedger(s.db, { name: 'IGST', groupId: groupId('Duties & Taxes'), taxType: 'igst' }).id
-    const sale = (party: number, tax: { ledgerId: number; amount: number }[]) =>
+    const sale = (party: number, tax: { ledgerId: number; amount: number }[], taxable = 10000) =>
       saveVoucher(s.db, {
         voucherTypeId: vt, date: '2026-07-06', partyLedgerId: party, reference: null, narration: null,
         lines: [
-          { ledgerId: party, drCr: 'dr' as const, amount: 11800, costAllocations: [] },
-          { ledgerId: id('Sales 18'), drCr: 'cr' as const, amount: 10000, costAllocations: [] },
+          { ledgerId: party, drCr: 'dr' as const, amount: taxable + tax.reduce((n, t) => n + t.amount, 0), costAllocations: [] },
+          { ledgerId: id('Sales 18'), drCr: 'cr' as const, amount: taxable, costAllocations: [] },
           ...tax.map((t) => ({ ...t, drCr: 'cr' as const, costAllocations: [] }))
         ],
         inventory: [], billRefs: [], tds: null
@@ -228,7 +228,11 @@ describe('a receipt never prints a B2B or inter-state tax invoice', () => {
     // ₹100 at 18 %: CGST 9 + SGST 9 within Maharashtra (27); IGST 18 to Delhi (07).
     const local = sale(walkIn, [{ ledgerId: id('CGST'), amount: 900 }, { ledgerId: id('SGST'), amount: 900 }])
     const inter = sale(delhi, [{ ledgerId: igst, amount: 1800 }])
-    return { ...s, local, inter }
+    // Rule 46(e) boundary, walk-in Ramesh (no GSTIN, Maharashtra): ₹49,999.99 at 18 % —
+    // 4,999,999 × 9 % = 449,999.91 → ₹4,500.00 per head; ₹50,000.00 — ₹4,500.00 per head.
+    const below = sale(walkIn, [{ ledgerId: id('CGST'), amount: 450000 }, { ledgerId: id('SGST'), amount: 450000 }], 4999999)
+    const atLimit = sale(walkIn, [{ ledgerId: id('CGST'), amount: 450000 }, { ledgerId: id('SGST'), amount: 450000 }], 5000000)
+    return { ...s, local, inter, below, atLimit }
   }
 
   it('58 mm default: a walk-in same-state bill prints the receipt; B2B and inter-state print Classic with one line', () => {
@@ -248,6 +252,15 @@ describe('a receipt never prints a B2B or inter-state tax invoice', () => {
     expect(inter.template.id).toBe('classic')
     expect(inter.html).toContain('the bill goes to another state.</div>')
     expect(pdfOptionsFor(inter.template).pageSize).toBe('A4')
+  })
+
+  it('rule 46(e): ₹49,999.99 taxable to a walk-in prints the receipt; ₹50,000.00 prints Classic with its line', () => {
+    const s = bills()
+    pt.setDefaultTemplate(s.db, 'sales', 'receipt-58mm')
+    expect(pt.documentHtml(s.db, INFO, s.below).template.id).toBe('receipt-58mm')
+    const at = pt.documentHtml(s.db, INFO, s.atLimit)
+    expect(at.template.id).toBe('classic')
+    expect(at.html).toContain('data-full-invoice-note>Printed as the full tax invoice, not a receipt: a bill of ₹50,000 or more to a buyer without a GSTIN carries their name, address and state.</div>')
   })
 
   it('the counter (a receipt template passed in) follows the same rule; an A4 default never shows the line', () => {

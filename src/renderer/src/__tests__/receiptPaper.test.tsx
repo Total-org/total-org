@@ -62,7 +62,7 @@ describe('ReceiptPaperSetting (PROD-11)', () => {
     ])
     expect(screen.getByTestId('receipt-paper-note').textContent).toBe('Saved. Your next bill prints this way.')
     // A receipt choice says B2B / other-state bills still print as the full A4 invoice.
-    expect(screen.getByTestId('receipt-paper-full-invoice').textContent).toContain('still prints as the full A4 tax invoice')
+    expect(screen.getByTestId('receipt-paper-full-invoice').textContent).toContain('still print as the full A4 tax invoice')
   })
 
   it('back to A4 puts sales on Classic and leaves the counter receipt alone', async () => {

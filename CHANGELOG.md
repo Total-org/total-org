@@ -24,11 +24,14 @@ Things to know about the version numbers:
 printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)
 or 2-inch (58 mm), the small till-roll printer most shops have. Pick one and Make a bill, the
 save card, the sales list and the counter print to fit it. The new "Receipt 58mm" print keeps
-about 32 characters a line, wraps long product names, prints the GST summary one line per rate
+about 32 characters a line, wraps long product names, prints each tax one line at a time
 and puts the UPI pay QR above its words. A bill to a GST-registered buyer, or to another state,
-still prints as the full A4 tax invoice (a receipt has no HSN or place of supply), and the print
-says why in one line — on the counter too. *For developers*: built-in template `receipt-58mm`
-(page `Roll58`); the A4 and 80 mm prints are byte-identical; the setting writes through the
+prints as the full A4 tax invoice instead, and so does a bill of ₹50,000 or more to a buyer
+without a GSTIN, or one with a delivery address. The print says why in one line, on the counter too.
+This applies to the existing 3-inch (80 mm) receipt as well, which now also prints each product's HSN
+code under its name, each tax with its rate (CGST 9 %, SGST 9 %, cess) and a signature line, as GST
+rule 46 asks of a tax invoice. No figures change. *For developers*: built-in template `receipt-58mm`
+(page `Roll58`); the A4 prints are byte-identical; the 80 mm receipt changes only as above; the setting writes through the
 existing `template:setDefault` / `counter:setConfig`.
 
 ## [0.12.5] - 2026-11-15

@@ -539,7 +539,8 @@ export const RECEIPT_80MM_DEFAULT: PrintTemplate = printTemplateSchema.parse({
   table: { carryForwardEvery: 0 },
   totals: { taxSummary: 'rate', showAmountInWords: false },
   footer: {
-    declaration: '', showSignature: false, showReceiverSignature: false, showComputerGenerated: true,
+    // PROD-11: rule 46(q) / 49(h) — a printed bill carries the supplier's signature.
+    declaration: '', showSignature: true, showReceiverSignature: false, showComputerGenerated: true,
     computerGeneratedText: 'Thank you. Please visit again.'
   },
   einvoice: { showQr: false, showIrn: true, showEwb: false },

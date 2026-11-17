@@ -618,6 +618,7 @@ exports[`built-in templates on the sample invoice (snapshots) > Receipt 58mm ren
     table.rc-tax th { font-weight: 600; text-align: left; border-bottom: 1px solid #000; }
     .r { text-align: right; }
     .rc-foot { margin-top: 6px; text-align: center; font-size: 8.75px; }
+    .rc-sig { margin-top: 8px; text-align: right; font-size: 8.75px; }
   
     body { overflow-wrap: anywhere; }
     .rc-row { flex-wrap: wrap; column-gap: 4px; row-gap: 0; }
@@ -642,15 +643,16 @@ exports[`built-in templates on the sample invoice (snapshots) > Receipt 58mm ren
       <div class="rc-row"><span>Sample Buyer Pvt Ltd</span><span class="num rc-sm">27AAACS1234K1Z5</span></div>
       <div class="rc-sm num" style="overflow-wrap:anywhere">IRN 8f3c2a7d9b1e4f60a5c3d2e1f0b9a8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1</div>
       <div class="rc-rule"></div>
-      <table class="rc-items"><tbody><tr class="rc-name"><td colspan="2">Steel almirah, 4-door</td></tr>
-        <tr><td class="num">2 NOS × 14,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">29,000.00</td></tr><tr><td class="rc-sm">&nbsp;&nbsp;Discount</td><td class="r num">-1,450.00</td></tr><tr class="rc-name"><td colspan="2">Office chair, mesh back</td></tr>
-        <tr><td class="num">6 NOS × 3,899.00 <span class="rc-sm">(18%)</span></td><td class="r num">23,394.00</td></tr><tr class="rc-name"><td colspan="2">A4 copier paper, 75 gsm</td></tr>
-        <tr><td class="num">25 PAC × 245.00 <span class="rc-sm">(12%)</span></td><td class="r num">6,125.00</td></tr><tr class="rc-name"><td colspan="2">Packaged drinking water, 20 L</td></tr>
-        <tr><td class="num">12 NOS × 90.00 <span class="rc-sm">(18%)</span></td><td class="r num">1,080.00</td></tr><tr class="rc-name"><td colspan="2">Installation and setup</td></tr>
+      <table class="rc-items"><tbody><tr class="rc-name"><td colspan="2">Steel almirah, 4-door</td></tr><tr><td colspan="2" class="rc-sm num">HSN 9403</td></tr>
+        <tr><td class="num">2 NOS × 14,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">29,000.00</td></tr><tr><td class="rc-sm">&nbsp;&nbsp;Discount</td><td class="r num">-1,450.00</td></tr><tr class="rc-name"><td colspan="2">Office chair, mesh back</td></tr><tr><td colspan="2" class="rc-sm num">HSN 9401</td></tr>
+        <tr><td class="num">6 NOS × 3,899.00 <span class="rc-sm">(18%)</span></td><td class="r num">23,394.00</td></tr><tr class="rc-name"><td colspan="2">A4 copier paper, 75 gsm</td></tr><tr><td colspan="2" class="rc-sm num">HSN 4802</td></tr>
+        <tr><td class="num">25 PAC × 245.00 <span class="rc-sm">(12%)</span></td><td class="r num">6,125.00</td></tr><tr class="rc-name"><td colspan="2">Packaged drinking water, 20 L</td></tr><tr><td colspan="2" class="rc-sm num">HSN 2201</td></tr>
+        <tr><td class="num">12 NOS × 90.00 <span class="rc-sm">(18%)</span></td><td class="r num">1,080.00</td></tr><tr class="rc-name"><td colspan="2">Installation and setup</td></tr><tr><td colspan="2" class="rc-sm num">SAC 9954</td></tr>
         <tr><td class="num">1 OTH × 2,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">2,500.00</td></tr></tbody></table>
       <div class="rc-rule"></div>
       <div class="rc-row rc-sm"><span>5 items</span><span class="num">Qty 46</span></div>
-      <table class="rc-tot"><tr><td>Taxable value</td><td class="r num">60,649.00</td></tr><tr><td>CGST</td><td class="r num">5,274.66</td></tr><tr><td>SGST</td><td class="r num">5,274.66</td></tr><tr><td>Cess</td><td class="r num">129.60</td></tr><tr><td>Round off</td><td class="r num">0.08</td></tr><tr class="grand"><td>TOTAL</td><td class="r num">₹ 71,328.00</td></tr></table><div class="rc-rule"></div><div class="rc-sm"><b>GST</b></div><div class="rc-row rc-sm rc-gst"><span class="num">12% on 6,125.00</span><span class="num">735.00</span></div><div class="rc-row rc-sm rc-gst"><span class="num">18% on 53,444.00</span><span class="num">9,619.92</span></div><div class="rc-row rc-sm rc-gst"><span class="num">18%+12% on 1,080.00</span><span class="num">324.00</span></div>
+      <table class="rc-tot"><tr><td>Taxable value</td><td class="r num">60,649.00</td></tr><tr><td>CGST</td><td class="r num">5,274.66</td></tr><tr><td>SGST</td><td class="r num">5,274.66</td></tr><tr><td>Cess</td><td class="r num">129.60</td></tr><tr><td>Round off</td><td class="r num">0.08</td></tr><tr class="grand"><td>TOTAL</td><td class="r num">₹ 71,328.00</td></tr></table><div class="rc-rule"></div><div class="rc-sm"><b>GST</b></div><div class="rc-row rc-sm rc-gst"><span class="num">CGST 6% on 6,125.00</span><span class="num">367.50</span></div><div class="rc-row rc-sm rc-gst"><span class="num">SGST 6% on 6,125.00</span><span class="num">367.50</span></div><div class="rc-row rc-sm rc-gst"><span class="num">CGST 9% on 53,444.00</span><span class="num">4,809.96</span></div><div class="rc-row rc-sm rc-gst"><span class="num">SGST 9% on 53,444.00</span><span class="num">4,809.96</span></div><div class="rc-row rc-sm rc-gst"><span class="num">CGST 9% on 1,080.00</span><span class="num">97.20</span></div><div class="rc-row rc-sm rc-gst"><span class="num">SGST 9% on 1,080.00</span><span class="num">97.20</span></div><div class="rc-row rc-sm rc-gst"><span class="num">Cess 12% on 1,080.00</span><span class="num">129.60</span></div>
+      <div class="rc-sig">For <b>Total Traders</b><br/><br/>Authorised Signatory</div>
       <div class="rc-foot"><div>Thank you. Please visit again.</div></div>
     </div></div></body></html>"
 `;
@@ -681,6 +683,7 @@ exports[`built-in templates on the sample invoice (snapshots) > Receipt 80mm ren
     table.rc-tax th { font-weight: 600; text-align: left; border-bottom: 1px solid #000; }
     .r { text-align: right; }
     .rc-foot { margin-top: 6px; text-align: center; font-size: 7.88px; }
+    .rc-sig { margin-top: 8px; text-align: right; font-size: 7.88px; }
   </style></head><body><div class="copy">
     <div class="rc">
       <div class="rc-c">
@@ -696,15 +699,16 @@ exports[`built-in templates on the sample invoice (snapshots) > Receipt 80mm ren
       <div class="rc-row"><span>Sample Buyer Pvt Ltd</span><span class="num rc-sm">27AAACS1234K1Z5</span></div>
       <div class="rc-sm num" style="overflow-wrap:anywhere">IRN 8f3c2a7d9b1e4f60a5c3d2e1f0b9a8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1</div>
       <div class="rc-rule"></div>
-      <table class="rc-items"><tbody><tr class="rc-name"><td colspan="2">Steel almirah, 4-door</td></tr>
-        <tr><td class="num">2 NOS × 14,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">29,000.00</td></tr><tr><td class="rc-sm">&nbsp;&nbsp;Discount</td><td class="r num">-1,450.00</td></tr><tr class="rc-name"><td colspan="2">Office chair, mesh back</td></tr>
-        <tr><td class="num">6 NOS × 3,899.00 <span class="rc-sm">(18%)</span></td><td class="r num">23,394.00</td></tr><tr class="rc-name"><td colspan="2">A4 copier paper, 75 gsm</td></tr>
-        <tr><td class="num">25 PAC × 245.00 <span class="rc-sm">(12%)</span></td><td class="r num">6,125.00</td></tr><tr class="rc-name"><td colspan="2">Packaged drinking water, 20 L</td></tr>
-        <tr><td class="num">12 NOS × 90.00 <span class="rc-sm">(18%)</span></td><td class="r num">1,080.00</td></tr><tr class="rc-name"><td colspan="2">Installation and setup</td></tr>
+      <table class="rc-items"><tbody><tr class="rc-name"><td colspan="2">Steel almirah, 4-door</td></tr><tr><td colspan="2" class="rc-sm num">HSN 9403</td></tr>
+        <tr><td class="num">2 NOS × 14,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">29,000.00</td></tr><tr><td class="rc-sm">&nbsp;&nbsp;Discount</td><td class="r num">-1,450.00</td></tr><tr class="rc-name"><td colspan="2">Office chair, mesh back</td></tr><tr><td colspan="2" class="rc-sm num">HSN 9401</td></tr>
+        <tr><td class="num">6 NOS × 3,899.00 <span class="rc-sm">(18%)</span></td><td class="r num">23,394.00</td></tr><tr class="rc-name"><td colspan="2">A4 copier paper, 75 gsm</td></tr><tr><td colspan="2" class="rc-sm num">HSN 4802</td></tr>
+        <tr><td class="num">25 PAC × 245.00 <span class="rc-sm">(12%)</span></td><td class="r num">6,125.00</td></tr><tr class="rc-name"><td colspan="2">Packaged drinking water, 20 L</td></tr><tr><td colspan="2" class="rc-sm num">HSN 2201</td></tr>
+        <tr><td class="num">12 NOS × 90.00 <span class="rc-sm">(18%)</span></td><td class="r num">1,080.00</td></tr><tr class="rc-name"><td colspan="2">Installation and setup</td></tr><tr><td colspan="2" class="rc-sm num">SAC 9954</td></tr>
         <tr><td class="num">1 OTH × 2,500.00 <span class="rc-sm">(18%)</span></td><td class="r num">2,500.00</td></tr></tbody></table>
       <div class="rc-rule"></div>
       <div class="rc-row rc-sm"><span>5 items</span><span class="num">Qty 46</span></div>
-      <table class="rc-tot"><tr><td>Taxable value</td><td class="r num">60,649.00</td></tr><tr><td>CGST</td><td class="r num">5,274.66</td></tr><tr><td>SGST</td><td class="r num">5,274.66</td></tr><tr><td>Cess</td><td class="r num">129.60</td></tr><tr><td>Round off</td><td class="r num">0.08</td></tr><tr class="grand"><td>TOTAL</td><td class="r num">₹ 71,328.00</td></tr></table><div class="rc-rule"></div><table class="rc-tax"><thead><tr><th>GST</th><th class="r">Taxable</th><th class="r">Tax</th></tr></thead><tbody><tr><td class="num">12%</td><td class="r num">6,125.00</td><td class="r num">735.00</td></tr><tr><td class="num">18%</td><td class="r num">53,444.00</td><td class="r num">9,619.92</td></tr><tr><td class="num">18%+12%</td><td class="r num">1,080.00</td><td class="r num">324.00</td></tr></tbody></table>
+      <table class="rc-tot"><tr><td>Taxable value</td><td class="r num">60,649.00</td></tr><tr><td>CGST</td><td class="r num">5,274.66</td></tr><tr><td>SGST</td><td class="r num">5,274.66</td></tr><tr><td>Cess</td><td class="r num">129.60</td></tr><tr><td>Round off</td><td class="r num">0.08</td></tr><tr class="grand"><td>TOTAL</td><td class="r num">₹ 71,328.00</td></tr></table><div class="rc-rule"></div><table class="rc-tax"><thead><tr><th>GST</th><th class="r">Taxable</th><th class="r">Tax</th></tr></thead><tbody><tr><td class="num">CGST 6%</td><td class="r num">6,125.00</td><td class="r num">367.50</td></tr><tr><td class="num">SGST 6%</td><td class="r num">6,125.00</td><td class="r num">367.50</td></tr><tr><td class="num">CGST 9%</td><td class="r num">53,444.00</td><td class="r num">4,809.96</td></tr><tr><td class="num">SGST 9%</td><td class="r num">53,444.00</td><td class="r num">4,809.96</td></tr><tr><td class="num">CGST 9%</td><td class="r num">1,080.00</td><td class="r num">97.20</td></tr><tr><td class="num">SGST 9%</td><td class="r num">1,080.00</td><td class="r num">97.20</td></tr><tr><td class="num">Cess 12%</td><td class="r num">1,080.00</td><td class="r num">129.60</td></tr></tbody></table>
+      <div class="rc-sig">For <b>Total Traders</b><br/><br/>Authorised Signatory</div>
       <div class="rc-foot"><div>Thank you. Please visit again.</div></div>
     </div></div></body></html>"
 `;
