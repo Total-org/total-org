@@ -33,7 +33,7 @@ describe('which changes count toward a release', () => {
     for (const p of ['docs/owner/README.md', 'site/app/page.tsx', '.github/workflows/ci.yml', 'scripts/release/lib.mjs', 'CHANGELOG.md', 'CLAUDE.md', 'to-do.md', './README.md'])
       expect(countsForRelease(p), p).toBe(false)
   })
-  it("a CLAUDE.md anywhere does not ship; the CLI's bundled agent-skill/AGENTS.md does", () => {
+  it("a CLAUDE.md anywhere does not count; agent-skill/AGENTS.md (imported by the CLI) still does", () => {
     for (const p of ['src/CLAUDE.md', 'src/main/CLAUDE.md']) expect(countsForRelease(p), p).toBe(false)
     expect(countsForRelease('agent-skill/AGENTS.md')).toBe(true)
   })
