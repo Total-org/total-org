@@ -24,26 +24,36 @@ export interface TaxSummaryRow {
  *
  * `supplyHint` should be passed when known; the `igst > 0` fallback misclassifies an inter-state
  * invoice whose lines are all 0%/exempt.
+ *
+ * `tax: 'lines'` (PROD-11, the till receipt) sums each bucket's lines' own tax instead — the
+ * tax the bill posted, rounded per line — so a print whose summary is the only place the rates
+ * appear (rule 46(l)) agrees with its own CGST / SGST / cess totals.
  */
 export function taxSummaryForInvoice(
   inv: EdocInvoice,
   by: 'hsn' | 'rate' = 'hsn',
-  supplyHint?: 'inter' | 'intra'
+  supplyHint?: 'inter' | 'intra',
+  tax: 'bucket' | 'lines' = 'bucket'
 ): TaxSummaryRow[] {
   const supply: 'inter' | 'intra' = supplyHint ?? (inv.igst > 0 ? 'inter' : 'intra')
-  const buckets = new Map<string, { hsn: string; rate: number; cessRate: number; qtyMilli: number; taxable: number }>()
+  const buckets = new Map<string, { hsn: string; rate: number; cessRate: number; qtyMilli: number; taxable: number; cgst: number; sgst: number; igst: number; cess: number }>()
   for (const item of inv.items) {
     const hsn = by === 'hsn' ? (item.hsn ?? '') : ''
     const key = `${hsn}|${item.rate}|${item.cessRate}`
-    const bucket = buckets.get(key) ?? { hsn, rate: item.rate, cessRate: item.cessRate, qtyMilli: 0, taxable: 0 }
+    const bucket = buckets.get(key) ?? { hsn, rate: item.rate, cessRate: item.cessRate, qtyMilli: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, cess: 0 }
     bucket.qtyMilli += item.qtyMilli
     bucket.taxable += item.taxablePaise
+    bucket.cgst += item.cgst
+    bucket.sgst += item.sgst
+    bucket.igst += item.igst
+    bucket.cess += item.cess
     buckets.set(key, bucket)
   }
   return [...buckets.values()]
     // Same comparator as the old HSN block (stable sort: equal hsn+rate keep first-seen order).
     .sort((a, b) => (a.hsn === b.hsn ? a.rate - b.rate : a.hsn < b.hsn ? -1 : 1))
     .map((b) => {
+      if (tax === 'lines') return { hsn: b.hsn, rate: b.rate, cessRate: b.cessRate, qtyMilli: b.qtyMilli, taxable: b.taxable, cgst: b.cgst, sgst: b.sgst, igst: b.igst, cess: b.cess }
       const g = computeGst(b.taxable, b.rate, supply, b.cessRate)
       return { hsn: b.hsn, rate: b.rate, cessRate: b.cessRate, qtyMilli: b.qtyMilli, taxable: b.taxable, cgst: g.cgst, sgst: g.sgst, igst: g.igst, cess: g.cess }
     })

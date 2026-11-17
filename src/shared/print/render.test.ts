@@ -9,12 +9,16 @@ import {
   COMPACT_DEFAULT,
   legacyConfigToTemplate,
   MODERN_DEFAULT,
+  RECEIPT_58MM_CHARS,
+  RECEIPT_58MM_DEFAULT,
   RECEIPT_80MM_DEFAULT,
+  pdfOptionsFor,
   printTemplateSchema,
+  rollHeightMm,
   type PrintTemplate
 } from '../printTemplates'
 import { legacyBuildInvoiceHtml } from './legacyInvoiceHtml.fixture'
-import { normaliseHtml, renderDocument, type InvoiceDocument } from './render'
+import { normaliseHtml, receiptNeedsFullInvoice, receiptQrMm, renderDocument, type InvoiceDocument } from './render'
 import { sampleDocument } from './sample'
 import { taxSummaryForInvoice } from './taxSummary'
 
@@ -293,5 +297,203 @@ describe('UPI pay QR (A10)', () => {
   it('never on a delivery challan / order (not an invoice)', () => {
     const html = renderDocument(CLASSIC_DEFAULT, { ...doc(INV), kind: 'delivery_challan', upi })
     expect(html).not.toContain('data-upi-qr')
+  })
+})
+
+// ---------------------------------------------------------------- PROD-11: 58 mm receipt
+describe('58 mm (2-inch) receipt (PROD-11)', () => {
+  const R58 = RECEIPT_58MM_DEFAULT
+  const R80 = RECEIPT_80MM_DEFAULT
+  /** Visible text of an HTML fragment (tags dropped, entities the receipt uses decoded). */
+  const text = (h: string): string => h.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+  /** Each two-part line of the receipt (a totals row, a summary row, a flex row) as printed.
+   *  `group(m)` is the regex's one capture group, which always matches (possibly empty). */
+  const group = (m: RegExpMatchArray): string => m[1] ?? ''
+  const lines = (html: string): string[] => [
+    ...[...html.matchAll(/<table class="rc-tot">([\s\S]*?)<\/table>/g)].flatMap((m) => [...group(m).matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map((r) => text(group(r)))),
+    ...[...html.matchAll(/<div class="rc-row rc-sm rc-gst">([\s\S]*?)<\/div>/g)].map((m) => text(group(m)))
+  ]
+
+  it('is a built-in sales receipt on 58 mm roll paper, 48 mm printable', () => {
+    expect(R58).toMatchObject({ id: 'receipt-58mm', builtIn: true, style: 'receipt', kinds: ['sales'] })
+    expect(R58.page.size).toBe('Roll58')
+    expect(58 - R58.page.marginsMm.left - R58.page.marginsMm.right).toBe(48)
+    // The PDF page: 58 mm wide in inches, no page numbers; the 80 mm one unchanged.
+    const p58 = pdfOptionsFor(R58, { itemCount: 3 })
+    expect(p58.pageSize).toEqual({ width: 58 / 25.4, height: (160 + 14 * 3) / 25.4 })
+    expect(p58.pageNumbers).toBe(false)
+    expect(pdfOptionsFor(R80, { itemCount: 3 }).pageSize).toEqual({ width: 80 / 25.4, height: (120 + 10 * 3) / 25.4 })
+    expect(rollHeightMm(3)).toBe(150)
+    expect(rollHeightMm(500, 'Roll58')).toBe(2000)
+  })
+
+  it('holds about 32 characters a line (hand-worked: 48 mm = 181.4 px; a digit ≈ 0.55 em = 5.5 px at 10 px)', () => {
+    const printablePx = ((58 - 5 - 5) / 25.4) * 96 // 181.417…
+    expect(printablePx).toBeCloseTo(181.42, 2)
+    expect(R58.typography.baseFontPx).toBe(10)
+    expect(Math.floor(printablePx / (R58.typography.baseFontPx * 0.55))).toBe(RECEIPT_58MM_CHARS)
+    expect(RECEIPT_58MM_CHARS).toBe(32)
+    // The body font is the 10 px base (Classic 12 px scaled by 10 / 12).
+    expect(renderDocument(R58, doc(INV))).toContain('body { font: 10px/1.35')
+  })
+
+  it('every amount line of a receipt bill fits 32 characters (hand-checked)', () => {
+    // A GST receipt bill is under ₹50,000 taxable (more prints on A4, rule 46(e)), so its worst
+    // case is 49,999.99 (9 characters) at 28 %: "CGST 14% on 49,999.99" (21) + space + "6,999.99"
+    // (8) = 30. 4,999,999 paise × 14 % = 699,999.86 paise → 7,000.00 per head; total
+    // 49,999.99 + 2 × 7,000.00 = 63,999.99.
+    const top = item({ qtyMilli: 1000, unitPricePaise: 4999999, taxablePaise: 4999999, rate: 28, cgst: 700000, sgst: 700000 })
+    const gst = lines(renderDocument(R58, doc({ ...INV, partyGstin: null, items: [top], taxable: 4999999, cgst: 700000, sgst: 700000, total: 6399999 })))
+    expect(gst).toEqual(expect.arrayContaining(['Taxable value 49,999.99', 'CGST 14% on 49,999.99 7,000.00', 'SGST 14% on 49,999.99 7,000.00', 'TOTAL ₹ 63,999.99']))
+    for (const l of gst) expect(l.length, l).toBeLessThanOrEqual(RECEIPT_58MM_CHARS)
+    // A business that charges no GST prints any amount on the receipt: "Subtotal" (8) + space +
+    // "99,99,999.99" (12) = 21; "TOTAL ₹ 99,99,999.99" = 20.
+    const unregistered = { ...COMPANY, gstin: null, gstRegistrationType: 'unregistered' as const }
+    const big = item({ qtyMilli: 1000, unitPricePaise: 999999999, taxablePaise: 999999999, rate: 0, cgst: 0, sgst: 0 })
+    const plain = lines(renderDocument(R58, { ...doc({ ...INV, partyGstin: null, items: [big], taxable: 999999999, cgst: 0, sgst: 0, total: 999999999 }), company: unregistered }))
+    expect(plain).toEqual(expect.arrayContaining(['Subtotal 99,99,999.99', 'TOTAL ₹ 99,99,999.99']))
+    for (const l of plain) expect(l.length, l).toBeLessThanOrEqual(RECEIPT_58MM_CHARS)
+  })
+
+  it('prints each line\'s HSN / SAC under its name, 58 mm and 80 mm alike (rule 46(g))', () => {
+    const lines2 = [item({ name: 'Rice', hsn: '1006' }), item({ name: 'Repairs', hsn: '998719', isService: true }), item({ name: 'Loose', hsn: '' })]
+    for (const t of [R58, R80]) {
+      const html = renderDocument(t, doc({ ...INV, items: lines2 }))
+      expect(html).toContain('<tr class="rc-name"><td colspan="2">Rice</td></tr><tr><td colspan="2" class="rc-sm num">HSN 1006</td></tr>')
+      expect(html).toContain('<tr class="rc-name"><td colspan="2">Repairs</td></tr><tr><td colspan="2" class="rc-sm num">SAC 998719</td></tr>')
+      expect(html).toContain('<tr class="rc-name"><td colspan="2">Loose</td></tr>\n')
+    }
+    // "SAC 99871900" (12) fits the 32-character line on 58 mm.
+    expect('SAC 99871900'.length).toBeLessThanOrEqual(RECEIPT_58MM_CHARS)
+  })
+
+  it('carries the supplier\'s signature (rule 46(q)) on both receipts', () => {
+    for (const t of [R58, R80]) {
+      expect(t.footer.showSignature).toBe(true)
+      expect(renderDocument(t, doc(INV))).toContain('<div class="rc-sig">For <b>Total Traders</b><br/><br/>Authorised Signatory</div>')
+      expect(renderDocument(printTemplateSchema.parse({ ...t, footer: { ...t.footer, showSignature: false } }), doc(INV))).not.toContain('class="rc-sig"')
+    }
+  })
+
+  it('wraps long item names and words; the 80 mm sheet keeps its stylesheet', () => {
+    const long = item({ name: 'Extra-long-product-name-without-any-spaces-at-all-1234567890' })
+    const html = renderDocument(R58, doc({ ...INV, items: [long] }))
+    expect(html).toContain('<td colspan="2">Extra-long-product-name-without-any-spaces-at-all-1234567890</td>')
+    expect(html).toContain('body { overflow-wrap: anywhere; }')
+    expect(html).toContain('.rc-row { flex-wrap: wrap;')
+    expect(html).toContain('table.rc-items td.r { white-space: nowrap;')
+    // A row with one part (a customer without a GSTIN, a cash sale) stays on the left.
+    expect(html).toContain('.rc-row > span:last-child:not(:first-child) { margin-left: auto; }')
+    expect(renderDocument(R58, doc({ ...INV, partyGstin: null }))).toContain('<div class="rc-row"><span>Sample Buyer Pvt Ltd</span></div>')
+    const h80 = renderDocument(R80, doc({ ...INV, items: [long] }))
+    expect(h80).not.toContain('overflow-wrap: anywhere; }')
+    expect(h80).not.toContain('flex-wrap')
+  })
+
+  it('the per-head lines are the tax the lines posted, so they agree with the totals (rule 46(l) / (m))', () => {
+    // Two lines of ₹1.05 at 5 %: per line 1.05 × 2.5 % = 0.02625 → 0.03 CGST and 0.03 SGST, so the
+    // bill posted CGST 0.06 / SGST 0.06. Recomputing the bucket (2.10 × 2.5 % = 0.0525 → 0.05)
+    // would print 0.05 under a 0.06 total.
+    const small = item({ rate: 5, qtyMilli: 1000, unitPricePaise: 105, taxablePaise: 105, cgst: 3, sgst: 3 })
+    const inv = { ...INV, partyGstin: null, items: [small, { ...small, name: 'Second' }], taxable: 210, cgst: 6, sgst: 6, total: 222 }
+    for (const t of [R58, R80]) {
+      const html = renderDocument(t, doc(inv))
+      expect(html).toContain('<tr><td>CGST</td><td class="r num">0.06</td></tr>')
+      if (t === R58) expect(lines(html)).toEqual(expect.arrayContaining(['CGST 2.5% on 2.10 0.06', 'SGST 2.5% on 2.10 0.06']))
+      else expect(html).toContain('<tr><td class="num">CGST 2.5%</td><td class="r num">2.10</td><td class="r num">0.06</td></tr>')
+    }
+  })
+
+  it('prints each tax head with its rate (rule 46(l)): one line each on 58 mm, a row each on 80 mm', () => {
+    const two = [item({ rate: 5, taxablePaise: 100000, cgst: 2500, sgst: 2500 }), item({ name: 'B', rate: 18, taxablePaise: 200000, cgst: 18000, sgst: 18000 })]
+    const inv = { ...INV, items: two, taxable: 300000, cgst: 20500, sgst: 20500, total: 341000 }
+    const html = renderDocument(R58, doc(inv))
+    expect(html).not.toContain('<table class="rc-tax">')
+    // 5 %: CGST 2.5 % = 25.00 and SGST 2.5 % = 25.00 on 1,000.00; 18 %: 9 % = 180.00 each on 2,000.00.
+    expect(lines(html)).toEqual(expect.arrayContaining([
+      'CGST 2.5% on 1,000.00 25.00', 'SGST 2.5% on 1,000.00 25.00', 'CGST 9% on 2,000.00 180.00', 'SGST 9% on 2,000.00 180.00'
+    ]))
+    const h80 = renderDocument(R80, doc(inv))
+    expect(h80).toContain('<tr><td class="num">CGST 2.5%</td><td class="r num">1,000.00</td><td class="r num">25.00</td></tr>')
+    expect(h80).toContain('<tr><td class="num">SGST 9%</td><td class="r num">2,000.00</td><td class="r num">180.00</td></tr>')
+    // Cess has its own head; a nil-rated line says GST 0 %; the "none" summary option can't hide the rates.
+    const cessy = item({ rate: 28, cessRate: 12, taxablePaise: 100000, cgst: 14000, sgst: 14000, cess: 12000 })
+    const nil = item({ name: 'Milk', rate: 0, taxablePaise: 50000, cgst: 0, sgst: 0 })
+    const noSummary = printTemplateSchema.parse({ ...R58, totals: { ...R58.totals, taxSummary: 'none' } })
+    expect(lines(renderDocument(noSummary, doc({ ...INV, items: [cessy, nil], taxable: 150000, cgst: 14000, sgst: 14000, cess: 12000, total: 190000 }))))
+      .toEqual(expect.arrayContaining(['CGST 14% on 1,000.00 140.00', 'SGST 14% on 1,000.00 140.00', 'Cess 12% on 1,000.00 120.00', 'GST 0% on 500.00 0.00']))
+  })
+
+  it('scales the UPI QR to 28 mm above its words; never wider than the printable width', () => {
+    const upi = { link: 'upi://pay?pa=shop@ybl&pn=Total%20Traders&am=1180.00&tn=Bill%201&cu=INR', upiId: 'shop@ybl', amountPaise: 118000 }
+    const html = renderDocument(R58, { ...doc(INV), upi })
+    expect(html).toContain('<div class="rc-upi" data-upi-qr>')
+    expect(html).toContain('<div class="rc-qr"><div style="width:28mm;height:28mm">')
+    expect(html).toContain(`Scan with any UPI app to pay ${formatPaise(118000, { symbol: true })} to shop@ybl`)
+    expect(receiptQrMm(R58)).toBe(28)
+    // Margins of 16 mm a side leave 26 mm: the QR takes 26.
+    expect(receiptQrMm(printTemplateSchema.parse({ ...R58, page: { ...R58.page, marginsMm: { top: 3, right: 16, bottom: 4, left: 16 } } }))).toBe(26)
+    // 80 mm keeps its 24 mm QR beside the words.
+    expect(renderDocument(R80, { ...doc(INV), upi })).toContain('<div style="flex:none"><div style="width:24mm;height:24mm">')
+  })
+
+  it('a Hindi print puts the Devanagari face first, as on 80 mm', () => {
+    const scriptFont = { family: 'Noto Sans Devanagari', css: '@font-face { font-family: "Noto Sans Devanagari"; }' }
+    const html = renderDocument(R58, doc(INV), { scriptFont })
+    expect(html).toContain(scriptFont.css)
+    expect(html).toContain("body { font: 10px/1.35 'Noto Sans Devanagari', ")
+  })
+
+  it('an accounting voucher falls back to the compact layout on the same paper', () => {
+    const html = renderDocument(R58, sampleDocument(COMPANY, 'receipt'))
+    expect(html).toContain('RECEIPT')
+    expect(html).not.toContain('rc-items')
+  })
+})
+
+describe('receiptNeedsFullInvoice (PROD-11, owner 18 Nov)', () => {
+  const b2c = { ...INV, partyGstin: null }
+  it('B2B → b2b; inter-state (IGST, or no tax to another state) → inter_state; same-state B2C → none', () => {
+    expect(receiptNeedsFullInvoice(doc(INV))).toBe('b2b')
+    expect(receiptNeedsFullInvoice(doc(b2c))).toBeNull()
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, pos: '07', cgst: 0, sgst: 0, igst: 180000 }))).toBe('inter_state')
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, pos: '07', cgst: 0, sgst: 0, igst: 0, total: 1000000 }))).toBe('inter_state')
+  })
+  it('rule 46(e): an unregistered buyer at ₹50,000.00 taxable or more → large_b2c; ₹49,999.99 stays a receipt', () => {
+    // ₹49,999.99 at 18 %: 4,999,999 paise × 9 % = 449,999.91 → 4,500.00 per head.
+    const below = { ...b2c, taxable: 4999999, cgst: 450000, sgst: 450000, total: 5899999 }
+    expect(receiptNeedsFullInvoice(doc(below))).toBeNull()
+    // ₹50,000.00 at 18 %: 4,500.00 per head, total 59,000.00.
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, taxable: 5000000, cgst: 450000, sgst: 450000, total: 5900000 }))).toBe('large_b2c')
+  })
+  it('rule 46(o): a delivery address → delivery_address; 46(r): an IRN → e_invoice; 46(d) wins over the rest', () => {
+    const shipTo = { name: 'Site office', gstin: null, addr1: 'Plot 4, MIDC', addr2: null, place: 'Pune', pincode: '411001', state: '27' }
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, shipTo }))).toBe('delivery_address')
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, shipTo: { ...shipTo, name: null, addr1: null } }))).toBeNull()
+    expect(receiptNeedsFullInvoice(doc({ ...b2c, irn: 'IRN123' }))).toBe('e_invoice')
+    expect(receiptNeedsFullInvoice({ ...doc(b2c), einvoice: { irn: 'IRN9', ackNo: null, ackDate: null, ewbNo: null } })).toBe('e_invoice')
+    expect(receiptNeedsFullInvoice(doc({ ...INV, taxable: 5000000, shipTo }))).toBe('b2b')
+  })
+  it('rule 49(d): a composition bill of supply to a registered buyer → b2b_bill_of_supply; the rest of rule 46 does not apply to it', () => {
+    const composition = { ...COMPANY, gstRegistrationType: 'composition' as const }
+    const bos = { ...INV, cgst: 0, sgst: 0, total: 1000000 }
+    expect(receiptNeedsFullInvoice({ ...doc(bos), company: composition })).toBe('b2b_bill_of_supply')
+    // Its A4 print is titled BILL OF SUPPLY and the line names the same document.
+    const html = renderDocument(CLASSIC_DEFAULT, { ...doc(bos), company: composition, fullInvoice: 'b2b_bill_of_supply' })
+    expect(html).toContain('BILL OF SUPPLY')
+    expect(html).toContain('data-full-invoice-note>Printed as the full bill of supply, not a receipt: the buyer is registered for GST.</div>')
+    expect(html).not.toContain('full tax invoice')
+    expect(receiptNeedsFullInvoice({ ...doc({ ...bos, partyGstin: null, pos: '07', taxable: 9000000 }), company: composition })).toBeNull()
+  })
+  it('never for a business that charges no GST on the date, a credit note or a voucher', () => {
+    const unregistered = { ...COMPANY, gstin: null, gstRegistrationType: 'unregistered' as const }
+    expect(receiptNeedsFullInvoice({ ...doc({ ...INV, cgst: 0, sgst: 0, total: 1000000 }), company: unregistered })).toBeNull()
+    expect(receiptNeedsFullInvoice({ ...doc(INV), kind: 'credit_note' })).toBeNull()
+    expect(receiptNeedsFullInvoice(sampleDocument(COMPANY, 'receipt'))).toBeNull()
+  })
+  it('the one line prints only when the document carries it (absent = byte-identical)', () => {
+    const plain = renderDocument(CLASSIC_DEFAULT, doc(INV))
+    expect(renderDocument(CLASSIC_DEFAULT, { ...doc(INV), fullInvoice: null })).toBe(plain)
+    expect(renderDocument(CLASSIC_DEFAULT, { ...doc(INV), fullInvoice: 'inter_state' })).toContain('data-full-invoice-note>Printed as the full tax invoice, not a receipt: the bill goes to another state.</div>')
   })
 })

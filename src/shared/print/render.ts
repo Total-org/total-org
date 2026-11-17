@@ -2,13 +2,15 @@ import qrcode from 'qrcode-generator'
 import type { CompanyInfo } from '../domain'
 import type { EdocInvoice, EdocItem } from '../gst/edocs'
 import { formatPaise, formatQtyMilli, plainRupees } from '../money'
-import { ENGLISH_PRINT_LABELS, type PrintLabels } from './labels'
+import { ENGLISH_PRINT_LABELS, type FullInvoiceReason, type PrintLabels } from './labels'
 import { formatDateAs } from '../dates'
 import { GST_STATES } from '../gst/states'
 import { chargesGstOn, COMPOSITION_DECLARATION, nonTaxInvoiceTitle, registrationOn } from '../gst/registration'
 import { einvoiceQrPayload } from '../einvoiceQr'
 import {
   CHALLAN_COPY_LABELS,
+  isRollPage,
+  PAGE_MM,
   PRINT_COLUMN_DEFS,
   STOCK_NOTE_PRINT_KINDS,
   TRADE_DOC_PRINT_KINDS,
@@ -82,6 +84,9 @@ export interface InvoiceDocument {
   /** A10: the UPI pay QR — only on a sales invoice with an amount due and a UPI ID set
    *  (shared/upi.ts). Absent / null = nothing printed (the print is byte-identical to before). */
   upi?: PrintUpiInfo | null
+  /** PROD-11: a sales bill whose default is a receipt printed as the full tax invoice, and why
+   *  (`receiptNeedsFullInvoice`) — one line on the print. Absent = byte-identical print. */
+  fullInvoice?: FullInvoiceReason | null
 }
 
 export interface PrintUpiInfo {
@@ -256,6 +261,49 @@ function printsWithoutGst(company: CompanyInfo, kind: PrintDocKind, inv: EdocInv
     inv.cgst + inv.sgst + inv.igst + inv.cess === 0
 }
 
+export type { FullInvoiceReason }
+
+/** CGST rule 46(e) (GST_SOURCES.rule46): a bill to an unregistered recipient whose taxable value
+ *  is ₹50,000 or more must carry the recipient's name, address, delivery address and state. */
+export const RULE46E_LIMIT_PAISE = 5_000_000
+
+/**
+ * PROD-11 (owner, 18 Nov; the clauses of CGST rule 46 / 49 — GST_SOURCES.rule46 / rule49): the
+ * till receipt prints the supplier, number, date, each line's description, HSN / SAC, quantity
+ * and unit, value, the taxable value, each tax head with its rate and amount, the total and a
+ * signature — but not the recipient's address or state, the place of supply, a delivery address
+ * or the e-invoice QR. A sales bill that needs one of those prints on the A4 template instead:
+ * - `b2b`: the recipient has a GSTIN / UIN (rule 46(d)); `b2b_bill_of_supply` the same for a
+ *   composition dealer's bill of supply (rule 49(d) — its print is a BILL OF SUPPLY, never a tax
+ *   invoice, s.31(3)(c));
+ * - `inter_state` (46(n)): IGST posted, or no tax posted and the place of supply is another state;
+ * - `large_b2c` (46(e)): an unregistered recipient and a taxable value of ₹50,000 or more;
+ * - `delivery_address` (46(o)): the bill carries a ship-to address (the receipt prints none);
+ * - `e_invoice` (46(r)): the bill has an IRN (its QR is not on the receipt).
+ * The (n) / (e) / (o) / (r) reasons apply to a tax invoice only; a business that charges no GST
+ * on the bill's date and posted none issues no tax invoice (unregistered: no rule; composition:
+ * rule 49, whose (d) is the `b2b_bill_of_supply` reason). Credit notes and vouchers never print on a receipt.
+ */
+export function receiptNeedsFullInvoice(doc: PrintDocument): FullInvoiceReason | null {
+  if (doc.shape !== 'invoice' || doc.kind !== 'sales') return null
+  const { company, invoice: inv } = doc
+  const registeredBuyer = !!inv.partyGstin && inv.partyGstin.trim() !== ''
+  if (printsWithoutGst(company, doc.kind, inv)) {
+    return registeredBuyer && registrationOn(company, inv.date) === 'composition' ? 'b2b_bill_of_supply' : null
+  }
+  if (registeredBuyer) return 'b2b'
+  if (inv.igst > 0 || (inv.cgst === 0 && inv.sgst === 0 && !!inv.pos && inv.pos !== company.stateCode)) return 'inter_state'
+  if (inv.taxable >= RULE46E_LIMIT_PAISE) return 'large_b2c'
+  if (inv.shipTo && (inv.shipTo.name || inv.shipTo.addr1)) return 'delivery_address'
+  if (doc.einvoice?.irn ?? inv.irn) return 'e_invoice'
+  return null
+}
+
+function fullInvoiceLine(c: Ctx, why: FullInvoiceReason | null | undefined): string {
+  if (!why) return ''
+  return `<div style="margin-top:10px;font-size:${c.px(10)}" data-full-invoice-note>${esc(c.L.fullInvoice[why])}</div>`
+}
+
 /** "…this invoice…" in the declaration reads "this bill" on a print that is not a tax invoice. */
 const billWording = (text: string): string => text.replace(/\bthis invoice\b/gi, 'this bill')
 
@@ -396,7 +444,8 @@ function baseCss(c: Ctx): string {
     table.rc-tax th { font-weight: 600; text-align: left; border-bottom: 1px solid #000; }
     .r { text-align: right; }
     .rc-foot { margin-top: 6px; text-align: center; font-size: ${px(10.5)}; }
-  `
+    .rc-sig { margin-top: 8px; text-align: right; font-size: ${px(10.5)}; }
+  ` + (t.page.size === 'Roll58' ? narrowReceiptCss(c) : '')
   }
   if (t.style === 'compact') {
     return `
@@ -502,7 +551,7 @@ function extraCss(c: Ctx): string {
 function pageCss(t: PrintTemplate): string {
   if (t.page.size === 'A4' && t.page.orientation === 'portrait') return ''
   // Roll paper: the PDF engine sets the custom page (pdfOptionsFor); no named CSS size exists.
-  if (t.page.size === 'Roll80') return ''
+  if (isRollPage(t.page.size)) return ''
   const size = t.page.size === 'Letter' ? 'letter' : t.page.size
   return `@page { size: ${size} ${t.page.orientation}; }`
 }
@@ -779,7 +828,40 @@ function einvoiceLine(c: Ctx, info: PrintEinvoiceInfo): string {
   return `<div class="einv">${parts.join(' · ')}</div>`
 }
 
-/** WP 2.6 — the till receipt (style 'receipt', Roll80 paper): company, bill no / date, the
+/** PROD-11 — the 58 mm receipt's additions (appended, so the 80 mm sheet is byte-identical):
+ *  long words (item names, a GSTIN, a UPI ID) break instead of running off the 48 mm line, a
+ *  two-part row wraps its right part under the left, the UPI block is centred. */
+function narrowReceiptCss(c: Ctx): string {
+  return `
+    body { overflow-wrap: anywhere; }
+    .rc-row { flex-wrap: wrap; column-gap: 4px; row-gap: 0; }
+    .rc-row > span:last-child:not(:first-child) { margin-left: auto; }
+    table.rc-items td.r { white-space: nowrap; padding-left: 4px; }
+    .rc-gst { margin-top: 1px; }
+    .rc-upi { margin-top: 8px; text-align: center; }
+    .rc-upi .rc-qr { display: flex; justify-content: center; margin: 2px 0; }
+    .rc-upi .rc-upi-text { font-size: ${c.px(10)}; }
+  `
+}
+
+/** The UPI QR on 58 mm paper: the QR (28 mm, never wider than the printable width) above its
+ *  words — beside them, as on 80 mm, the words would get under 22 mm. */
+function narrowUpiBlock(c: Ctx, upi: PrintUpiInfo | null | undefined): string {
+  if (!upi) return ''
+  return `<div class="rc-upi" data-upi-qr>
+         <div class="rc-title">${esc(c.L.payByUpi)}</div>
+         <div class="rc-qr">${qrSvg(upi.link, receiptQrMm(c.t))}</div>
+         <div class="rc-upi-text">${esc(c.L.upiScan(formatPaise(upi.amountPaise, { symbol: true }), upi.upiId))}</div>
+       </div>`
+}
+
+/** The 58 mm receipt's UPI QR side (mm): 28, or the printable width when the margins leave less. */
+export function receiptQrMm(t: PrintTemplate): number {
+  const printable = PAGE_MM[t.page.size].w - t.page.marginsMm.left - t.page.marginsMm.right
+  return Math.max(10, Math.min(28, printable))
+}
+
+/** WP 2.6 — the till receipt (style 'receipt', Roll80 / Roll58 paper): company, bill no / date, the
  *  customer, item lines as "qty × rate = amount", the GST lines, round off, total, the
  *  payments with cash tendered / change, a by-rate tax summary and the footer note. */
 function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): string {
@@ -794,7 +876,9 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
     .map((it) => {
       const qtyRate = visible('rate') ? `${formatQtyMilli(it.qtyMilli)} ${esc(it.uqc)} × ${m(it.unitPricePaise)}` : `${formatQtyMilli(it.qtyMilli)} ${esc(it.uqc)}`
       const disc = visible('discount') && it.discountPaise ? `<tr><td class="rc-sm">&nbsp;&nbsp;Discount</td><td class="r num">-${m(it.discountPaise)}</td></tr>` : ''
-      return `<tr class="rc-name"><td colspan="2">${esc(it.name)}</td></tr>
+      // Rule 46(g) / 49(e): the line's HSN / SAC, as a small second line under its name.
+      const code = it.hsn ? `<tr><td colspan="2" class="rc-sm num">${it.isService ? 'SAC' : 'HSN'} ${esc(it.hsn)}</td></tr>` : ''
+      return `<tr class="rc-name"><td colspan="2">${esc(it.name)}</td></tr>${code}
         <tr><td class="num">${qtyRate}${it.rate ? ` <span class="rc-sm">(${it.rate}%)</span>` : ''}</td><td class="r num">${m(it.taxablePaise + (it.discountPaise ?? 0))}</td></tr>${disc}`
     })
     .join('')
@@ -816,10 +900,29 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
         counter.tenderedPaise > 0 ? `<tr><td>Cash tendered</td><td class="r num">${m(counter.tenderedPaise)}</td></tr><tr><td>Change</td><td class="r num">${m(counter.changePaise)}</td></tr>` : ''
       }</table>`
     : ''
-  const summaryRows = t.totals.taxSummary === 'none' || noGst ? [] : taxSummaryForInvoice(inv, 'rate', isIntra ? 'intra' : 'inter')
-  const summary = summaryRows.length
-    ? `<div class="rc-rule"></div><table class="rc-tax"><thead><tr><th>GST</th><th class="r">Taxable</th><th class="r">Tax</th></tr></thead><tbody>${summaryRows
-        .map((r) => `<tr><td class="num">${r.rate}%${r.cessRate ? `+${r.cessRate}%` : ''}</td><td class="r num">${m(r.taxable)}</td><td class="r num">${m(r.cgst + r.sgst + r.igst + r.cess)}</td></tr>`)
+  // Rule 46(l) / (m): the rate and amount of each tax head (CGST / SGST or IGST, and cess) — the
+  // receipt has no per-line tax columns, so this summary is where they print. It prints on every
+  // bill that carries GST, whatever the template's tax-summary option (a legal particular, not a
+  // layout one), and sums the lines' posted tax so it agrees with the totals above it.
+  const pct = (n: number): string => `${n}%`
+  const heads = noGst ? [] : taxSummaryForInvoice(inv, 'rate', isIntra ? 'intra' : 'inter', 'lines').flatMap((r) => {
+    const rows: { label: string; taxable: number; tax: number }[] =
+      r.rate === 0 ? [{ label: 'GST 0%', taxable: r.taxable, tax: 0 }]
+      : isIntra ? [{ label: `CGST ${pct(r.rate / 2)}`, taxable: r.taxable, tax: r.cgst }, { label: `SGST ${pct(r.rate / 2)}`, taxable: r.taxable, tax: r.sgst }]
+      : [{ label: `IGST ${pct(r.rate)}`, taxable: r.taxable, tax: r.igst }]
+    if (r.cessRate || r.cess) rows.push({ label: `Cess ${pct(r.cessRate)}`, taxable: r.taxable, tax: r.cess })
+    return rows
+  })
+  const narrow = t.page.size === 'Roll58'
+  // 58 mm: one line per head, "CGST 9% on 1,000.00 … 90.00" (≤ 32 characters while the taxable
+  // value is under ₹50,000 — a tax invoice of more prints on A4, `receiptNeedsFullInvoice`).
+  const summary = narrow && heads.length
+    ? `<div class="rc-rule"></div><div class="rc-sm"><b>GST</b></div>${heads
+        .map((r) => `<div class="rc-row rc-sm rc-gst"><span class="num">${r.label} on ${m(r.taxable)}</span><span class="num">${m(r.tax)}</span></div>`)
+        .join('')}`
+    : heads.length
+    ? `<div class="rc-rule"></div><table class="rc-tax"><thead><tr><th>GST</th><th class="r">Taxable</th><th class="r">Tax</th></tr></thead><tbody>${heads
+        .map((r) => `<tr><td class="num">${r.label}</td><td class="r num">${m(r.taxable)}</td><td class="r num">${m(r.tax)}</td></tr>`)
         .join('')}</tbody></table>`
     : ''
   const irn = doc.einvoice?.irn ?? inv.irn ?? null
@@ -845,7 +948,8 @@ function renderReceipt(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
       <table class="rc-items"><tbody>${items}</tbody></table>
       <div class="rc-rule"></div>
       <div class="rc-row rc-sm"><span>${inv.items.length} item${inv.items.length === 1 ? '' : 's'}</span><span class="num">Qty ${formatQtyMilli(qtyTotal)}</span></div>
-      <table class="rc-tot">${tot}</table>${pays}${summary}${upiBlock(c, doc.upi)}
+      <table class="rc-tot">${tot}</table>${pays}${summary}${narrow ? narrowUpiBlock(c, doc.upi) : upiBlock(c, doc.upi)}
+      ${t.footer.showSignature ? `<div class="rc-sig">${esc(c.L.sigFor.before)}<b>${esc(company.name)}</b>${esc(c.L.sigFor.after)}<br/><br/>${esc(t.footer.signatureLabel)}</div>` : ''}
       ${foot ? `<div class="rc-foot">${foot}</div>` : ''}
     </div>`
   const copies = t.header.copyLabels.map(() => `<div class="copy">${sheet}</div>`).join('')
@@ -1003,7 +1107,7 @@ function renderInvoice(c: Ctx, doc: InvoiceDocument, opts: RenderOptions): strin
           ${wordsBlock}
           ${declarationBlock}
           ${bankBlock}${notInvoice ? '' : upiBlock(c, doc.upi)}
-          ${termsBlock}${ruleNote}
+          ${termsBlock}${ruleNote}${fullInvoiceLine(c, doc.fullInvoice)}
         </div>
         <table class="tot">
           <tr><td>${esc(c.L.taxableValue)}</td><td class="r num">${m(inv.taxable)}</td></tr>

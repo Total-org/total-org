@@ -6,7 +6,9 @@
 //   3. The bill's simple view → Share → WhatsApp: the PDF is written and shown in Finder, and the
 //      OS browser is asked for wa.me/91<number> with the plain message (due + UPI ID); E-mail asks
 //      for a mailto: draft. The app itself sends nothing (shell.openExternal is stubbed).
-//   4. Accountant view: the same bill in the full sales editor has Share too.
+//   4. PROD-11: Settings → Bills & printing → "Receipt printer, 2-inch (58 mm)": the bill prints
+//      on the 58 mm receipt (the UPI QR above its words) and its PDF page is 58 mm wide.
+//   5. Accountant view: the same bill in the full sales editor has Share too.
 import * as fs from 'node:fs'
 import { scenario, assert, assertEq, localToday } from '../lib/harness.mjs'
 
@@ -97,7 +99,24 @@ await scenario('78-share-upi', async (h) => {
   assert(mail.startsWith('mailto:ramesh@example.in?subject='), `E-mail opens a draft to Ramesh (${mail.slice(0, 40)})`)
   await h.shot('78-share-simple')
 
-  // ---- 4. the full sales editor of the same bill
+  // ---- 4. PROD-11: a 58 mm (2-inch) receipt printer
+  await h.click('simple-nav-settings')
+  await h.click('simple-entry-bills-printing')
+  await page.waitForSelector('[data-testid="receipt-paper-a4"][aria-checked="true"]:not([disabled])')
+  await h.click('receipt-paper-58')
+  await attached(h, '[data-testid="receipt-paper-note"]')
+  assertEq((await h.invoke('template:list')).defaults.sales, 'receipt-58mm', 'sales bills print on the 58 mm receipt')
+  assertEq((await h.invoke('counter:config')).config.templateId, 'receipt-58mm', 'the counter receipt follows')
+  const receipt = (await h.invoke('counter:printHtml', { voucherId: open, templateId: 'receipt-58mm' })).html
+  assert(receipt.includes('<div class="rc-upi" data-upi-qr>') && receipt.includes('width:28mm'), 'the 58 mm receipt puts a 28 mm UPI QR above its words')
+  const { path: receiptPdf } = await h.invoke('invoice:pdf', { voucherId: open })
+  const box = fs.readFileSync(receiptPdf, 'latin1').match(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)/)
+  // 58 mm = 58 / 25.4 × 72 = 164.41 pt.
+  assert(box && Math.abs(Number(box[1]) - 164.41) < 1, `the PDF page is 58 mm wide (${box?.[1]} pt)`)
+  await h.shot('78-receipt-58mm')
+  await h.click('btn-back-to-simple')
+
+  // ---- 5. the full sales editor of the same bill
   await h.setMode('accountant')
   await h.gotoAllEntries()
   await attached(h, `[data-testid="rows-registers-entries"] [data-row-id="${open}"]`)

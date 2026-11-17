@@ -1,5 +1,6 @@
 import { TemplateDesigner } from './invoice/TemplateDesigner'
 import { UpiSetting } from './UpiSetting'
+import { ReceiptPaperSetting } from './ReceiptPaperSetting'
 
 /**
  * Settings → Invoice templates. Since WP 1.10c the old single-form invoice print config is the
@@ -9,6 +10,7 @@ import { UpiSetting } from './UpiSetting'
 export function InvoiceConfigSection(): React.JSX.Element {
   return (
     <>
+      <ReceiptPaperSetting />
       <UpiSetting />
       <TemplateDesigner />
     </>
