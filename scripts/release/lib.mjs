@@ -7,8 +7,11 @@
  *  to-do.md …). Markdown INSIDE src/ (the help articles) ships with the app and counts. */
 export const NON_RELEASE_PREFIXES = ['docs/', 'site/', '.github/', 'scripts/release/', 'scripts/e2e/']
 
-/** Test-only files (unit / renderer / DB tests, their fixtures and helpers) never ship either. */
-const TEST_ONLY = [/\.(test|dbtest)\.tsx?$/, /(^|\/)__tests__\//, /(^|\/)__fixtures__\//]
+/** Test-only files (unit / renderer / DB tests, their fixtures and helpers) never ship either.
+ *  Nor does an agent instruction file `CLAUDE.md` anywhere (src/CLAUDE.md, the code quality
+ *  rules): nothing imports one. `AGENTS.md` is not on this list: agent-skill/AGENTS.md is bundled
+ *  into the CLI (src/main/cli/docs.ts). */
+const TEST_ONLY = [/\.(test|dbtest)\.tsx?$/, /(^|\/)__tests__\//, /(^|\/)__fixtures__\//, /(^|\/)CLAUDE\.md$/]
 
 /** Does a change to `path` (repo-relative, forward slashes) count toward a release? */
 export function countsForRelease(path) {

@@ -8,6 +8,7 @@ Fully offline accounting app for Indian businesses — shop owners (simple mode)
 
 ## Working here
 
+- **Code quality rules: `src/CLAUDE.md`.** Every agent, Claude or GPT, reads it before writing or reviewing code, and reviewers check PRs against it.
 - Layers: `src/shared/` = pure engine (no Electron, no DB), `src/main/` = SQLite + services + Zod-validated IPC, `src/renderer/` = React UI calling `window.total.invoke` only through `src/renderer/src/lib/client.ts`.
 - Money = integer paise; quantity = integer thousandths. No floats on amounts, ever.
 - Reports are always computed from `voucher_lines` at query time; never store derived balances. Queries on vouchers filter binned rows (`NOT_DELETED`; `notDeletedLint.test.ts` checks it).
