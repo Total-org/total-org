@@ -45,9 +45,15 @@ the step that signs them and e-mails you: **"Review pending deployments"**. Open
 publishes it. Until you click, nobody sees it.
 
 - While a release waits for you, the next slots wait too (they do not open the "skipped" issue).
-- If you click **Reject**, or do not answer within 30 days, the release stays a draft. The run
-  fails and the "Scheduled release skipped" issue says so. To finish it later, see "If a release
-  breaks halfway" below.
+- **Reject means "not now"**, not "never". The release stays a draft and nobody sees it, but its
+  version is already on `main`, so every later slot stops at "last release complete" and says so
+  in the "Scheduled release skipped" issue, twice a day, until that same version is published.
+  To publish it after all: open the run and click **Re-run failed jobs** (only the signing step
+  runs again, not the hours of building), then approve. To ship a fix instead: merge the fix, then
+  release the next small version by hand (`npm version patch && git push --follow-tags`); it also
+  waits for your click, and the slots carry on from it.
+- If nobody answers for 30 days, GitHub gives up on the run and the release stays a draft, the
+  same as a reject.
 - The signing key is kept in the **production-release** environment, which only you can approve
   and which only runs from `main` and from version tags. A change on any other branch cannot
   reach it.
@@ -74,10 +80,12 @@ release's batch, so look at the list.
 ## If a release breaks halfway
 
 If building or signing a release fails after its version tag was made (or you rejected it), the
-release stays a draft and nobody sees it. The next slots then skip and the issue says so. To finish
-it: **Actions → Release → Run workflow**, keep the branch on `main`, type the tag (for example
-`v0.12.1`) and run it. It waits for your click again before it publishes. A release is never
-published without its signed check file (`total-manifest.json`).
+release stays a draft and nobody sees it. The next slots then skip and the issue says so. If only
+the signing failed, **Re-run failed jobs** on that run is quickest. Otherwise: **Actions → Release →
+Run workflow**, keep the branch on `main`, type the tag (for example `v0.12.1`) and run it. It waits
+for your click again before it publishes. This works on a **draft** only: Release refuses a version
+that is already published, so the files people have downloaded are never replaced. A release is
+never published without its signed check file (`total-manifest.json`).
 
 ## Trying the gate without releasing
 

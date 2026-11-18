@@ -280,9 +280,10 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.bump.outputs.tag }}
-    # Only the signing key, and only while it is still a repository secret: once the owner has moved
-    # it into the production-release environment (readiness review SEC2-1) release.yml's sign job
-    # reads that one, which wins, and this passes nothing.
+    # Only the signing key — and this mapping must stay after the owner moves the key into the
+    # production-release environment (readiness review SEC2-1): a called workflow gets an
+    # environment secret only when the caller passes it by name (else it reads as empty and every
+    # release stops as a draft). GitHub resolves it in the sign job's environment, whose value wins.
     secrets:
       RELEASE_MANIFEST_KEY: ${{ secrets.RELEASE_MANIFEST_KEY }}
 
