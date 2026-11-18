@@ -51,7 +51,7 @@
     "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
     "electron-vite": "^4.0.0",
-    "eslint": "10.13.0",
+    "eslint": "10.15.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "^30.0.1",
     "playwright-core": "^1.62.1",
@@ -59,7 +59,7 @@
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
-    "typescript-eslint": "8.72.1",
+    "typescript-eslint": "8.73.0",
     "vitest": "^5.1.0",
     "zustand": "^5.0.0"
   },
@@ -132,5 +132,9 @@
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
     "electron-winstaller@5.4.0": true
+  },
+  "//overrides": "minimatch >=7 <11.0.1 is open to GHSA-g3hv-75wg-m249 (glob DoS). electron-builder 26.18.x (latest) still asks for ^10.2.5 (app-builder-lib) and ^9.0.3 (@electron/universal 2.0.3), so no parent release fixes it; only that range is lifted to 11, which keeps the Minimatch / minimatch() API they call. Drop this once electron-builder depends on minimatch 11.",
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "^11.0.5"
   }
 }

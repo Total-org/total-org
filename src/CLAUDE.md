@@ -71,7 +71,7 @@ The rules come from what the reviews of PRs #254–#283 kept finding: returns th
 - **Small, and named for what it does.** A function does one thing. When a name stops being true, rename it.
 - **Delete what you replace.** No dead code, commented-out code, unused exports or parameters, and no helpers exported from a test file.
 - **Types, in new or touched code.** Some older lines break these rules; fix them when you touch them.
-  - No `any`.
+  - No `any`. `npm run lint` refuses it in every file it lints under `src/`, tests included (`@typescript-eslint/no-explicit-any`; the frozen `src/shared/fixtures/` and `.d.ts` files are not linted): use the real type, or `unknown` narrowed where the value comes in.
   - No non-null `!` without a comment saying why it holds.
   - No `as unknown as` to force a shape; fix the type instead. It is allowed only at a boundary the compiler can't see, such as a parsed file or a driver row, with a comment saying why.
   - A `switch` over a union ends with `default: { const _exhaustive: never = x; throw new Error(...) }`.

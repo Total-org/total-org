@@ -35,7 +35,8 @@ import * as store from './store'
 import type { Role } from '../services/roles'
 
 import {
-  BLANK, INFO, TODAY, count, ctx, db, draft, fixture, groupId, ids, invoiceEditorPayload, item, ledger, payloadOf, planOf, registry, rowsOf, typeId
+  BLANK, INFO, TODAY, clarified, count, ctx, db, draft, drafted, fixture, groupId, ids, invoiceEditorPayload, item, ledger, payloadOf, planOf, registry,
+  rowsOf, typeId
 } from './drafting.testutil'
 
 beforeEach(fixture)
@@ -48,7 +49,7 @@ describe('sales invoice: draft → invoice editor → saveVoucher, same rows as 
     expect({ v: count('SELECT COUNT(*) AS n FROM vouchers'), l: count('SELECT COUNT(*) AS n FROM ledgers'), a: count("SELECT COUNT(*) AS n FROM audit_log WHERE entity != 'ai_draft'") }).toEqual(before)
     const p = payloadOf(r.draftId!)
     expect(p).toMatchObject({ form: 'invoice', voucherKind: 'sales', date: '2025-08-13', partyLedgerId: ids.umbrella, total: 10_620_000 })
-    expect(r.data.summary).toBe(
+    expect(drafted(r).summary).toBe(
       'Sales invoice to Umbrella Retail on 2025-08-13: 2 × Laptop 14" @ ₹45,000.00 — taxable ₹90,000.00, CGST ₹8,100.00, SGST ₹8,100.00, total ₹1,06,200.00'
     )
     expect(p.assumptions).toEqual(expect.arrayContaining(['18% GST on Laptop 14" from the item master', 'Sales ledger: Sales A/c (the only one)']))
@@ -99,7 +100,7 @@ describe('sales invoice: draft → invoice editor → saveVoucher, same rows as 
     expect(r.ok, r.error).toBe(true)
     const p = payloadOf(r.draftId!)
     expect(p.partyLedgerId).toBe(ids.krishnaEnt)
-    expect(r.data.summary).toContain('IGST')
+    expect(drafted(r).summary).toContain('IGST')
     expect((p.state as InvoiceFormState).rows.map((x) => x.rate)).toEqual([4_500_000, 50_000])
     expect(p.assumptions!.some((a) => a.startsWith('Rate for Wireless Mouse: ₹500.00'))).toBe(true)
     expect(p.assumptions).toContain('Inter-state: IGST — place of supply 29 Karnataka (the party’s state)')
@@ -221,24 +222,24 @@ describe('resolution: clarification instead of a guess; dates and amounts', () =
     const r = await draft('draft_invoice', { kind: 'sales', party: 'Krishna', items: [{ item: 'Laptop 14', qty: '1', rate: '45000' }] })
     expect(r.ok).toBe(true)
     expect(r.draftId).toBeNull()
-    expect(r.data.status).toBe('needs_clarification')
-    expect(r.data.questions[0]).toMatchObject({ field: 'party', said: 'Krishna', question: 'Which customer (Sundry Debtors) do you mean by “Krishna”?' })
-    expect(r.data.questions[0].candidates.map((c: { name: string }) => c.name).sort()).toEqual(['Krishna Electricals', 'Krishna Enterprises'])
-    expect(r.data.note).toMatch(/never pick one yourself/)
+    expect(r.data?.status).toBe('needs_clarification')
+    expect(clarified(r).questions[0]).toMatchObject({ field: 'party', said: 'Krishna', question: 'Which customer (Sundry Debtors) do you mean by “Krishna”?' })
+    expect(clarified(r).questions[0]?.candidates.map((c) => c.name).sort()).toEqual(['Krishna Electricals', 'Krishna Enterprises'])
+    expect(clarified(r).note).toMatch(/never pick one yourself/)
     expect(store.listDrafts(db)).toEqual([])
   })
 
   it('unknown names and several open questions come back together', async () => {
     const r = await draft('draft_invoice', { kind: 'sales', party: 'Zebra Logistics', items: [{ item: 'Quantum Widget', qty: '1', rate: '10' }] })
-    expect(r.data.status).toBe('needs_clarification')
-    expect(r.data.questions.map((q: { field: string }) => q.field)).toEqual(['party', 'line:0'])
+    expect(r.data?.status).toBe('needs_clarification')
+    expect(clarified(r).questions.map((q) => q.field)).toEqual(['party', 'line:0'])
   })
 
   it('payment / receipt with several bank accounts and none named → asks which', async () => {
     ledger('ICICI Bank', 'Bank Accounts')
     const r = await draft('draft_voucher', { kind: 'receipt', party: 'Umbrella Retail', amount: '5000' })
-    expect(r.data.status).toBe('needs_clarification')
-    expect(r.data.questions[0].candidates.map((c: { name: string }) => c.name).sort()).toEqual(['Cash', 'HDFC Bank', 'ICICI Bank'])
+    expect(r.data?.status).toBe('needs_clarification')
+    expect(clarified(r).questions[0]?.candidates.map((c) => c.name).sort()).toEqual(['Cash', 'HDFC Bank', 'ICICI Bank'])
   })
 
   it('relative dates resolve against the working date; bad dates and amounts are errors', async () => {
@@ -271,7 +272,7 @@ describe('payments and receipts against open bills (outstandings)', () => {
       { kind: 'against', name: 'P-12', amount: 1_180_000, dueDate: null },
       { kind: 'against', name: 'P-15', amount: 590_000, dueDate: null }
     ])
-    expect(r.data.summary).toBe('Payment of ₹17,700.00 on 2025-08-14: Dr Bharat Steel Suppliers / Cr HDFC Bank against P-12 (₹11,800.00), P-15 (₹5,900.00)')
+    expect(drafted(r).summary).toBe('Payment of ₹17,700.00 on 2025-08-14: Dr Bharat Steel Suppliers / Cr HDFC Bank against P-12 (₹11,800.00), P-15 (₹5,900.00)')
     // the editor's own payload from the state → saveVoucher → identical to a hand-entered payment
     const state = p.state as AccountingFormState
     const ledgers = listLedgers(db)
@@ -324,8 +325,8 @@ describe('payments and receipts against open bills (outstandings)', () => {
     ])
     expect((await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', bills: [{ bill: 'P-15', amount: '9000' }] })).error).toMatch(/more than the ₹5,900.00 pending/)
     const unknown = await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', bills: [{ bill: 'P-99' }] })
-    expect(unknown.data.status).toBe('needs_clarification')
-    expect(unknown.data.questions[0].candidates.map((c: { name: string }) => c.name)).toEqual(['P-12', 'P-15'])
+    expect(unknown.data?.status).toBe('needs_clarification')
+    expect(clarified(unknown).questions[0]?.candidates.map((c) => c.name)).toEqual(['P-12', 'P-15'])
   })
 })
 
@@ -350,7 +351,7 @@ describe('notes, challans, manufacture, orders', () => {
     const r = await draft('draft_stock_note', { kind: 'delivery_note', party: 'Umbrella Retail', items: [{ item: 'Laptop 14', qty: '3', rate: '45000' }], reference: 'PO-77' })
     expect(r.ok, r.error).toBe(true)
     const p = payloadOf(r.draftId!)
-    expect(r.data.summary).toBe('Delivery challan to Umbrella Retail on 2025-08-14 (supply): 3 × Laptop 14" — goods value ₹1,35,000.00')
+    expect(drafted(r).summary).toBe('Delivery challan to Umbrella Retail on 2025-08-14 (supply): 3 × Laptop 14" — goods value ₹1,35,000.00')
     const state = p.state as StockNoteFormState
     const items = listStockItems(db)
     const built = buildStockNotePayload(state, {
@@ -377,7 +378,7 @@ describe('notes, challans, manufacture, orders', () => {
     const p = payloadOf(r.draftId!)
     const state = p.state as ManufactureFormState
     expect(state.rows.filter((x) => x.itemId != null)).toEqual([{ itemId: ids.rod, qtyText: '10', godownId: null }])
-    expect(r.data.summary).toBe('Manufacture of 5 × Chair on 2025-08-14: raw materials ₹1,500.00 + labour ₹500.00 = production cost ₹2,000.00 (10 × Steel Rod)')
+    expect(drafted(r).summary).toBe('Manufacture of 5 × Chair on 2025-08-14: raw materials ₹1,500.00 + labour ₹500.00 = production cost ₹2,000.00 (10 × Steel Rod)')
     const preview = costPreview(db, { date: state.date, finishedItemId: state.finishedItemId, lines: [{ itemId: ids.rod, qtyMilli: 10_000 }] })
     const ev = evaluateManufactureForm(state, { voucherTypeId: p.voucherTypeId, materialPaise: preview.totalPaise })
     const saved = db.transaction(() => {
@@ -470,13 +471,13 @@ describe('the agent: multi-draft turns, injection, numbers rule on summaries', (
       p.total!, ...posted.lines.map((l) => l.amount), ...posted.inventory.map((l) => l.ratePaise), ...posted.inventory.map((l) => l.amount),
       posted.lines.filter((l) => l.ledgerId !== ids.umbrella && l.drCr === 'cr').reduce((s, l) => s + l.amount, 0) - posted.lines.filter((l) => [ids.cgst, ids.sgst, ids.igst].includes(l.ledgerId)).reduce((s, l) => s + l.amount, 0)
     ].map((x) => formatPaise(Math.abs(x), { symbol: true })))
-    const figures = r.data.summary.match(/₹[\d,]+\.\d{2}/g) as string[]
+    const figures = drafted(r).summary.match(/₹[\d,]+\.\d{2}/g) as string[]
     expect(figures.length).toBeGreaterThan(4)
     for (const f of figures) expect(computed.has(f), f).toBe(true)
     // …and an answer quoting the draft is fully sourced against the tool result.
     const seen = [{ name: 'draft_invoice', text: JSON.stringify({ ok: true, result: r.data }) }]
-    const cgst = /CGST (₹[\d,]+\.\d{2})/.exec(r.data.summary)![1]
-    expect(checkFigures(`Drafted: total ${r.data.total}, CGST ${cgst}.`, seen).every((f) => f.sourced)).toBe(true)
+    const cgst = /CGST (₹[\d,]+\.\d{2})/.exec(drafted(r).summary)![1]
+    expect(checkFigures(`Drafted: total ${drafted(r).total}, CGST ${cgst}.`, seen).every((f) => f.sourced)).toBe(true)
     expect(checkFigures('Drafted: total ₹1,10,000.00.', seen)[0]!.sourced).toBe(false)
   })
 

@@ -357,7 +357,7 @@ function ewbStateCode(code: string): number {
  * from the voucher_transport ship-to block). 3/4 (Bill From – Dispatch From / combination)
  * need a dispatch-from address the books don't capture, so they are never derived.
  */
-function buildEwbBill(inv: EdocInvoice, company: EdocCompany): Record<string, unknown> {
+function buildEwbBill(inv: EdocInvoice, company: EdocCompany) {
   const from = splitAddress(company.address)
   const partyParts = splitAddress(inv.partyAddress)
   const rawShipTo = inv.shipTo
@@ -439,7 +439,16 @@ function buildEwbBill(inv: EdocInvoice, company: EdocCompany): Record<string, un
   }
 }
 
-export function buildEwbJson(invoices: EdocInvoice[], company: EdocCompany): Record<string, unknown> {
+/** One bill of the EWB bulk-tool file, exactly as buildEwbBill writes it. */
+export type EwbBill = ReturnType<typeof buildEwbBill>
+
+/** The EWB bulk-tool file. */
+export interface EwbBulkJson {
+  version: string
+  billLists: EwbBill[]
+}
+
+export function buildEwbJson(invoices: EdocInvoice[], company: EdocCompany): EwbBulkJson {
   return {
     version: '1.0.0421',
     billLists: invoices.map((inv) => buildEwbBill(inv, company))
@@ -452,10 +461,7 @@ export function buildEwbJson(invoices: EdocInvoice[], company: EdocCompany): Rec
  */
 export function ewbIssues(inv: EdocInvoice, company: EdocCompany): string[] {
   const issues: string[] = []
-  const bill = buildEwbBill(inv, company) as {
-    fromPincode: number; toPincode: number; fromPlace: string; toPlace: string
-    fromStateCode: number; toStateCode: number
-  }
+  const bill = buildEwbBill(inv, company)
   if (!/^\d{6}$/.test(String(bill.fromPincode))) issues.push('Company address has no 6-digit PIN code')
   if (!/^\d{6}$/.test(String(bill.toPincode))) issues.push('Destination has no 6-digit PIN code')
   if (!bill.fromPlace) issues.push('Dispatch place (city) missing — set it in the company address or Transport details')

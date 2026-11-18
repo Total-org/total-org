@@ -34,17 +34,20 @@ function listing(): TemplateList {
   }
 }
 
-const HANDLERS: Record<string, (p: any) => unknown> = {
+/** A mock handler typed by the payload lib/client.ts sends on its channel (IPC hands it over as unknown). */
+const on = <P,>(handler: (p: P) => unknown) => (p: unknown): unknown => handler(p as P)
+
+const HANDLERS: Record<string, (p: unknown) => unknown> = {
   'template:list': () => listing(),
-  'template:get': (p: { id: string }) => store[p.id],
-  'template:save': (p: { template: PrintTemplate }) => (store[p.template.id] = p.template),
-  'template:setDefault': (p: { kind: PrintDocKind; id: string }) => {
+  'template:get': on((p: { id: string }) => store[p.id]),
+  'template:save': on((p: { template: PrintTemplate }) => (store[p.template.id] = p.template)),
+  'template:setDefault': on((p: { kind: PrintDocKind; id: string }) => {
     defaults = { ...defaults, [p.kind]: p.id }
     return listing()
-  },
-  'template:previewHtml': (p: { template: PrintTemplate; kind?: PrintDocKind }) => ({
+  }),
+  'template:previewHtml': on((p: { template: PrintTemplate; kind?: PrintDocKind }) => ({
     html: renderDocument(p.template, sampleDocument(COMPANY, p.kind ?? 'sales'))
-  })
+  }))
 }
 
 function renderDesigner(): void {

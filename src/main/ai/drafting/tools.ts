@@ -5,12 +5,12 @@
 // validation error, nothing written), then store ONE ai_drafts row. No tool writes the books.
 import { z } from 'zod'
 import type { DB } from '../../db/connection'
-import { AI_MEMORY_PURPOSES, type AiSource, type AiVoucherDraftPayload } from '@shared/ai'
+import { AI_MEMORY_PURPOSES, type AiDraftForm, type AiSource, type AiVoucherDraftPayload } from '@shared/ai'
 import { formatPaise } from '@shared/money'
 import { writeAudit } from '../../services/audit'
 import { defineTool, type ToolContext, type ToolOutput } from '../tools/registry'
 import { draftsThisTurn, insertDraft } from '../store'
-import { DraftWork, NeedsClarification, clarificationResult, loadMasters } from './work'
+import { DraftWork, NeedsClarification, clarificationResult, loadMasters, type ClarificationResult } from './work'
 import { isRequestedDraft } from './intent'
 import { withBankLine } from '../capture/bankCategorise'
 import {
@@ -59,7 +59,28 @@ const KIND_NAMES: Record<string, string> = {
 
 // ---------- the shared tail: store one draft ----------
 
-function storeDraft(ctx: ToolContext, built: BuiltDraft, tool: string, memoryUsed: readonly number[] = []): ToolOutput {
+/** What a draft tool tells the model once its draft is stored (amounts already formatted). */
+export interface StoredDraftData {
+  draftId: number
+  status: 'open'
+  opensIn: AiDraftForm
+  summary: string
+  total?: string
+  assumptions: string[]
+  resolved: { field: string; picked: string; said?: string; why: string }[]
+  fromMemory?: string[]
+  draftsThisAnswer?: {
+    count: number
+    byKind: { kind: string; count: number; total: string }[]
+    drafts: { draftId: number; summary: string }[]
+  }
+  note: string
+}
+
+/** A draft tool's result: the stored draft, or the questions to ask first (no draft made). */
+export type DraftToolData = StoredDraftData | ClarificationResult
+
+function storeDraft(ctx: ToolContext, built: BuiltDraft, tool: string, memoryUsed: readonly number[] = []): ToolOutput<StoredDraftData> {
   const { payload, summary } = built
   const unrequested = !(ctx.draftRequested ?? isRequestedDraft(ctx.userRequest))
   const draft = ctx.db.transaction(() => {
@@ -130,7 +151,7 @@ export function draftSources(db: DB, draftId: number, payload: AiVoucherDraftPay
 }
 
 /** Run a builder; names that need the user's answer come back as a clarification (no draft). */
-export function runDraft(ctx: ToolContext, tool: string, build: (w: DraftWork) => BuiltDraft): ToolOutput {
+export function runDraft(ctx: ToolContext, tool: string, build: (w: DraftWork) => BuiltDraft): ToolOutput<DraftToolData> {
   const w = new DraftWork(loadMasters(ctx.db, ctx.company, ctx.workingDate ?? ctx.today), ctx.memory)
   let built: BuiltDraft
   try {

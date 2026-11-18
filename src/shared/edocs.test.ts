@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildEInvoiceJson, buildEwbJson, einvoiceExclusion, pinFromAddress, type EdocCompany, type EdocInvoice } from './gst/edocs'
+import { singleEinvoiceDoc, singleEwbBill } from './gst/edocs.testutil'
 
 const company: EdocCompany = {
   name: 'Demo Traders',
@@ -123,7 +124,7 @@ describe('e-invoice/EWB builders — golden snapshots', () => {
 
 describe('e-invoice builder', () => {
   it('produces NIC schema 1.1 documents', () => {
-    const [doc] = buildEInvoiceJson([invoice], company) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([invoice], company))
     expect(doc.Version).toBe('1.1')
     expect(doc.DocDtls).toEqual({ Typ: 'INV', No: '1', Dt: '15/08/2026' })
     expect(doc.SellerDtls.Gstin).toBe('27AAPFU0939F1ZV')
@@ -145,8 +146,7 @@ describe('e-invoice builder', () => {
 
 describe('e-way bill builder', () => {
   it('produces the bulk offline-tool shape', () => {
-    const json = buildEwbJson([invoice], company) as any
-    const bill = json.billLists[0]
+    const bill = singleEwbBill(buildEwbJson([invoice], company))
     expect(bill.supplyType).toBe('O')
     expect(bill.docNo).toBe('1')
     expect(bill.fromStateCode).toBe(27)
@@ -157,26 +157,24 @@ describe('e-way bill builder', () => {
   })
 
   it('carries docType through to the bulk-tool docType field', () => {
-    const crnJson = buildEwbJson([{ ...invoice, docType: 'CRN' }], company) as any
-    const dbnJson = buildEwbJson([{ ...invoice, docType: 'DBN' }], company) as any
-    expect(crnJson.billLists[0].docType).toBe('CRN')
-    expect(dbnJson.billLists[0].docType).toBe('DBN')
+    expect(singleEwbBill(buildEwbJson([{ ...invoice, docType: 'CRN' }], company)).docType).toBe('CRN')
+    expect(singleEwbBill(buildEwbJson([{ ...invoice, docType: 'DBN' }], company)).docType).toBe('DBN')
   })
 })
 
 describe('e-invoice builder — docType and supply types', () => {
   it('sets DocDtls.Typ to CRN for a credit note', () => {
-    const [doc] = buildEInvoiceJson([{ ...invoice, docType: 'CRN' }], company) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([{ ...invoice, docType: 'CRN' }], company))
     expect(doc.DocDtls.Typ).toBe('CRN')
   })
 
   it('sets DocDtls.Typ to DBN for a debit note', () => {
-    const [doc] = buildEInvoiceJson([{ ...invoice, docType: 'DBN' }], company) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([{ ...invoice, docType: 'DBN' }], company))
     expect(doc.DocDtls.Typ).toBe('DBN')
   })
 
   it('sets TranDtls.SupTyp to SEZWOP for an SEZ-without-payment party', () => {
-    const [doc] = buildEInvoiceJson([{ ...invoice, supTyp: 'SEZWOP' }], company) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([{ ...invoice, supTyp: 'SEZWOP' }], company))
     expect(doc.TranDtls.SupTyp).toBe('SEZWOP')
     // SEZ (non-export) supply types don't force Pos/Gstin — those stay as captured.
     expect(doc.BuyerDtls.Pos).toBe('27')
@@ -184,17 +182,17 @@ describe('e-invoice builder — docType and supply types', () => {
   })
 
   it('sets TranDtls.SupTyp to EXPWP and forces Pos 96 / Gstin URP for an export party', () => {
-    const [doc] = buildEInvoiceJson([{ ...invoice, supTyp: 'EXPWP' }], company) as any[]
+    const doc = singleEinvoiceDoc(buildEInvoiceJson([{ ...invoice, supTyp: 'EXPWP' }], company))
     expect(doc.TranDtls.SupTyp).toBe('EXPWP')
     expect(doc.BuyerDtls.Pos).toBe('96')
     expect(doc.BuyerDtls.Gstin).toBe('URP')
   })
 
   it('sets TranDtls.SupTyp to EXPWOP and forces Pos 96 / Gstin URP for a party with state code 96/97 (default export mapping)', () => {
-    const [doc] = buildEInvoiceJson(
+    const doc = singleEinvoiceDoc(buildEInvoiceJson(
       [{ ...invoice, partyStateCode: '96', supTyp: 'EXPWOP' }],
       company
-    ) as any[]
+    ))
     expect(doc.TranDtls.SupTyp).toBe('EXPWOP')
     expect(doc.BuyerDtls.Pos).toBe('96')
     expect(doc.BuyerDtls.Gstin).toBe('URP')

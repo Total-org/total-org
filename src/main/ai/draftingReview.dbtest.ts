@@ -160,7 +160,7 @@ describe('quantities, notes, series, bills, dates, warnings', () => {
 
   it('a short prefix of a party name is not auto-picked', async () => {
     const r = await draft('draft_invoice', { kind: 'sales', party: 'Umb', items: [{ item: 'Laptop 14', qty: '1', rate: '45000' }] })
-    expect(r.data.status).toBe('needs_clarification')
+    expect(r.data?.status).toBe('needs_clarification')
   })
 })
 

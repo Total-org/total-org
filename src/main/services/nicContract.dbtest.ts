@@ -13,6 +13,7 @@ import type { CompanyInfo, DrCr } from '@shared/domain'
 import { nicCredentialsSchema, type NicCredentials } from '@shared/schemas'
 import { buildEwbByIrnPayload } from '@shared/gst/edocs'
 import { einvoiceIssues } from '@shared/gst/einvoiceSchema'
+import { einvoiceDoc } from '@shared/gst/edocs.testutil'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import { createLedger } from './masters'
 import { saveVoucher } from './vouchers'
@@ -313,7 +314,7 @@ describe('IRN and e-way bill: payloads, persistence, cancel, extend', () => {
     expect(voucherRow(b.db, id)).toEqual({ irn: rec.irn, ackNo: rec.ackNo, ackDate: rec.ackDt, ewbNo: null, ewbValidUpto: null })
     expect(r).toMatchObject({ irn: rec.irn, ackNo: rec.ackNo, ackDate: rec.ackDt, recovered: false })
     // The request the portal decrypted is exactly the builder's document, and it passes the schema.
-    const sent = fake.calls.find((c) => c.path === '/eicore/v1.03/Invoice')!.plain as Record<string, any>
+    const sent = einvoiceDoc(fake.calls.find((c) => c.path === '/eicore/v1.03/Invoice')?.plain)
     expect(einvoiceIssues(sent)).toEqual([])
     expect(sent.ItemList[0]).toMatchObject({ PrdDesc: "Laptop 14''", TotAmt: 90000, Discount: 1000, AssAmt: 89000, IgstAmt: 16020 })
     expect(sent.SellerDtls).toMatchObject({ Addr1: '12 MG Road', Loc: 'Pune', Pin: 411001 })
@@ -496,7 +497,7 @@ describe('IRN and e-way bill: payloads, persistence, cancel, extend', () => {
       { ledgerId: b.exporter, drCr: 'dr', amount: 9_000_000 }, { ledgerId: b.sales, drCr: 'cr', amount: 9_000_000 }
     ], [{ item: b.item, qtyMilli: 2000, ratePaise: 4_500_000, amount: 9_000_000 }], 'EXP-1')
     await generateIrn(b.db, SLUG, COMPANY, id, deps())
-    const sent = fake.calls.find((c) => c.path === '/eicore/v1.03/Invoice')!.plain as Record<string, any>
+    const sent = einvoiceDoc(fake.calls.find((c) => c.path === '/eicore/v1.03/Invoice')?.plain)
     expect(sent.TranDtls.SupTyp).toBe('EXPWOP')
     expect(sent.BuyerDtls).toMatchObject({ Gstin: 'URP', Pos: '96', Stcd: '96', Pin: 999999 })
     expect(sent.ItemList[0]).toMatchObject({ GstRt: 18, IgstAmt: 0 })

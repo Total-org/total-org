@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import type { DataFolderPick } from '@shared/dataFolder'
 
 const base = mkdtempSync(join(tmpdir(), 'total-datadir-'))
 const docs = join(base, 'Documents')
@@ -35,7 +36,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('electron-updater', () => ({ default: { autoUpdater: {} } }))
 
-const handlers = new Map<string, (event: unknown, payload: unknown) => Promise<{ ok: boolean; data?: any; error?: string; code?: string }>>()
+const handlers = new Map<string, (event: unknown, payload: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string; code?: string }>>()
 process.env.TOTAL_DATA_DIR = rootA
 process.env.TOTAL_SUPPRESS_SYNC_WARNING = '1'
 process.env.TOTAL_INSECURE_TEST_SECRETS = '1'
@@ -63,7 +64,8 @@ describe('data folder move (IPC, hermetic)', () => {
   it('copies a locked business, its backups and secrets.json, checks them, writes the pointer, relaunches', async () => {
     const created = await call('company:create', { name: 'Move Traders', stateCode: '27', gstin: null, gstRegistrationType: 'regular', address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null })
     expect(created.ok, created.error).toBe(true)
-    const slug = created.data.slug as string
+    // company:create replies { slug } (ipc.ts); the handler map holds every reply as unknown.
+    const { slug } = created.data as { slug: string }
     expect((await call('company:open', { slug })).ok).toBe(true)
     const backup = await call('backup:run')
     expect(backup.ok, backup.error).toBe(true)
@@ -94,7 +96,7 @@ describe('data folder move (IPC, hermetic)', () => {
     const picked = await call('app:dataRoot:pick')
     expect(picked.ok, picked.error).toBe(true)
     expect(picked.data).toMatchObject({ path: rootB, ok: true, kind: 'new' })
-    expect(picked.data.bytes).toBeGreaterThan(0)
+    expect((picked.data as DataFolderPick).bytes).toBeGreaterThan(0)
 
     // The payload must name the folder the picker returned.
     expect((await call('app:dataRoot:move', { path: join(base, 'other') })).code).toBe('data_folder_not_picked')

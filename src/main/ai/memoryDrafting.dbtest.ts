@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { InvoiceFormState, StockNoteFormState } from '@shared/voucherEdit'
 import { activeMemories, createMemory } from './memory'
 import { createMemoryContext, type MemoryContext } from './memoryRules'
-import { db, draft, fixture, ids, ledger, payloadOf, TODAY } from './drafting.testutil'
+import { db, draft, drafted, fixture, ids, ledger, payloadOf, TODAY } from './drafting.testutil'
 
 let exportSales = 0
 let partyMemoryId = 0
@@ -50,8 +50,8 @@ describe('drafting with memory as defaults', () => {
         expect.objectContaining({ field: 'line:0', kind: 'item', id: ids.laptop, why: `from memory [M${partyMemoryId}]` })
       ])
     )
-    expect(r.data.fromMemory).toEqual([`M${partyMemoryId}`])
-    expect(r.data.assumptions).toContain(`${m}: Umbrella Retail is usually booked to Export Sales`)
+    expect(drafted(r).fromMemory).toEqual([`M${partyMemoryId}`])
+    expect(drafted(r).assumptions).toContain(`${m}: Umbrella Retail is usually booked to Export Sales`)
     expect([...memory.used]).toEqual([partyMemoryId])
   })
 
@@ -66,7 +66,7 @@ describe('drafting with memory as defaults', () => {
     expect((p.state as InvoiceFormState).accountId).toBe(ids.sales)
     expect((p.state as InvoiceFormState).rows[0]!.itemId).toBe(ids.mouse)
     expect(p.assumptions!.some((a) => a.startsWith('From memory'))).toBe(false)
-    expect(r.data.fromMemory).toBeUndefined()
+    expect(drafted(r).fromMemory).toBeUndefined()
     expect([...memory.used]).toEqual([])
   })
 
@@ -76,7 +76,7 @@ describe('drafting with memory as defaults', () => {
     const p = payloadOf(r.draftId!)
     expect(p.lines).toEqual(expect.arrayContaining([expect.objectContaining({ ledgerId: ids.bank, drCr: 'cr', amount: 500_000 })]))
     expect(p.assumptions).toContain(`From memory [M${payMemoryId}]: Pay from HDFC Bank`)
-    expect(r.data.fromMemory).toEqual([`M${payMemoryId}`])
+    expect(drafted(r).fromMemory).toEqual([`M${payMemoryId}`])
 
     const cash = await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', account: 'Cash', amount: '5000' }, { memory: createMemoryContext(activeMemories(db)) })
     expect(cash.ok, cash.error).toBe(true)
@@ -86,7 +86,7 @@ describe('drafting with memory as defaults', () => {
     // Without memory (and two cash / bank ledgers) the account is asked, not guessed.
     const ask = await draft('draft_voucher', { kind: 'payment', party: 'Bharat Steel Suppliers', amount: '5000' })
     expect(ask.ok).toBe(true)
-    expect(ask.data.status).toBe('needs_clarification')
+    expect(ask.data?.status).toBe('needs_clarification')
   })
 
   it('draft_voucher lines may name a remembered purpose', async () => {
