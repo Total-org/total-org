@@ -20,6 +20,17 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**TDS: when a contractor's year goes over the limit, the earlier bills are counted too** (#289,
+1.0 readiness review FIG-B-1). Five ₹25,000 bills to a 194C contractor take the year to ₹1,25,000
+— over the ₹1,00,000 limit — so all five are liable: ₹1,250. The TDS banner on the fifth bill or
+payment now offers ₹1,250 and says ₹1,00,000 of it is for 4 earlier sums; it used to offer ₹250.
+If only ₹250 is deducted, the four earlier bills now stay on TDS → Eligible (₹1,000) instead of
+disappearing. The simple Money out note says the same, and a payment run deducts it. For
+accountants: the Eligible list and the suggestion change on books where a deduction was made on
+the voucher that crossed the limit while earlier sums were undeducted; no saved voucher, ledger
+or return changes. 194Q is unchanged (only the part above ₹50 lakh). Marked "Check with your CA"
+(Q59): the proviso to s.194C(5) could not be read from an official copy.
+
 **Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
 printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)
 or 2-inch (58 mm), the small till-roll printer most shops have. Pick one and Make a bill, the
