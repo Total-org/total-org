@@ -65,6 +65,25 @@ describe('bulk payment file safety (review)', () => {
     const name = renderPaymentFile(t, [{ ...rows[0]!, beneficiaryName: 'N'.repeat(60) }], ctx)
     expect(name).toContain(`|${'N'.repeat(40)}|`)
   })
+  it('no text field starts as a spreadsheet formula (SEC3-5: the csv.ts rule — = + - @, tab, CR)', () => {
+    const narrations = ['-2+3+cmd|\' /C calc\'!A0', '\t=HYPERLINK("x")', ' -=@+1+1', '@SUM(A1)', '+1+cmd']
+    for (const narration of narrations) {
+      const text = renderPaymentFile(t, [{ ...rows[0]!, narration, beneficiaryName: narration }], ctx)
+      for (const cell of text.split('\r\n')[1]!.split('|')) {
+        expect(cell, `${JSON.stringify(narration)} → ${JSON.stringify(cell)}`).not.toMatch(/^[=+\-@\t\r]/)
+      }
+    }
+    // The pipe inside the narration is a delimiter: it becomes a space, then the formula start goes.
+    const one = renderPaymentFile(t, [{ ...rows[0]!, narration: '-2+3+cmd|x' }], ctx).split('\r\n')[1]!
+    expect(one.split('|')[7]).toBe('2+3+cmd x')
+    // A plain number is never a formula and keeps its sign (as csv.ts).
+    const minus = renderPaymentFile(t, [{ ...rows[0]!, narration: '-500' }], ctx).split('\r\n')[1]!
+    expect(minus.split('|')[7]).toBe('-500')
+    // Quoted templates are cleaned the same way.
+    const quoted = { ...BUILTIN_PAYMENT_TEMPLATES.find((x) => x.key === 'generic-csv')!, quoteAll: true }
+    const q = renderPaymentFile(quoted, [{ ...rows[0]!, narration: '\t-1+cmd' }], ctx).trim().split('\r\n')[1]!
+    expect(q).toContain(',"1+cmd",')
+  })
 })
 
 describe('cheque register helpers', () => {

@@ -174,7 +174,27 @@ C was rejected because of its asynchronous API.
 - **The screen lock without people** (PR #127): a business without users can lock its screen too
   (⌘L / the auto-lock). With the passphrase lock on, `session:unlock` needs the passphrase
   (throttled like opening); without it the lock is only a privacy screen — anyone can unlock it,
-  and the screen says so. The key stays in memory while locked either way.
+  switch business or restart past it, and the screen says so. The key stays in memory while
+  locked either way.
+- **The screen lock holds past a switch and a restart** (1.0 readiness SEC2-6, decision Q6,
+  PR #291): with the passphrase lock on and no people, the lock
+  - takes the key remembered on this computer out of the secret store (audited `security`
+    `{ rememberedOnThisComputer: false, heldByScreenLock: true }`). This is what keeps the books
+    shut: closing the business forgets the key in memory too, so the next open needs the
+    passphrase whatever else happens;
+  - is written to `<dataRoot>/screen-locks.json` by slug (`services/screenLocks.ts`, with
+    `rememberHeld`) and kept for the run in memory. While either holds, `company:open` refuses
+    `screen_locked_passphrase` without the passphrase and never uses a remembered or in-memory key,
+    and the prompt says why. Deleting or emptying the file never opens the books: an emptied or
+    damaged file counts every business as locked, and a deleted one leaves no remembered key to
+    use.
+
+  Only the correct passphrase clears it, at open or through `session:unlock` (the `user` login
+  row is written first; a row that can't be written keeps the lock). It also remembers a held key
+  again, audited as remembering. If the secret store won't let go of the key, that is logged and
+  audited as `rememberKeyKept`. If, in addition, the lock file can't be written, the lock holds for
+  the run only, and a restart then opens the books with the remembered key; both failures are
+  logged. A business with people is not stored: a reopen asks for a PIN.
 - **Capability flags** (PR #112, gaps closed in PR #127): main enforces every flag; `canSeeProfit:
   false` also redacts the trial balance (income / expense ledgers, the computed P&L row and the
   totals left out), refuses AI tools that show the profit and answers Ask Total's profit
@@ -226,26 +246,32 @@ Opt-in per business, off by default, never pre-ticked (`services/companyKeys.ts`
   it (`db_key_mismatch` — the lock was taken off and put on again: a new data key) is dropped and the
   prompt shown with a note (`remembered_key_stale`); any other read failure leaves it alone and asks
   for the passphrase this time. People's PINs are still asked after it opens. Deleting a business
-  never uses it — the delete asks for the passphrase as before.
+  never uses it — the delete asks for the passphrase as before. A business whose screen was locked
+  (no people, see "The screen lock holds past a switch and a restart") has no remembered key until
+  its passphrase is typed again.
 - **When it goes.** Forget in Settings → Security / Lock and safety (owner), Forget beside the
   business in the company picker and on the screen lock's passphrase prompt (forgetting only takes
   the convenience away, so the picker may do it before anyone signs in; in an open business with
   people only the owner may), taking the lock off (recorded in that conversion's audit row), and
-  turning it on again (a new key; the old one could never open the file). A passphrase **change**
+  turning it on again (a new key; the old one could never open the file), and for as long as a
+  screen lock of a business without people holds it (given back by the passphrase that ends the
+  lock). A passphrase **change**
   keeps it: the data key is the same, so the remembered key still opens the books — forget it too if
   the change is because someone learned the passphrase. Deleting the business removes its whole
   secret-store scope.
 - **Audit.** Remember / forget are `security` rows (`rememberedOnThisComputer` true / false, `from:
-  'picker'` for the picker's Forget, written inside the books with the remembered key) — never the
-  key.
+  'picker'` for the picker's Forget, written inside the books with the remembered key;
+  `heldByScreenLock: true` when a screen lock takes it away) — never the key.
 - **Threat note.** That is the point of the option: **anyone who can sign in to this computer's
   user account opens these books without the passphrase**, and malware running as that user can ask
   the keychain for the key. It protects the books against a copy of the folder or the disk taken
   elsewhere (the key stays in this computer's keychain), not against this login. The screen lock
-  (PR #127) still applies while the business is open — PINs when it has people; in a business
-  without people the lock asks for the passphrase, but quitting and reopening the app opens it with
-  the remembered key, so a real lock needs people with PINs. Use it only on a computer that only
-  you use.
+  still applies: with people, a PIN — reopening uses the remembered key and then asks for a PIN;
+  without people, the passphrase. Since PR #291 that holds after quitting, restarting or switching
+  business, because the lock takes the remembered key away until the passphrase is typed (SEC2-6
+  above). Malware already running as this user is a different matter: it can read the key from
+  the keychain before a lock, or run code inside Total (SEC3-1). Use the option only on a computer
+  that only you use.
 - **Not used by `total-cli`** — it reads `TOTAL_PASSPHRASE` only (and have no safeStorage
   under Electron-as-Node anyway).
 

@@ -637,7 +637,7 @@ describe('simple:handoffTarget — what "Back to simple" needs', () => {
     const item = await ok<{ id: number }>('master:stockItems:create', { name: 'Soap', unitId: unit.id, openingQtyMilli: 5000, openingValue: 5000 })
     const cashGroup = (await ok<{ id: number; name: string }[]>('master:groups:list')).find((g) => g.name === 'Cash-in-Hand')!
     const till = await ok<{ id: number }>('master:ledgers:create', { name: 'Till', groupId: cashGroup.id, openingBalance: 0, gstin: null, stateCode: null, address: null, taxType: null, gstRate: null, hsn: null, tdsSectionId: null, pan: null, creditDays: null, exportType: null })
-    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '1111' } })
+    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '111111' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '2222' } })
     await ok('auth:logout')
     await ok('auth:login', { userId: viewer.id, pin: '2222' })

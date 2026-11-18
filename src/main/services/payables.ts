@@ -34,6 +34,7 @@ import { ledgerStatement } from './reports'
 import { tdsSuggestion } from './tds'
 import { getFeatures } from './config'
 import { writeAudit } from './audit'
+import { AppError } from '@shared/errors'
 
 // ---------------------------------------------------------------------------------------------
 // Supplier facts
@@ -153,36 +154,45 @@ const ACCEPTANCE_MAX_GAP_DAYS = 365
  * objection within fifteen days — is "the day of the actual delivery of goods or the rendering of
  * services" (msmeSources.ts, the Gazette text). Only a bill voucher in the books that credits an
  * MSME-registered supplier can carry one; the day can't be after today. Audited
- * (`msme_acceptance`); the same answer writes nothing.
+ * (`msme_acceptance`); the same answer writes nothing. The checks, the write and its audit row are
+ * ONE transaction, so a refusal or a failed audit leaves no row (audit 1.0 readiness, SEC3-4).
  */
 export function setMsmeAcceptance(db: DB, raw: unknown, today: string = todayISO()): MsmeAcceptance | null {
   const input = msmeAcceptanceSetSchema.parse(raw)
-  const voucher = db
-    .prepare(`SELECT v.id, v.date FROM vouchers v WHERE v.id = ? AND ${IN_BOOKS}`)
-    .get(input.voucherId) as { id: number; date: string } | undefined
-  if (!voucher) throw new Error('That bill is not in the books')
-  // A bill inside the locked period keeps its figures (s.43B(h), Form 1 and the year-end check of a
-  // closed / filed period would move otherwise).
-  const lock = getLockDate(db)
-  if (lock && voucher.date <= lock) throw new Error(`The books are locked up to ${lock} — this bill's MSME dates can't change`)
-  const supplier = db
-    .prepare(`SELECT 1 FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? AND vl.dr_cr = 'cr' AND l.msme_registered = 1`)
-    .get(input.voucherId)
-  if (!supplier) throw new Error('Only a bill from an MSME-registered supplier has a day of acceptance')
-  if (input.acceptedOn != null && input.acceptedOn > today) throw new Error('The day of acceptance cannot be after today')
-  if (input.acceptedOn != null && Math.abs(daysBetween(voucher.date, input.acceptedOn)) > ACCEPTANCE_MAX_GAP_DAYS)
-    throw new Error(`The day of acceptance must be within ${ACCEPTANCE_MAX_GAP_DAYS} days of the bill date (${voucher.date})`)
-  const before = msmeAcceptances(db, [input.voucherId]).get(input.voucherId) ?? null
-  const after: MsmeAcceptance | null = input.acceptedOn == null ? null : { voucherId: input.voucherId, acceptedOn: input.acceptedOn, basis: input.basis, note: input.note }
-  if (JSON.stringify(before) === JSON.stringify(after)) return after
-  if (after == null) db.prepare('DELETE FROM msme_acceptance WHERE voucher_id = ?').run(input.voucherId)
-  else
-    db.prepare(
-      `INSERT INTO msme_acceptance (voucher_id, accepted_on, basis, note) VALUES (?, ?, ?, ?)
-       ON CONFLICT (voucher_id) DO UPDATE SET accepted_on = excluded.accepted_on, basis = excluded.basis, note = excluded.note`
-    ).run(after.voucherId, after.acceptedOn, after.basis, after.note)
-  writeAudit(db, 'msme_acceptance', input.voucherId, before == null ? 'create' : after == null ? 'delete' : 'update', before, after)
-  return after
+  return db.transaction((): MsmeAcceptance | null => {
+    const voucher = db
+      .prepare(`SELECT v.id, v.date FROM vouchers v WHERE v.id = ? AND ${IN_BOOKS}`)
+      .get(input.voucherId) as { id: number; date: string } | undefined
+    if (!voucher) throw new AppError('msme_acceptance_no_bill', 'That bill is not in the books')
+    // A bill inside the locked period keeps its figures (s.43B(h), Form 1 and the year-end check of
+    // a closed / filed period would move otherwise).
+    const lock = getLockDate(db)
+    if (lock && voucher.date <= lock)
+      throw new AppError('books_locked', `The books are locked up to ${lock} — this bill's MSME dates can't change`, { field: 'acceptedOn', params: { date: lock } })
+    const supplier = db
+      .prepare(`SELECT 1 FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE vl.voucher_id = ? AND vl.dr_cr = 'cr' AND l.msme_registered = 1`)
+      .get(input.voucherId)
+    if (!supplier) throw new AppError('msme_acceptance_not_msme', 'Only a bill from an MSME-registered supplier has a day of acceptance')
+    if (input.acceptedOn != null && input.acceptedOn > today)
+      throw new AppError('msme_acceptance_after_today', 'The day of acceptance cannot be after today', { field: 'acceptedOn' })
+    if (input.acceptedOn != null && Math.abs(daysBetween(voucher.date, input.acceptedOn)) > ACCEPTANCE_MAX_GAP_DAYS)
+      throw new AppError(
+        'msme_acceptance_far_from_bill',
+        `The day of acceptance must be within ${ACCEPTANCE_MAX_GAP_DAYS} days of the bill date (${voucher.date})`,
+        { field: 'acceptedOn', params: { days: ACCEPTANCE_MAX_GAP_DAYS, date: voucher.date } } // ISO: mapError writes it in the reader's language
+      )
+    const before = msmeAcceptances(db, [input.voucherId]).get(input.voucherId) ?? null
+    const after: MsmeAcceptance | null = input.acceptedOn == null ? null : { voucherId: input.voucherId, acceptedOn: input.acceptedOn, basis: input.basis, note: input.note }
+    if (JSON.stringify(before) === JSON.stringify(after)) return after
+    if (after == null) db.prepare('DELETE FROM msme_acceptance WHERE voucher_id = ?').run(input.voucherId)
+    else
+      db.prepare(
+        `INSERT INTO msme_acceptance (voucher_id, accepted_on, basis, note) VALUES (?, ?, ?, ?)
+         ON CONFLICT (voucher_id) DO UPDATE SET accepted_on = excluded.accepted_on, basis = excluded.basis, note = excluded.note`
+      ).run(after.voucherId, after.acceptedOn, after.basis, after.note)
+    writeAudit(db, 'msme_acceptance', input.voucherId, before == null ? 'create' : after == null ? 'delete' : 'update', before, after)
+    return after
+  })()
 }
 
 // ---------------------------------------------------------------------------------------------

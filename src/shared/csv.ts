@@ -103,8 +103,13 @@ export function parseCsv(text: string): CsvRecord[] {
 const FORMULA_TRIGGER = /^[=+\-@\t\r]/
 const PLAIN_NUMBER = /^[+-]?\d+(\.\d+)?$/
 
+/** Whether a spreadsheet would read this cell as a formula (the rule above). */
+export function startsAsFormula(field: string): boolean {
+  return FORMULA_TRIGGER.test(field) && !PLAIN_NUMBER.test(field)
+}
+
 export function neutralizeCsvFormula(field: string): string {
-  return FORMULA_TRIGGER.test(field) && !PLAIN_NUMBER.test(field) ? `'${field}` : field
+  return startsAsFormula(field) ? `'${field}` : field
 }
 
 /** Quote a field per RFC 4180 if it contains a comma, quote, or line break; double embedded

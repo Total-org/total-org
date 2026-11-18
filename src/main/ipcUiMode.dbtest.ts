@@ -121,7 +121,7 @@ describe('company mode (meta ui)', () => {
     expect(ipc.CHANNEL_ROLES.get('ui:get')).toBe('viewer')
     const { slug } = await ok<{ slug: string }>('company:create', company('Roles Mode Co'))
     await ok('company:open', { slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Clerk', pin: '2222', role: 'accountant', active: true } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Looker', pin: '3333', role: 'viewer', active: true } })
     for (const [u, pin] of [[acct.id, '2222'], [viewer.id, '3333']] as const) {
@@ -133,7 +133,7 @@ describe('company mode (meta ui)', () => {
       await ok('auth:logout')
     }
     expect(uiAudit(slug)).toEqual([])
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect(await ok('ui:mode:set', { mode: 'simple' })).toEqual({ mode: 'simple' })
     const rows = read(slug, (db) => db.prepare("SELECT user_name FROM audit_log WHERE entity = 'company' AND after_json LIKE '%\"ui\"%'").all())
     expect(rows).toEqual([{ user_name: 'Owner' }])

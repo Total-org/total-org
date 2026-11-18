@@ -9,6 +9,7 @@ import { createLedger } from './masters'
 import { saveVoucher, deleteVoucher, setLockDate } from './vouchers'
 import { msmeForm1Csv, msmeReport, payablesPlan, setMsmeAcceptance } from './payables'
 import { forecastBase } from './cashForecast'
+import { AppError } from '@shared/errors'
 
 type DB = ReturnType<typeof seededDb>
 const groupId = (db: DB, name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
@@ -145,5 +146,47 @@ describe('MSME day of acceptance (WP 2d)', () => {
     expect(() => setMsmeAcceptance(s.db, { voucherId: id, acceptedOn: '2026-03-01' }, TODAY)).toThrow(/locked up to 2026-03-31/)
     expect(() => setMsmeAcceptance(s.db, { voucherId: open, acceptedOn: '2006-07-20' }, TODAY)).toThrow(/within 365 days/)
     expect(setMsmeAcceptance(s.db, { voucherId: open, acceptedOn: '2025-07-10' }, TODAY)).toMatchObject({ acceptedOn: '2025-07-10' })
+  })
+
+  it('1.0 readiness SEC3-4: each refusal is an AppError with its mapped code and field', () => {
+    const s = setup()
+    const id = s.bill(s.micro, '2026-03-20', 'MC-C', 100_000)
+    const open = s.bill(s.micro, '2026-07-10', 'MC-D', 100_000)
+    const other = s.bill(s.plain, '2026-07-10', 'PS-C', 100_000)
+    const refusal = (raw: unknown): AppError => {
+      try {
+        setMsmeAcceptance(s.db, raw, TODAY)
+      } catch (err) {
+        if (err instanceof AppError) return err
+        throw err
+      }
+      throw new Error('expected a refusal')
+    }
+    expect(refusal({ voucherId: open, acceptedOn: '2026-08-11' })).toMatchObject({ code: 'msme_acceptance_after_today', field: 'acceptedOn' })
+    expect(refusal({ voucherId: open, acceptedOn: '2025-07-09' })).toMatchObject({
+      code: 'msme_acceptance_far_from_bill', field: 'acceptedOn', params: { days: 365, date: '2026-07-10' }
+    })
+    expect(refusal({ voucherId: other, acceptedOn: '2026-07-01' })).toMatchObject({ code: 'msme_acceptance_not_msme' })
+    expect(refusal({ voucherId: 999_999, acceptedOn: '2026-07-01' })).toMatchObject({ code: 'msme_acceptance_no_bill' })
+    setLockDate(s.db, '2026-03-31')
+    expect(refusal({ voucherId: id, acceptedOn: '2026-03-01' })).toMatchObject({ code: 'books_locked', params: { date: '2026-03-31' } })
+    expect(s.db.prepare('SELECT COUNT(*) AS n FROM msme_acceptance').get()).toEqual({ n: 0 })
+  })
+
+  it('1.0 readiness SEC3-4: the day and its audit row are one write — an audit that fails leaves no day recorded', () => {
+    const s = setup()
+    const id = s.bill(s.micro, '2026-07-10', 'MC-T', 100_000)
+    const auditRows = () => (s.db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'msme_acceptance'").get() as { n: number }).n
+    s.db.exec("CREATE TEMP TRIGGER fail_msme_audit BEFORE INSERT ON audit_log WHEN NEW.entity = 'msme_acceptance' BEGIN SELECT RAISE(ABORT, 'audit write failed'); END")
+    expect(() => setMsmeAcceptance(s.db, { voucherId: id, acceptedOn: '2026-07-01', basis: 'delivered' }, TODAY)).toThrow(/audit write failed/)
+    expect(s.db.prepare('SELECT COUNT(*) AS n FROM msme_acceptance').get()).toEqual({ n: 0 })
+    expect(auditRows()).toBe(0)
+    s.db.exec('DROP TRIGGER fail_msme_audit')
+    // With a working audit the same answer is written with its row; a failed clear keeps the day.
+    setMsmeAcceptance(s.db, { voucherId: id, acceptedOn: '2026-07-01', basis: 'delivered' }, TODAY)
+    s.db.exec("CREATE TEMP TRIGGER fail_msme_audit BEFORE INSERT ON audit_log WHEN NEW.entity = 'msme_acceptance' BEGIN SELECT RAISE(ABORT, 'audit write failed'); END")
+    expect(() => setMsmeAcceptance(s.db, { voucherId: id, acceptedOn: null }, TODAY)).toThrow(/audit write failed/)
+    expect(s.db.prepare('SELECT accepted_on AS d FROM msme_acceptance WHERE voucher_id = ?').get(id)).toEqual({ d: '2026-07-01' })
+    expect(auditRows()).toBe(1)
   })
 })

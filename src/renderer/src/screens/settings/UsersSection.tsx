@@ -4,6 +4,7 @@ import { api, type Role, type UserRow } from '../../lib/client'
 import { useSession, useToasts } from '../../state/stores'
 import { Button, Field, Modal, Panel, SectionTitle, Select, TextInput } from '../../components/ui'
 import { DataTable, defineColumns } from '../../components/table'
+import { newPinProblem, OWNER_PIN_MIN_DIGITS, PIN_MAX_DIGITS, PIN_MIN_DIGITS } from '@shared/pinRules'
 
 const ROLES: Role[] = ['owner', 'accountant', 'viewer']
 const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', accountant: 'Accountant', viewer: 'Viewer' }
@@ -133,13 +134,16 @@ function UserModal({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const pinRequired = !existing
+  // 1.0 readiness SEC-13: an owner's new PIN has at least 6 digits, and a person made an owner
+  // gets a new PIN then (shared/pinRules.ts — the service checks the same rule).
+  const minDigits = role === 'owner' ? OWNER_PIN_MIN_DIGITS : PIN_MIN_DIGITS
+  const pinRequired = !existing || newPinProblem(undefined, role, existing.role === 'owner') === 'owner_pin_needed'
   const pinProvided = pin.length > 0
-  const pinOk = pinRequired ? /^\d{4,12}$/.test(pin) : pin === '' || /^\d{4,12}$/.test(pin)
+  const pinOk = pin === '' ? !pinRequired : pin.length >= minDigits && pin.length <= PIN_MAX_DIGITS && /^\d+$/.test(pin)
 
   const submit = async (): Promise<void> => {
     if (!name.trim()) return setError('Name is required')
-    if (!pinOk) return setError('PIN must be 4-12 digits')
+    if (!pinOk) return setError(pinRequired && !pinProvided && existing ? `Give a new PIN of at least ${minDigits} digits to make this person an owner` : `PIN must be ${minDigits}-${PIN_MAX_DIGITS} digits`)
     if ((pinRequired || pinProvided) && pin !== pin2) return setError('PINs do not match')
     setBusy(true)
     try {
@@ -176,13 +180,13 @@ function UserModal({
             ))}
           </Select>
         </Field>
-        <Field label={existing ? 'New PIN (leave blank to keep current)' : 'PIN (4-12 digits)'}>
+        <Field label={existing && !pinRequired ? 'New PIN (leave blank to keep current)' : `${existing ? 'New PIN' : 'PIN'} (${minDigits}-${PIN_MAX_DIGITS} digits)`}>
           <TextInput
             type="password"
             inputMode="numeric"
             value={pin}
             onChange={(e) => {
-              setPin(e.target.value.replace(/\D/g, '').slice(0, 12))
+              setPin(e.target.value.replace(/\D/g, '').slice(0, PIN_MAX_DIGITS))
               setError(null)
             }}
           />
@@ -194,7 +198,7 @@ function UserModal({
               inputMode="numeric"
               value={pin2}
               onChange={(e) => {
-                setPin2(e.target.value.replace(/\D/g, '').slice(0, 12))
+                setPin2(e.target.value.replace(/\D/g, '').slice(0, PIN_MAX_DIGITS))
                 setError(null)
               }}
             />

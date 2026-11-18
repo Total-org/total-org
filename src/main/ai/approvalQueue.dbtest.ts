@@ -341,7 +341,7 @@ describe('approval queue', () => {
   it('a viewer and an accountant without the posting right cannot approve', async () => {
     await ask('Pay 300 shop rent in cash')
     const p = await newest((x) => x.what === 'money_out' && x.amount === 30_000)
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Looker', pin: '3333', role: 'viewer', active: true } })
     const clerk = await ok<{ id: number }>('users:save', { data: { name: 'Clerk', pin: '2222', role: 'accountant', active: true, capabilities: { canPost: false } } })
     const vouchers = count('SELECT COUNT(*) AS n FROM vouchers')
@@ -351,7 +351,7 @@ describe('approval queue', () => {
       await ok('auth:logout')
     }
     expect(count('SELECT COUNT(*) AS n FROM vouchers')).toBe(vouchers)
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect((await ok<{ voucherIds: number[] }>('ai:queue:approve', { key: p.key, today: T })).voucherIds).toHaveLength(1)
   })
 })

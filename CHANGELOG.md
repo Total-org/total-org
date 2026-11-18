@@ -20,6 +20,21 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**A locked screen stays locked until the passphrase is typed** (#291, readiness review SEC2-6).
+In a business with a passphrase and no people with PINs, locking the screen (⌘L, Lock now, or the
+idle lock) now holds when you switch business or restart Total: opening it again asks for the
+passphrase, even on a computer that remembers it. Typing the passphrase opens the books and ends
+the lock. Lock and safety says this before you lock. A business without a passphrase keeps the
+plain privacy screen. **An owner's new PIN needs 6 digits** (SEC-13): adding an owner, changing an
+owner's PIN, or making someone an owner now asks for at least 6 digits; PINs already set keep
+working, and accountants and viewers keep 4. Also fixed: a refused encrypted-backup import no
+longer leaves an unlocked copy of the books in the temporary folder (SEC3-2), the bank
+bulk-payment file drops every character a spreadsheet would read as the start of a formula, `-` and
+tab included (SEC3-5), and recording an MSME bill's day of acceptance is saved together with its
+edit-log row, with plain messages when it is refused (SEC3-4).
+For developers: `<dataRoot>/screen-locks.json` (`services/screenLocks.ts`), `shared/pinRules.ts`,
+error codes `screen_locked_passphrase`, `owner_pin_short`, `owner_pin_needed`, `msme_acceptance_*`.
+
 **GST returns follow the registration of the month you file** (#290, 1.0 readiness review FIG-G-3).
 A month in which the business was under the composition scheme no longer shows a GSTR-1 or GSTR-3B
 with its sales as nil-rated: the screen says "A composition dealer files CMP-08 and GSTR-4, not this

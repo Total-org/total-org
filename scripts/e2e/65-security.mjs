@@ -2,7 +2,8 @@
 // Settings → Lock and safety: lock with a passphrase (the lost-passphrase warning and the
 // "I understand" tick first), save the recovery copy → restart the app → the picker asks for the
 // passphrase (a wrong one is refused in plain words) → the right one opens the same books, with
-// "Remember on this computer" ticked → a restart opens without the passphrase → Forget in Lock and
+// "Remember on this computer" ticked → a restart opens without the passphrase → after a screen
+// lock a restart asks for the passphrase again (SEC2-6) → Forget in Lock and
 // safety → the next restart asks again → the
 // backup restore check shows on the screen and on Home → People & roles switches (stored on the
 // user) → ⌘L locks with nothing of the session left on screen (audit A3: no figure, the Ask panel
@@ -131,6 +132,25 @@ await scenario('65-security', async (h) => {
   await openSecurity(h)
   await attached(h, '[data-testid="security-remember"][data-remembered="on"]')
   await h.shot('03c-remembered-settings')
+  // 1.0 readiness SEC2-6: the screen lock of this business (no people, passphrase on) holds past a
+  // restart — the remembered key does not open it; the passphrase does, and clears it.
+  await attached(h, '[data-testid="security-lock-passphrase"]')
+  await h.click('btn-lock-now')
+  await attached(h, '[data-screen="lock"]')
+  const screenLocks = () => (fs.existsSync(path.join(h.dataDir, 'screen-locks.json')) ? JSON.parse(fs.readFileSync(path.join(h.dataDir, 'screen-locks.json'), 'utf8')) : {})
+  assert(screenLocks()[slug], 'the screen lock is stored outside the books')
+  await h.relaunch()
+  await h.waitScreen('company-select')
+  await h.clickText('Safe Traders')
+  await attached(h, '[data-testid="passphrase-notice"]')
+  assert((await h.page.textContent('[data-testid="passphrase-notice"]')).includes('screen of this business was locked'), 'the prompt says why the passphrase is asked')
+  await h.shot('03d-screen-locked-prompt')
+  await h.fill('input-passphrase', PASS)
+  await h.click('btn-passphrase-open')
+  await attached(h, '[data-testid="simple-home"]', 60000)
+  assertEq(screenLocks()[slug], undefined, 'the passphrase cleared the stored lock')
+  await openSecurity(h)
+  await attached(h, '[data-testid="security-remember"][data-remembered="on"]')
   await h.click('btn-security-forget')
   await attached(h, '[data-testid="security-remember"][data-remembered="off"]')
   assert(!fs.readFileSync(path.join(h.dataDir, 'secrets.json'), 'utf8').includes('rememberedDataKey'), 'Forget removes the remembered key')
@@ -152,7 +172,7 @@ await scenario('65-security', async (h) => {
   assert((await h.page.textContent('[data-testid="simple-home-backup-check"]')).includes('checked OK'), 'Home says the last backup checked OK')
 
   // ---------- People & roles: plain switches stored on the user ----------
-  const owner = await h.invoke('users:save', { data: { name: 'Meera', role: 'owner', pin: '1234', active: true } })
+  const owner = await h.invoke('users:save', { data: { name: 'Meera', role: 'owner', pin: '123456', active: true } })
   const acct = await h.invoke('users:save', { data: { name: 'Ravi', role: 'accountant', pin: '2468', active: true } })
   await h.click('simple-nav-settings')
   await attached(h, '[data-testid="simple-entry-people-roles"]')
@@ -201,7 +221,7 @@ await scenario('65-security', async (h) => {
   await h.page.keyboard.press('Meta+l')
   await attached(h, '[data-screen="lock"][data-lock="simple"]')
   await h.click(`lock-user-${owner.id}`)
-  await h.fill('input-pin', '1234')
+  await h.fill('input-pin', '123456')
   await h.click('btn-unlock')
   await attached(h, '[data-testid="simple-home"]', 30000)
 

@@ -24,7 +24,7 @@ function makeCompanyDb(withOwner: boolean): string {
   db.pragma('journal_mode = WAL')
   migrate(db)
   seedCompany(db, INFO)
-  if (withOwner) saveUser(db, { name: 'Priya', role: 'owner', pin: '1234' })
+  if (withOwner) saveUser(db, { name: 'Priya', role: 'owner', pin: '123434' })
   db.close()
   return dbPath
 }
@@ -55,7 +55,7 @@ describe('company delete authorization (assertDeleteAuthorized)', () => {
 
   it('succeeds for a protected company with the correct owner pin', () => {
     const dbPath = makeCompanyDb(true)
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).not.toThrow()
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).not.toThrow()
   })
 
   it('shares the persisted login throttle: 5 wrong delete-PINs lock the PIN gate AND auth:login (v0.3 review F3)', () => {
@@ -65,13 +65,13 @@ describe('company delete authorization (assertDeleteAuthorized)', () => {
     }
     // Even the CORRECT pin is refused while locked out — the delete channel is no longer an
     // unthrottled PIN oracle around the login lockout.
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).toThrow('Too many attempts — wait 30 seconds')
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).toThrow('Too many attempts — wait 30 seconds')
 
     // Same meta-persisted counter as auth:login: the owner is locked out at the login screen too,
     // and every wrong delete-PIN was audited as a login_failed.
     const db = testFileDb(dbPath)
     const owner = db.prepare("SELECT id FROM users WHERE role = 'owner'").get() as { id: number }
-    expect(() => login(db, owner.id, '1234')).toThrow('Too many attempts — wait 30 seconds')
+    expect(() => login(db, owner.id, '123434')).toThrow('Too many attempts — wait 30 seconds')
     const audits = db
       .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'user' AND action = 'login_failed'")
       .get() as { n: number }
@@ -87,7 +87,7 @@ describe('company delete authorization (assertDeleteAuthorized)', () => {
       expect(() => login(db, owner.id, '0000')).toThrow('Wrong PIN')
     }
     db.close()
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).toThrow('Too many attempts — wait 30 seconds')
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).toThrow('Too many attempts — wait 30 seconds')
   })
 
   it('a pin-less probe (how the UI discovers protection) does not consume throttle budget', () => {
@@ -96,7 +96,7 @@ describe('company delete authorization (assertDeleteAuthorized)', () => {
       expect(() => assertDeleteAuthorized(dbPath, undefined)).toThrow('This company is protected')
     }
     // Still not locked out — and the correct PIN goes straight through.
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).not.toThrow()
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).not.toThrow()
   })
 
   it('a successful PIN check clears the failure counter', () => {
@@ -104,12 +104,12 @@ describe('company delete authorization (assertDeleteAuthorized)', () => {
     for (let i = 0; i < 4; i++) {
       expect(() => assertDeleteAuthorized(dbPath, '9999')).toThrow('This company is protected')
     }
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).not.toThrow()
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).not.toThrow()
     // Counter reset: four more wrong attempts don't lock (5th consecutive would).
     for (let i = 0; i < 4; i++) {
       expect(() => assertDeleteAuthorized(dbPath, '9999')).toThrow('This company is protected')
     }
-    expect(() => assertDeleteAuthorized(dbPath, '1234')).not.toThrow()
+    expect(() => assertDeleteAuthorized(dbPath, '123434')).not.toThrow()
   })
 
   it('falls back to allowing delete (name check alone) when the DB file is corrupt/unreadable', () => {

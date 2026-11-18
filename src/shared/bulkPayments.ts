@@ -25,6 +25,8 @@
  *    6 alphanumerics for the branch — same SBI FAQ.
  */
 
+import { startsAsFormula } from './csv'
+
 export const PAYMENT_FIELDS = [
   'payment_type', 'beneficiary_name', 'beneficiary_account', 'beneficiary_ifsc', 'beneficiary_email', 'amount', 'date',
   'debit_account', 'debit_ifsc', 'reference', 'narration', 'currency', 'serial', 'constant', 'blank'
@@ -198,13 +200,17 @@ export const paymentTypeFor = (paise: number, threshold: number): 'NEFT' | 'RTGS
 
 const STRICT_FIELDS: ReadonlySet<PaymentField> = new Set(['beneficiary_account', 'beneficiary_ifsc', 'amount', 'debit_account', 'debit_ifsc'])
 
-/** Make a value safe for an unquoted delimited bank file: no delimiter, no line breaks, no
- *  leading formula characters. */
+/** Make a value safe for a delimited bank file: no delimiter, no line breaks, and no start a
+ *  spreadsheet reads as a formula (csv.ts `startsAsFormula`: `= + - @`, tab, CR — a plain number
+ *  such as `-500` stays). The formula characters are dropped rather than quoted with a leading `'`
+ *  as the CSV exports do: a bank's upload takes a fixed field size (already cut to it above) and
+ *  a narrow character set, so the file never grows a character the bank may refuse. */
 function clean(v: string, delimiter: string, quoteAll: boolean): string {
-  let s = v.replace(/[\r\n]+/g, ' ').replace(/^[=+@]+/, '').trim()
-  if (quoteAll) return `"${s.replace(/"/g, '""')}"`
-  s = s.split(delimiter).join(' ')
-  return s
+  let s = v.replace(/[\r\n]+/g, ' ')
+  if (!quoteAll) s = s.split(delimiter).join(' ')
+  s = s.trim()
+  while (startsAsFormula(s)) s = s.slice(1).trim()
+  return quoteAll ? `"${s.replace(/"/g, '""')}"` : s
 }
 
 /** Render the upload file. Throws on a template that can't express a row (e.g. paise into a

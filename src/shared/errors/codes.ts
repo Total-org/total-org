@@ -259,6 +259,11 @@ export const ERROR_MAP = {
   // Audit A3: a PIN locked out after wrong tries (services/users.ts), the minutes left in params.
   auth_throttled: e('errors.security.pinWait', undefined, ['minutes'], 'errors.security.pinWaitPlain'),
   passphrase_mismatch: e('errors.security.passphrasesDiffer', 'confirm'),
+  // ---------- MSME day of acceptance (services/payables.ts setMsmeAcceptance) ----------
+  msme_acceptance_no_bill: e('errors.msme.noBill'),
+  msme_acceptance_not_msme: e('errors.msme.notMsme'),
+  msme_acceptance_after_today: e('errors.msme.afterToday', 'acceptedOn'),
+  msme_acceptance_far_from_bill: e('errors.msme.farFromBill', 'acceptedOn', ['days', 'date'], 'errors.msme.farFromBillPlain'),
   security_already_locked: e('errors.security.alreadyLocked'),
   security_not_locked: e('errors.security.notLocked'),
   security_files_pending: e('errors.security.filesPending', 'passphrase'),
@@ -281,6 +286,10 @@ export const ERROR_MAP = {
   // "Remember on this computer" (services/companyKeys.ts, ipc.ts)
   remember_unavailable: e('errors.security.rememberUnavailable'),
   remembered_key_stale: e('errors.security.rememberedStale', 'passphrase'),
+  // 1.0 readiness SEC2-6 / SEC-13 (decisions Q6 / Q7)
+  screen_locked_passphrase: e('errors.security.screenLocked', 'passphrase'),
+  owner_pin_short: e('errors.security.ownerPinShort', 'pin', ['min'], 'errors.security.ownerPinShortPlain'),
+  owner_pin_needed: e('errors.security.ownerPinNeeded', 'pin', ['min'], 'errors.security.ownerPinNeededPlain'),
   /** No longer thrown since a business without people can lock its screen (a privacy screen); kept
    *  for an older main's answer, in the new words. */
   lock_needs_people: e('errors.security.lockPrivacyOnly'),

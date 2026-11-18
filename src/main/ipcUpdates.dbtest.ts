@@ -93,9 +93,9 @@ describe('app:updates:*', () => {
 
     // A company with users: owner only (no confirmation involved).
     await ok('company:open', { slug: team.slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const clerk = await ok<{ id: number }>('users:save', { data: { name: 'Clerk', pin: '2222', role: 'accountant', active: true } })
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect(await ok('app:updates:canSet')).toEqual({ allowed: true, reason: 'ok' })
     expect((await call('app:updates:set', { autoCheck: true })).ok).toBe(true)
     expect(JSON.parse(audit().at(-1)!).user).toBe('Owner')

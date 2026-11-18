@@ -582,7 +582,7 @@ describe('roles: a viewer reads the bills but cannot save a return', () => {
     await ok('master:ledgers:create', { name: 'Sales', groupId: gid('Sales Accounts') })
     const customer = (await ok<{ id: number }>('master:ledgers:create', { name: 'Gupta', groupId: gid('Sundry Debtors') })).id
     const sale = await ok<{ voucherIds: number[] }>('simple:post', { intent: { clientId: 'viewer-sale-1', kind: 'sale', date: TODAY, customerId: customer, amount: { amount: 50_000 } }, today: TODAY })
-    await ok('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    await ok('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Looker', pin: '3333', role: 'viewer', active: true } })
     await ok('auth:login', { userId: viewer.id, pin: '3333' })
     const bills = await ok<{ voucherId: number }[]>('simple:returns:bills', { side: 'sale', today: TODAY })

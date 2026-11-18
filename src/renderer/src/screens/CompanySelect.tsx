@@ -73,8 +73,9 @@ export function CompanySelect(): React.JSX.Element {
     try {
       finishOpen(await api.company.open(slug))
     } catch (err) {
-      if (err instanceof IpcError && (err.code === 'passphrase_required' || err.code === 'remembered_key_stale')) {
-        const notice = err.code === 'remembered_key_stale' ? t('errors.security.rememberedStale') : undefined
+      if (err instanceof IpcError && (err.code === 'passphrase_required' || err.code === 'remembered_key_stale' || err.code === 'screen_locked_passphrase')) {
+        // SEC2-6: a business whose screen was locked asks for its passphrase even when this computer remembers it.
+        const notice = err.code === 'remembered_key_stale' ? t('errors.security.rememberedStale') : err.code === 'screen_locked_passphrase' ? t('errors.security.screenLocked') : undefined
         setAskPassphrase({ slug, name: allCompanies.find((c) => c.slug === slug)?.name ?? slug, notice })
         void queryClient.invalidateQueries({ queryKey: ['company-remembered'] })
         return

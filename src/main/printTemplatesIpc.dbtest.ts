@@ -83,7 +83,7 @@ describe('print template IPC', () => {
   })
 
   it('viewer may read and preview; only accountant+ may edit', async () => {
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Olive', role: 'owner', pin: '1111' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Olive', role: 'owner', pin: '111111' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '2222' } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Asha', role: 'accountant', pin: '3333' } })
     expect(owner.id).toBeGreaterThan(0)

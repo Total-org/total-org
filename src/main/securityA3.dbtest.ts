@@ -57,7 +57,7 @@ const ledgerInput = (name: string, groupId: number): Record<string, unknown> => 
 })
 
 describe('canSeeProfit: false — the doors the audit sweep found (A3)', () => {
-  const PIN = { owner: '1111', acct: '2222' }
+  const PIN = { owner: '111111', acct: '2222' }
   let ids: { owner: number; acct: number }
   let led: { sales: number; rent: number; cash: number }
   let chair = 0
@@ -346,7 +346,7 @@ describe('the PIN lockout grows (SEC-13)', () => {
   it('login refuses for the longer wait, and the right PIN after it clears the count', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('A3 Pin Co'))
     await ok('company:open', { slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '5555' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '555555' } })
     const db = ipc.getCurrentCompany()!.db
     const t0 = Date.now() - 10 * 60_000
     // Six wrong PINs, ten minutes ago: the 6th set a 1-minute wait, long over.
@@ -354,13 +354,13 @@ describe('the PIN lockout grows (SEC-13)', () => {
     expect(users.isAuthThrottled(db, owner.id, t0 + 59_000)).toBe(true)
     expect(users.isAuthThrottled(db, owner.id, t0 + 61_000)).toBe(false)
     // The 7th wrong PIN now: 5 minutes.
-    expect((await call('auth:login', { userId: owner.id, pin: '0000' })).ok).toBe(false)
-    const refused = await call('auth:login', { userId: owner.id, pin: '5555' })
+    expect((await call('auth:login', { userId: owner.id, pin: '000000' })).ok).toBe(false)
+    const refused = await call('auth:login', { userId: owner.id, pin: '555555' })
     expect(refused).toMatchObject({ ok: false, code: 'auth_throttled', error: 'Too many attempts — wait 5 minutes', params: { minutes: 5 } })
     expect(users.isAuthThrottled(db, owner.id, Date.now() + 4 * 60_000)).toBe(true)
     expect(users.isAuthThrottled(db, owner.id, Date.now() + 6 * 60_000)).toBe(false)
     users.clearAuthFailures(db, owner.id)
-    await ok('auth:login', { userId: owner.id, pin: '5555' })
+    await ok('auth:login', { userId: owner.id, pin: '555555' })
     await ok('company:close')
   })
 })

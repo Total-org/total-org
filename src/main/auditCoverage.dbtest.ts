@@ -222,7 +222,7 @@ describe('write channels really write their mapped entities (driven through IPC)
   })
 
   it('after the first user exists, rows carry that user (name + id); the chain verifies end to end', async () => {
-    const owner = await ok<{ id: number; name: string }>('users:save', { data: { name: 'Priya', role: 'owner', pin: '4242' } })
+    const owner = await ok<{ id: number; name: string }>('users:save', { data: { name: 'Priya', role: 'owner', pin: '424242' } })
     const groups = await ok<{ id: number; name: string }[]>('master:groups:list')
     const rows = await expectLogged('master:groups:create', { name: 'Signed-in group', parentId: groups.find((g) => g.name === 'Indirect Expenses')!.id })
     expect(rows.at(-1)).toMatchObject({ user_name: 'Priya', user_id: owner.id })

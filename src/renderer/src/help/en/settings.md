@@ -17,4 +17,6 @@
 
 If the business has a passphrase, the box that asks for it has **Remember on this computer**. It is never ticked for you. Ticked, the books open here without the passphrase. Only the owner can do this: where the business has sign-ins, it is kept only if the owner signs in at that open. Total keeps a key in the computer's keychain, never the passphrase itself. Anyone who can sign in to this computer can then open your books, so tick it only on a computer that only you use.
 
+When you lock the screen of a business without sign-ins, only the passphrase opens its books again: switching business or restarting Total asks for it too, even on a computer that remembers it. Total can't recover a forgotten passphrase, and every backup is locked with it, so keep it written down somewhere safe.
+
 [Lock and safety](total://screen/simple-security), the business list and the lock screen say "Remembered on this computer" with **Forget**. Taking the passphrase off forgets it too.

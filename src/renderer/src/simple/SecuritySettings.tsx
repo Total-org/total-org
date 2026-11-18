@@ -250,7 +250,15 @@ function RememberCard({ view, canEdit }: { view: SecurityView; canEdit: boolean 
     <section className={cardCls} data-testid="security-remember" data-remembered={state}>
       <h2 className="text-title font-semibold text-ink">{t('simple.security.remember.title')}</h2>
       <p className="mt-1 text-detail text-ink" data-testid="security-remember-text">
-        {view.remembered ? t('simple.security.remember.on') : view.rememberPending ? t('simple.security.remember.pending') : t('simple.security.remember.off')}
+        {/* 1.0 readiness SEC2-6: without people the screen lock takes the remembered key away until
+            the passphrase is typed; with people a locked screen asks for a PIN. */}
+        {view.remembered
+          ? view.usersExist
+            ? t('simple.security.remember.on')
+            : t('simple.security.remember.onNoPeople')
+          : view.rememberPending
+            ? t('simple.security.remember.pending')
+            : t('simple.security.remember.off')}
       </p>
       {canEdit && view.remembered && (
         <Button className="mt-2" variant="secondary" disabled={busy} onClick={() => void forget()} data-testid="btn-security-forget">
@@ -278,11 +286,17 @@ function ScreenLockCard({ view, canEdit }: { view: SecurityView; canEdit: boolea
     <section className={cardCls} data-testid="security-screen-lock">
       <h2 className="text-title font-semibold text-ink">{t('simple.security.screen.title')}</h2>
       <p className="mt-1 text-detail text-ink">{t('simple.security.screen.text')}</p>
-      {/* WP 7.2 follow-up: without people the lock is a privacy screen (the passphrase, when the
-          business has one, still guards it) — said before the choice, never hidden. */}
-      {!view.usersExist && (
+      {/* WP 7.2 follow-up: without people the lock is a privacy screen — anyone can unlock it —
+          unless the passphrase lock is on: then only the passphrase opens the books again, past a
+          switch or a restart too (1.0 readiness SEC2-6). Said before the choice, never hidden. */}
+      {!view.usersExist && !view.encrypted && (
         <p className="mt-2 text-small text-muted" data-testid="security-needs-people">
           {t('errors.security.lockPrivacyOnly')}
+        </p>
+      )}
+      {!view.usersExist && view.encrypted && (
+        <p className="mt-2 text-small text-ink" data-testid="security-lock-passphrase">
+          {t('simple.security.screen.passphraseLock')}
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-end gap-3">
