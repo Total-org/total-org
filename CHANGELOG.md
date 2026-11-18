@@ -24,12 +24,17 @@ Things to know about the version numbers:
 1.0 readiness review FIG-B-1). Five ₹25,000 bills to a 194C contractor take the year to ₹1,25,000
 — over the ₹1,00,000 limit — so all five are liable: ₹1,250. The TDS banner on the fifth bill or
 payment now offers ₹1,250 and says ₹1,00,000 of it is for 4 earlier sums; it used to offer ₹250.
-If only ₹250 is deducted, the four earlier bills now stay on TDS → Eligible (₹1,000) instead of
-disappearing. The simple Money out note says the same, and a payment run deducts it. For
-accountants: the Eligible list and the suggestion change on books where a deduction was made on
-the voucher that crossed the limit while earlier sums were undeducted; no saved voucher, ledger
-or return changes. 194Q is unchanged (only the part above ₹50 lakh). Marked "Check with your CA"
-(Q59): the proviso to s.194C(5) could not be read from an official copy.
+The same when the crossing bill is itself over ₹30,000 (four ₹25,000 bills, then ₹40,000: ₹1,400,
+not ₹400). If only the bill's own share is deducted, the earlier bills now stay on TDS → Eligible
+instead of disappearing. The simple Money out note says the same, and a payment run deducts it.
+For accountants, on books that have TDS: the Eligible list, the suggestions and the late-deduction
+interest change where a sum crossed the yearly limit with smaller undeducted sums before it,
+where a bill that used up an advance was deducted (the advance is no longer counted twice in the
+year's total), where a deduction's base was wider than its own sum (only its own sum counts
+towards the limit now), and where a payment followed a debit note (the note is no longer taken
+as money paid). No saved voucher, ledger or return changes. 194Q is unchanged (only the part
+above ₹50 lakh). Marked "Check with your CA" (Q59): the proviso to s.194C(5) could not be read
+from an official copy.
 
 **Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
 printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)

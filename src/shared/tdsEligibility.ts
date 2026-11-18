@@ -232,10 +232,13 @@ export interface WalkResult {
   reason: EligibleReason | null
   /** 'aggregate_later' only: the voucher whose sum lifted the period aggregate past the limit. */
   crossedBy?: number
-  /** A deduction on payment only: the parts of earlier credits it covered that were ALREADY
-   *  liable (tax deductible then, so deducting now is late — s.201(1A)(i)), each with the date
-   *  it became deductible (the credit's own date, or the later credit whose aggregate crossed
-   *  the threshold). Present only when there is one. */
+  /** A credit that used up earlier advances (counted when paid, so not again): which, and how
+   *  much of each. Present only when there is one. */
+  consumedFrom?: { voucherId: number; basePaise: number }[]
+  /** A deduction (on a bill or a payment) that covered earlier sums ALREADY liable before its date
+   *  (tax deductible then, so deducting now is late — s.201(1A)(i)), each with the date it became
+   *  deductible (its own date, or the later sum's whose aggregate crossed the threshold). Present
+   *  only when there is one. */
   lateCover?: { voucherId: number; deductibleOn: string; basePaise: number }[]
 }
 
@@ -252,30 +255,36 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
   // paid in full below the limit becomes liable when a later sum crosses it). `remaining`: what no
   // deduction has covered yet; `liable` / `liableOn`: how much of it was liable, and from when
   // (lateCover).
-  const pending: { idx: number; kind: 'credit' | 'payment'; remaining: number; liable: number; liableOn: string | null }[] = []
+  type Open = { idx: number; kind: 'credit' | 'payment'; remaining: number; liable: number; liableOn: string | null }
+  const pending: Open[] = []
   // Below-threshold, undeducted events per period (become liable when the aggregate is crossed).
   const below = new Map<string, number[]>()
+  // Advances counted as events, oldest first, with what no later credit has used up yet.
+  const advances: { idx: number; left: number }[] = []
   let credited = 0
   let paid = 0
-  let advanceBank = 0
 
-  /** A deduction's base beyond the deducting event's own sum covers earlier open events (oldest
-   *  first, those `which` accepts); returns what it used. `late` collects the parts that were
-   *  already liable before `date` (s.201(1A)(i)). */
-  const cover = (amount: number, which: (kind: 'credit' | 'payment') => boolean, date: string, late: NonNullable<WalkResult['lateCover']> | null): number => {
+  type Late = NonNullable<WalkResult['lateCover']>
+  /** Cover up to `amount` of one open event; returns what it took. The part that was liable before
+   *  `date` goes to `late` (s.201(1A)(i)). */
+  const coverOne = (p: Open, amount: number, date: string, late: Late): number => {
+    const take = Math.min(p.remaining, amount)
+    if (take <= 0) return 0
+    p.remaining -= take
+    const overdue = p.liableOn != null && p.liableOn < date ? Math.min(take, p.liable) : 0
+    if (overdue > 0) {
+      p.liable -= overdue
+      // p.liableOn is non-null: overdue > 0 only when it is set.
+      late.push({ voucherId: results[p.idx]!.voucherId, deductibleOn: p.liableOn!, basePaise: overdue })
+    }
+    return take
+  }
+  /** Cover up to `amount` of the open events `pick` accepts, oldest first; returns what it used. */
+  const cover = (amount: number, pick: (p: Open) => boolean, date: string, late: Late): number => {
     let left = amount
     for (const p of pending) {
       if (left <= 0) break
-      if (!which(p.kind) || p.remaining <= 0) continue
-      const take = Math.min(p.remaining, left)
-      p.remaining -= take
-      left -= take
-      const overdue = p.liableOn != null && p.liableOn < date ? Math.min(take, p.liable) : 0
-      if (overdue > 0) {
-        p.liable -= overdue
-        // p.liableOn is non-null: overdue > 0 only when it is set.
-        late?.push({ voucherId: results[p.idx]!.voucherId, deductibleOn: p.liableOn!, basePaise: overdue })
-      }
+      if (pick(p)) left -= coverOne(p, left, date, late)
     }
     return amount - left
   }
@@ -308,53 +317,70 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
       results.push({ ...base, eventBasePaise: back > 0 ? -back : 0, priorPaise: prior })
       continue
     }
-    let eventBase: number
-    if (e.kind === 'credit') {
-      const consumed = Math.min(advanceBank, e.basePaise)
-      advanceBank -= consumed
-      if (e.entryBasePaise != null) {
-        // A deduction on a base beyond the bill's own sum (FIG-B-1: the crossing bill carrying the
-        // earlier sums' shortfall) covers earlier open events; only the bill's own part adds to the
-        // aggregate. Nothing to cover = the recorded base counts, as before.
-        eventBase = e.entryBasePaise - cover(Math.max(0, e.entryBasePaise - e.basePaise), () => true, e.date, null)
-      } else {
-        eventBase = e.basePaise - consumed
-      }
-    } else if (e.entryBasePaise != null) {
-      // A deduction on payment covers earlier undeducted credits first; the rest is this payment's
-      // advance. What goes beyond its own advance covers earlier undeducted advances (FIG-B-1's
-      // shortfall on payments made before the limit was crossed).
-      const lateCover: NonNullable<WalkResult['lateCover']> = []
-      let left = e.entryBasePaise - cover(e.entryBasePaise, (k) => k === 'credit', e.date, lateCover)
-      const ownAdvance = Math.min(e.grossPaise, Math.max(0, paid - credited))
-      left -= cover(Math.max(0, left - ownAdvance), (k) => k === 'payment', e.date, lateCover)
-      if (lateCover.length) base.lateCover = lateCover
-      eventBase = left
-      advanceBank += left
-    } else {
-      eventBase = Math.min(e.grossPaise, Math.max(0, paid - credited))
-      advanceBank += eventBase
-    }
     const idx = results.length
+    const late: Late = []
+    // The sum this event adds — "the aggregate of the amounts ... credited or paid", never the
+    // deduction's base (R2 review: a deducted bill used to add its recorded base, so an advance it
+    // used up counted twice).
+    let fresh: number
+    // What the deduction's base goes beyond the voucher's own sum — it covers earlier sums.
+    let excess = 0
+    if (e.kind === 'credit') {
+      // A credit first uses up earlier advances (already counted when paid); only the rest is fresh.
+      let want = e.basePaise
+      const consumed: { idx: number; amount: number }[] = []
+      for (const a of advances) {
+        if (want <= 0) break
+        const t = Math.min(a.left, want)
+        if (t <= 0) continue
+        a.left -= t
+        want -= t
+        consumed.push({ idx: a.idx, amount: t })
+      }
+      fresh = want
+      if (consumed.length) base.consumedFrom = consumed.map((c) => ({ voucherId: results[c.idx]!.voucherId, basePaise: c.amount }))
+      if (e.entryBasePaise != null) {
+        // The bill's own deduction first covers the advances it used up (the same sums), then itself.
+        let own = Math.min(e.entryBasePaise, e.basePaise)
+        for (const c of consumed) {
+          if (own <= 0) break
+          const part = Math.min(c.amount, own)
+          const p = pending.find((x) => x.idx === c.idx)
+          if (p) coverOne(p, part, e.date, late)
+          own -= part
+        }
+        excess = Math.max(0, e.entryBasePaise - e.basePaise)
+      }
+    } else {
+      // A deduction on payment covers earlier undeducted credits first (oldest first); its own
+      // advance — what is paid beyond what has been credited — is the payment's sum.
+      const coveredCredits = e.entryBasePaise != null ? cover(e.entryBasePaise, (p) => p.kind === 'credit', e.date, late) : 0
+      fresh = Math.min(e.grossPaise, Math.max(0, paid - credited))
+      if (e.entryBasePaise != null) excess = Math.max(0, e.entryBasePaise - coveredCredits - fresh)
+      if (fresh > 0) advances.push({ idx, left: fresh })
+    }
     const periodKey = row ? thresholdPeriod(row.thresholdBasis, e.date).from : e.date.slice(0, 4)
     const prior = aggregate.get(periodKey) ?? 0
-    aggregate.set(periodKey, prior + eventBase)
-    const r: WalkResult = { ...base, eventBasePaise: eventBase, priorPaise: prior }
+    aggregate.set(periodKey, prior + fresh)
+    const r: WalkResult = { ...base, eventBasePaise: fresh, priorPaise: prior }
     results.push(r)
-    if (!row || eventBase <= 0) continue
 
-    const status = thresholdStatus(row, e.date, eventBase, prior)
-    if (status.crossed) {
-      const liable = deducted ? 0 : taxableBase(row, eventBase, prior)
-      if (liable > 0) {
-        r.eligibleBasePaise = liable
-        r.reason = e.kind === 'payment' ? 'advance' : status.reason === 'below' ? null : status.reason
+    if (row && fresh > 0) {
+      const status = thresholdStatus(row, e.date, fresh, prior)
+      if (status.crossed && !deducted) {
+        const liable = taxableBase(row, fresh, prior)
+        if (liable > 0) {
+          r.eligibleBasePaise = liable
+          r.reason = e.kind === 'payment' ? 'advance' : status.reason === 'below' ? null : status.reason
+        }
       }
       // The proviso to s.194C(5) (and the aggregate tests of ss.194H / 194J / 194-I): once the
       // aggregate exceeds the limit the payer "shall be liable to deduct" on the sums — the earlier
-      // ones too — whether or not THIS sum carries a deduction (FIG-B-1). Excess-only rows (194Q:
-      // "any sum exceeding fifty lakh rupees") never reach back.
-      if (status.reason === 'aggregate' && !row.thresholdExcessOnly && prior <= row.thresholdAnnualPaise) {
+      // ones too — whatever other test this sum trips (a bill over the single limit crosses the year
+      // too) and whether or not it carries a deduction (FIG-B-1). Excess-only rows (194Q: "any sum
+      // exceeding fifty lakh rupees") never reach back.
+      const annual = row.thresholdAnnualPaise
+      if (!row.thresholdExcessOnly && annual > 0 && prior <= annual && prior + fresh > annual) {
         for (const j of below.get(periodKey) ?? []) {
           const earlier = results[j]!
           earlier.eligibleBasePaise = earlier.eventBasePaise
@@ -364,11 +390,19 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
           if (p) { p.liable = p.remaining; p.liableOn = e.date }
         }
         below.delete(periodKey)
+      } else if (!status.crossed && !deducted) {
+        below.set(periodKey, [...(below.get(periodKey) ?? []), idx])
       }
-    } else if (!deducted) {
-      below.set(periodKey, [...(below.get(periodKey) ?? []), idx])
+      if (!deducted) pending.push({ idx, kind: e.kind, remaining: fresh, liable: r.eligibleBasePaise, liableOn: r.eligibleBasePaise > 0 ? e.date : null })
     }
-    if (!deducted) pending.push({ idx, kind: e.kind, remaining: eventBase, liable: r.eligibleBasePaise, liableOn: r.eligibleBasePaise > 0 ? e.date : null })
+    // What the deduction carries beyond its own sum covers the sums this voucher's crossing made
+    // liable first, then sums already liable (late). Never a sum still under the limit: nothing
+    // made it liable, so there is nothing to deduct on it.
+    if (excess > 0) {
+      const used = cover(excess, (p) => results[p.idx]!.crossedBy === e.voucherId, e.date, late)
+      cover(excess - used, (p) => p.liableOn != null, e.date, late)
+    }
+    if (late.length) r.lateCover = late
   }
   // Coverage by later deductions reduces what an event still needs.
   for (const p of pending) {
@@ -383,13 +417,31 @@ export function walkTdsEvents(events: readonly WalkEvent[], rowOn: (dateISO: str
 }
 
 /**
- * The earlier sums the crossing on `voucherId` made liable that no deduction covers yet — the
- * shortfall a deduction on the crossing voucher should carry (FIG-B-1: four ₹25,000 bills below
- * ₹1,00,000, the fifth crosses → ₹1,00,000 of 4 earlier sums on top of its own ₹25,000).
+ * Per crossing voucher, the earlier sums its crossing made liable that no deduction covers yet —
+ * the shortfall a deduction on that voucher carries beyond its own sum (FIG-B-1: four ₹25,000
+ * bills below ₹1,00,000, the fifth crosses → ₹1,00,000 of 4 earlier sums). An advance the
+ * crossing bill itself uses up is in the bill's own sum already, so it is not counted again.
  */
-export function crossingShortfall(results: readonly WalkResult[], voucherId: number): { basePaise: number; count: number } {
-  const earlier = results.filter((r) => r.crossedBy === voucherId && r.eligibleBasePaise > 0)
-  return { basePaise: earlier.reduce((s, r) => s + r.eligibleBasePaise, 0), count: earlier.length }
+export function crossingShortfalls(results: readonly WalkResult[]): Map<number, { basePaise: number; count: number }> {
+  const out = new Map<number, { basePaise: number; count: number }>()
+  for (const r of results) {
+    if (r.crossedBy == null || r.eligibleBasePaise <= 0) continue
+    const s = out.get(r.crossedBy) ?? { basePaise: 0, count: 0 }
+    out.set(r.crossedBy, { basePaise: s.basePaise + r.eligibleBasePaise, count: s.count + 1 })
+  }
+  if (out.size === 0) return out
+  const byId = new Map(results.map((r) => [r.voucherId, r]))
+  for (const [id, s] of out) {
+    for (const c of byId.get(id)?.consumedFrom ?? []) {
+      const a = byId.get(c.voucherId)
+      if (a?.crossedBy !== id) continue
+      const overlap = Math.min(c.basePaise, a.eligibleBasePaise)
+      s.basePaise -= overlap
+      if (overlap === a.eligibleBasePaise) s.count -= 1
+    }
+    if (s.basePaise <= 0) out.delete(id)
+  }
+  return out
 }
 
 /** Aggregate of the events before `date` (same-date events with a lower voucher id count too),

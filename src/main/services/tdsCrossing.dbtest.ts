@@ -16,7 +16,7 @@ import { ledgerInputSchema } from '@shared/schemas'
 import { createLedger } from './masters'
 import { saveVoucher } from './vouchers'
 import { previewIntent } from './simplePost'
-import { form26qData, tdsEligible } from './tdsWorkbench'
+import { form26qData, tdsDeducted, tdsEligible } from './tdsWorkbench'
 import { tdsSuggestion } from './tds'
 import { previewPaymentRun } from './payables'
 
@@ -48,16 +48,16 @@ function setup() {
   const work = ledger(db, 'Contract work', 'Indirect Expenses')
   const none = { narration: null, reference: null, billRefs: [], inventory: [] }
   const tds = (base: number, amount: number) => ({ sectionId: sec(db, '194C'), baseAmount: base, tdsAmount: amount, isManual: false, autoPayable: true })
-  /** A ₹25,000 bill (journal: Dr work / Cr contractor), less `deduct` (base, amount) if given. */
-  const bill = (date: string, deduct?: [number, number]) => saveVoucher(db, {
+  /** A bill (journal: Dr work / Cr contractor) of `amount` (₹25,000 unless given), less `deduct` (base, TDS). */
+  const bill = (date: string, deduct?: [number, number], amount = 25_000_00) => saveVoucher(db, {
     ...none, voucherTypeId: vt(db, 'journal'), date, partyLedgerId: party,
-    lines: [{ ledgerId: work, drCr: 'dr', amount: 25_000_00 }, { ledgerId: party, drCr: 'cr', amount: 25_000_00 - (deduct?.[1] ?? 0) }],
+    lines: [{ ledgerId: work, drCr: 'dr', amount }, { ledgerId: party, drCr: 'cr', amount: amount - (deduct?.[1] ?? 0) }],
     tds: deduct ? tds(...deduct) : null
   })
-  /** A ₹25,000 payment ahead of any bill (Dr contractor / Cr Cash less the TDS). */
-  const pay = (date: string, deduct?: [number, number]) => saveVoucher(db, {
+  /** A payment of `amount` (₹25,000 unless given): Dr contractor / Cr Cash less the TDS. */
+  const pay = (date: string, deduct?: [number, number], amount = 25_000_00) => saveVoucher(db, {
     ...none, voucherTypeId: vt(db, 'payment'), date, partyLedgerId: party,
-    lines: [{ ledgerId: party, drCr: 'dr', amount: 25_000_00 }, { ledgerId: lid(db, 'Cash'), drCr: 'cr', amount: 25_000_00 - (deduct?.[1] ?? 0) }],
+    lines: [{ ledgerId: party, drCr: 'dr', amount }, { ledgerId: lid(db, 'Cash'), drCr: 'cr', amount: amount - (deduct?.[1] ?? 0) }],
     tds: deduct ? tds(...deduct) : null
   })
   const eligible = () => tdsEligible(db, '2025-04-01', '2026-03-31').filter((r) => r.partyLedgerId === party)
@@ -152,5 +152,53 @@ describe('FIG-B-1 — payments ahead of the bills (advances)', () => {
     // ₹25,000 advance + ₹1,00,000 earlier = ₹1,25,000 base, ₹1,250 TDS; the bank pays ₹23,750.
     expect(preview.lines[0]!.tds).toMatchObject({ code: '194C', base: 1_25_000_00, amount: 1_250_00 })
     expect(preview.lines[0]!.bankAmount).toBe(23_750_00)
+  })
+})
+
+describe('review of #289', () => {
+  it('(1) a ₹40,000 crossing bill — over the ₹30,000 single limit — carries the four earlier bills: ₹1,400', () => {
+    const { db, party, bill } = setup()
+    for (const d of FIVE.slice(0, 4)) bill(d)
+    // ₹40,000 + 4 × ₹25,000 = ₹1,40,000 × 1 % = ₹1,400. Its own test is the single limit.
+    const s = tdsSuggestion(db, party, 40_000_00, '2025-09-01', { voucherKind: 'journal' })
+    expect(s).toMatchObject({ basePaise: 1_40_000_00, tdsPaise: 1_400_00, crossing: { earlierBasePaise: 1_00_000_00, earlierCount: 4 } })
+    expect(s!.threshold.reason).toBe('single')
+  })
+
+  it('(2) a deducted bill that uses up an advance counts it once: nothing crosses, nothing listed', () => {
+    const { bill, pay, eligible } = setup()
+    // Apr ₹25,000 + May ₹25,000 billed; June pays ₹75,000 (₹25,000 ahead); July bills ₹30,000 deducted
+    // on ₹30,000 (₹300). The year: ₹25,000 + ₹25,000 + ₹25,000 + ₹5,000 = ₹80,000 — under ₹1,00,000.
+    bill('2025-04-10'); bill('2025-05-10')
+    pay('2025-06-10', undefined, 75_000_00)
+    bill('2025-07-10', [30_000_00, 300_00], 30_000_00)
+    expect(eligible()).toEqual([])
+  })
+
+  it('(2) the suggestion does not count an advance the crossing bill uses up twice: ₹1,100', () => {
+    const { db, party, bill, pay } = setup()
+    // Bills ₹30,000 + ₹30,000 + ₹20,000 (open); July pays ₹1,00,000 (₹20,000 ahead). August's ₹30,000
+    // bill: ₹20,000 was paid ahead, ₹10,000 is new → ₹1,10,000 crosses. Its own ₹30,000 (the advance
+    // inside) + the three bills ₹80,000 = ₹1,10,000 × 1 % = ₹1,100 (not ₹1,30,000 / ₹1,300).
+    bill('2025-04-10', undefined, 30_000_00); bill('2025-05-10', undefined, 30_000_00); bill('2025-06-10', undefined, 20_000_00)
+    pay('2025-07-10', undefined, 1_00_000_00)
+    const s = tdsSuggestion(db, party, 30_000_00, '2025-08-10', { voucherKind: 'journal' })
+    expect(s).toMatchObject({ basePaise: 1_10_000_00, tdsPaise: 1_100_00, crossing: { earlierBasePaise: 80_000_00, earlierCount: 3 } })
+  })
+
+  it('(3) a bill deduction that also covers a bill liable months before shows its late-deduction interest', () => {
+    const { db, party, bill, eligible } = setup()
+    // April ₹40,000 (liable at once: over ₹30,000), not deducted; May–July ₹20,000 each (₹1,00,000).
+    bill('2025-04-10', undefined, 40_000_00)
+    for (const d of ['2025-05-10', '2025-06-10', '2025-07-10']) bill(d, undefined, 20_000_00)
+    // August ₹20,000 crosses: the suggestion = ₹20,000 + May–July ₹60,000 = ₹80,000 (April is not
+    // this crossing's — it stays listed on its own).
+    expect(tdsSuggestion(db, party, 20_000_00, '2025-08-10', { voucherKind: 'journal' })).toMatchObject({ basePaise: 80_000_00, tdsPaise: 800_00 })
+    // Deducted on ₹1,20,000 (April too, ₹1,200): nothing left on Eligible; April's ₹400 of it was
+    // deductible on 10 April — 10 Apr to 10 Aug = April…August, 5 months or part × 1 % = ₹20.
+    const aug = bill('2025-08-10', [1_20_000_00, 1_200_00], 20_000_00)
+    expect(eligible()).toEqual([])
+    const row = tdsDeducted(db, '2025-04-01', '2026-03-31').find((r) => r.voucherId === aug.id)
+    expect(row?.lateDeduction).toMatchObject({ deductibleOn: '2025-04-10', months: 5, interestPaise: 20_00 })
   })
 })

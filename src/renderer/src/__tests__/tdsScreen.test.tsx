@@ -175,7 +175,7 @@ describe('TDS screen', () => {
     expect(cell.textContent).toBe('16.00')
     expect(cell.getAttribute('title')).toMatch(/2 month\(s\) × 1% — s\.201\(1A\)\(i\), indicative, not posted/)
     expect(screen.queryByTestId('tds-late-interest-90')).toBeNull()
-    expect(screen.getByTestId('tds-late-interest-note').textContent).toMatch(/1 deduction was made on payment .* ₹16\.00\. Income-tax Act 1961 s\.201\(1A\)\(i\)/)
+    expect(screen.getByTestId('tds-late-interest-note').textContent).toMatch(/1 deduction covered earlier sums already liable before it .* ₹16\.00\. Income-tax Act 1961 s\.201\(1A\)\(i\)/)
   })
 
   it('Challans: lists challans with interest and creates one from a payment voucher', async () => {

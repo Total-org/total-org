@@ -15,7 +15,7 @@ import { slabbedTcs, tcsSlabOn, TCS_NO_PAN_MULTIPLE, validateTcsEntries, type Sl
 import { KIND, type WithholdingKind } from './withholdingKind'
 import type { PostingError } from '@shared/posting'
 import { fyFromStartYear, fyOf, todayISO } from '@shared/dates'
-import { crossingShortfall, priorAggregate, undeductedCreditsBefore } from '@shared/tdsEligibility'
+import { crossingShortfalls, priorAggregate, undeductedCreditsBefore } from '@shared/tdsEligibility'
 import { buildEventGroups, ledgerTdsFacts, loadTdsVouchers, partySectionWalk } from './tdsEvents'
 // Function-body use only (the tds <-> tcsEvents cycle is harmless).
 import { tcsPartySectionWalk } from './tcsEvents'
@@ -539,19 +539,21 @@ export function tdsSuggestion(
   // FIG-B-1: walk the year with this voucher as one more event — the earlier sums its crossing
   // makes liable are deducted with it (the crossing voucher carries the shortfall).
   const candidateId = opts.excludeVoucherId ?? Number.MAX_SAFE_INTEGER
-  const withCandidate = partySectionWalk(db, partyLedgerId, sectionId, fy.from, dateISO, opts.excludeVoucherId, {
+  const walk = partySectionWalk(db, partyLedgerId, sectionId, fy.from, dateISO, opts.excludeVoucherId, {
     voucherId: candidateId, date: dateISO, kind: isPayment ? 'payment' : 'credit', basePaise, grossPaise: basePaise, entryBasePaise: null, exempt: false
   })
-  const shortfall = crossingShortfall(withCandidate.results, candidateId)
+  const shortfall = crossingShortfalls(walk.results).get(candidateId) ?? { basePaise: 0, count: 0 }
   if (isPayment) {
-    const { results, group } = partySectionWalk(db, partyLedgerId, sectionId, fy.from, dateISO, opts.excludeVoucherId)
-    const undeducted = undeductedCreditsBefore(results, dateISO, opts.excludeVoucherId)
+    // The bills liable and undeducted before this payment: the same walk without this payment and
+    // the sums its own crossing makes liable (those are the shortfall).
+    const before = walk.results.filter((r) => r.voucherId !== candidateId && r.crossedBy !== candidateId)
+    const undeducted = undeductedCreditsBefore(before, dateISO)
     let credited = 0
     let paid = 0
-    for (const e of group?.events ?? []) {
-      if (e.exempt) continue
+    for (const e of walk.group?.events ?? []) {
+      if (e.exempt || e.voucherId === candidateId) continue
       if (e.kind === 'credit') credited += e.grossPaise
-      else paid += e.grossPaise
+      else if (e.kind === 'payment') paid += e.grossPaise
     }
     const advance = Math.min(basePaise, Math.max(0, paid + basePaise - credited))
     base = Math.min(basePaise, undeducted + advance)

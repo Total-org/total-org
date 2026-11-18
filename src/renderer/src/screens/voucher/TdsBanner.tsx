@@ -56,7 +56,7 @@ export function tdsReasonText(s: TdsSuggestion): string {
   const period = t.basis === 'month' ? 'month' : 'year'
   switch (t.reason) {
     case 'single':
-      return `Single payment above ${rs(t.singlePaise)}`
+      return `Single payment above ${rs(t.singlePaise)}${s.crossing ? ` — and the ${period}'s aggregate crosses ${rs(t.aggregateLimitPaise)}, so this includes ${earlierText(s.crossing)}` : ''}`
     case 'aggregate':
       return `Aggregate ${rs(t.priorPaise + (s.basePaise ?? 0) - earlier)} this ${period} crosses ${rs(t.aggregateLimitPaise)}${s.crossing ? ` — includes ${earlierText(s.crossing)}` : ''}`
     case 'none':

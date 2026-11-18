@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@t
 import { useState } from 'react'
 import type { TdsDeductionState } from '@shared/voucherEdit'
 import type { TdsSuggestion } from '../lib/client'
-import { appliedBaseFits, useTdsDeduction, type TdsCandidate } from '../screens/voucher/useTdsDeduction'
+import { appliedBaseCheck, useTdsDeduction, type TdsCandidate } from '../screens/voucher/useTdsDeduction'
 import { TdsBanner, tdsReasonText } from '../screens/voucher/TdsBanner'
 import { DialogHost } from '../components/dialogs'
 
@@ -76,15 +76,18 @@ describe('tdsReasonText', () => {
   })
 })
 
-describe('appliedBaseFits (FIG-B-1)', () => {
-  it('an applied base is the voucher\'s own, or its own plus the earlier sums the suggestion counts', () => {
-    const crossing = { crossing: { earlierBasePaise: 10000000, earlierCount: 4 } }
-    expect(appliedBaseFits(2500000, 2500000, null)).toBe(true)
-    expect(appliedBaseFits(2500000, 2500000, crossing)).toBe(true)
-    expect(appliedBaseFits(12500000, 2500000, crossing)).toBe(true)
-    // The amounts changed since (own ₹26,000): neither ₹25,000 nor ₹1,25,000 fits any more.
-    expect(appliedBaseFits(12500000, 2600000, crossing)).toBe(false)
-    expect(appliedBaseFits(12500000, 2500000, null)).toBe(false)
+describe('appliedBaseCheck (FIG-B-1, review of #289)', () => {
+  it('an applied base is the voucher\'s own, or its own plus the earlier sums the answered suggestion counts', () => {
+    const answered = { suggestion: { crossing: { earlierBasePaise: 10000000, earlierCount: 4 } }, checking: false }
+    expect(appliedBaseCheck(2500000, 2500000, { suggestion: null, checking: true })).toBe('fits')
+    expect(appliedBaseCheck(12500000, 2500000, answered)).toBe('fits')
+    // An edited crossing bill before the first answer: not stale yet — checking.
+    expect(appliedBaseCheck(12500000, 2500000, { suggestion: null, checking: true })).toBe('checking')
+    // The answer came back without the earlier sums (or none): stale.
+    expect(appliedBaseCheck(12500000, 2500000, { suggestion: null, checking: false })).toBe('stale')
+    // The amounts changed since (own ₹26,000): stale once answered; a base below the own one at once.
+    expect(appliedBaseCheck(12500000, 2600000, answered)).toBe('stale')
+    expect(appliedBaseCheck(2500000, 2600000, { suggestion: null, checking: true })).toBe('stale')
   })
 })
 
@@ -101,6 +104,15 @@ describe('useTdsDeduction (WP 3.2)', () => {
       result.current.apply()
     })
     expect(result.current.tds).toMatchObject({ sectionId: 4, baseAmount: 4000000, tdsAmount: 80000, isManual: false })
+  })
+
+  it('checking: true until the suggestion for the current candidate answers, again after the base changes', async () => {
+    const { result, rerender } = renderHook(({ base }) => useHarness({ partyLedgerId: 12, base }), { initialProps: { base: 2500000 } })
+    expect(result.current.checking).toBe(true)
+    await waitFor(() => expect(result.current.checking).toBe(false))
+    rerender({ base: 2600000 })
+    expect(result.current.checking).toBe(true)
+    await waitFor(() => expect(result.current.checking).toBe(false))
   })
 
   it('applyManual records a manual deduction', async () => {
