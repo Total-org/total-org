@@ -118,6 +118,53 @@ describe('Lock and safety', () => {
     await waitFor(() => expect(screen.getByTestId('security-needs-people').textContent).toContain('privacy screen'))
     expect(screen.getByTestId('select-autolock')).toBeTruthy()
     expect(screen.getByTestId('btn-lock-now')).toBeTruthy()
+    expect(screen.queryByTestId('security-lock-passphrase')).toBeNull()
+  })
+
+  it('1.0 readiness SEC2-6: with the passphrase lock on, it says only the passphrase opens the books after a screen lock — before it happens', async () => {
+    view = { ...view, usersExist: false, encrypted: true, keyFile: true, remembered: true }
+    renderUi(<SecuritySettings />)
+    await waitFor(() => expect(screen.getByTestId('security-lock-passphrase')).toBeTruthy())
+    const said = screen.getByTestId('security-lock-passphrase').textContent ?? ''
+    for (const words of ['only this business’s passphrase opens the books', 'restarting Total asks for it too', 'can’t recover a forgotten passphrase', 'every backup is locked with it', 'written down']) {
+      expect(said).toContain(words)
+    }
+    expect(screen.queryByTestId('security-needs-people')).toBeNull()
+    expect(screen.getByTestId('security-remember-text').textContent).toContain('only the passphrase opens them again')
+    expect(screen.getByTestId('security-remember-text').textContent).not.toContain('still works as before')
+    expect(bannedWordsIn(visible())).toEqual([])
+  })
+})
+
+describe('Users: an owner’s new PIN has 6 digits (1.0 readiness SEC-13)', () => {
+  const pinBox = (label: RegExp): HTMLInputElement => screen.getByLabelText(label) as HTMLInputElement
+  it('adding an owner with 4 digits is refused on the form; an accountant keeps 4; making one an owner asks for a new PIN', async () => {
+    const { UsersSection } = await import('../screens/settings/UsersSection')
+    act(() => useSession.setState({ user: { id: 1, name: 'Owner', role: 'owner' } }))
+    renderUi(<UsersSection />)
+    await waitFor(() => expect(screen.getByText('Asha')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('btn-users-add'))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Meera' } })
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'owner' } })
+    fireEvent.change(pinBox(/^PIN \(6-12 digits\)/), { target: { value: '1234' } })
+    fireEvent.change(pinBox(/^Confirm PIN/), { target: { value: '1234' } })
+    fireEvent.click(screen.getByTestId('btn-users-save'))
+    await waitFor(() => expect(visible()).toContain('PIN must be 6-12 digits'))
+    expect(calls('users:save')).toEqual([])
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'accountant' } })
+    expect(pinBox(/^PIN \(4-12 digits\)/).value).toBe('1234')
+    fireEvent.click(screen.getByTestId('btn-users-save'))
+    await waitFor(() => expect(calls('users:save')).toEqual([{ data: { name: 'Meera', role: 'accountant', active: true, pin: '1234' } }]))
+    // Asha (an accountant) made an owner: the PIN is asked, 6 digits.
+    fireEvent.click(screen.getAllByText('Edit')[1]!)
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'owner' } })
+    fireEvent.click(screen.getByTestId('btn-users-save'))
+    await waitFor(() => expect(visible()).toContain('Give a new PIN of at least 6 digits to make this person an owner'))
+    expect(calls('users:save')).toHaveLength(1)
+    fireEvent.change(pinBox(/^New PIN \(6-12 digits\)/), { target: { value: '246810' } })
+    fireEvent.change(pinBox(/^Confirm PIN/), { target: { value: '246810' } })
+    fireEvent.click(screen.getByTestId('btn-users-save'))
+    await waitFor(() => expect(calls('users:save')[1]).toEqual({ data: { name: 'Asha', role: 'owner', active: true, pin: '246810' }, id: 2 }))
   })
 })
 
@@ -344,6 +391,22 @@ describe('remember on this computer', () => {
     stale = true
     fireEvent.click(screen.getByText('Locked Co'))
     await waitFor(() => expect(screen.getByTestId('passphrase-notice').textContent).toContain('no longer opens'))
+  })
+
+  it('1.0 readiness SEC2-6: a business whose screen was locked brings the prompt with a note, though this computer remembers it', async () => {
+    const { CompanySelect } = await import('../screens/CompanySelect')
+    invoke.mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+      if (channel === 'company:list') return { ok: true, data: { companies: [{ slug: 'locked-co', name: 'Locked Co', stateCode: '27', gstin: null, lastOpenedAt: null }] } }
+      if (channel === 'company:remembered') return { ok: true, data: ['locked-co'] }
+      if (channel === 'company:open' && !payload.passphrase) return { ok: false, error: 'locked', code: 'screen_locked_passphrase', field: 'passphrase' }
+      return { ok: true, data: null }
+    })
+    renderUi(<CompanySelect />)
+    await waitFor(() => expect(screen.getByText('Locked Co')).toBeTruthy())
+    fireEvent.click(screen.getByText('Locked Co'))
+    await waitFor(() => expect(screen.getByTestId('passphrase-prompt')).toBeTruthy())
+    expect(screen.getByTestId('passphrase-notice').textContent).toContain('The screen of this business was locked')
+    expect(bannedWordsIn(visible())).toEqual([])
   })
 
   it('Lock and safety: "Remembered on this computer" with Forget (owner); not remembered says how', async () => {

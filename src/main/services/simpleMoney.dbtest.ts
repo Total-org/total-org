@@ -760,7 +760,7 @@ describe('refusals leave no trace', () => {
     }
     const { slug } = await ok<{ slug: string }>('company:create', { name: 'Viewer Money Co', stateCode: '27', gstin: null, gstRegistrationType: 'unregistered', address: '', booksFrom: 2025, email: null, phone: null, pan: null, tan: null })
     await ok('company:open', { slug })
-    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '1111' } })
+    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '111111' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '2222' } })
     await ok('auth:logout')
     await ok('auth:login', { userId: viewer.id, pin: '2222' })

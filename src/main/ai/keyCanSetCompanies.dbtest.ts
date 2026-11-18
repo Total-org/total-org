@@ -54,9 +54,9 @@ describe('ai:key:canSet on real companies', () => {
     expect(await ok('ai:key:canSet')).toEqual({ allowed: true, reason: 'needs_confirmation' })
 
     await ok('company:open', { slug: team.slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const clerk = await ok<{ id: number }>('users:save', { data: { name: 'Clerk', pin: '2222', role: 'accountant', active: true } })
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect(await ok('ai:key:canSet')).toEqual({ allowed: true, reason: 'ok' })
     await ok('auth:login', { userId: clerk.id, pin: '2222' })
     expect(await ok('ai:key:canSet')).toEqual({ allowed: false, reason: 'owner_only' })

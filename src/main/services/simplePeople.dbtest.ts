@@ -325,7 +325,7 @@ describe('roles', () => {
     const groups = await ok<{ id: number; name: string }[]>('master:groups:list')
     const debtors = groups.find((g) => g.name === 'Sundry Debtors')!.id
     const ramesh = await ok<{ id: number }>('master:ledgers:create', { name: 'Ramesh', groupId: debtors, openingBalance: 50_000, gstin: null, stateCode: null, address: null, taxType: null, gstRate: null, hsn: null, tdsSectionId: null, pan: null, creditDays: null, exportType: null })
-    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '1111' } })
+    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '111111' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '2222' } })
     await ok('auth:logout')
     await ok('auth:login', { userId: viewer.id, pin: '2222' })

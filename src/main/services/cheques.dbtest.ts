@@ -358,7 +358,7 @@ describe('cheque register backfill through IPC: preview accountant+, apply owner
     })
     await ok('cheques:saveBook', { data: { bankLedgerId: bank, ...BOOK } })
 
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '5150' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '515050' } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Asha', role: 'accountant', pin: '6160' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '7170' } })
 
@@ -371,7 +371,7 @@ describe('cheque register backfill through IPC: preview accountant+, apply owner
     expect((await call('cheques:backfill', { bankLedgerId: bank })).ok).toBe(false)
     expect(await ok<unknown[]>('cheques:register', { bankLedgerId: bank, includeAvailable: false })).toEqual([])
 
-    await ok('auth:login', { userId: owner.id, pin: '5150' })
+    await ok('auth:login', { userId: owner.id, pin: '515050' })
     expect(await ok<{ filled: number }>('cheques:backfill', { bankLedgerId: bank })).toMatchObject({ filled: 1 })
     expect(await ok<{ filled: number }>('cheques:backfill', { bankLedgerId: bank })).toMatchObject({ filled: 0 })
     expect((await ok<{ number: string }[]>('cheques:register', { bankLedgerId: bank, includeAvailable: false })).map((r) => r.number)).toEqual(['000457'])

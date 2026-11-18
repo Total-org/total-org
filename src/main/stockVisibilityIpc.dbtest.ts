@@ -105,7 +105,7 @@ describe('stock visibility IPC', () => {
   })
 
   it('reports are readable by a viewer', async () => {
-    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '1111' } })
+    await ok('users:save', { data: { name: 'Olive', role: 'owner', pin: '111111' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '2222' } })
     await ok('auth:logout')
     await ok('auth:login', { userId: viewer.id, pin: '2222' })

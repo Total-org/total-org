@@ -371,7 +371,7 @@ describe('simple:home (WP 8.6)', () => {
     expect(ipc.CHANNEL_ROLES.get('simple:home')).toBe('viewer')
     expect(ipc.CHANNEL_ROLES.get('simple:homeAttention')).toBe('viewer')
     await ok('company:open', { slug: demoSlug })
-    await ok('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    await ok('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Looker', pin: '3333', role: 'viewer', active: true } })
     await ok('auth:login', { userId: viewer.id, pin: '3333' })
     expect((await ok<SimpleHomeData>('simple:home', { today: TODAY })).receivables.total).toBeGreaterThan(0)

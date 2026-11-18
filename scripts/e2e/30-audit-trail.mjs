@@ -57,7 +57,7 @@ await scenario('30-audit-trail', async (h) => {
   const groups = await h.invoke('master:groups:list')
   const gid = (name) => groups.find((g) => g.name === name).id
   const rent = await h.invoke('master:ledgers:create', { name: 'Shop Rent', groupId: gid('Indirect Expenses') })
-  const owner = await h.invoke('users:save', { data: { name: 'Priya Owner', role: 'owner', pin: '1234', active: true } })
+  const owner = await h.invoke('users:save', { data: { name: 'Priya Owner', role: 'owner', pin: '123456', active: true } })
   await h.invoke('users:save', { data: { name: 'Arun Accountant', role: 'accountant', pin: '2222', active: true } })
 
   // ---------- 2. the accountant posts and edits a voucher ----------
@@ -84,7 +84,7 @@ await scenario('30-audit-trail', async (h) => {
 
   // ---------- 3. the owner bins it and keeps the trail-required flag on through the UI ----------
   await h.click('btn-lock')
-  await signIn('Priya Owner', '1234')
+  await signIn('Priya Owner', '123456')
   await h.invoke('voucher:delete', { id: saved.id })
   await h.invoke('company:lock:set', { date: `${fy}-04-30` })
 
@@ -181,7 +181,7 @@ await scenario('30-audit-trail', async (h) => {
     await h.launch()
     await h.stubDialogs({})
     await h.openCompany('Audit Trail Co')
-    await signIn('Priya Owner', '1234')
+    await signIn('Priya Owner', '123456')
     await h.goto('audit-trail')
     await h.page.waitForSelector('[data-testid="audit-chain-banner"][data-tone="danger"]', { timeout: 15000 })
     const banner = await h.page.textContent('[data-testid="audit-chain-banner"]')

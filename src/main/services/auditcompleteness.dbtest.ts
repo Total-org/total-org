@@ -29,10 +29,10 @@ beforeEach(() => {
 describe('login audit + persistent PIN throttle (Q1 #90/#93)', () => {
   it('audits failed attempts as login_failed (before/after null) and successes as login', () => {
     const db = freshDb()
-    const user = saveUser(db, { name: 'Priya', role: 'owner', pin: '4242' })
+    const user = saveUser(db, { name: 'Priya', role: 'owner', pin: '424242' })
 
     expect(() => login(db, user.id, '0000')).toThrow('Wrong PIN')
-    login(db, user.id, '4242')
+    login(db, user.id, '424242')
 
     const rows = auditRows(db, 'user').filter((r) => r.action === 'login_failed' || r.action === 'login')
     expect(rows).toHaveLength(2)
@@ -43,7 +43,7 @@ describe('login audit + persistent PIN throttle (Q1 #90/#93)', () => {
 
   it('persists the throttle state in meta (auth.fails.<id>) and clears it on success', () => {
     const db = freshDb()
-    const user = saveUser(db, { name: 'Priya', role: 'owner', pin: '4242' })
+    const user = saveUser(db, { name: 'Priya', role: 'owner', pin: '424242' })
     const metaKey = `auth.fails.${user.id}`
     const readMeta = (): { fails: number; until: number } | null => {
       const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(metaKey) as { value: string } | undefined
@@ -61,11 +61,11 @@ describe('login audit + persistent PIN throttle (Q1 #90/#93)', () => {
 
     // The lockout lives in the DB, not process memory — a "restarted app" (same DB, fresh module
     // state is irrelevant since there is no module state anymore) still refuses the right PIN.
-    expect(() => login(db, user.id, '4242')).toThrow('Too many attempts — wait 30 seconds')
+    expect(() => login(db, user.id, '424242')).toThrow('Too many attempts — wait 30 seconds')
 
     // Simulate the lockout window elapsing, then a successful login clears the meta row.
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run(JSON.stringify({ fails: 5, until: Date.now() - 1000 }), metaKey)
-    login(db, user.id, '4242')
+    login(db, user.id, '424242')
     expect(readMeta()).toBeNull()
   })
 })

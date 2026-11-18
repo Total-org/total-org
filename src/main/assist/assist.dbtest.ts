@@ -523,7 +523,7 @@ describe('Ask Total on hand-worked books', () => {
   it('a viewer can ask (entries come back as not recordable) but cannot draft', async () => {
     expect(ipc.CHANNEL_ROLES.get('assist:ask')).toBe('viewer')
     expect(ipc.CHANNEL_ROLES.get('assist:draft')).toBe('accountant')
-    await ok('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    await ok('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Looker', pin: '3333', role: 'viewer', active: true } })
     await ok('auth:login', { userId: viewer.id, pin: '3333' })
     const before = count('SELECT COUNT(*) AS n FROM ai_drafts')

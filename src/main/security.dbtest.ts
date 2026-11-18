@@ -383,7 +383,7 @@ describe('remember on this computer (opt-in, the data key in the secret store)',
 
 describe('capability flags (finer-grained roles)', () => {
   let ids: { owner: number; acct: number; viewer: number }
-  const PIN = { owner: '1111', acct: '2222', viewer: '3333' }
+  const PIN = { owner: '111111', acct: '2222', viewer: '3333' }
   const login = (id: number, pin: string): Promise<unknown> => ok('auth:login', { userId: id, pin })
 
   it('defaults = today: an accountant posts, a viewer does not; flags are owner-only and audited', async () => {

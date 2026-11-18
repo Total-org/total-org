@@ -18,7 +18,7 @@ await scenario('10-roles-lock', async (h) => {
 
   // Bootstrap: the very first user is created with no session (zero-users gate) and comes
   // back auto-signed-in as themselves.
-  const owner = await h.invoke('users:save', { data: { name: 'Priya Owner', role: 'owner', pin: '1234', active: true } })
+  const owner = await h.invoke('users:save', { data: { name: 'Priya Owner', role: 'owner', pin: '123456', active: true } })
   assert(typeof owner.id === 'number', 'bootstrap owner created')
   const current = await h.invoke('auth:current')
   assertEq(current?.role, 'owner', 'bootstrap owner is auto-signed-in')
@@ -43,7 +43,7 @@ await scenario('10-roles-lock', async (h) => {
   await h.shot('02-wrong-pin')
 
   // Right PIN unlocks to the Gateway.
-  await h.fill('input-pin', '1234')
+  await h.fill('input-pin', '123456')
   await h.click('btn-unlock')
   await h.waitScreen('gateway')
   await h.shot('03-unlocked')
@@ -54,7 +54,7 @@ await scenario('10-roles-lock', async (h) => {
   await h.waitLockUser('Priya Owner')
   await h.shot('04-relocked')
   await h.clickText('Priya Owner')
-  await h.fill('input-pin', '1234')
+  await h.fill('input-pin', '123456')
   await h.click('btn-unlock')
   await h.waitScreen('gateway')
 
@@ -90,6 +90,6 @@ await scenario('10-roles-lock', async (h) => {
   // Owner can.
   await h.invoke('auth:logout')
   const ownerRow = users.find((u) => u.name === 'Priya Owner')
-  await h.invoke('auth:login', { userId: ownerRow.id, pin: '1234' })
+  await h.invoke('auth:login', { userId: ownerRow.id, pin: '123456' })
   assertEq((await h.invoke('users:list')).length, 3, 'owner lists users again')
 })

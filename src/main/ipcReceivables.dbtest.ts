@@ -87,14 +87,14 @@ describe('receivables IPC', () => {
       name: 'Held Party', groupId: groups.find((g) => g.name === 'Sundry Debtors')!.id, openingBalance: 0, gstin: null, stateCode: null, address: null,
       taxType: null, gstRate: null, hsn: null, tdsSectionId: null, pan: null, creditDays: null, exportType: null
     })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '1111', role: 'owner', active: true } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', pin: '111111', role: 'owner', active: true } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Clerk', pin: '2222', role: 'accountant', active: true } })
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     const denied = await call('receivables:setHold', { ledgerId: debtor.id, hold: true, reason: 'Overdue' })
     expect(denied.ok).toBe(false)
     expect(denied.error).toMatch(/permission/)
     await ok('auth:logout')
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     await ok('receivables:setHold', { ledgerId: debtor.id, hold: true, reason: 'Overdue' })
 
     const escape = await call('receivables:reveal', { path: join(DATA_DIR, 'companies', slug, 'exports', '..', 'company.db') })

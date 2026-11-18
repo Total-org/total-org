@@ -87,7 +87,7 @@ describe('the session lock gates every channel', () => {
   it('after ⌘L every registered gated channel answers session_locked (the gate runs before the payload is read)', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('Gate Co'))
     await ok('company:open', { slug })
-    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '1111' } })
+    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '111111' } })
     await ok('session:lock')
     const refused: string[] = []
     const leaked: string[] = []
@@ -109,7 +109,7 @@ describe('the session lock gates every channel', () => {
       'company:createDemo', 'company:current', 'company:delete', 'company:forgetRemembered', 'company:list', 'company:open', 'company:remembered',
       'log:renderer', 'log:reveal', 'session:unlock'
     ])
-    await ok('auth:login', { userId: 1, pin: '1111' })
+    await ok('auth:login', { userId: 1, pin: '111111' })
     expect((await call('security:get')).ok).toBe(true)
   })
 })
@@ -146,7 +146,7 @@ describe('deleting a business locked with a passphrase', () => {
   it('asks for the passphrase, then (it has users) for the owner PIN; a refused delete leaves it locked', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('Delete Me Co'))
     await ok('company:open', { slug })
-    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '4321' } })
+    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '432121' } })
     await ok('security:passphrase:on', { passphrase: PASS, confirm: PASS })
     await ok('company:close')
     const name = 'Delete Me Co'
@@ -158,7 +158,7 @@ describe('deleting a business locked with a passphrase', () => {
     expect(existsSync(dbFile(slug))).toBe(true)
     // the refused delete did not leave the books unlocked
     expect((await call('company:open', { slug })).code).toBe('passphrase_required')
-    await ok('company:delete', { slug, confirmName: name, passphrase: PASS, pin: '4321' })
+    await ok('company:delete', { slug, confirmName: name, passphrase: PASS, pin: '432121' })
     expect(existsSync(dir(slug))).toBe(false)
   })
 
@@ -175,7 +175,7 @@ describe('deleting a business locked with a passphrase', () => {
 
 describe('remember on this computer: only an owner keeps it', () => {
   const PASS = 'saffron ledger 404'
-  const PIN = { owner: '5150', acct: '6160', viewer: '7170' }
+  const PIN = { owner: '515050', acct: '6160', viewer: '7170' }
   let slug: string
   let ids: { owner: number; acct: number; viewer: number }
   const remembered = async (): Promise<string[]> => ok<string[]>('company:remembered')
@@ -276,7 +276,7 @@ describe('taking the lock off', () => {
 })
 
 describe('canSeeProfit: false covers every way to the profit (PR #112 follow-up)', () => {
-  const PIN = { owner: '1111', acct: '2222' }
+  const PIN = { owner: '111111', acct: '2222' }
   let ids: { owner: number; acct: number }
   const login = (id: number, pin: string): Promise<unknown> => ok('auth:login', { userId: id, pin })
   const ledgerInput = (name: string, groupId: number): Record<string, unknown> => ({
@@ -431,7 +431,7 @@ describe('canExport: false refuses every export channel (review follow-up)', () 
   it('an accountant without canExport is refused each EXPORT_CHANNELS channel before its payload is read; the statements folder included', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('Export Gate Co'))
     await ok('company:open', { slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '1111' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '111111' } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Esha', role: 'accountant', pin: '2222', capabilities: { canExport: false } } })
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     // every channel the gate maps to canExport (ipc's own map, not a list kept here), each registered
@@ -446,12 +446,12 @@ describe('canExport: false refuses every export channel (review follow-up)', () 
     const fy = { from: '2026-04-01', to: '2027-03-31' }
     expect((await call('receivables:statementsBulk', fy)).code).toBe('not_permitted')
     // the role alone (no flag) still lets an accountant write them; the owner always
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect((await call('receivables:statementsBulk', fy)).ok).toBe(true)
     await ok('users:save', { id: acct.id, data: { name: 'Esha', role: 'accountant', capabilities: { canExport: true } } })
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     expect((await call('receivables:statementsBulk', fy)).ok).toBe(true)
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
   })
 })
 
@@ -537,17 +537,17 @@ describe('the e-invoicing switch is owner-only (review follow-up)', () => {
   it('einvoicing:set refuses an accountant; the owner sets it (audited); gst:einvoicing returns the setting to a viewer', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', { ...company('Einvoice Switch Co'), gstin: '27AAPFU0939F1ZV' })
     await ok('company:open', { slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '1111' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '111111' } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Asha', role: 'accountant', pin: '2222' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vikram', role: 'viewer', pin: '3333' } })
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     expect((await call('einvoicing:set', { enabled: true })).code).toBe('not_permitted')
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect((await call('einvoicing:set', { enabled: true, extra: 1 })).ok).toBe(false) // strict
     expect(await ok('einvoicing:set', { enabled: true })).toEqual({ enabled: true })
     await ok('auth:login', { userId: viewer.id, pin: '3333' })
     expect(await ok('gst:einvoicing')).toEqual({ enabled: true })
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
   })
 })
 
@@ -555,13 +555,13 @@ describe('the e-invoice business profile (to-do §4)', () => {
   it('gstProfile:set takes the turnover from the owner only (Zod-strict patch, audited); gst:einvoiceStatus answers a viewer', async () => {
     const { slug } = await ok<{ slug: string }>('company:create', { ...company('Einvoice Profile Co'), gstin: '27AAPFU0939F1ZV' })
     await ok('company:open', { slug })
-    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '1111' } })
+    const owner = await ok<{ id: number }>('users:save', { data: { name: 'Owner', role: 'owner', pin: '111111' } })
     const acct = await ok<{ id: number }>('users:save', { data: { name: 'Asha', role: 'accountant', pin: '2222' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vikram', role: 'viewer', pin: '3333' } })
     const turnover = { years: [{ fy: '2024-25', paise: 6_000_000_000 }], otherGstins: true }
     await ok('auth:login', { userId: acct.id, pin: '2222' })
     expect((await call('gstProfile:set', { turnover })).code).toBe('not_permitted')
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
     expect((await call('gstProfile:set', { turnover: { ...turnover, extra: 1 } })).ok).toBe(false) // strict
     expect((await call('gstProfile:set', { turnover: { years: [{ fy: '2024-25', paise: 1.5 }] } })).ok).toBe(false)
     expect(await ok('gstProfile:set', { turnover })).toEqual({ filing: 'monthly', turnover })
@@ -570,7 +570,7 @@ describe('the e-invoice business profile (to-do §4)', () => {
     const status = await ok<{ enabled: boolean; turnOn: { since: string } | null }>('gst:einvoiceStatus')
     expect(status.enabled).toBe(false) // never switched on by the profile
     expect(status.turnOn?.since).toBe('2025-04-01')
-    await ok('auth:login', { userId: owner.id, pin: '1111' })
+    await ok('auth:login', { userId: owner.id, pin: '111111' })
   })
 })
 
@@ -580,7 +580,7 @@ describe('attachments of a locked business', () => {
     const { slug } = await ok<{ slug: string }>('company:create', company('Files Review Co'))
     await ok('company:open', { slug })
     await ok('security:passphrase:on', { passphrase: PASS, confirm: PASS })
-    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '1212' } })
+    await ok('users:save', { data: { name: 'Owner', role: 'owner', pin: '121212' } })
     const viewer = await ok<{ id: number }>('users:save', { data: { name: 'Vik', role: 'viewer', pin: '3434' } })
     const cash = (await ok<{ id: number; name: string }[]>('master:ledgers:list')).find((l) => l.name === 'Cash')!
     const src = mkdtempSync(join(tmpdir(), 'total-review-att-'))
