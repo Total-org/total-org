@@ -28,11 +28,14 @@ composition dealer can't claim it). This goes by the month, not today: a busines
 regular to composition (or whose registration was cancelled) still opens, checks and exports the
 returns of its regular months — before, today's composition blocked them, and a cancelled
 registration hid the GST screens. A month the registration changed in counts as a regular month
-(s.39(1) "or part thereof"); its bills of the other days are listed with a "Check with your CA"
-warning. **An advance from a customer with no GST rate is now pointed out** (FIG-G-2): GSTR-1 Table
-11A leaves such an advance out, and the GSTR-1 checks and the simple Taxes screen (step 1) now say
+(s.39(1) "or part thereof"), and a quarterly filer's month goes by its quarter; the bills of the
+other days are listed with a "Check with your CA" warning. A month before a new registration
+says when the registration took effect. **An advance from a customer with no GST rate is now
+pointed out** (FIG-G-2): GSTR-1 Table 11A leaves such an advance out, and the GSTR-1 checks and the simple Taxes screen (step 1) now say
 so and send you to your CA — Total does not add it by itself. No figure in any return or report
 changes. Marked "Check with your CA" (Q60, Q61).
+
+## [0.12.6] - 2026-11-18
 
 **A bill uses the advance the customer already paid** (#288, readiness review FIG-G-1). When a
 customer pays ahead (Money in → "Is this for a bill you haven't made yet?" → Yes), their next bill
