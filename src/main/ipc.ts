@@ -715,7 +715,13 @@ export function registerIpc(): void {
     const opened = await openCompanyNow(slug)
     if (screenLocked && current?.slug === slug) {
       const cleared = clearStoredScreenLock(slug)
-      writeAudit(current.db, 'user', 0, 'login', null, { lock: 'stored', noUsers: !current.usersExist, passphrase: true, cleared })
+      // The books are open by now: an audit row that can't be written is logged (as lockPrivacy's
+      // own row is), never turned into a failed open of books that did open.
+      try {
+        writeAudit(current.db, 'user', 0, 'login', null, { lock: 'stored', noUsers: !current.usersExist, passphrase: true, cleared })
+      } catch (err) {
+        log('warn', 'screen-lock-open-audit-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+      }
     }
     // "Remember on this computer" (ticked at the prompt, the passphrase just proved right): stored
     // at once in a business without people (whoever opens it is its owner), else once an owner

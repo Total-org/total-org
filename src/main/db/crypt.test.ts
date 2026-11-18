@@ -1,11 +1,23 @@
 // Plain vitest (pure Node crypto/fs — no electron, no better-sqlite3). Matches src/main/**/*.test.ts
 // so it runs under `npm test`, not `npm run test:db`.
-import { describe, it, expect } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync, statSync, truncateSync } from 'fs'
+import { describe, it, expect, vi } from 'vitest'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, statSync, truncateSync, type WriteStream } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { createCipheriv, randomBytes, scryptSync } from 'crypto'
 import { encryptFile, decryptFile, MAGIC } from './crypt'
+
+// Every output stream crypt.ts opens, to check what a refused run leaves open (behaviour unchanged).
+const written = vi.hoisted(() => ({ streams: [] as WriteStream[] }))
+vi.mock('fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('fs')>()
+  const createWriteStream = ((...args: Parameters<typeof fs.createWriteStream>) => {
+    const stream = fs.createWriteStream(...args)
+    written.streams.push(stream)
+    return stream
+  }) as typeof fs.createWriteStream
+  return { ...fs, default: { ...fs, createWriteStream }, createWriteStream }
+})
 
 function tmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'total-crypt-'))
@@ -56,6 +68,22 @@ describe('encryptFile / decryptFile', () => {
     await expect(decryptFile(encPath, outPath, 'wrong-passphrase')).rejects.toThrow(
       'Wrong passphrase or corrupted file'
     )
+  })
+
+  it('a refused decrypt has closed the decrypted file and removed it when it rejects (1.0 readiness SEC3-2)', async () => {
+    // The import removes its folder right after the refusal: a file still open there (Windows
+    // refuses to remove it) or a removal still pending (it raced the folder's) left the folder behind.
+    const dir = tmpDir()
+    const srcPath = join(dir, 'src.bin')
+    const encPath = join(dir, 'out.totalbak')
+    const outPath = join(dir, 'restored.db')
+    writeFileSync(srcPath, randomBytes(256 * 1024))
+    await encryptFile(srcPath, encPath, 'right-passphrase', { logN: 14, r: 8, p: 1 })
+    written.streams.length = 0
+    await expect(decryptFile(encPath, outPath, 'wrong-passphrase')).rejects.toThrow('Wrong passphrase or corrupted file')
+    expect(written.streams).toHaveLength(1)
+    expect(written.streams[0]!.closed).toBe(true) // the one stream of this run
+    expect(existsSync(outPath)).toBe(false)
   })
 
   it('throws a clear error on a truncated file', async () => {

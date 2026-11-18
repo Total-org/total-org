@@ -9,7 +9,8 @@
 //   "TOTALBK1" (before): magic(8) | salt(16) | iv(12) | ciphertext | gcmTag(16), scrypt N = 2^14 —
 //              still read, never written.
 import { randomBytes, scrypt, createCipheriv, createDecipheriv, type DecipherGCM } from 'crypto'
-import { createReadStream, createWriteStream, openSync, readSync, closeSync, statSync, unlink } from 'fs'
+import { createReadStream, createWriteStream, openSync, readSync, closeSync, statSync, type ReadStream, type WriteStream } from 'fs'
+import { rm } from 'fs/promises'
 
 /** The format written today. */
 export const MAGIC = Buffer.from('TOTALBK2', 'utf8')
@@ -88,8 +89,8 @@ export async function encryptFile(srcPath: string, destPath: string, passphrase:
     cipher.on('end', () => {
       dest.end(cipher.getAuthTag())
     })
-  }).catch((err) => {
-    unlink(destPath, () => {})
+  }).catch(async (err) => {
+    await discardOutput(src, dest, destPath)
     throw err
   })
 }
@@ -145,6 +146,7 @@ export async function decryptFile(srcPath: string, destPath: string, passphrase:
 
   const ciphertextLen = size - headerLen - TAG_LEN
   const dest = createWriteStream(destPath)
+  let src: ReadStream | null = null
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -165,13 +167,30 @@ export async function decryptFile(srcPath: string, destPath: string, passphrase:
         dest.end(decipher.final())
         return
       }
-      const src = createReadStream(srcPath, { start: headerLen, end: headerLen + ciphertextLen - 1 })
+      src = createReadStream(srcPath, { start: headerLen, end: headerLen + ciphertextLen - 1 })
       decipher.on('error', fail)
       src.on('error', fail)
       src.pipe(decipher).pipe(dest)
     })
   } catch {
-    unlink(destPath, () => {})
+    await discardOutput(src, dest, destPath)
     throw new Error(WRONG_PASSPHRASE)
   }
+}
+
+/**
+ * A failed run leaves nothing behind once its promise settles: the streams are stopped, the output
+ * stream is closed — it may still be opening its file, and would create it afterwards — and the
+ * partial file is removed. A caller that removes its folder right after (backup:importEncrypted,
+ * 1.0 readiness SEC3-2) used to find the decrypted file written back into it under load.
+ */
+async function discardOutput(src: ReadStream | null, dest: WriteStream, destPath: string): Promise<void> {
+  src?.destroy()
+  if (!dest.closed) {
+    await new Promise<void>((resolve) => {
+      dest.once('close', () => resolve())
+      dest.destroy()
+    })
+  }
+  await rm(destPath, { force: true })
 }
