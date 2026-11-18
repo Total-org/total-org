@@ -13,6 +13,7 @@ import {
   blockerVerdict,
   missingAssets,
   lastReleaseVerdict,
+  releaseBuildState,
   REQUIRED_CI_JOBS,
   upgradeMatrixTable
 } from './lib.mjs'
@@ -166,9 +167,40 @@ describe('the last tag must be a finished release', () => {
     expect(lastReleaseVerdict('v0.12.0', { draft: false, assets: assets.slice(1) }).reason).toContain('macOS DMG')
   })
   it('a draft whose Release run is still going is a quiet wait, not an issue', () => {
-    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets: [] }, true)).toMatchObject({ ok: false, wait: true })
-    expect(lastReleaseVerdict('v0.13.0', null, true)).toMatchObject({ ok: false, wait: true })
-    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets: [] }, false).wait).toBeUndefined()
+    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets: [] }, 'building')).toMatchObject({ ok: false, wait: true })
+    expect(lastReleaseVerdict('v0.13.0', null, 'building')).toMatchObject({ ok: false, wait: true })
+    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets: [] }, null).wait).toBeUndefined()
+  })
+  it("a draft waiting for the owner's signing approval is a quiet wait that says so", () => {
+    const v = lastReleaseVerdict('v0.13.0', { draft: true, assets }, 'approval')
+    expect(v).toMatchObject({ ok: false, wait: true })
+    expect(v.reason).toContain('approval')
+    // Rejected or never approved (the run ended): the draft is flagged, naming the approval.
+    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets }, null)).toMatchObject({ ok: false })
+    expect(lastReleaseVerdict('v0.13.0', { draft: true, assets }, null).reason).toContain('not approved')
+    // A published release is judged on its assets, whatever runs are going.
+    expect(lastReleaseVerdict('v0.12.0', { draft: false, assets }, 'approval').ok).toBe(true)
+  })
+})
+
+describe('is a release still under way?', () => {
+  const run = (id: number, status: string, event = 'schedule') => ({ id, status, event })
+  it('a release.yml run not finished = building; waiting = the approval', () => {
+    expect(releaseBuildState([run(1, 'in_progress', 'push')], [], '9')).toBe('building')
+    expect(releaseBuildState([run(1, 'queued', 'push')], [], '9')).toBe('building')
+    expect(releaseBuildState([run(1, 'waiting', 'push')], [], '9')).toBe('approval')
+    expect(releaseBuildState([run(1, 'completed', 'push')], [], '9')).toBeNull()
+  })
+  it("a slot's own call: another slot run that is running or waiting for the approval", () => {
+    expect(releaseBuildState([], [run(5, 'waiting')], '9')).toBe('approval')
+    expect(releaseBuildState([], [run(5, 'in_progress', 'workflow_dispatch')], '9')).toBe('building')
+    expect(releaseBuildState([run(1, 'in_progress', 'push')], [run(5, 'waiting')], '9')).toBe('approval')
+  })
+  it('never this run, a pull-request dry run, a queued slot or a finished one', () => {
+    expect(releaseBuildState([], [run(9, 'waiting')], '9')).toBeNull()
+    expect(releaseBuildState([], [run(5, 'in_progress', 'pull_request')], '9')).toBeNull()
+    expect(releaseBuildState([], [run(5, 'pending'), run(6, 'queued')], '9')).toBeNull()
+    expect(releaseBuildState([], [run(5, 'completed')], undefined)).toBeNull()
   })
 })
 

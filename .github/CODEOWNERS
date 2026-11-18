@@ -1,0 +1,9 @@
+# Readiness review SEC2-1 (defence in depth): changes to the release machinery need the owner's
+# review once the main ruleset requires review from code owners (owner's GitHub setting, see
+# docs/owner/10-scheduled-releases.md). The workflows and actions, the gate / signing scripts, the
+# package files (dependencies and electron-builder's config) and the key the app trusts.
+/.github/                  @IrminFlow
+/scripts/release/          @IrminFlow
+/package.json              @IrminFlow
+/package-lock.json         @IrminFlow
+/src/main/releaseKeys.json @IrminFlow

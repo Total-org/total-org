@@ -1682,6 +1682,7 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'simple.updates.checking': 'Jaanch ho rahi hai…',
   'simple.updates.upToDate': 'Aapke paas sabse naya version ({version}) hai.',
   'simple.updates.unverified': 'Total {version} mila, par ise asli release ke roop mein jaancha nahi ja saka, isliye yeh nahi diya gaya. Baad mein phir koshish karein.',
+  'simple.updates.noInstaller': 'Total {version} ka is computer ke liye koi download nahi hai. Mac par Total ke liye Apple silicon (M1 ya naya) chahiye.',
   'simple.updates.checked': 'Total {version} download ho gaya aur jaanch liya gaya.',
   'simple.updates.checkedHint': 'Yeh sign ki hui release se match karta hai. Naya version lagane ke liye ise kholein. Aapke business ke records nahi badalte.',
   'simple.updates.openInstaller': 'Ise kholein',

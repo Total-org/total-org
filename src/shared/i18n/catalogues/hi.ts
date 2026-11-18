@@ -1687,6 +1687,7 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'simple.updates.checking': 'जाँच हो रही है…',
   'simple.updates.upToDate': 'आपके पास नवीनतम वर्शन ({version}) है।',
   'simple.updates.unverified': 'Total {version} मिला, पर इसे असली रिलीज़ के रूप में जाँचा नहीं जा सका, इसलिए यह नहीं दिया गया। बाद में फिर कोशिश करें।',
+  'simple.updates.noInstaller': 'Total {version} का इस कंप्यूटर के लिए कोई डाउनलोड नहीं है। Mac पर Total के लिए Apple silicon (M1 या नया) चाहिए।',
   'simple.updates.checked': 'Total {version} डाउनलोड हो गया और जाँच लिया गया।',
   'simple.updates.checkedHint': 'यह साइन की हुई रिलीज़ से मेल खाता है। नया संस्करण लगाने के लिए इसे खोलें। आपके कारोबार के रिकॉर्ड नहीं बदलते।',
   'simple.updates.openInstaller': 'इसे खोलें',

@@ -20,6 +20,12 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**Every release is signed only after the owner approves it** (#292, readiness review R5). A new
+version is published only together with its signed check file, and the signing step waits for the
+owner's click. The Mac app no longer carries the build machine's file paths (SEC3-3). An Intel Mac
+is told there is no download for it (Total for Mac needs Apple silicon); it is never offered the
+Apple silicon file (SEC3-7).
+
 **A locked screen stays locked until the passphrase is typed** (#291, readiness review SEC2-6).
 In a business with a passphrase and no people with PINs, locking the screen (⌘L, Lock now, or the
 idle lock) now holds when you switch business or restart Total: opening it again asks for the

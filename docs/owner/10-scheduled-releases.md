@@ -36,6 +36,31 @@ When a slot skips for a reason (not the quiet kinds), GitHub opens one issue cal
 **"Scheduled release skipped"** with the reason, and adds a comment each time it skips again. The
 issue closes itself after the next release goes out.
 
+## Your one click before each release
+
+Since 19 November 2026 (readiness review R5), every release waits for you before it goes out,
+including the twice-a-day ones. When a slot has built the Mac and Windows files, GitHub stops at
+the step that signs them and e-mails you: **"Review pending deployments"**. Open the run, choose
+**production-release**, and click **Approve and deploy**. GitHub then signs the release and
+publishes it. Until you click, nobody sees it.
+
+- While a release waits for you, the next slots wait too (they do not open the "skipped" issue).
+- **Reject means "not now"**, not "never". The release stays a draft and nobody sees it, but its
+  version is already on `main`, so every later slot stops at "last release complete" and says so
+  in the "Scheduled release skipped" issue, twice a day, until that same version is published.
+  To publish it after all: open the run and click **Re-run failed jobs** (only the signing step
+  runs again, not the hours of building), then approve. To ship a fix instead: merge the fix, then
+  release the next small version by hand (`npm version patch && git push --follow-tags`); it also
+  waits for your click, and the slots carry on from it.
+- If nobody answers for 30 days, GitHub gives up on the run and the release stays a draft, the
+  same as a reject. A run that old can no longer be re-run, so use **Actions → Release → Run
+  workflow** instead (below).
+- Once a fix has gone out as the next version, you may delete the rejected version's draft: the
+  release checks look only at the newest version.
+- The signing key is kept in the **production-release** environment, which only you can approve
+  and which only runs from `main` and from version tags. A change on any other branch cannot
+  reach it.
+
 After a release, GitHub checks that the release page has the Mac and Windows files and that the
 website's update feed shows the new version on both addresses — `irminflow.com/api/latest` and the old
 `devjindal.tech/api/latest` (copies installed before 8 Nov 2026 still ask the old one). Installed copies of
@@ -57,11 +82,41 @@ release's batch, so look at the list.
 
 ## If a release breaks halfway
 
-If building a release fails after its version tag was made, the release stays a draft and nobody
-sees it. The next slots then skip and the issue says so. To finish it: **Actions → Release → Run
-workflow**, type the tag (for example `v0.12.1`) and run it.
+If building or signing a release fails after its version tag was made (or you rejected it), the
+release stays a draft and nobody sees it. The next slots then skip and the issue says so. If only
+the signing failed, **Re-run failed jobs** on that run is quickest. Otherwise: **Actions → Release →
+Run workflow**, keep the branch on `main`, type the tag (for example `v0.12.1`) and run it. It waits
+for your click again before it publishes. This works on a **draft** only: Release refuses a version
+that is already published, so the files people have downloaded are never replaced. A release is
+never published without its signed check file (`total-manifest.json`).
 
 ## Trying the gate without releasing
 
 On GitHub: **Actions → Scheduled release → Run workflow**, keep **dry run** ticked. It runs every
 check and shows the result in the run summary, but never changes the version or releases anything.
+
+## GitHub settings that protect releases
+
+These are set by you in GitHub, not in the code. Do them in one sitting, in this order:
+
+1. **Move the signing key.** Settings → Environments → **production-release** → Environment
+   secrets → add `RELEASE_MANIFEST_KEY` (the same key as today). Then Settings → Secrets and
+   variables → Actions → delete the repository secret `RELEASE_MANIFEST_KEY`. Then delete the
+   unused **release-signing** environment. Releases work before and after this move; after it, only
+   a run you approve can use the key.
+2. **Protect `main`.** Settings → Rules → Rulesets → New branch ruleset, target `main`, turn on
+   **Restrict deletions** and **Block force pushes**. Do **not** turn on "Require a pull request
+   before merging" yet: GitHub's built-in robot token cannot be let past it, so the twice-a-day
+   release could no longer push its version commit (to-do.md §3 says what it needs first).
+3. **Protect the version tags.** New tag ruleset, target `v*`, turn on **Restrict updates**,
+   **Restrict deletions** and **Block force pushes**. Leave "Restrict creations" off: the release
+   robot creates each new tag.
+4. **Immutable releases.** Settings → General → Releases → turn on **immutable releases**, so the
+   files of a published release can never be swapped. (Total's releases stay drafts until signed,
+   and drafts can still be filled, so this does not get in the way.)
+
+`.github/CODEOWNERS` names you for the release machinery (`.github/`, `scripts/release/`,
+`package.json`, `package-lock.json`, `src/main/releaseKeys.json`). "Require review from code
+owners" is part of the pull-request rule in step 2, so it waits with it. GitHub never asks you to
+review your own pull requests, and the agents open theirs under your account, so until then the
+file only asks for your review on pull requests from other people.

@@ -129,8 +129,11 @@ describe('update notice', () => {
     expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't download Total 0.13.0. Check your internet connection and try again.")
     act(() => push!({ ...site, phase: 'failed', reason: 'save' }))
     expect(screen.getByTestId('update-failed').textContent).toBe("Couldn't save Total 0.13.0 on this computer. Check that there is free space, then try again.")
+    // SEC3-7: an Intel Mac (or any computer the release has no installer for) is told so, with no Try again.
     act(() => push!({ ...site, phase: 'failed', reason: 'noInstaller' }))
-    expect(screen.getByTestId('update-failed').textContent).toMatch(/could not be checked as a genuine release/)
+    expect(screen.getByTestId('update-failed').textContent).toBe('Total 0.13.0 has no download for this computer. On a Mac, Total needs Apple silicon (M1 or newer).')
+    expect(screen.queryByTestId('btn-update-try-again')).toBeNull()
+    expect(screen.getByTestId('btn-update-skip')).toBeTruthy()
   })
 
   it('a download in progress can be hidden', async () => {

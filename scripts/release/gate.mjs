@@ -29,6 +29,7 @@ import {
   blockerVerdict,
   missingAssets,
   lastReleaseVerdict,
+  releaseBuildState,
   BLOCKER_LABEL
 } from './lib.mjs'
 import { MANIFEST_ASSET, checkManifest } from './manifest.mjs'
@@ -89,10 +90,13 @@ function preflight(outFile) {
   // /releases/tags/{tag} hides drafts (404), so look through the list for this tag.
   const lastRelease = (ghApi(`repos/${REPO}/releases?per_page=30`) ?? []).find((r) => r.tag_name === lastTag) ?? null
   const releaseRuns = ghApi(`repos/${REPO}/actions/workflows/release.yml/runs?per_page=20`).workflow_runs ?? []
-  // A Release run still going (a tag pushed by hand, or a re-run by dispatch) = being built. A
-  // scheduled slot's own call runs inside its slot, which this one's concurrency group waits for.
-  const buildRunning = releaseRuns.some((r) => r.status !== 'completed')
-  const { wait: lastWait, ...lastDone } = lastReleaseVerdict(lastTag, lastRelease, buildRunning)
+  const slotRuns = ghApi(`repos/${REPO}/actions/workflows/scheduled-release.yml/runs?per_page=20`).workflow_runs ?? []
+  // A release still being built, or built and waiting for the owner's approval of its signing
+  // (production-release): a tag pushed by hand / a re-run (release.yml's runs), or a slot's own call
+  // (inside that slot's run — another slot waits in this one's concurrency group, but a PR dry run
+  // can see it).
+  const building = releaseBuildState(releaseRuns, slotRuns, process.env.GITHUB_RUN_ID)
+  const { wait: lastWait, ...lastDone } = lastReleaseVerdict(lastTag, lastRelease, building)
   checks.push({ name: 'last release complete', ...lastDone })
   let quiet = !!lastWait
   let wait = false

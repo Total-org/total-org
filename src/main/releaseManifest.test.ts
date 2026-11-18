@@ -47,9 +47,8 @@ describe('release manifest', () => {
     const exe = FILES.find((f) => f.name.endsWith('.exe'))!
     expect(assetWithHash(check.manifest, sha512(exe.bytes))?.name).toBe(exe.name)
     expect(assetWithHash(check.manifest, 'f'.repeat(128))).toBeNull()
-    expect(installerFor(check.manifest, 'darwin')?.name).toBe(`Total-${V}-arm64.dmg`)
-    expect(installerFor(check.manifest, 'win32')?.name).toBe(`Total-Setup-${V}.exe`)
-    expect(installerFor(check.manifest, 'linux')).toBeNull()
+    expect(installerFor(check.manifest, 'win32', 'x64')?.name).toBe(`Total-Setup-${V}.exe`)
+    expect(installerFor(check.manifest, 'linux', 'x64')).toBeNull()
     expect(installerFor(check.manifest, 'darwin', 'arm64')?.name).toBe(`Total-${V}-arm64.dmg`)
     // SEC2-5: a hash match counts only for an asset this platform installs.
     const zip = FILES.find((f) => f.name.endsWith('-mac.zip'))!
@@ -63,12 +62,15 @@ describe('release manifest', () => {
     expect(engineAssetNames(V, 'linux', 'x64')).toEqual([])
   })
 
-  it('installerFor prefers the DMG built for this Mac', () => {
+  it('installerFor takes only the DMG built for this Mac', () => {
     const asset = (name: string) => ({ name, size: 1, sha256: '0'.repeat(64), sha512: '0'.repeat(128) })
     const m = { version: V, assets: [asset(`Total-${V}-arm64.dmg`), asset(`Total-${V}.dmg`)] }
     expect(installerFor(m, 'darwin', 'x64')?.name).toBe(`Total-${V}.dmg`)
     expect(installerFor(m, 'darwin', 'arm64')?.name).toBe(`Total-${V}-arm64.dmg`)
-    expect(installerFor({ version: V, assets: [asset(`Total-${V}-arm64.dmg`)] }, 'darwin', 'x64')?.name).toBe(`Total-${V}-arm64.dmg`) // as before
+    // SEC3-7: an Intel Mac never gets the Apple silicon DMG (it used to fall back to any DMG).
+    expect(installerFor({ version: V, assets: [asset(`Total-${V}-arm64.dmg`)] }, 'darwin', 'x64')).toBeNull()
+    expect(installerFor({ version: V, assets: [asset(`Total-${V}-x64.dmg`)] }, 'darwin', 'x64')?.name).toBe(`Total-${V}-x64.dmg`)
+    expect(installerFor({ version: V, assets: [asset(`Total-${V}.dmg`)] }, 'darwin', 'arm64')).toBeNull()
   })
 
   it('refuses a key the app does not pin, a changed asset, another version and a bad signature', () => {
