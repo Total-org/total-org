@@ -53,7 +53,10 @@ publishes it. Until you click, nobody sees it.
   release the next small version by hand (`npm version patch && git push --follow-tags`); it also
   waits for your click, and the slots carry on from it.
 - If nobody answers for 30 days, GitHub gives up on the run and the release stays a draft, the
-  same as a reject.
+  same as a reject. A run that old can no longer be re-run, so use **Actions → Release → Run
+  workflow** instead (below).
+- Once a fix has gone out as the next version, you may delete the rejected version's draft: the
+  release checks look only at the newest version.
 - The signing key is kept in the **production-release** environment, which only you can approve
   and which only runs from `main` and from version tags. A change on any other branch cannot
   reach it.

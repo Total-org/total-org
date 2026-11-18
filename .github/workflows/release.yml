@@ -99,7 +99,11 @@ jobs:
         # anyone approved a new signing, and its signed manifest would no longer match them. A re-run
         # finishes a draft only.
         run: |
-          state=$(gh release view "$TAG" --json isDraft --jq .isDraft --repo "$GITHUB_REPOSITORY" 2>/dev/null || echo none)
+          # Only gh's own "release not found" means "none"; any other error stops here (a blip must
+          # never lead to a second draft whose uploads land on the published release).
+          if out=$(gh release view "$TAG" --json isDraft --jq .isDraft --repo "$GITHUB_REPOSITORY" 2>&1); then state=$out
+          elif [ "$out" = "release not found" ]; then state=none
+          else echo "::error::could not read the $TAG release: $out"; exit 1; fi
           if [ "$state" = false ]; then echo "::error::$TAG is already published; a published release is never rebuilt"; exit 1; fi
           if [ "$state" = true ]; then echo "$TAG is a draft: finishing it"; exit 0; fi
           if [ -f scripts/release/gate.mjs ]; then node scripts/release/gate.mjs notes "${TAG#v}" > "$RUNNER_TEMP/notes.md"; else echo "Release notes to follow." > "$RUNNER_TEMP/notes.md"; fi
@@ -133,9 +137,11 @@ jobs:
           node scripts/release/asar-check.mjs "$app/Contents/Resources/app.asar"
 
       # Readiness review SEC3-7: 1.0 is Apple silicon only — exactly the arm64 files, by name (a
-      # missing one fails here), and latest-mac.yml must name that zip. The release is still a draft.
+      # missing one fails here), and latest-mac.yml must name that zip. Into a draft only (checked here too).
       - name: Upload DMG + ZIP to the release
         run: |
+          state=$(gh release view "$TAG" --json isDraft --jq .isDraft --repo "$GITHUB_REPOSITORY")
+          if [ "$state" != true ]; then echo "::error::$TAG is not a draft; a published release is never rebuilt"; exit 1; fi
           v="${TAG#v}"
           grep -q "^path: Total-$v-arm64-mac.zip$" dist/latest-mac.yml || { echo "latest-mac.yml does not name Total-$v-arm64-mac.zip"; cat dist/latest-mac.yml; exit 1; }
           gh release upload "$TAG" "dist/Total-$v-arm64.dmg" "dist/Total-$v-arm64.dmg.blockmap" "dist/Total-$v-arm64-mac.zip" "dist/Total-$v-arm64-mac.zip.blockmap" dist/latest-mac.yml --clobber --repo "$GITHUB_REPOSITORY"
