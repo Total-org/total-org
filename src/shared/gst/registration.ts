@@ -38,6 +38,8 @@
  *    against a bill of the regular period keeps that bill's GST). UNVERIFIED wording.
  */
 
+import { toDisplayDate } from '../dates'
+
 export type GstRegistrationType = 'regular' | 'composition' | 'unregistered'
 
 /** The registration facts a rule needs (a CompanyInfo, or an invoice context, carries them). */
@@ -98,21 +100,31 @@ const RETURN_NAME: Record<GstReturnForm, string> = { gstr1: 'GSTR-1', gstr3b: 'G
 /**
  * Why a period has no GSTR-1 / GSTR-3B to file, or no GSTR-2B credit to reconcile (the accountant
  * screens' banner, the export refusal and the AI's GST summary; English like the rest of those
- * screens). `registration` is `returnRegistrationIn`'s answer for the period, never 'regular'. 2B: a
- * composition dealer can't take credit (s.10(4) "nor shall he be entitled to any credit of input
- * tax") — rule 60(7) makes GSTR-2B available to "the registered person", so the words never say
- * none is made. A cancellation is never told nothing more is due: the final return is the CA's.
+ * screens). `registration` is `returnRegistrationIn`'s answer for the period, never 'regular';
+ * `periodTo` is the period's last day. 2B: a composition dealer can't take credit (s.10(4) "nor shall
+ * he be entitled to any credit of input tax") — rule 60(7) makes GSTR-2B available to "the registered
+ * person", so the words never say none is made; its inward supplies go in GSTR-4 (rule 62(3)(a)), and
+ * CMP-08 carries only the self-assessed tax (rule 62(1)(i)). An unregistered period is either before a
+ * registration that came later (review of #290: never called a cancellation), after a cancellation
+ * (never told nothing more is due — the final return is the CA's), or of a business never registered.
  */
-export function gstReturnNotDueMessage(form: GstReturnForm, registration: Exclude<GstRegistrationType, 'regular'>, everRegistered: boolean): string {
+export function gstReturnNotDueMessage(
+  form: GstReturnForm,
+  registration: Exclude<GstRegistrationType, 'regular'>,
+  facts: GstRegistrationFacts,
+  periodTo: string
+): string {
   if (registration === 'composition') {
     return form === 'gstr2b'
-      ? 'In this period the business was under the composition scheme, which can’t claim GST credit on purchases (s.10(4) CGST Act) — so there is no GSTR-2B credit to reconcile. Supplier bills still count for CMP-08 and GSTR-4.'
+      ? 'In this period the business was under the composition scheme, which can’t claim GST credit on purchases (s.10(4) CGST Act) — so there is no GSTR-2B credit to reconcile. Supplier bills still count for GSTR-4 (and reverse-charge ones for CMP-08).'
       : `In this period the business was under the composition scheme. A composition dealer files CMP-08 and GSTR-4, not ${RETURN_NAME[form]} (s.37(1), s.39(1) and (2) CGST Act; rule 62 CGST Rules).`
   }
   const what = form === 'gstr2b' ? 'there is no GSTR-2B credit to reconcile' : `no ${RETURN_NAME[form]} is due for it`
-  return everRegistered
-    ? `The business was not registered for GST on any day of this period, so ${what}. Ask your CA about the final return after a cancellation.`
-    : `This business is not registered for GST, so ${what}. If it registers, add the GSTIN under Company details.`
+  if (!everGstRegistered(facts)) return `This business is not registered for GST, so ${what}. If it registers, add the GSTIN under Company details.`
+  if (facts.gstRegistrationType !== 'unregistered' && facts.gstRegistrationSince && periodTo < facts.gstRegistrationSince) {
+    return `The business was not registered for GST in this period — its registration took effect on ${toDisplayDate(facts.gstRegistrationSince)} — so ${what}.`
+  }
+  return `The business was not registered for GST on any day of this period, so ${what}. Ask your CA about the final return after a cancellation.`
 }
 
 /** Just the registration facts of a company (to spread into an invoice context). */

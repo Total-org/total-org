@@ -15,7 +15,8 @@ import type { GstIssue } from '@shared/gst/validate'
 import type { Gst3bManualInput } from '@shared/schemas'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 import { CaCheck } from '../components/CaCheck'
-import { everGstRegistered, gstReturnNotDueMessage, returnRegistrationIn, type GstRegistrationType, type GstReturnForm } from '@shared/gst/registration'
+import { gstReturnNotDueMessage, returnRegistrationIn, type GstRegistrationType, type GstReturnForm } from '@shared/gst/registration'
+import { returnPeriodSpan } from '@shared/gst/filing'
 
 export interface MonthChoice {
   key: string // YYYY-MM
@@ -167,12 +168,19 @@ export function NoMonths({ pending = false }: { pending?: boolean } = {}): React
 
 // ---------- R3 / FIG-G-3: is a return due for the month? ----------
 
-/** The registration the month is filed under (registration.ts `returnRegistrationIn`: regular when
- *  it is regular on ANY day of it — a business that changed or cancelled its registration still reads
- *  its regular months); 'regular' until the company's facts load. */
-export function useReturnRegistration(month: MonthChoice | null): GstRegistrationType {
+/** The month's return period and the registration it is filed under (registration.ts
+ *  `returnRegistrationIn`: regular when it is regular on ANY day of the period — a quarterly filer's
+ *  quarter, filing.ts `returnPeriodSpan`, review of #290 — so a business that changed or cancelled its
+ *  registration still reads its regular months). Null while the month or the filing frequency is
+ *  being read (a failed read = monthly, as the gst:duePeriod read falls back); 'regular' when the
+ *  company's facts are not loaded. */
+export function useReturnRegistration(month: MonthChoice | null): { registration: GstRegistrationType; periodTo: string } | null {
   const info = useSession((s) => s.info)
-  return info && month ? returnRegistrationIn(info, month.from, month.to) : 'regular'
+  const profile = useQuery({ queryKey: ['gstProfile'], queryFn: api.gstProfile.get, enabled: !!info, retry: false })
+  if (!month || (info && profile.isPending)) return null
+  if (!info) return { registration: 'regular', periodTo: month.to }
+  const span = returnPeriodSpan(month.from, month.to, profile.data?.filing ?? 'monthly')
+  return { registration: returnRegistrationIn(info, span.from, span.to), periodTo: span.to }
 }
 
 const NOT_DUE_TITLE: Record<GstReturnForm, string> = {
@@ -181,13 +189,13 @@ const NOT_DUE_TITLE: Record<GstReturnForm, string> = {
   gstr2b: 'No GSTR-2B credit to reconcile for this month'
 }
 
-/** Said instead of a return's figures for a month that has no regular day (testid
+/** Said instead of a return's figures for a month whose return period has no regular day (testid
  *  `<form>-composition` / `<form>-unregistered`). The month picker stays, so a regular month opens. */
-export function ReturnNotDue({ form, registration }: { form: GstReturnForm; registration: Exclude<GstRegistrationType, 'regular'> }): React.JSX.Element {
+export function ReturnNotDue({ form, registration, periodTo }: { form: GstReturnForm; registration: Exclude<GstRegistrationType, 'regular'>; periodTo: string }): React.JSX.Element {
   const info = useSession((s) => s.info)
   return (
     <Banner tone="info" testId={`${form}-${registration}`} title={NOT_DUE_TITLE[form]}>
-      {gstReturnNotDueMessage(form, registration, !!info && everGstRegistered(info))}
+      {gstReturnNotDueMessage(form, registration, info ?? { gstRegistrationType: registration }, periodTo)}
     </Banner>
   )
 }
@@ -341,8 +349,8 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
   const nav = useNav()
   const toast = useToasts()
   // R3 / FIG-G-3: a month with no regular day has no GSTR-1 — nothing is computed for it.
-  const registration = useReturnRegistration(month)
-  const due = !!month && registration === 'regular'
+  const filed = useReturnRegistration(month)
+  const due = !!month && filed?.registration === 'regular'
   const { data, isLoading } = useQuery({
     queryKey: ['gstr1', month?.key],
     queryFn: () => api.gst.gstr1(month!.from, month!.to, month!.period),
@@ -383,16 +391,16 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
 
   const openVoucher = (voucherId: number): void => nav.go({ name: 'voucher-entry', voucherId })
 
-  if (!month) {
+  if (!month || !filed) {
     return (
       <Page>
         <PageHeader title="GSTR-1 · Outward supplies" />
-        <NoMonths pending={pending} />
+        <NoMonths pending={pending || !!month} />
       </Page>
     )
   }
 
-  if (registration !== 'regular') {
+  if (filed.registration !== 'regular') {
     return (
       <Page>
         <PageHeader
@@ -400,7 +408,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
           tabs={<GstReturnTabs current="gstr1" />}
           controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" quarter={dueQuarter} />}
         />
-        <ReturnNotDue form="gstr1" registration={registration} />
+        <ReturnNotDue form="gstr1" registration={filed.registration} periodTo={filed.periodTo} />
       </Page>
     )
   }
@@ -646,8 +654,8 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
   const gatewayRecord = useGatewayRecord('gstr3b', month?.period, portalShown)
   const toast = useToasts()
   // R3 / FIG-G-3: a month with no regular day has no GSTR-3B — nothing is computed for it.
-  const registration = useReturnRegistration(month)
-  const due = !!month && registration === 'regular'
+  const filed = useReturnRegistration(month)
+  const due = !!month && filed?.registration === 'regular'
   const { data, isLoading } = useQuery({
     queryKey: ['gstr3b', month?.key],
     queryFn: () => api.gst.gstr3b(month!.from, month!.to, month!.period),
@@ -698,18 +706,18 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     )
   }
 
-  if (!month) {
+  if (!month || !filed) {
     return (
       <Page>
         <PageHeader title="GSTR-3B · Summary return" />
-        <NoMonths pending={pending} />
+        <NoMonths pending={pending || !!month} />
       </Page>
     )
   }
 
   // WP 8.0 / R3: a month with no regular day (composition, or not registered) has no GSTR-3B — say
   // so instead of nil-rated rows; the month picker stays for the registered months.
-  if (registration !== 'regular') {
+  if (filed.registration !== 'regular') {
     return (
       <Page>
         <PageHeader
@@ -717,7 +725,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
           tabs={<GstReturnTabs current="gstr3b" />}
           controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" quarter={dueQuarter} />}
         />
-        <ReturnNotDue form="gstr3b" registration={registration} />
+        <ReturnNotDue form="gstr3b" registration={filed.registration} periodTo={filed.periodTo} />
       </Page>
     )
   }

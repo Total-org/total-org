@@ -20,14 +20,15 @@ import { goodsAdvanceMessage, goodsAdvanceParties, openAdvanceReceipts, rateLess
 import { fyFromStartYear, fyOf } from '@shared/dates'
 import { plainRupees } from '@shared/money'
 import { parseGstr2b, reconcile2b, type PurchaseDoc, type Recon2bOptions, type Recon2bResult } from '@shared/gst/recon2b'
-import { cashBankGroupIds, descendantIdsByName } from './masters'
+import { cashBankGroupIds, descendantIdsByName, partyGroupIdsBySide } from './masters'
 import { getGst3bManual, getGstProfile } from './config'
 import { einvoiceApplicability, type EinvoiceApplicability } from '@shared/gst/einvoiceApplicability'
 import { einvoiceTurnOnNotice, type EinvoiceStatus } from '@shared/compliance'
 import { companyExportsDir } from '../paths'
 import { IN_BOOKS } from './vouchers'
 import { mismatchedNoteIds } from './itcBlockedNotes'
-import { chargesGstOn, everGstRegistered, gstReturnNotDueMessage, registrationOn, returnRegistrationIn } from '@shared/gst/registration'
+import { chargesGstOn, gstReturnNotDueMessage, registrationOn, returnRegistrationIn } from '@shared/gst/registration'
+import { returnPeriodSpan } from '@shared/gst/filing'
 import { AppError } from '@shared/errors'
 import { hasTradeSchema } from './tradeLinks'
 import { writeAudit } from './audit'
@@ -1294,9 +1295,10 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
   const notes: OutwardExtractionNotes = { blended: [], discounted: [], discountKept: [], discountAsRecorded: [] }
   const docs = extractOutwardDocs(db, company, from, to, notes)
-  // R3 / FIG-G-3: the registration the PERIOD is filed under (regular on any day of it), never
-  // today's — a business that left the regular scheme still checks its regular months.
-  const registration = returnRegistrationIn(company, from, to)
+  // R3 / FIG-G-3: the registration the return period is filed under (regular on any day of it — a
+  // quarterly filer's quarter), never today's: a business that left the regular scheme still checks
+  // its regular months.
+  const registration = returnRegistrationAt(db, company, from, to)
   const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
     gstin: company.gstin,
@@ -1465,16 +1467,19 @@ function classifyAdvanceParties(db: DB, parties: readonly AdvanceParty[], to: st
 /**
  * R3 / FIG-G-2 — the customers whose advances Table 11A leaves out (shared/gst/advanceGoods.ts): a
  * receipt in the period opening an advance (a 'new' bill ref, as extractAdvances reads) from a
- * customer whose account has NO GST rate (NULL — an explicit 0 % is a declared nil rate and is in
+ * CUSTOMER — a ledger on the debtor side by its group's role (`partyGroupIdsBySide`; review of #290: a
+ * supplier's refund or a loan with bill refs is no supply) — whose account has NO GST rate (NULL — an explicit 0 % is a declared nil rate and is in
  * 11A), dated on a day the registration is regular (`registrationOn` — no GST on an advance
  * otherwise), not wholly taken by a sales invoice of the same period (`openAdvanceReceipts`), from a
  * customer who is not taken to buy only goods (`goodsAdvanceParties` — Notification 66/2017-CT).
  * Reads only the period's receipts and invoices. Shared by gstValidate and the simple Taxes screen.
  */
 export function rateLessAdvanceParties(db: DB, company: CompanyInfo, from: string, to: string): AdvanceParty[] {
+  const customerGroups = partyGroupIdsBySide(db, 'debtor')
+  const isCustomer = (groupId: number): boolean => customerGroups.has(groupId)
   const rows = db
     .prepare(
-      `SELECT p.id AS partyId, p.name AS partyName, v.id AS voucherId, v.date AS date, br.name AS name, br.amount AS amount
+      `SELECT p.id AS partyId, p.name AS partyName, p.group_id AS groupId, v.id AS voucherId, v.date AS date, br.name AS name, br.amount AS amount
        FROM bill_refs br
        JOIN vouchers v ON v.id = br.voucher_id
        JOIN voucher_types vt ON vt.id = v.voucher_type_id
@@ -1483,8 +1488,8 @@ export function rateLessAdvanceParties(db: DB, company: CompanyInfo, from: strin
          AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
        ORDER BY p.name, v.date, v.id, br.id`
     )
-    .all(from, to) as (AdvanceReceipt & { date: string })[]
-  const regular = rows.filter((r) => registrationOn(company, r.date) === 'regular')
+    .all(from, to) as (AdvanceReceipt & { date: string; groupId: number })[]
+  const regular = rows.filter((r) => isCustomer(r.groupId) && registrationOn(company, r.date) === 'regular')
   if (regular.length === 0) return []
   // What the period's sales invoices took of each advance (11B's own match: same customer + name).
   const used = new Map<string, number>()
@@ -1520,15 +1525,29 @@ export function rateLessAdvanceIssue(db: DB, company: CompanyInfo, from: string,
   }
 }
 
+/** R3 (review of #290): the return period `from`..`to` is filed in — a quarterly (QRMP) filer's
+ *  quarter (proviso to s.39(1), shared/gst/filing.ts returnPeriodSpan), else the span itself. */
+export function returnSpanAt(db: DB, from: string, to: string): { from: string; to: string } {
+  return returnPeriodSpan(from, to, getGstProfile(db).filing)
+}
+
+/** The registration the return period holding `from`..`to` is filed under (registration.ts
+ *  returnRegistrationIn over `returnSpanAt`). */
+export function returnRegistrationAt(db: DB, company: CompanyInfo, from: string, to: string): ReturnType<typeof returnRegistrationIn> {
+  const span = returnSpanAt(db, from, to)
+  return returnRegistrationIn(company, span.from, span.to)
+}
+
 /** Throw (with the issue list) when blocking issues exist — the server-side export gate.
  *  Guards BOTH return exports: GSTR-1 and GSTR-3B are computed from the same extracted
  *  documents, so a period the app knows is unsound must not export either JSON. */
 export function assertExportable(db: DB, company: CompanyInfo, from: string, to: string, form: 'gstr1' | 'gstr3b'): void {
-  // R3 / FIG-G-3: a period with no regular day has no GSTR-1 / GSTR-3B (s.37(1), s.39(1) CGST Act)
-  // — refused with the reason, before anything is computed or written.
-  const registration = returnRegistrationIn(company, from, to)
+  // R3 / FIG-G-3: a return period with no regular day has no GSTR-1 / GSTR-3B (s.37(1), s.39(1)
+  // CGST Act) — refused with the reason, before anything is computed or written.
+  const span = returnSpanAt(db, from, to)
+  const registration = returnRegistrationIn(company, span.from, span.to)
   if (registration !== 'regular') {
-    throw new AppError('gst_return_not_due', gstReturnNotDueMessage(form, registration, everGstRegistered(company)))
+    throw new AppError('gst_return_not_due', gstReturnNotDueMessage(form, registration, company, span.to))
   }
   const blocking = gstValidate(db, company, from, to).filter((i) => i.severity === 'blocking')
   if (blocking.length) {
