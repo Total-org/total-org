@@ -120,8 +120,9 @@ await scenario('28-trade-returns', async (h) => {
   await pickAccount('e.g. Sales', salesAcc.name)
   await h.click('btn-add-from')
   await page.waitForSelector('[data-testid="drawer-add-from"] [data-testid="input-add-from-against"]', { timeout: 10000 })
-  const option = await page.locator('[data-testid="input-add-from-against"] option', { hasText: invoice.number }).first().getAttribute('value')
-  await page.selectOption('[data-testid="input-add-from-against"]', option)
+  // The drawer keys each document option `v<voucher id>` — pick by that exact value (never by the
+  // visible text: "Sales 9 · 15/10/2026" contains invoice number 15). selectOption waits for it.
+  await page.selectOption('[data-testid="input-add-from-against"]', `v${invoiceId}`)
   const qty = page.locator('[data-testid="drawer-add-from"] [data-testid="input-add-from-qty"]').first()
   assertEq(await qty.inputValue(), '10', 'picking the invoice fills its returnable quantity')
   await qty.fill('25')
