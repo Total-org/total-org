@@ -1,6 +1,7 @@
 // 1.0 readiness figures audit, 18 Nov 2026 (books, stock, TDS, openings, dues, simple screens).
 // Kept as text: copy it to src/main/services/ as a .dbtest.ts and run
 // `npm run test:db -- src/main/services/zzReadinessBooks.dbtest.ts` — the FINDINGS block reproduces FIG-B-1.
+// Written for 18 Nov 2026; the clock is not pinned, so on another day fake it (vi.setSystemTime).
 // Every expected figure below is worked BY HAND in the comment above it (integer paise), never
 // taken from running the code.
 import { mkdtempSync } from 'fs'

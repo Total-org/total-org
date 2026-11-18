@@ -1,12 +1,10 @@
 // 1.0 readiness figures audit, 18 Nov 2026. Kept as text: copy it to src/main/services/ as a .dbtest.ts
 // and run `npm run test:db -- src/main/services/zzReadinessGst.dbtest.ts` to reproduce FIG-G-1 / FIG-G-2.
+// Written for 18 Nov 2026; the clock is not pinned, so on another day fake it (vi.setSystemTime).
 // Cross-screen agreement: the bill, GSTR-1, GSTR-3B, TB / P&L / BS, Outstandings and the simple
 // screens (Home, Taxes, People, sales / purchases lists) for 11 hand-worked scenarios.
 // Every "hand" figure below is worked out by hand in integer paise in the comment above it.
-import { afterAll, describe, expect, it } from 'vitest'
-import { writeFileSync } from 'fs'
-import { tmpdir } from 'os'
-import { join } from 'path'
+import { describe, expect, it } from 'vitest'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import { writeCompanyInfo } from '../db/seed'
 import type { DB } from '../db/connection'
@@ -41,12 +39,6 @@ function assertScenario(scn: string): void {
   const bad = ROWS.filter((r) => r.scn === scn && !r.ok && !r.known)
   expect(bad).toEqual([])
 }
-afterAll(() => {
-  writeFileSync(
-    join(tmpdir(), 'zzReadinessGst-rows.json'),
-    JSON.stringify(ROWS, null, 1)
-  )
-})
 
 // ---------------------------------------------------------------- company
 interface Co { db: DB; info: CompanyInfo; L: (n: string) => number; I: (n: string) => number }
