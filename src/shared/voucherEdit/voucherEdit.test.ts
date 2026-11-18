@@ -333,6 +333,57 @@ describe('invoice mode state ⇄ payload', () => {
     expect(p.number).toBe(v.number)
   })
 
+  describe('R1: a bill set against earlier credits (advanceRefs)', () => {
+    const party = (p: ReturnType<typeof built>): number => p.lines[0]!.amount
+    it('posts them before its own bill, capped at the bill; loads them back in the invoice form', () => {
+      const plain = built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX))
+      const total = party(plain)
+      // Credits A ₹100 and B (larger than what is left): A in full, B up to the bill, no own bill.
+      const p = built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }, { kind: 'against', name: 'B', amount: total, dueDate: null }] }, ctxFor('sales'), 1, TAX))
+      expect(p.billRefs).toEqual([{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }, { kind: 'against', name: 'B', amount: total - 10_000, dueDate: null }])
+      // A part: A ₹100 then the bill's own for the rest.
+      const part = built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }] }, ctxFor('sales'), 1, TAX))
+      expect(part.billRefs.map((r) => [r.kind, r.name, r.amount])).toEqual([['against', 'A', 10_000], ['new', invoiceState().billName, total - 10_000]])
+      const rep = invoiceRepresentation(stored(part), ctxFor('sales'), TAX)
+      if (!rep.ok) throw new Error(rep.reason)
+      expect(rep.state.advanceRefs).toEqual([{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }])
+      expect(built(buildInvoicePayload(rep.state, ctxFor('sales'), 1, TAX)).billRefs).toEqual(part.billRefs)
+    })
+    it('paid in full by the credits: loads named after its number, so a total raised later opens a bill for the rest', () => {
+      const total = party(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
+      const full = built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'A', amount: total, dueDate: null }] }, ctxFor('sales'), 1, TAX))
+      expect(full.billRefs).toEqual([{ kind: 'against', name: 'A', amount: total, dueDate: null }])
+      const v = stored(full)
+      const rep = invoiceRepresentation(v, ctxFor('sales'), TAX)
+      if (!rep.ok) throw new Error(rep.reason)
+      expect(rep.state.billName).toBe(v.number)
+      const more = built(buildInvoicePayload({ ...rep.state, rows: rep.state.rows.map((r, i) => (i === 0 ? { ...r, qtyText: '5' } : r)) }, ctxFor('sales'), 1, TAX))
+      expect(more.billRefs.map((r) => [r.kind, r.name])).toEqual([['against', 'A'], ['new', v.number]])
+      expect(more.billRefs.reduce((s, r) => s + r.amount, 0)).toBe(party(more))
+    })
+    it('paid in full by a credit named like its number (advance "1", sale "1"): loads as "1/25-26"', () => {
+      const total = party(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
+      const v = stored(built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'INV-7', amount: total, dueDate: null }] }, ctxFor('sales'), 1, TAX)))
+      expect(v.number).toBe('INV-7')
+      const rep = invoiceRepresentation(v, ctxFor('sales'), TAX)
+      if (!rep.ok) throw new Error(rep.reason)
+      // 1 May 2025 is in FY 2025-26.
+      expect(rep.state.billName).toBe('INV-7/25-26')
+      const more = built(buildInvoicePayload({ ...rep.state, rows: rep.state.rows.map((r, i) => (i === 0 ? { ...r, qtyText: '5' } : r)) }, ctxFor('sales'), 1, TAX))
+      expect(more.billRefs.map((r) => [r.kind, r.name])).toEqual([['against', 'INV-7'], ['new', 'INV-7/25-26']])
+      expect(more.billRefs.reduce((s, r) => s + r.amount, 0)).toBe(party(more))
+    })
+    it('any other mix of refs stays in the accounting form (own bill first, two own bills)', () => {
+      const part = built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }] }, ctxFor('sales'), 1, TAX))
+      const first = stored(part)
+      first.billRefs = [first.billRefs[1]!, first.billRefs[0]!]
+      expect(invoiceRepresentation(first, ctxFor('sales'), TAX)).toMatchObject({ ok: false, reason: 'it allocates against existing bills' })
+      const two = stored(part)
+      two.billRefs = [{ ...two.billRefs[1]!, amount: 10_000, name: 'X' }, two.billRefs[1]!]
+      expect(invoiceRepresentation(two, ctxFor('sales'), TAX)).toMatchObject({ ok: false })
+    })
+  })
+
   describe('not representable → accounting fallback', () => {
     const v0 = (): Voucher => stored(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
 

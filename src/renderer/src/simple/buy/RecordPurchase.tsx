@@ -10,7 +10,7 @@ import type { SimplePreview } from '@shared/simple/intents'
 import { CATEGORIES } from '@shared/simple/categories'
 import { categoriesFor } from '@shared/simple/accountKinds'
 import {
-  asksAmountRate, BUY_MODES, isCashExpense, buyFormErrors, buyGst, buyTotals, emptyBuyForm, productsNeedGst, buyIntentFrom, purchasePreviewLine, showsPriceBasis, switchBuyBasis,
+  asksAmountRate, BUY_MODES, isCashExpense, buyAdvance, buyFormErrors, buyGst, buyTotals, emptyBuyForm, productsNeedGst, buyIntentFrom, purchasePreviewLine, showsPriceBasis, switchBuyBasis,
   type BuyContext, type BuyField, type BuyForm, type BuyLine, type BuyMode
 } from '@shared/simple/buy'
 import type { MessageKey } from '@shared/i18n'
@@ -32,6 +32,7 @@ import { SaveCard } from '../SaveCard'
 import { BuyLines } from './BuyLines'
 import { BuyAmount } from './BuyAmount'
 import { PaidNow } from './PaidNow'
+import { UseAdvance } from '../UseAdvance'
 import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handoff'
 import { CarriedBackNote } from '../CarriedBackNote'
 import { AccountantViewButton } from '../AccountantViewButton'
@@ -119,6 +120,8 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   const carriedBack = useCarriedBack()
   const [form, setForm] = useKeptForm<BuyForm>(() => (ask ? buyFromAsk(blank(), ask.prefill, (l) => ({ ...newLine(), ...l })) : party != null ? { ...blank(), supplierId: party } : blank()))
   const [savedIds, setSavedIds] = useState<number[] | null>(null)
+  // R1: what of the saved bill the party's advance paid (simple:post's facts), for the save card.
+  const [savedAdvance, setSavedAdvance] = useState(0)
   const [preview, setPreview] = useState<SimplePreview | null>(null)
   const [previewProblem, setPreviewProblem] = useState<string | null>(null)
   /** The last preview was refused (its reason is in previewProblem, or under its question). */
@@ -153,7 +156,17 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   const totals = useMemo(() => (ctx ? buyTotals(form, ctx) : null), [form, ctx])
   const gst = ctx ? buyGst(form, ctx) : 'paid' // i18n-technical
   const asksGst = gst === 'claim' || gst === 'none'
-  const clientErrors = useMemo(() => (ctx ? buyFormErrors(form, ctx) : {}), [form, ctx])
+  // R1: what was paid the supplier ahead (the list simple:post takes it from), as on the bill's date.
+  // Read afresh on every visit (a Money in / Return / Undo since may have changed them); Save waits.
+  const { data: credits, isFetching: creditsLoading } = useQuery({
+    queryKey: ['simpleCredits', form.supplierId, form.date], // i18n-technical
+    queryFn: () => api.simpleMoney.credits(form.supplierId ?? 0, form.date),
+    enabled: form.supplierId != null,
+    staleTime: 0
+  })
+  const advanceHeld = form.supplierId != null ? (credits ?? []).reduce((s, c) => s + c.amount, 0) : 0
+  const advanceUsed = buyAdvance(form, credits ?? [], totals?.total ?? 0)
+  const clientErrors = useMemo(() => (ctx ? buyFormErrors(form, ctx, advanceUsed) : {}), [form, ctx, advanceUsed])
   const asksRate = ctx ? asksAmountRate(form, ctx) : false
   const amountAccount = form.mode === 'expense' ? form.categoryId : (setup?.purchaseAccountId ?? null)
   const shownRate = form.gstRate ?? ledgers.find((l) => l.id === amountAccount)?.gstRate ?? null
@@ -231,7 +244,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   placeRef.current = place
 
   const save = async (): Promise<void> => {
-    if (!ctx || !setup || saving) return
+    if (!ctx || !setup || saving || creditsLoading) return
     setGeneral(null)
     setDupId(null)
     const keys = Object.entries(clientErrors) as [BuyField, string][]
@@ -242,7 +255,8 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
     try {
       const r = await poster.post(buyIntentFrom(form, ctx, setup.defaults))
       setSavedIds(r.voucherIds)
-      for (const k of ['simpleBuySetup', 'simplePurchases', 'simpleMoneyList', 'simpleHome', 'ledgers', 'stockItems', 'dashboard']) void queryClient.invalidateQueries({ queryKey: [k] }) // i18n-technical
+      setSavedAdvance(r.facts.advanceUsed ?? 0)
+      for (const k of ['simpleBuySetup', 'simplePurchases', 'simpleCredits', 'simpleMoneyList', 'simpleHome', 'ledgers', 'stockItems', 'dashboard']) void queryClient.invalidateQueries({ queryKey: [k] }) // i18n-technical
     } catch (err) {
       place(err)
     }
@@ -383,6 +397,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
       {savedIds ? (
         <SaveCard
           voucherIds={savedIds}
+          advance={{ amount: savedAdvance, side: 'supplier' }} // i18n-technical
           onNew={startNew}
           onEdit={(id) => nav.go({ name: 'voucher-entry', voucherId: id })} // i18n-technical
           onUndone={() => void queryClient.invalidateQueries({ queryKey: ['simplePurchases'] })} // i18n-technical
@@ -397,7 +412,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
                 <TypeAhead
                   options={supplierOptions}
                   value={form.supplierId}
-                  onPick={(id) => update({ supplierId: id })}
+                  onPick={(id) => update({ supplierId: id, useAdvance: true })}
                   placeholder={t('simple.buy.supplierPlaceholder')}
                   onCreate={canSave ? (name) => setCreating({ what: 'supplier', name }) : undefined} // i18n-technical
                   testId="picker-buy-supplier"
@@ -551,6 +566,10 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
             </div>
           </section>
 
+          {advanceHeld > 0 && (
+            <UseAdvance supplier held={advanceHeld} left={(totals?.total ?? 0) - advanceUsed} checked={form.useAdvance} onChange={(on) => update({ useAdvance: on })} />
+          )}
+
           {/* Paid now? */}
           <PaidNow
             form={form}
@@ -626,7 +645,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
             <Button data-testid="btn-buy-start-again" disabled={saving} onClick={() => (dirty ? void askDiscard().then((ok) => ok && startNew()) : startNew())}>
               {t('simple.buy.startAgain')}
             </Button>
-            <Button variant="primary" data-testid="btn-buy-save" disabled={saving || !setup || noPurchaseAccount} onClick={() => void save()}>
+            <Button variant="primary" data-testid="btn-buy-save" disabled={saving || !setup || noPurchaseAccount || creditsLoading} onClick={() => void save()}>
               {t('simple.buy.save')}
             </Button>
           </SaveBar>
@@ -641,7 +660,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
           onCreated={(l: Ledger) => {
             setCreating(null)
             void queryClient.invalidateQueries({ queryKey: ['simpleBuySetup'] }) // i18n-technical
-            update({ supplierId: l.id })
+            update({ supplierId: l.id, useAdvance: true })
           }}
         />
       )}

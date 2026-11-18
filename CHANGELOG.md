@@ -20,6 +20,17 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**A bill uses the advance the customer already paid** (#288, readiness review FIG-G-1). When a
+customer pays ahead (Money in → "Is this for a bill you haven't made yet?" → Yes), their next bill
+in Make a bill now shows "Use what they paid ahead (₹X)", ticked: the bill takes that money first
+and "Paid how?" is only about what is left (a return kept for the next bill counts too). Before, the bill stayed unpaid on Home, People and the
+sales list, and Total offered a reminder to a customer who had paid in full. Untick it when the
+money was for another order. Record a purchase does the same with money you paid a supplier ahead.
+For accountants: the bill is set against the advance by its own bill-wise "against" reference, as
+in the full editor, so GSTR-1 Table 11B now shows the advance used for a customer with a GST
+rate. Bills saved before keep their figures. Such a bill with products opens in the full invoice
+editor, which lists what it is set against.
+
 **TDS: when a contractor's year goes over the limit, the earlier bills are counted too** (#289, 1.0
 readiness review FIG-B-1). Five ₹25,000 bills to a 194C contractor take the year to ₹1,25,000 —
 over the ₹1,00,000 limit — so all five are liable: ₹1,250. The TDS banner on the fifth bill or

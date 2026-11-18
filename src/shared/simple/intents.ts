@@ -123,6 +123,11 @@ export const saleIntentSchema = z
     amount: amountLineSchema.optional(),
     /** The sales account; omitted = "Sales" (its category), else the first sales account. */
     accountId: id.optional(),
+    /** R1 (FIG-G-1): "Use what they paid ahead" — the bill is set against the party's open named credits
+     *  (an advance received / paid ahead, a return kept as credit), oldest first, up to the bill;
+     *  "Paid how?" then works on what is left. Omitted = use them; false = keep them (the advance
+     *  is for another order). */
+    useAdvance: z.boolean().optional(),
     /** Omitted = cash for walk-in, credit for a named customer. */
     payment: paymentSchema.optional(),
     dueDate: dateIn.optional(),
@@ -148,6 +153,8 @@ export const purchaseIntentSchema = z
      *  for people, club membership, personal use …). The input tax is still booked, marked blocked
      *  (GSTR-3B 4(A)(5) + 4(B)(1)). Omitted = false. Only meaningful when GST is booked. */
     itcBlocked: z.boolean().optional(),
+    /** R1: as on a sale — what was paid the supplier ahead is used first. Omitted = use it. */
+    useAdvance: z.boolean().optional(),
     payment: paymentSchema.optional(),
     dueDate: dateIn.optional(),
     number: z.string().trim().min(1).max(40).optional()
@@ -279,6 +286,8 @@ export const simpleIntentSchema = z.discriminatedUnion('kind', [
 export type SimpleIntent = z.infer<typeof simpleIntentSchema>
 /** What a screen sends (schema input: optional fields may be left out). */
 export type SimpleIntentInput = z.input<typeof simpleIntentSchema>
+/** An intent as a screen builds it, before useSimplePost adds the clientId — per kind. */
+export type SimpleIntentDraft = SimpleIntentInput extends infer K ? (K extends unknown ? Omit<K, 'clientId'> : never) : never
 export type SimpleIntentKind = SimpleIntent['kind']
 export const SIMPLE_INTENT_KINDS: readonly SimpleIntentKind[] = ['sale', 'purchase', 'money_in', 'money_out', 'move_money', 'return_sale', 'return_purchase', 'stock_count', 'make_goods']
 
@@ -293,8 +302,8 @@ export interface NBill { name: string; amount: number | null; billId?: number | 
 interface NBase { clientId: string; date: string; narration: string; number: string | null }
 
 export type NormalIntent =
-  | (NBase & { kind: 'sale'; customerId: number | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; payment: NPayment | null; dueDate: string | null })
-  | (NBase & { kind: 'purchase'; supplierId: number; billNo: string | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; gstOnBill: boolean; itcBlocked: boolean; payment: NPayment | null; dueDate: string | null })
+  | (NBase & { kind: 'sale'; customerId: number | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; useAdvance: boolean; payment: NPayment | null; dueDate: string | null })
+  | (NBase & { kind: 'purchase'; supplierId: number; billNo: string | null; items: NItemLine[] | null; amount: NAmountLine | null; accountId: number | null; gstOnBill: boolean; itcBlocked: boolean; useAdvance: boolean; payment: NPayment | null; dueDate: string | null })
   | (NBase & { kind: 'money_in'; amount: number; into: NMoneyAccount; customerId: number | null; bills: NBill[] | null; advance: boolean; sourceId: number | null; supplierId: number | null; onAccount: boolean })
   | (NBase & { kind: 'money_out'; amount: number; from: NMoneyAccount; supplierId: number | null; bills: NBill[] | null; advance: boolean; payeeId: number | null; drawings: boolean; customerId: number | null; onAccount: boolean })
   | (NBase & { kind: 'move_money'; amount: number; fromId: number; toId: number; reference: string | null })
@@ -379,7 +388,7 @@ export function normaliseIntent(raw: unknown, today: string): NormalIntent {
     case 'sale':
     case 'purchase': {
       if (!!i.items === !!i.amount) fail('simple_no_lines', 'Give either the items or just an amount', 'items')
-      const common = { items: nItems(i.items), amount: nAmount(i.amount), accountId: i.accountId ?? null, payment: nPayment(i.payment), dueDate: i.dueDate ? readDate(i.dueDate, today, 'dueDate') : null }
+      const common = { items: nItems(i.items), amount: nAmount(i.amount), accountId: i.accountId ?? null, useAdvance: i.useAdvance ?? true, payment: nPayment(i.payment), dueDate: i.dueDate ? readDate(i.dueDate, today, 'dueDate') : null }
       return i.kind === 'sale'
         ? { ...b, kind: 'sale', customerId: i.customerId ?? null, ...common }
         : { ...b, kind: 'purchase', supplierId: i.supplierId, billNo: optText(i.billNo), gstOnBill: i.gstOnBill ?? true, itcBlocked: i.itcBlocked ?? false, ...common }
@@ -573,7 +582,9 @@ export interface IntentContext {
   original: IntentOriginal | null
   /** WP 9.4: per party, its named credits still open, oldest first (advances paid, debit notes'
    *  own bills — partyAllocationWithCredits); a supplier's refund is set against them, and so is
-   *  a refund paid to a customer (their advances, credit notes' own bills). */
+   *  a refund paid to a customer (their advances, credit notes' own bills). R1: a sale's / a
+   *  purchase's party — its named credits as on the bill's date that are still open today
+   *  (simplePost.advanceCredits), which the bill uses first unless `useAdvance` is false. */
   openCredits?: ReadonlyMap<number, readonly { name: string; amount: number }[]>
   /** Per refund party (a supplier paying us back, a customer we pay back): every credit it holds
    *  with us as on the date — the allocation's `unappliedCredit` (named + unnamed). A refund from /
@@ -663,6 +674,9 @@ export interface IntentFacts {
   /** WP 9.2: when what stays open on a sale / purchase bill falls due (bill date + the party's
    *  credit days, or the date given); absent when nothing stays open. */
   dueDate?: string | null
+  /** R1: what a sale / purchase took from the party's open credits (their advance, a return kept
+   *  as credit) — `due` and `paid` are of what was left after it. Absent = none was used. */
+  advanceUsed?: number
   /** WP 10.8: a purchase of just an amount on an expense account (not the purchases account) —
    *  that account's name, so the sentence says "Bill … for Rent". */
   forWhat?: string
@@ -874,6 +888,36 @@ export function itemsCarryGst(
   })
 }
 
+/** R1 (FIG-G-1): what a bill of `total` takes from the party's open named credits — oldest first,
+ *  never more than the bill — as the editor's own `against` refs: the Outstandings engine lets a
+ *  bill's `against` ref use a named credit of that name (shared/outstanding.ts), and GSTR-1 11B
+ *  reads a sale's `against` ref to an advance received (gst.ts extractAdvanceAdjustments), exactly
+ *  as for a sale ticked against an advance in the full editor (golden ADV-02). */
+export function advanceTake(credits: readonly { name: string; amount: number }[], total: number): { refs: VoucherBillRef[]; used: number } {
+  const refs: VoucherBillRef[] = []
+  let left = total
+  for (const c of credits) {
+    if (left <= 0) break
+    if (c.amount <= 0) continue
+    const take = Math.min(c.amount, left)
+    refs.push({ kind: 'against', name: c.name, amount: take, dueDate: null })
+    left -= take
+  }
+  return { refs, used: total - left }
+}
+
+/** R1 (review of #288): an offer made now and approved later (Ask Total → the approval queue)
+ *  posts what its preview said. A bill that used none of the party's credit keeps them
+ *  (`useAdvance: false` — one that came since is for the user to use); one that used some is
+ *  paid now exactly what the preview showed (nothing → on credit), so a credit used up since
+ *  leaves the rest due — never money nobody received. Other kinds are returned as they are. */
+export function pinOfferedAdvance(intent: SimpleIntentDraft, facts: Pick<IntentFacts, 'advanceUsed' | 'paid'>): SimpleIntentDraft {
+  if (intent.kind !== 'sale' && intent.kind !== 'purchase') return intent
+  if (!facts.advanceUsed) return { ...intent, useAdvance: false }
+  const paidNow = intent.payment && intent.payment.how !== 'credit' && facts.paid > 0
+  return { ...intent, payment: paidNow && intent.payment ? { ...intent.payment, amount: facts.paid } : { how: 'credit' } }
+}
+
 function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: IntentContext): MappedIntent {
   const sale = n.kind === 'sale'
   const kind: VoucherKind = sale ? 'sales' : 'purchase'
@@ -901,6 +945,10 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   let costAccountId: number | null = null
   let bill: MappedEntry
   let total: number
+  // R1: the party's open credits (never the walk-in's — the counter's cash customer pays in full).
+  let used = 0
+  const advanceOf = (billTotal: number): { refs: VoucherBillRef[]; used: number } =>
+    walkIn || !n.useAdvance ? { refs: [], used: 0 } : advanceTake(ctx.openCredits?.get(party.id) ?? [], billTotal)
   if (n.items) {
     const account = ledgerOf(ctx, n.accountId ?? defaultAccount, accountClasses, 'simple_wrong_account', 'account', sale ? 'sales account' : 'purchase account')
     // WP 9.3: the purchase editor's item lines always carry their items' GST while the company
@@ -934,9 +982,13 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
       reference: billNo,
       ...(itcBlocked ? { itcBlocked: true } : {})
     }
-    const built = invoiceEntry(ctx, 'bill', kind, type, state, 'items')
+    let built = invoiceEntry(ctx, 'bill', kind, type, state, 'items')
+    // R1: the bill's total is the editor's; what the party's advance pays of it rides on the form.
+    const take = advanceOf(built.total)
+    if (take.used > 0) built = invoiceEntry(ctx, 'bill', kind, type, { ...state, advanceRefs: take.refs }, 'items')
     bill = built.entry
     total = built.total
+    used = take.used
     facts.tax = built.tax
   } else {
     const a = n.amount!
@@ -954,15 +1006,20 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
     if (!sale && account.id !== ctx.defaults.purchaseId) facts.forWhat = account.name
     total = lines.total
     facts.tax = lines.gst.total - lines.gst.taxable
+    const take = advanceOf(total)
+    used = take.used
     bill = accountingEntry(ctx, 'bill', kind, type, {
       date, number, rows: lines.rows, narration: n.narration, reference: billNo,
-      billRefs: [{ kind: 'new', name: billName, amount: total, dueDate: due }],
+      billRefs: [...take.refs, ...(total > used ? [{ kind: 'new' as const, name: billName, amount: total - used, dueDate: due }] : [])],
       ...(itcBlocked ? { itcBlocked: true } : {})
     })
   }
 
   const payment = n.payment ?? { how: walkIn ? ('cash' as const) : ('credit' as const), amount: null, accountId: null, reference: null }
-  const paid = payment.how === 'credit' ? 0 : (payment.amount ?? total)
+  // "Paid how?" works on what is left after the advance (all of it when none was used).
+  const left = total - used
+  const paid = payment.how === 'credit' ? 0 : (payment.amount ?? left)
+  if (paid > left && used > 0) fail('simple_overpaid_after_advance', `${formatPaise(paid, { symbol: true })} is more than what is left to pay on this bill (${formatPaise(left, { symbol: true })})`, 'payment.amount', { amount: formatPaise(left, { symbol: true }) })
   if (paid > total) fail('simple_overpaid', `${formatPaise(paid, { symbol: true })} is more than the bill (${formatPaise(total, { symbol: true })})`, 'payment.amount', { amount: formatPaise(total, { symbol: true }) })
   if (walkIn && paid !== total) fail('simple_walk_in_unpaid', 'A walk-in sale is paid in full — pick the customer to sell on credit', 'payment')
   const entries = [bill]
@@ -985,7 +1042,8 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   }
   facts.total = total
   facts.paid = paid
-  facts.due = total - paid
+  facts.due = left - paid
+  if (used > 0) facts.advanceUsed = used
   // WP 10.8: a party without days to pay has no due date to tell — the preview says "no due date
   // set" rather than "due by today" (and since Nov 2026 the bill stores none either).
   if (facts.due > 0 && due != null) facts.dueDate = due
@@ -1484,6 +1542,7 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
       out.push(t(f.walkIn ? 'simple.intent.saleWalkIn' : 'simple.intent.sale', { amount: m(f.total), name }))
       if (f.tax > 0) out.push(t('simple.intent.tax', { amount: m(f.tax) }))
       if (f.noGst) out.push(t('simple.intent.noGst', { type: f.noGst }))
+      if (f.advanceUsed) out.push(t('simple.intent.advanceUsed', { amount: m(f.advanceUsed) }))
       if (f.paid > 0) out.push(t('simple.intent.received', { amount: m(f.paid), how }))
       position(() => { if (f.due > 0) out.push(t('simple.intent.dueFrom', { amount: m(f.due), name })) })
       break
@@ -1493,6 +1552,7 @@ export function intentSentences(f: IntentFacts, t: Translate): string[] {
       if ((f.gstToCost ?? 0) > 0) out.push(t('simple.intent.gstToCost', { amount: m(f.gstToCost!) }))
       if (f.gstToCostManual) out.push(t('simple.intent.gstToCostManual'))
       if (f.gstLeftInGst) out.push(t('simple.intent.gstLeftInGst'))
+      if (f.advanceUsed) out.push(t('simple.intent.advanceUsedSupplier', { amount: m(f.advanceUsed) }))
       if (f.paid > 0) out.push(t('simple.intent.paid', { amount: m(f.paid), how }))
       position(() => { if (f.due > 0) out.push(t('simple.intent.dueTo', { amount: m(f.due), name })) })
       break

@@ -513,14 +513,18 @@ export function tdsTargetIndex(
   return best
 }
 
-/** The party's 'new' bill refs total the party credit — move the deduction through the last one
- *  big enough (credit kinds only; a payment's 'against' refs settle the gross). */
+/** The party's bill refs total the party credit — move the deduction through the last 'new' ref
+ *  big enough (credit kinds only; a payment's 'against' refs settle the gross). A bill with no
+ *  'new' ref of its own — one an advance pays in full (#288: a simple bill set against the party's
+ *  credit) — moves it through its last 'against' ref instead: the bill uses that much less of the
+ *  credit, which the party keeps. */
 function adjustBillRefs<B extends EditBillRef>(refs: readonly B[], partyAmountBefore: number, delta: number): B[] | null {
-  const news = refs.map((r, i) => ({ r, i })).filter((x) => x.r.kind === 'new')
   const total = refs.reduce((s, r) => s + r.amount, 0)
-  if (news.length === 0 || total !== partyAmountBefore) return [...refs]
-  for (let k = news.length - 1; k >= 0; k--) {
-    const { r, i } = news[k]!
+  const news = refs.map((r, i) => ({ r, i })).filter((x) => x.r.kind === 'new')
+  const carriers = news.length > 0 ? news : refs.map((r, i) => ({ r, i })).filter((x) => x.r.kind === 'against')
+  if (carriers.length === 0 || total !== partyAmountBefore) return [...refs]
+  for (let k = carriers.length - 1; k >= 0; k--) {
+    const { r, i } = carriers[k]!
     if (r.amount + delta > 0) return refs.map((x, j) => (j === i ? { ...x, amount: x.amount + delta } : x))
   }
   return null

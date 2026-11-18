@@ -18,7 +18,7 @@ import { inclusiveLine, lineGross, solveTaxable } from '../pricing'
 import { rateForCost } from '../capture/nonClaimable'
 import { computeInvoice, emptyInvoiceState, type InvoiceContext } from '../voucherEdit'
 import { qtyText } from '../voucherEdit/payload'
-import { readQty, type IntentFacts, type MoneyHow, type SimpleIntentInput } from './intents'
+import { advanceTake, readQty, type IntentFacts, type MoneyHow, type SimpleIntentInput } from './intents'
 
 /** "Paid how?" — the five ways of the intent plus "Partly paid" (an amount now, the rest on credit). */
 export const PAID_CHOICES = ['cash', 'upi', 'card', 'bank', 'credit', 'part'] as const
@@ -63,6 +63,8 @@ export interface SellForm {
   accountId: number | null
   /** "What for" — the bill's note. */
   note: string
+  /** R1: "Use what they paid ahead" (their advance, a return kept as credit) — ticked by default; unticked when that money is for another order. */
+  useAdvance: boolean
 }
 
 export const emptySellForm = (date: string, opts: { mode: SellForm['mode']; ratesIncludeGst: boolean }): SellForm => ({
@@ -77,7 +79,8 @@ export const emptySellForm = (date: string, opts: { mode: SellForm['mode']; rate
   partHow: 'cash',
   partAmount: null,
   accountId: null,
-  note: ''
+  note: '',
+  useAdvance: true
 })
 
 /** What the calculation needs: the editor's invoice context (registration facts, company state,
@@ -257,6 +260,12 @@ export function sellTotals(form: SellForm, ctx: SellContext): SellTotals {
   return { taxable: c.gst.taxable, tax: c.gst.total - c.gst.taxable, total: c.rounded, rounding: c.roundDiff, lineAmounts, charges }
 }
 
+/** R1: what the customer's open credits (`simple:money:credits`) pay of a bill of `total` while "Use
+ *  what they paid ahead" is ticked — the take simple:post makes (advanceTake); never for the walk-in. */
+export function sellAdvance(form: Pick<SellForm, 'customerId' | 'useAdvance'>, credits: readonly { name: string; amount: number }[], total: number): number {
+  return form.customerId != null && form.useAdvance ? advanceTake(credits, total).used : 0
+}
+
 /** The default cash / bank account for each way of being paid (main: WP 5.6 memory, else the
  *  counter's accounts / the first bank). */
 export type MoneyDefaults = Record<MoneyHow, number | null>
@@ -274,6 +283,7 @@ export function saleIntentFrom(form: SellForm, ctx: SellContext, defaults: Money
     date: form.date,
     ...(form.customerId != null ? { customerId: form.customerId } : {}),
     ...(form.note.trim() ? { narration: form.note.trim() } : {}),
+    ...(form.useAdvance ? {} : { useAdvance: false }),
     payment
   }
   if (form.mode === 'amount') {
@@ -288,8 +298,9 @@ export function saleIntentFrom(form: SellForm, ctx: SellContext, defaults: Money
 export type SellField = 'date' | 'party' | 'items' | 'amount' | 'gstRate' | 'payment'
 
 /** Checks before main is asked (each message under its question). `onHold` = the customer is on
- *  credit hold (no bill can be made for them here — the owner decides). */
-export function sellFormErrors(form: SellForm, ctx: SellContext, opts: { onHold?: boolean; regular: boolean }): Partial<Record<SellField, MessageKey>> {
+ *  credit hold (no bill can be made for them here — the owner decides). `advanceUsed` = what their
+ *  advance pays (sellAdvance); a part payment is of what is left. Absent = none. */
+export function sellFormErrors(form: SellForm, ctx: SellContext, opts: { onHold?: boolean; regular: boolean; advanceUsed?: number }): Partial<Record<SellField, MessageKey>> {
   const out: Partial<Record<SellField, MessageKey>> = {}
   if (opts.onHold) out.party = 'simple.sell.err.onHold'
   if (form.mode === 'items') {
@@ -308,7 +319,7 @@ export function sellFormErrors(form: SellForm, ctx: SellContext, opts: { onHold?
   else if (form.paid === 'part') {
     const total = sellTotals(form, ctx).total
     if (form.partAmount == null || form.partAmount <= 0) out.payment = 'simple.sell.err.partAmount'
-    else if (total > 0 && form.partAmount >= total) out.payment = 'simple.sell.err.partTooMuch'
+    else if (total > 0 && form.partAmount >= total - (opts.advanceUsed ?? 0)) out.payment = 'simple.sell.err.partTooMuch'
   }
   return out
 }
@@ -318,7 +329,10 @@ const money = (p: number): string => formatPaise(p, { symbol: true })
 /** The plain line shown before Save — "Bill ₹1,180.00 to Ramesh. ₹500.00 by UPI now, ₹680.00 due
  *  by 20 Nov 2026." — from simple:preview's facts (computed by main, never typed). */
 export function salePreviewLine(f: IntentFacts, t: Translate): string {
-  const head = f.walkIn ? t('simple.sell.preview.walkIn', { amount: money(f.total) }) : t('simple.sell.preview.bill', { amount: money(f.total), name: f.partyName ?? '' })
+  const bill = f.walkIn ? t('simple.sell.preview.walkIn', { amount: money(f.total) }) : t('simple.sell.preview.bill', { amount: money(f.total), name: f.partyName ?? '' })
+  // R1: what they paid ahead comes first; the rest is paid now or due.
+  const advance = f.advanceUsed ?? 0
+  const head = advance > 0 ? `${bill} ${t('simple.sell.preview.advance', { amount: money(advance) })}` : bill
   const how = f.how ?? 'cash'
   const due = f.dueDate ? toPlainDate(f.dueDate, t.lang) : ''
   if (f.paid > 0 && f.due > 0) return `${head} ${t(due ? 'simple.sell.preview.part' : 'simple.sell.preview.partNoDate', { paid: money(f.paid), how, due: money(f.due), date: due })}`

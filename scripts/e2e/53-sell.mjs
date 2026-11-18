@@ -264,6 +264,37 @@ await scenario('53-sell', async (h) => {
   await h.click('btn-back-to-simple')
   await attached(h, '[data-testid="simple-sale"][data-bill]')
 
+  // R1 (FIG-G-1): a customer who paid ₹11,800 ahead (Money in, "for a bill you haven't made yet" —
+  // the same simple:post the Money in screen sends). Their next bill uses it: ₹10,000 + 18 % =
+  // ₹11,800, so nothing is left to pay and nothing is due.
+  const asha = await ledger('Asha Stores', 'Sundry Debtors', { stateCode: '27', creditDays: 7, gstRate: 18 })
+  await h.invoke('simple:post', { intent: { kind: 'money_in', clientId: 'e2e-53-advance-0001', amount: '11800', into: { how: 'cash' }, customerId: asha.id, advance: true } })
+  await product('Consulting hour', 1_000_000, 18)
+  await h.click('simple-nav-sell')
+  await h.click('simple-entry-make-bill')
+  await h.waitScreen('simple-sell')
+  await pick('picker-sell-customer', 'Asha')
+  await pick('picker-sell-item-0', 'Consulting hour')
+  await page.waitForFunction(() => document.querySelector('[data-testid="sell-total"]')?.getAttribute('data-paise') === '1180000', null, { timeout: 10000 })
+  await attached(h, '[data-testid="sell-advance-use"]:checked')
+  assert((await text('sell-advance')).includes('Use what they paid ahead (₹11,800.00)'), 'the advance is offered, ticked')
+  assertEq(await paise('sell-advance-left'), 0, 'the advance pays the whole bill')
+  await page.waitForFunction(() => (document.querySelector('[data-testid="sell-preview"]')?.textContent ?? '').includes('from what they paid ahead'), null, { timeout: 10000 })
+  assertEq(await text('sell-preview'), 'Bill ₹11,800.00 to Asha Stores. ₹11,800.00 from what they paid ahead.', 'the preview says the advance pays it')
+  await noBanned('the bill using an advance')
+  await shoot('07-advance-used')
+  await h.click('btn-sell-save')
+  await attached(h, '[data-testid="save-card"]')
+  await page.waitForFunction(() => (document.querySelector('[data-testid="save-card"]')?.textContent ?? '').includes('of what they paid ahead is used'), null, { timeout: 10000 })
+  const people = await h.invoke('simple:people:list', {})
+  const ashaRow = people.people.find((p) => p.ledgerId === asha.id)
+  assertEq(JSON.stringify([ashaRow.open, ashaRow.ahead]), JSON.stringify([0, 0]), 'Asha owes nothing and holds nothing')
+  // The bill is set against the advance by the editor's own bill-wise ref (GSTR-1 11B reads it; the
+  // advance and the bill are in the same month here, so 11B is pinned by simplePost.dbtest's
+  // July → August case instead — to-do.md GST / tax, same-month 11A / 11B).
+  const sales = await h.invoke('simple:sales', { from: '2000-01-01', to: '2100-12-31' })
+  assertEq(JSON.stringify(sales.filter((r) => r.partyId === asha.id).map((r) => [r.total, r.due, r.paid])), JSON.stringify([[1_180_000, 0, 1_180_000]]), 'the sales list: paid by the advance, nothing due')
+
   // ================= 3. a services company, stock off =================
   await h.click('btn-switch-company')
   await h.createCompanyUI('Rao Repairs', { mode: 'simple' })

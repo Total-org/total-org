@@ -590,9 +590,14 @@ describe('PR #171 review: default numbering next to an advance', () => {
   it('an advance named by the default receipt number that is still OPEN: the first sale takes the year (as before this PR)', () => {
     const adv = post({ kind: 'money_in', customerId: L('Ramesh'), amount: 10_000, into: { how: 'cash' }, bills: [], advance: true })
     const advName = nameOf(adv.voucherIds[0]!)[0]!
-    const sale = post({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: 5_000, gstRate: 0 }, payment: { how: 'credit' } })
+    // R1: the sale uses the open advance first, so it is bigger than the advance here (₹150 − ₹100
+    // = ₹50 left) to keep a bill of its own to name.
+    const sale = post({ kind: 'sale', customerId: L('Ramesh'), amount: { amount: 15_000, gstRate: 0 }, payment: { how: 'credit' } })
     // Both series start at "1" in a fresh company: receipt 1 = the advance's name, sale 1 takes the year.
     expect([advName, getVoucher(db, sale.voucherIds[0]!)!.number, nameOf(sale.voucherIds[0]!)]).toEqual(['1', '1', ['1/25-26']])
+    expect(db.prepare("SELECT kind, name, amount FROM bill_refs WHERE voucher_id = ? ORDER BY id").all(sale.voucherIds[0]!)).toEqual([
+      { kind: 'against', name: '1', amount: 10_000 }, { kind: 'new', name: '1/25-26', amount: 5_000 }
+    ])
   })
   it('the same advance USED UP (refunded): a sale numbered like it still takes the year — only this party, only that number', () => {
     const adv = post({ kind: 'money_in', customerId: L('Ramesh'), amount: 10_000, into: { how: 'cash' }, bills: [], advance: true })

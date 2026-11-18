@@ -762,6 +762,9 @@ export const api = {
     setup: (opts?: { customerCredits?: boolean }) => call<MoneySetup>('simple:money:setup', opts),
     /** A party's open bills, oldest first, as on `date` (the Outstandings allocation). */
     bills: (partyId: number, date: string) => call<MoneyOpenBill[]>('simple:money:bills', { partyId, date }),
+    /** R1: a party's open credits (an advance, a return kept as credit) a bill dated `date` can
+     *  use, oldest first — what simple:post's mapping takes them from. */
+    credits: (partyId: number, date: string) => call<{ name: string; amount: number }[]>('simple:money:credits', { partyId, date }),
     /** Receipts, payments and moves dated from…to, newest first; rows after `today` (the working
      *  date; omitted = the computer's date) are marked `ahead`. */
     list: (from: string, to: string, today?: string) => call<MoneyRow[]>('simple:money:list', { from, to, ...(today ? { today } : {}) }),

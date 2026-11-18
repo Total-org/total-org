@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import type { AiFigure } from './ai'
 import type { MoneyHow } from './simple/intents'
-import type { SimpleIntentInput } from './simple/intents'
+import type { SimpleIntentDraft } from './simple/intents'
 
 /** The origin stored on an Ask Total draft (ai_drafts.origin is free text — the CHECK covers
  *  `source` only, which already allows 'assistant'; no migration). */
@@ -118,7 +118,7 @@ export interface AssistEntryOffer {
   kind: 'money_out' | 'money_in' | 'sale' | 'purchase'
   prefill: AssistPrefill
   /** The flow's own intent built from the prefill (what Save would send), when complete. */
-  intent: Omit<SimpleIntentInput, 'clientId'> | null
+  intent: SimpleIntentDraft | null
   /** Plain sentences from simple:preview (rehearsed, nothing saved), when complete. */
   sentences: string[]
   /** Why it can't be saved as it stands (the flow asks) — a plain sentence; null = ready. */

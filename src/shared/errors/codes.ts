@@ -151,6 +151,7 @@ export const ERROR_MAP = {
   simple_no_item: e('errors.addItem', 'items'),
   simple_no_price: e('errors.intent.noPrice', 'items'),
   simple_overpaid: e('errors.intent.overpaid', 'payment', ['amount'], 'errors.intent.overpaidPlain'),
+  simple_overpaid_after_advance: e('errors.intent.overpaidAfterAdvance', 'payment', ['amount'], 'errors.intent.overpaidAfterAdvancePlain'),
   simple_walk_in_unpaid: e('errors.intent.walkInUnpaid', 'payment'),
   simple_bill_unknown: e('errors.intent.billUnknown', 'bills', ['bill'], 'errors.intent.billUnknownPlain'),
   simple_bill_over: e('errors.intent.billOver', 'bills', ['bill', 'amount'], 'errors.intent.billOverPlain'),

@@ -395,6 +395,26 @@ describe('add / remove TDS on lines — the per-kind rule', () => {
     expect(addTdsToLines('journal', alloc, [], { partyLedgerId: 1, tdsPaise: 1, isCashBank: isCash })).toMatchObject({ ok: false, error: expect.stringMatching(/cost-centre/) })
   })
 
+  it('#288: a bill an advance pays in full (no bill of its own) takes the TDS off the advance it uses', () => {
+    // Bill ₹11,800 set against the supplier's advance PY-1 ₹11,800 only. TDS ₹100: the supplier is
+    // owed ₹11,700, so the bill uses ₹11,700 of the advance; ₹100 of it stays with the supplier.
+    const lines = [{ ledgerId: 10, drCr: 'dr' as const, amount: 1_180_000 }, { ledgerId: 1, drCr: 'cr' as const, amount: 1_180_000 }]
+    const refs = [{ kind: 'against' as const, name: 'PY-1', amount: 1_180_000, dueDate: null }]
+    const a = addTdsToLines('purchase', lines, refs, { partyLedgerId: 1, tdsPaise: 10_000, isCashBank: isCash })
+    expect(a).toMatchObject({ ok: true, lines: [{ amount: 1_180_000 }, { amount: 1_170_000 }], billRefs: [{ kind: 'against', name: 'PY-1', amount: 1_170_000 }] })
+    // Two advances (₹5,000 then ₹6,800): the last one gives the ₹100 back; taken off, it comes back.
+    const two = [{ kind: 'against' as const, name: 'PY-1', amount: 500_000, dueDate: null }, { kind: 'against' as const, name: 'PY-2', amount: 680_000, dueDate: null }]
+    const b = addTdsToLines('purchase', lines, two, { partyLedgerId: 1, tdsPaise: 10_000, isCashBank: isCash })
+    expect(b.ok && b.billRefs.map((r) => [r.name, r.amount])).toEqual([['PY-1', 500_000], ['PY-2', 670_000]])
+    const withTds = [lines[0]!, { ledgerId: 1, drCr: 'cr' as const, amount: 1_170_000 }, { ledgerId: 40, drCr: 'cr' as const, amount: 10_000 }]
+    const back = removeTdsFromLines('purchase', withTds, b.ok ? b.billRefs : [], { partyLedgerId: 1, isPayableLine: (l) => l.ledgerId === 40, isCashBank: isCash })
+    expect(back.ok && back.billRefs.map((r) => [r.name, r.amount])).toEqual([['PY-1', 500_000], ['PY-2', 680_000]])
+    // A bill with a bill of its own still takes it off that bill (unchanged).
+    const own = [{ kind: 'against' as const, name: 'PY-1', amount: 500_000, dueDate: null }, { kind: 'new' as const, name: 'B1', amount: 680_000, dueDate: null }]
+    const c = addTdsToLines('purchase', lines, own, { partyLedgerId: 1, tdsPaise: 10_000, isCashBank: isCash })
+    expect(c.ok && c.billRefs.map((r) => [r.name, r.amount])).toEqual([['PY-1', 500_000], ['B1', 670_000]])
+  })
+
   it('remove gives the payable credit back to the same line', () => {
     const lines = [{ ledgerId: 10, drCr: 'dr' as const, amount: 1180 }, { ledgerId: 1, drCr: 'cr' as const, amount: 1160 }, { ledgerId: 40, drCr: 'cr' as const, amount: 20 }]
     const refs = [{ kind: 'new' as const, name: 'B1', amount: 1160, dueDate: null }]

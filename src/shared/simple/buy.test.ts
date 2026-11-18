@@ -9,7 +9,7 @@ import { computeInvoice, emptyInvoiceState } from '../voucherEdit'
 import { mapIntent, normaliseIntent, type IntentContext, type IntentFacts, type IntentLedger } from './intents'
 import { bannedWordsIn } from './bannedWords'
 import {
-  buyFormErrors, buyGst, buyIntentFrom, isCashExpense, buyIntentLines, buyLineRateMissing, buyTotals, emptyBuyForm, purchaseIntentFrom, purchasePreviewLine, purchaseStatus, switchBuyBasis,
+  buyAdvance, buyFormErrors, buyGst, buyIntentFrom, isCashExpense, buyIntentLines, buyLineRateMissing, buyTotals, emptyBuyForm, purchaseIntentFrom, purchasePreviewLine, purchaseStatus, switchBuyBasis,
   type BuyContext, type BuyForm
 } from './buy'
 import { switchBasisRemembering } from './sell'
@@ -433,5 +433,34 @@ describe('review PR #119: a business that can’t claim switches there and strai
       const there = switchBasisRemembering(amt, false, reg, null, (f) => switchBuyBasis(f, c, false))
       expect(switchBasisRemembering(there.form, true, reg, there.memo, (f) => switchBuyBasis(f, c, true)).form.amount).toBe(1_000_01)
     }
+  })
+})
+
+describe('R1 (FIG-G-1): what was paid the supplier ahead', () => {
+  const credits = [{ name: 'PY-1', amount: 500_000 }]
+  // Widget (18 %) 10 × ₹1,000 = ₹10,000 + ₹900 + ₹900 = ₹11,800.
+  const bill = (patch: Partial<BuyForm> = {}): BuyForm => form({ lines: [line(1, 1, '10', 100_000)], ...patch })
+
+  it('₹5,000 of an ₹11,800 bill; none when unticked or without a supplier', () => {
+    expect(buyAdvance(bill(), credits, 1_180_000)).toBe(500_000)
+    expect(buyAdvance(bill({ useAdvance: false }), credits, 1_180_000)).toBe(0)
+    expect(buyAdvance(bill({ supplierId: null }), credits, 1_180_000)).toBe(0)
+  })
+
+  it('ticked by default — the intent leaves it out; unticked it says so', () => {
+    expect(purchaseIntentFrom(bill(), ctxFor(), DEFAULTS)).not.toHaveProperty('useAdvance')
+    expect(purchaseIntentFrom(bill({ useAdvance: false }), ctxFor(), DEFAULTS)).toMatchObject({ useAdvance: false })
+  })
+
+  it('a part payment is of what is left (₹11,800 − ₹5,000 = ₹6,800)', () => {
+    expect(buyFormErrors(bill({ paid: 'part', partAmount: 680_000 }), ctxFor(), 500_000).payment).toBe('simple.buy.err.partTooMuch')
+    expect(buyFormErrors(bill({ paid: 'part', partAmount: 679_900 }), ctxFor(), 500_000).payment).toBeUndefined()
+  })
+
+  it('the preview line says it first', () => {
+    const f: IntentFacts = {
+      kind: 'purchase', partyName: 'Bharat Steel', total: 1_180_000, tax: 180_000, paid: 0, how: null, moneyAccount: null, due: 680_000, settled: [], advance: 0, fromName: null, toName: null, againstBill: null, offBill: 0, credit: 0, balance: null, noGst: null, side: 'supplier', walkIn: false, advanceUsed: 500_000
+    }
+    expect(purchasePreviewLine(f, t)).toBe('Bill ₹11,800.00 from Bharat Steel. ₹5,000.00 from what you paid them ahead. ₹6,800.00 to pay — no due date is set for this supplier.')
   })
 })

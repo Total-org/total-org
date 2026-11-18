@@ -6,7 +6,7 @@ import type { Group, Ledger, Voucher, VoucherBillRef, VoucherKind } from '@share
 import type { OutstandingBill } from '@shared/reports'
 import type { VoucherInputParsed } from '@shared/schemas'
 import {
-  buildInvoicePayload, computeInvoice, invoiceKindTakesTcs, invoiceKindTakesTds, requiredTaxLedgers, taxLedgerIdsFrom, taxSideOf, voucherTaxLedgers,
+  advanceWithin, buildInvoicePayload, computeInvoice, invoiceKindTakesTcs, invoiceKindTakesTds, requiredTaxLedgers, taxLedgerIdsFrom, taxSideOf, voucherTaxLedgers,
   type InvoiceContext, type InvoiceFormState, type TaxLedgerIds, type TdsDeductionState
 } from '@shared/voucherEdit'
 import { GST_STATES, GST_STATE_LIST } from '@shared/gst/states'
@@ -193,6 +193,9 @@ export function InvoiceEntry({
   const [billDueDateTouched, setBillDueDateTouched] = useState(!!initial)
   const [manualNewBillMode, setManualNewBillMode] = useState(initial?.manualNewBillMode ?? false)
   const [noteBillRefs, setNoteBillRefs] = useState<VoucherBillRef[]>(initial?.noteBillRefs ?? [])
+  // R1: the earlier credits (an advance) this bill is set against before its own bill — from a simple
+  // bill's hand-off ("Accountant view") or a saved bill (shared/voucherEdit/invoice.ts `advanceRefs`).
+  const [advanceRefs, setAdvanceRefs] = useState<VoucherBillRef[]>(initial?.advanceRefs ?? [])
 
   // ---------- TDS (purchase invoices; same suggestion/apply hook as AccountingEntry) ----------
   // Apply never touches the item lines: the shared builder reduces the vendor's credit by the
@@ -276,6 +279,14 @@ export function InvoiceEntry({
     [kind, info, items, ledgers]
   )
 
+  // They are that party's credits: another party drops them — said under Bill allocation; changing
+  // back keeps them. A hand-off's were taken as on its date, so an earlier date (before a credit may
+  // exist) drops them too; a saved bill's keep theirs when only its date is altered (as the
+  // accounting form keeps any bill's refs).
+  const advanceKept = useMemo(
+    () => (partyId === (initial?.partyId ?? null) && (isEdit || date >= (initial?.date ?? date)) ? advanceRefs : []),
+    [advanceRefs, partyId, date, isEdit, initial?.partyId, initial?.date]
+  )
   const formState: InvoiceFormState = useMemo(
     () => ({
       date,
@@ -296,6 +307,7 @@ export function InvoiceEntry({
       billDueDate,
       manualNewBillMode,
       noteBillRefs,
+      ...(advanceKept.length ? { advanceRefs: advanceKept } : {}),
       reference: initial?.reference ?? null,
       instrumentNo: initial?.instrumentNo ?? null,
       instrumentDate: initial?.instrumentDate ?? null,
@@ -314,7 +326,7 @@ export function InvoiceEntry({
       ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {}),
       ...(followsBill ? { followsBill } : {})
     }),
-    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, initial, kind, tds, tcs, taxedOriginal, followsBill]
+    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, advanceKept, initial, kind, tds, tcs, taxedOriginal, followsBill]
   )
   // A bill name still following the number (not typed) is reported as the hand-off had it: blank —
   // the number arriving from the numbering query is no change of the user's.
@@ -386,6 +398,8 @@ export function InvoiceEntry({
     startDismissed: !!initial?.tcs
   })
   const appliedTcs = formState.tcs ?? null
+  // R1: what of a handed-over advance this bill takes (as the payload posts it), and its own bill's rest.
+  const advanceTaken = advanceWithin(advanceKept, partyAmount + (appliedTcs?.tdsAmount ?? 0))
   const tcsKey = JSON.stringify(tcsCandidate)
   // The candidate the applied TCS was computed for (an alteration: the saved invoice's own).
   const tcsAppliedKey = useRef<string | null>(initial?.tcs ? tcsKey : null)
@@ -1143,45 +1157,63 @@ export function InvoiceEntry({
                   </button>
                 </>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Bill name">
-                    <TextInput
-                      value={billName}
-                      onChange={(e) => {
-                        setBillName(e.target.value)
-                        setBillNameTouched(true)
-                      }}
-                    />
-                  </Field>
-                  <Field
-                    label="Due date"
-                    hint={billDueDate === '' ? 'None saved' : party?.creditDays != null ? `${party.creditDays} credit days` : undefined}
-                  >
-                    {/* '' = a loaded bill saved without a due date: show the voucher date (the input
-                        needs one) but post null until the user picks a date. */}
-                    <DateInput
-                      value={billDueDate || date}
-                      context={date}
-                      onChange={(d) => {
-                        setBillDueDate(d)
-                        setBillDueDateTouched(true)
-                      }}
-                    />
-                  </Field>
-                  <Field label="Amount">
-                    <div className={`${inputCls} num bg-panel text-right text-muted`}>
-                      <Money paise={partyAmount + (appliedTcs?.tdsAmount ?? 0)} />
-                    </div>
-                  </Field>
-                  {isNoteKind && (
-                    <button
-                      className="col-span-3 self-start text-hint t-link"
-                      onClick={() => setManualNewBillMode(false)}
-                    >
-                      Allocate against open bills instead
-                    </button>
+                <>
+                  {advanceRefs.length > 0 && advanceKept.length === 0 && (
+                    <p className="mb-2 text-hint text-muted" data-testid="invoice-advance-dropped">
+                      Not set against {advanceRefs.map((r) => r.name).join(', ')} any more: the party or date changed.
+                    </p>
                   )}
-                </div>
+                  {advanceTaken.length > 0 && (
+                    <div className="mb-2 flex flex-col gap-1" data-testid="invoice-advance-refs">
+                      {advanceTaken.map((r) => (
+                        <label key={r.name} className="flex items-center gap-3 rounded-md px-1 py-1 text-body-sm hover:bg-panel2">
+                          <input type="checkbox" checked onChange={() => setAdvanceRefs((refs) => refs.filter((x) => x.name !== r.name))} />
+                          <span className="flex-1">Set against {r.name}</span>
+                          <Money paise={r.amount} className="w-28 text-right" />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Bill name">
+                      <TextInput
+                        value={billName}
+                        onChange={(e) => {
+                          setBillName(e.target.value)
+                          setBillNameTouched(true)
+                        }}
+                      />
+                    </Field>
+                    <Field
+                      label="Due date"
+                      hint={billDueDate === '' ? 'None saved' : party?.creditDays != null ? `${party.creditDays} credit days` : undefined}
+                    >
+                      {/* '' = a loaded bill saved without a due date: show the voucher date (the input
+                          needs one) but post null until the user picks a date. */}
+                      <DateInput
+                        value={billDueDate || date}
+                        context={date}
+                        onChange={(d) => {
+                          setBillDueDate(d)
+                          setBillDueDateTouched(true)
+                        }}
+                      />
+                    </Field>
+                    <Field label="Amount">
+                      <div className={`${inputCls} num bg-panel text-right text-muted`}>
+                        <Money paise={partyAmount + (appliedTcs?.tdsAmount ?? 0) - advanceTaken.reduce((sum, r) => sum + r.amount, 0)} />
+                      </div>
+                    </Field>
+                    {isNoteKind && (
+                      <button
+                        className="col-span-3 self-start text-hint t-link"
+                        onClick={() => setManualNewBillMode(false)}
+                      >
+                        Allocate against open bills instead
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}

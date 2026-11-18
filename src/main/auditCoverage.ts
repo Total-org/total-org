@@ -50,6 +50,7 @@ export const AUDIT_COVERAGE: Record<string, AuditCoverage> = {
   // WP 9.4: the simple Money screens' reads (choices / defaults, a party's open bills, the money list, one entry).
   'simple:money:setup': QUERY,
   'simple:money:bills': QUERY,
+  'simple:money:credits': QUERY,
   'simple:money:list': QUERY,
   'simple:money:entry': QUERY,
   // WP 9.2: the simple Sell screens' reads (customers / accounts / defaults, the sales list, one bill).

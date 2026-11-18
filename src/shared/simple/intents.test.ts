@@ -4,7 +4,7 @@ import { bannedWordsIn } from './bannedWords'
 import { en } from '../i18n'
 import type { VoucherPayload } from '../voucherEdit'
 import {
-  allocateToBills, returnRow, intentSentences, mapIntent, NeedTaxLedgers, normaliseIntent, readAmount, readQty,
+  advanceTake, allocateToBills, pinOfferedAdvance, returnRow, intentSentences, mapIntent, NeedTaxLedgers, normaliseIntent, readAmount, readQty,
   type IntentContext, type IntentLedger, type IntentLedgerClass, type IntentOriginal, type MappedIntent
 } from './intents'
 
@@ -532,5 +532,126 @@ describe('returnRow: the last return of a line takes what is left of it', () => 
   it('the whole line at once gets the whole discount; without what was returned, pro rata as before', () => {
     expect(returnRow({ ...line, returnedPaise: 0 }, 3000).discount).toBe(100)
     expect(returnRow({ ...line, leftMilli: 1000 }, 1000).discount).toBe(33)
+  })
+})
+
+describe('R1 (FIG-G-1): a new bill uses the party’s open advances — the editor’s own against refs', () => {
+  const credits = (list: [number, { name: string; amount: number }[]][]): IntentContext => ctx({ openCredits: new Map(list) })
+
+  it('a customer advance in full (S11): the bill is set against it and nothing stays due', () => {
+    // Money in R-1 ₹11,800 kept as an advance. Bill ₹10,000 + CGST 9 % ₹900 + SGST 9 % ₹900 =
+    // ₹11,800, on credit. The advance pays it all: one against ref R-1 ₹11,800, no bill of its own.
+    const m = map({ kind: 'sale', customerId: L.ramesh, amount: { amount: '10,000', gstRate: 18 } }, credits([[L.ramesh, [{ name: 'R-1', amount: 1_180_000 }]]]))
+    balanced(m)
+    expect(m.entries).toHaveLength(1)
+    expect(m.entries[0]!.payload.billRefs).toEqual([{ kind: 'against', name: 'R-1', amount: 1_180_000, dueDate: null }])
+    expect(m.facts).toMatchObject({ total: 1_180_000, paid: 0, due: 0, advanceUsed: 1_180_000 })
+    expect(m.facts.dueDate).toBeUndefined()
+    expect(intentSentences(m.facts, t)).toEqual(['Bill ₹11,800.00 to Ramesh.', 'Includes GST ₹1,800.00.', '₹11,800.00 of what they paid ahead is used.'])
+  })
+
+  it('a part advance (items): it pays part of the bill, oldest credit first; paid now takes what is left', () => {
+    // Widget 10 × ₹1,000 = ₹10,000 + ₹900 + ₹900 = ₹11,800. Credits R-1 ₹3,000 then R-2 ₹2,000
+    // (oldest first) = ₹5,000 used; ₹11,800 − ₹5,000 = ₹6,800 left, paid now by UPI (no amount
+    // typed = what is left), so the receipt is ₹6,800 against the bill's own ₹6,800.
+    const m = map(
+      { kind: 'sale', customerId: L.ramesh, items: [{ itemId: 100, qty: '10', rate: '1000' }], payment: { how: 'upi' } },
+      credits([[L.ramesh, [{ name: 'R-1', amount: 300_000 }, { name: 'R-2', amount: 200_000 }]]])
+    )
+    balanced(m)
+    const [bill, receipt] = m.entries
+    expect(bill!.form).toBe('invoice')
+    expect(bill!.payload.billRefs).toEqual([
+      { kind: 'against', name: 'R-1', amount: 300_000, dueDate: null },
+      { kind: 'against', name: 'R-2', amount: 200_000, dueDate: null },
+      { kind: 'new', name: 'S-7', amount: 680_000, dueDate: '2025-08-29' }
+    ])
+    expect(bill!.form === 'invoice' && bill!.state.advanceRefs).toEqual(bill!.payload.billRefs.slice(0, 2))
+    expect(receipt!.payload.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[L.upiBank, 'dr', 680_000], [L.ramesh, 'cr', 680_000]])
+    expect(receipt!.payload.billRefs).toEqual([{ kind: 'against', name: 'S-7', amount: 680_000, dueDate: null }])
+    expect(m.facts).toMatchObject({ total: 1_180_000, paid: 680_000, due: 0, advanceUsed: 500_000 })
+  })
+
+  it('a part advance on credit: what is left stays due on the bill, with its due date', () => {
+    // ₹11,800 − ₹5,000 advance = ₹6,800 due by 29 Aug (15 days to pay).
+    const m = map({ kind: 'sale', customerId: L.ramesh, amount: { amount: '10,000', gstRate: 18 } }, credits([[L.ramesh, [{ name: 'R-1', amount: 500_000 }]]]))
+    expect(m.entries[0]!.payload.billRefs).toEqual([
+      { kind: 'against', name: 'R-1', amount: 500_000, dueDate: null },
+      { kind: 'new', name: 'S-7', amount: 680_000, dueDate: '2025-08-29' }
+    ])
+    expect(m.facts).toMatchObject({ due: 680_000, advanceUsed: 500_000, dueDate: '2025-08-29' })
+    expect(intentSentences(m.facts, t)).toContain('₹6,800.00 still due from Ramesh.')
+  })
+
+  it('an advance larger than the bill: only the bill’s worth is used, the rest stays with them', () => {
+    // Advance ₹20,000; bill ₹11,800 → ₹11,800 used, ₹8,200 still held (not on this bill).
+    const m = map({ kind: 'sale', customerId: L.ramesh, amount: { amount: '10,000', gstRate: 18 } }, credits([[L.ramesh, [{ name: 'R-1', amount: 2_000_000 }, { name: 'R-2', amount: 100_000 }]]]))
+    expect(m.entries[0]!.payload.billRefs).toEqual([{ kind: 'against', name: 'R-1', amount: 1_180_000, dueDate: null }])
+    expect(m.facts.advanceUsed).toBe(1_180_000)
+  })
+
+  it('a supplier advance: the purchase is set against what was paid them ahead', () => {
+    // Money out PY-1 ₹5,000 paid ahead. Bill BS/9 ₹10,000 + ₹900 + ₹900 = ₹11,800: ₹5,000 from the
+    // advance, ₹6,800 left on the bill, not paid yet.
+    const m = map({ kind: 'purchase', supplierId: L.supplier, billNo: 'BS/9', amount: { amount: '10,000', gstRate: 18 } }, credits([[L.supplier, [{ name: 'PY-1', amount: 500_000 }]]]))
+    balanced(m)
+    expect(m.entries[0]!.payload.billRefs).toEqual([
+      { kind: 'against', name: 'PY-1', amount: 500_000, dueDate: null },
+      { kind: 'new', name: 'BS/9', amount: 680_000, dueDate: null }
+    ])
+    expect(m.facts).toMatchObject({ due: 680_000, advanceUsed: 500_000 })
+    expect(intentSentences(m.facts, t)).toContain('₹5,000.00 of what you paid them ahead is used.')
+    const items = map({ kind: 'purchase', supplierId: L.supplier, billNo: 'BS/10', items: [{ itemId: 100, qty: '1', rate: '1000' }], payment: { how: 'bank' } }, credits([[L.supplier, [{ name: 'PY-1', amount: 18_000 }]]]))
+    // ₹1,000 + ₹90 + ₹90 = ₹1,180; ₹180 from the advance, ₹1,000 paid from the bank now.
+    expect(items.entries[0]!.payload.billRefs).toEqual([
+      { kind: 'against', name: 'PY-1', amount: 18_000, dueDate: null },
+      { kind: 'new', name: 'BS/10', amount: 100_000, dueDate: null }
+    ])
+    expect(items.entries[1]!.payload.lines.map((l) => [l.ledgerId, l.drCr, l.amount])).toEqual([[L.supplier, 'dr', 100_000], [L.bank, 'cr', 100_000]])
+  })
+
+  it('unticked ("for another order"): the bill keeps its own bill only, exactly as before', () => {
+    const m = map({ kind: 'sale', customerId: L.ramesh, useAdvance: false, amount: { amount: '10,000', gstRate: 18 } }, credits([[L.ramesh, [{ name: 'R-1', amount: 1_180_000 }]]]))
+    expect(m.entries[0]!.payload.billRefs).toEqual([{ kind: 'new', name: 'S-7', amount: 1_180_000, dueDate: '2025-08-29' }])
+    expect(m.facts.advanceUsed).toBeUndefined()
+    expect(m.facts.due).toBe(1_180_000)
+  })
+
+  it('paying more than what is left after the advance is refused at the payment', () => {
+    // ₹11,800 − ₹5,000 = ₹6,800 left; ₹7,000 typed.
+    expect(codeOf(() => map({ kind: 'sale', customerId: L.ramesh, amount: { amount: '10,000', gstRate: 18 }, payment: { how: 'cash', amount: '7000' } }, credits([[L.ramesh, [{ name: 'R-1', amount: 500_000 }]]]))))
+      .toEqual({ code: 'simple_overpaid_after_advance', field: 'payment.amount' })
+  })
+
+  it('a walk-in never takes an advance (the counter’s cash customer is paid in full)', () => {
+    const m = map({ kind: 'sale', items: [{ itemId: 101, qty: '1', rate: '100' }] }, credits([[L.walkIn, [{ name: 'X', amount: 10_000 }]]]))
+    expect(m.entries[0]!.payload.billRefs).toEqual([expect.objectContaining({ kind: 'new' })])
+    expect(m.facts.advanceUsed).toBeUndefined()
+  })
+
+  it('advanceTake: oldest first, never more than the bill, skips empty credits', () => {
+    expect(advanceTake([{ name: 'A', amount: 0 }, { name: 'B', amount: 400 }, { name: 'C', amount: 900 }], 1000)).toEqual({
+      refs: [{ kind: 'against', name: 'B', amount: 400, dueDate: null }, { kind: 'against', name: 'C', amount: 600, dueDate: null }],
+      used: 1000
+    })
+    expect(advanceTake([], 1000)).toEqual({ refs: [], used: 0 })
+  })
+})
+
+describe('R1 review: pinOfferedAdvance — an offer approved later posts what its preview said', () => {
+  const sale = { kind: 'sale' as const, customerId: L.ramesh, amount: { amount: 30_000 }, payment: { how: 'cash' as const } }
+  it('no credit used → keeps them; used with nothing paid now → on credit; used with ₹680 paid now → exactly ₹680', () => {
+    expect(pinOfferedAdvance(sale, { advanceUsed: undefined, paid: 30_000 })).toEqual({ ...sale, useAdvance: false })
+    expect(pinOfferedAdvance(sale, { advanceUsed: 30_000, paid: 0 })).toEqual({ ...sale, payment: { how: 'credit' } })
+    expect(pinOfferedAdvance(sale, { advanceUsed: 50_000, paid: 68_000 })).toEqual({ ...sale, payment: { how: 'cash', amount: 68_000 } })
+    const moneyIn = { kind: 'money_in' as const, amount: 100, into: { how: 'cash' as const }, customerId: L.ramesh }
+    expect(pinOfferedAdvance(moneyIn, { advanceUsed: undefined, paid: 0 })).toBe(moneyIn)
+  })
+  it('pinned on credit, approved after the credit was used elsewhere: the bill is due, no money is invented', () => {
+    const pinned = pinOfferedAdvance(sale, { advanceUsed: 30_000, paid: 0 })
+    // ₹300, no GST rate asked and none on Sales → a ₹300 bill; no credit in this context now.
+    const m = map(pinned)
+    expect(m.entries.map((e) => e.kind)).toEqual(['sales'])
+    expect(m.facts).toMatchObject({ paid: 0, due: 30_000 })
   })
 })

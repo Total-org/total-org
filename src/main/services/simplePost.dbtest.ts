@@ -19,7 +19,7 @@ import {
 } from '@shared/voucherEdit'
 import { createLedger, createStockItem, listGroups, listLedgers, listStockItems, updateStockItem } from './masters'
 import { getVoucher, nextVoucherNumber, saveVoucher, setLockDate } from './vouchers'
-import { partyAllocation } from './analysis'
+import { outstandingsWithAdvances, partyAllocation } from './analysis'
 import { replaceOpeningBills } from './openingBills'
 import { setCreditHold } from './receivables'
 import { postClose } from './yearEnd'
@@ -29,7 +29,9 @@ import { intentForm, previewIntent, postIntent, remapSaveError } from './simpleP
 import { normaliseIntent, type MappedEntry } from '@shared/simple/intents'
 import { saleView, salesList, sellSetup } from './simpleSell'
 import { createMemory } from '../ai/memory'
-import { extractOutwardDocs, gstr1, gstr3b } from './gst'
+import { extractAdvanceAdjustments, extractAdvances, extractOutwardDocs, gstr1, gstr3b } from './gst'
+import { lateReminders, peopleList } from './simplePeople'
+import { purchasesList } from './simpleBuy'
 import { extractEdocInvoices } from './edocs'
 import { emptySellForm, saleIntentFrom, saleStatus, sellFormErrors, sellTotals, type SellContext, type SellForm } from '@shared/simple/sell'
 
@@ -1264,4 +1266,153 @@ describe('GSTR-1 CDNUR: the original invoice across years and places', () => {
     // A note in respect of a B2C Large (inter-state) invoice: CDNUR.
     expect(((gstr1(db, INFO, '2025-08-01', '2025-08-31', '082025').json.cdnur ?? []) as unknown[]).length).toBe(1)
   })
+})
+
+// ---------------------------------------------------------------- R1 (FIG-G-1): a bill uses the advance
+
+describe('R1 (FIG-G-1): a simple bill uses the party’s open advance — hand-worked', () => {
+  // A customer with an 18 % GST rate (as the readiness report's S11 set it), 7 days to pay.
+  const asha = (): number => ledger(db, 'Asha', 'Sundry Debtors', { stateCode: '27', creditDays: 7, gstRate: 18 })
+  const advanceIn = (customerId: number, amount: string): void => {
+    post({ kind: 'money_in', date: '2025-07-10', amount, into: { how: 'bank' }, customerId, advance: true })
+  }
+  const advanceOut = (supplierId: number, amount: string): void => {
+    post({ kind: 'money_out', date: '2025-07-10', amount, from: { how: 'bank' }, supplierId, advance: true })
+  }
+  const receivable = (id: number) => {
+    const o = outstandingsWithAdvances(db, 'receivable', TODAY)
+    return { pending: o.parties.find((p) => p.ledgerId === id)?.pending ?? 0, ahead: o.advanceByParty.get(id) ?? 0 }
+  }
+
+  it('S11: advance ₹11,800 in July, bill ₹11,800 in August — nothing due, no reminder, 11B filled', () => {
+    const id = asha()
+    advanceIn(id, '11,800')
+    // Bill 5 Aug: ₹10,000 + CGST 9 % ₹900 + SGST 9 % ₹900 = ₹11,800, on credit (due 12 Aug).
+    const out = post({ kind: 'sale', date: '2025-08-05', customerId: id, amount: { amount: '10,000', gstRate: 18 } })
+    expect(out.facts).toMatchObject({ total: 1_180_000, advanceUsed: 1_180_000, due: 0 })
+    // The advance pays it all: nothing open, nothing held (₹11,800 − ₹11,800 both ways).
+    expect(receivable(id)).toEqual({ pending: 0, ahead: 0 })
+    expect(peopleList(db, TODAY).people.find((p) => p.ledgerId === id)).toMatchObject({ open: 0, ahead: 0, lateBills: 0 })
+    const row = salesList(db, '2025-08-01', '2025-08-31', TODAY).find((s) => s.voucherId === out.voucherIds[0])!
+    expect(row).toMatchObject({ total: 1_180_000, due: 0, paid: 1_180_000 })
+    expect(saleStatus(row.total, row.due, row.overdueDays, row.paid)).toBe('paid')
+    // 14 Aug is past the 12 Aug due date: still no reminder — nothing is late.
+    expect(lateReminders(db, TODAY).map((r) => r.ledgerId)).not.toContain(id)
+    // GSTR-1: July 11A and August 11B, both ₹11,800 × 100 ÷ 118 = ₹10,000, tax ₹1,800 = ₹900 + ₹900.
+    const adv = { pos: '27', supply: 'intra', rate: 18, taxable: 1_000_000, cgst: 90_000, sgst: 90_000, igst: 0, cess: 0 }
+    expect(extractAdvances(db, INFO, '2025-07-01', '2025-07-31')).toEqual([adv])
+    expect(extractAdvanceAdjustments(db, INFO, '2025-08-01', '2025-08-31')).toEqual([adv])
+    expect(gstr1(db, INFO, '2025-08-01', '2025-08-31', '082025').json.txpd).toEqual([
+      { pos: '27', sply_ty: 'INTRA', itms: [{ rt: 18, ad_amt: 10_000, iamt: 0, camt: 900, samt: 900, csamt: 0 }] }
+    ])
+    // It is the full editor's own entry: opens in the accounting form (as golden ADV-02) and saves
+    // back unchanged.
+    roundTripsAllocated(out.voucherIds[0]!, 'accounting')
+    const bill = getVoucher(db, out.voucherIds[0]!)!
+    expect(bill.billRefs).toEqual([{ kind: 'against', name: getVoucher(db, advanceVoucher(id))!.number, amount: 1_180_000, dueDate: null }])
+  })
+
+  it('a part advance: ₹5,000 used, ₹6,800 left due on the bill', () => {
+    advanceIn(L('Ramesh'), '5,000')
+    // Widget 10 × ₹1,000 = ₹10,000 + ₹900 + ₹900 = ₹11,800 − ₹5,000 = ₹6,800 due.
+    const out = post({ kind: 'sale', date: '2025-08-05', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '10', rate: '1000' }] })
+    expect(receivable(L('Ramesh'))).toEqual({ pending: 680_000, ahead: 0 })
+    const row = salesList(db, '2025-08-01', '2025-08-31', TODAY).find((s) => s.voucherId === out.voucherIds[0])!
+    expect(row).toMatchObject({ due: 680_000, paid: 500_000 })
+    expect(out.sentences).toContain('₹5,000.00 of what they paid ahead is used.')
+    expect(out.sentences).toContain('Ramesh still owes ₹6,800.00.')
+    roundTripsAllocated(out.voucherIds[0]!, 'invoice')
+  })
+
+  it('an advance larger than the bill: ₹11,800 used, ₹8,200 still held', () => {
+    advanceIn(L('Ramesh'), '20,000')
+    post({ kind: 'sale', date: '2025-08-05', customerId: L('Ramesh'), amount: { amount: '10,000', gstRate: 18 } })
+    // ₹20,000 − ₹11,800 = ₹8,200 ahead.
+    expect(receivable(L('Ramesh'))).toEqual({ pending: 0, ahead: 820_000 })
+  })
+
+  it('a supplier advance: ₹5,000 paid ahead, bill ₹11,800 → ₹6,800 to pay', () => {
+    const steel = L('Bharat Steel')
+    advanceOut(steel, '5,000')
+    const out = post({ kind: 'purchase', date: '2025-08-05', supplierId: steel, billNo: 'BS/9', amount: { amount: '10,000', gstRate: 18 } })
+    const o = outstandingsWithAdvances(db, 'payable', TODAY)
+    expect(o.parties.find((p) => p.ledgerId === steel)?.pending).toBe(680_000)
+    expect(o.advanceByParty.get(steel)).toBeUndefined()
+    expect(purchasesList(db, '2025-08-01', '2025-08-31', TODAY).find((p) => p.voucherId === out.voucherIds[0])).toMatchObject({ due: 680_000, paid: 500_000 })
+    expect(out.sentences).toContain('₹5,000.00 of what you paid them ahead is used.')
+    // The accountant's own entry: the purchase in the accounting form with the same refs.
+    const { twin, ids } = handEnteredWithAdvance('payment', steel, 500_000, [
+      { kind: 'purchase', form: 'accounting', state: blankAccounting('2025-08-05', [r('cr', L('Bharat Steel'), 1_180_000), r('dr', L('Purchases'), 1_000_000), r('dr', L('CGST'), 90_000), r('dr', L('SGST'), 90_000)], [
+        { kind: 'against', name: getVoucher(db, advanceVoucher(steel))!.number, amount: 500_000, dueDate: null },
+        { kind: 'new', name: 'BS/9', amount: 680_000, dueDate: null }
+      ], { reference: 'BS/9' }) }
+    ])
+    expect(rows(twin, ids[0]!)).toEqual(rows(db, out.voucherIds[0]!))
+  })
+
+  it('unticked ("for another order"): the bill stays due and the advance stays held, as before', () => {
+    const id = asha()
+    advanceIn(id, '11,800')
+    post({ kind: 'sale', date: '2025-08-05', customerId: id, useAdvance: false, amount: { amount: '10,000', gstRate: 18 } })
+    expect(receivable(id)).toEqual({ pending: 1_180_000, ahead: 1_180_000 })
+    expect(extractAdvanceAdjustments(db, INFO, '2025-08-01', '2025-08-31')).toEqual([])
+  })
+
+  it('a credit a later-dated bill already used is not used again by a back-dated one', () => {
+    advanceIn(L('Ramesh'), '11,800')
+    const later = post({ kind: 'sale', date: '2025-08-10', customerId: L('Ramesh'), amount: { amount: '10,000', gstRate: 18 } })
+    expect(later.facts.advanceUsed).toBe(1_180_000)
+    // Bill dated 5 Aug, ₹1,000 + ₹90 + ₹90 = ₹1,180: on 5 Aug the advance looked open, but the 10
+    // Aug bill holds all of it — so this one uses none and is due in full.
+    const earlier = post({ kind: 'sale', date: '2025-08-05', customerId: L('Ramesh'), amount: { amount: '1,000', gstRate: 18 } })
+    expect(earlier.facts.advanceUsed).toBeUndefined()
+    expect(receivable(L('Ramesh'))).toEqual({ pending: 118_000, ahead: 0 })
+  })
+
+  it('paid more than what is left after the advance: refused on the payment, no trace', () => {
+    advanceIn(L('Ramesh'), '5,000')
+    const before = trace()
+    expect(() => post({ kind: 'sale', date: '2025-08-05', customerId: L('Ramesh'), amount: { amount: '10,000', gstRate: 18 }, payment: { how: 'cash', amount: '7,000' } }))
+      .toThrow(expect.objectContaining({ code: 'simple_overpaid_after_advance', field: 'payment.amount' }))
+    expect(trace()).toEqual(before)
+  })
+
+  it('Undo of the bill gives the advance back; the Accountant-view hand-off carries it', () => {
+    advanceIn(L('Ramesh'), '5,000')
+    const intent = { kind: 'sale', date: '2025-08-05', customerId: L('Ramesh'), items: [{ itemId: I('Widget'), qty: '10', rate: '1000' }] }
+    // The hand-off's invoice form holds the advance it uses (₹5,000 of the ₹11,800 bill).
+    const form = intentForm(db, INFO, { clientId: 'handoff-r1-0001', ...intent }, TODAY)
+    const state = form.entries[0]!.state as InvoiceFormState
+    expect(state.advanceRefs).toEqual([{ kind: 'against', name: getVoucher(db, advanceVoucher(L('Ramesh')))!.number, amount: 500_000, dueDate: null }])
+    const out = post(intent)
+    // Saved from the editor (with the number it gives; the bill name is the hand-off's — "1" is the
+    // advance's, so the bill is "1/25-26") = what simple:post saved.
+    const built = buildInvoicePayload({ ...state, number: getVoucher(db, out.voucherIds[0]!)!.number }, { ...invoiceCtx(db), kind: 'sales' }, typeId(db, 'sales'), taxLedgerIdsFrom(listLedgers(db), 'output'))
+    expect(built.ok && built.payload.billRefs).toEqual(getVoucher(db, out.voucherIds[0]!)!.billRefs)
+    undoSave(db, out.voucherIds)
+    expect(receivable(L('Ramesh'))).toEqual({ pending: 0, ahead: 500_000 })
+  })
+
+  /** The latest receipt / payment of the party (its advance). */
+  function advanceVoucher(partyId: number): number {
+    return (db.prepare("SELECT v.id FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id WHERE v.party_ledger_id = ? AND vt.kind IN ('receipt', 'payment') ORDER BY v.id DESC").get(partyId) as { id: number }).id
+  }
+
+  /** A bill set against an advance opens in its editor — products the invoice form (its
+   *  `advanceRefs`), just an amount the accounting form — and re-saves unchanged. */
+  function roundTripsAllocated(id: number, mode: 'invoice' | 'accounting'): void {
+    const before = rows(db, id)
+    const { plan, payload } = editorResave(db, id)
+    expect(plan.mode).toBe(mode)
+    saveVoucher(db, payload, id)
+    expect(rows(db, id)).toEqual(before)
+  }
+
+  /** handEntered with the party's advance typed first (the same receipt / payment, by hand). */
+  function handEnteredWithAdvance(kind: 'receipt' | 'payment', partyId: number, amount: number, entries: Parameters<typeof handEntered>[0]): { twin: DB; ids: number[] } {
+    const name = getVoucher(db, advanceVoucher(partyId))!.number
+    const money = kind === 'payment' ? [r('dr', partyId, amount), r('cr', L('HDFC Bank'), amount)] : [r('dr', L('HDFC Bank'), amount), r('cr', partyId, amount)]
+    const { twin, ids } = handEntered([{ kind, form: 'accounting', state: blankAccounting('2025-07-10', money, [{ kind: 'new', name, amount, dueDate: null }], { number: name }) }, ...entries])
+    return { twin, ids: ids.slice(1) }
+  }
 })

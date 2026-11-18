@@ -7,6 +7,7 @@ import type { LineSource, Voucher, VoucherBillRef, VoucherKind } from '../domain
 import { computeGst, addBreakups, type GstBreakup, type SupplyType } from '../gst/calc'
 import { billTaxClass, noteFollowsBill, zeroRatedClass, zeroRatedKind, type PartyExportType, type ZeroRatedClass } from '../gst/zeroRated'
 import { roundToRupee } from '../money'
+import { fyOf } from '../dates'
 import { chargesGstOn, type GstRegistrationFacts } from '../gst/registration'
 import type { TdsDeductionState } from './tds'
 import {
@@ -53,6 +54,12 @@ export interface InvoiceFormState {
   optional: boolean
   billName: string
   billDueDate: string
+  /** R1 (FIG-G-1), sales / purchases: the party's open credits (an advance) this bill uses, as
+   *  `against` refs posted before its own bill — `billName` then carries what is left. Set by a
+   *  simple bill (and its Accountant-view hand-off), and loaded from a saved sale / purchase whose
+   *  refs are `against` refs then at most one `new` ref (rebuilt exactly, else the accounting
+   *  form); absent = none, the bill alone as before. */
+  advanceRefs?: VoucherBillRef[]
   /** Notes only: true = post one 'new' bill (billName) instead of allocating against bills. */
   manualNewBillMode: boolean
   noteBillRefs: VoucherBillRef[]
@@ -368,6 +375,29 @@ export function requiredTaxLedgers(c: InvoiceComputed): (keyof TaxLedgerIds)[] {
   return out
 }
 
+/** R1: what of `refs` (the advance a bill uses, oldest first) a bill of `amount` takes — never more
+ *  than the bill; the editor's total may have changed since they were taken. */
+export function advanceWithin(refs: readonly VoucherBillRef[], amount: number): VoucherBillRef[] {
+  const out: VoucherBillRef[] = []
+  let left = amount
+  for (const r of refs) {
+    const take = Math.min(r.amount, left)
+    if (take <= 0) break
+    out.push({ ...r, amount: take })
+    left -= take
+  }
+  return out
+}
+
+/** A bill's own refs: the advance it uses, then its own bill for the rest. */
+function billRefsOf(state: InvoiceFormState, billName: string, partyAmount: number): VoucherBillRef[] {
+  const own = (amount: number): VoucherBillRef => ({ kind: 'new', name: billName, amount, dueDate: state.billDueDate || null })
+  if (!state.advanceRefs?.length) return billName ? [own(partyAmount)] : []
+  const refs = advanceWithin(state.advanceRefs, partyAmount)
+  const left = partyAmount - refs.reduce((s, r) => s + r.amount, 0)
+  return billName && left > 0 ? [...refs, own(left)] : refs
+}
+
 /** The exact payload the invoice form posts. `taxLedgers` must name every ledger in
  *  requiredTaxLedgers (the form creates missing ones first; the representability check
  *  only passes existing ids). */
@@ -462,9 +492,7 @@ export function buildInvoicePayload(
       billRefs:
         isNoteKind(ctx.kind) && !state.manualNewBillMode
           ? state.noteBillRefs
-          : billName
-            ? [{ kind: 'new' as const, name: billName, amount: partyAmount, dueDate: state.billDueDate || null }]
-            : [],
+          : billRefsOf(state, billName, partyAmount),
       tds: tds
         ? {
             sectionId: tds.sectionId, baseAmount: tds.baseAmount, tdsAmount: tds.tdsAmount,
@@ -565,6 +593,7 @@ export function invoiceStateFromVoucher(
   let billDueDate = v.date
   let manualNewBillMode = false
   let noteBillRefs: VoucherBillRef[] = []
+  let advanceRefs: VoucherBillRef[] | null = null
   const refs = v.billRefs
   const singleNew = refs.length === 1 && refs[0]!.kind === 'new' ? refs[0]! : null
   if (isNoteKind(kind)) {
@@ -581,7 +610,23 @@ export function invoiceStateFromVoucher(
     billName = singleNew.name
     billDueDate = singleNew.dueDate ?? ''
   } else if (refs.length > 0) {
-    return { ok: false, reason: 'it allocates against existing bills' }
+    // R1: a bill set against earlier credits (a simple bill using an advance): its `against` refs,
+    // then at most one `new` ref — its own bill — last. Any other shape stays in the accounting
+    // form; this one is still accepted only when the form rebuilds it exactly (representAs).
+    const own = refs.filter((r) => r.kind === 'new')
+    if (own.length > 1 || (own.length === 1 && refs[refs.length - 1]!.kind !== 'new')) return { ok: false, reason: 'it allocates against existing bills' }
+    if (own[0]) {
+      billName = own[0].name
+      billDueDate = own[0].dueDate ?? ''
+    } else {
+      // Paid in full by the credits: no bill of its own yet — named after its number (unchanged, it
+      // still posts none), so a total raised later opens one for the rest. A credit of that name
+      // (a fresh company's first advance "1" and first sale "1") gets the year added, as a simple
+      // bill's name does (intents.ts uniqueName).
+      const fy = `${v.number}/${fyOf(v.date).label.slice(2)}`
+      billName = [v.number, fy].find((n) => !refs.some((r) => r.name === n)) ?? ''
+    }
+    advanceRefs = refs.filter((r) => r.kind === 'against').map((r) => ({ ...r }))
   }
 
   const p = passthroughOf(v)
@@ -606,6 +651,7 @@ export function invoiceStateFromVoucher(
       billDueDate,
       manualNewBillMode,
       noteBillRefs,
+      ...(advanceRefs ? { advanceRefs } : {}),
       reference: p.reference,
       instrumentNo: p.instrumentNo,
       instrumentDate: p.instrumentDate,

@@ -149,6 +149,12 @@ export function registerSimpleIpc(handle: IpcHandle, { requireCompany, canSeePro
     const { partyId, date } = z.object({ partyId: z.number().int().positive(), date: isoDate }).strict().parse(payload)
     return simpleMoney.moneyBills(requireCompany().db, partyId, date)
   }, 'viewer')
+  // R1 (FIG-G-1): what Make a bill / Record a purchase show as "Use what they paid ahead": the party's
+  // open credits a bill dated `date` can use — the list simple:post's mapping uses (advanceCredits).
+  handle('simple:money:credits', (payload) => {
+    const { partyId, date } = z.object({ partyId: z.number().int().positive(), date: isoDate }).strict().parse(payload)
+    return simplePost.advanceCredits(requireCompany().db, partyId, date)
+  }, 'viewer')
   handle('simple:money:list', (payload) => {
     // `today` = the working date the list's range is built on, so "dated ahead" agrees with it.
     const { from, to, today } = z.object({ from: isoDate, to: isoDate, today: isoDate.optional() }).strict().parse(payload)

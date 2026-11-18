@@ -7,7 +7,7 @@ import { toPlainDate } from '@shared/dates'
 import { mapError, type CaughtError } from '@shared/errors'
 import type { SimplePreview } from '@shared/simple/intents'
 import {
-  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, qtyMilliOf, saleIntentFrom, salePreviewLine, sellAdvance, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
   type BasisMemo, type SellContext, type SellField, type SellForm
 } from '@shared/simple/sell'
 import { api } from '../../lib/client'
@@ -32,6 +32,7 @@ import { useAccountantView, useCarriedBack, useKeptForm } from '../../lib/handof
 import { CarriedBackNote } from '../CarriedBackNote'
 import { AccountantViewButton } from '../AccountantViewButton'
 import { SaveBar } from '../SaveBar'
+import { UseAdvance } from '../UseAdvance'
 import { useCanSave, ViewerNote } from '../ViewerNote'
 
 const INCL_KEY = 'total-sell-incl' // i18n-technical: localStorage key (per company)
@@ -94,6 +95,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     ask ? sellFromAsk(blank(), ask.prefill, (l) => ({ ...l, key: ++lineSeq, auto: l.auto ?? true })) : party != null ? { ...blank(), customerId: party, paid: CREDIT } : blank()
   )
   const [savedIds, setSavedIds] = useState<number[] | null>(null)
+  // R1: what of the saved bill the party's advance paid (simple:post's facts), for the save card.
+  const [savedAdvance, setSavedAdvance] = useState(0)
   const [savedWalkIn, setSavedWalkIn] = useState(false)
   const [preview, setPreview] = useState<SimplePreview | null>(null)
   const [general, setGeneral] = useState<{ text: string; details: string } | null>(null)
@@ -138,9 +141,21 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   // GST questions follow the registration on the BILL's date (WP 8.0), not today's.
   const regular = charges
   const customer = setup?.customers.find((c) => c.id === form.customerId) ?? null
+  // R1: the customer's open advance (the list simple:post takes it from), as on the bill's date.
+  // Read afresh on every visit (a Money in / Return / Undo since may have changed them); Save waits.
+  const { data: credits, isFetching: creditsLoading } = useQuery({
+    queryKey: ['simpleCredits', form.customerId, form.date], // i18n-technical
+    queryFn: () => api.simpleMoney.credits(form.customerId ?? 0, form.date),
+    enabled: form.customerId != null,
+    staleTime: 0
+  })
+  const advanceHeld = form.customerId != null ? (credits ?? []).reduce((s, c) => s + c.amount, 0) : 0
+  const advanceUsed = sellAdvance(form, credits ?? [], totals?.total ?? 0)
+  // What "Paid how?" and the cash given work on: the bill less what their advance pays.
+  const toPay = (totals?.total ?? 0) - advanceUsed
   const clientErrors = useMemo(
-    () => (ctx ? sellFormErrors(form, ctx, { onHold: !!customer?.creditHold, regular }) : {}),
-    [form, ctx, customer?.creditHold, regular]
+    () => (ctx ? sellFormErrors(form, ctx, { onHold: !!customer?.creditHold, regular, advanceUsed }) : {}),
+    [form, ctx, customer?.creditHold, regular, advanceUsed]
   )
 
   const errors = useFormErrors<SellField>(
@@ -162,8 +177,8 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   /** A customer picked (null = the walk-in): the walk-in pays now; a named customer starts on
    *  credit unless the user already said how it was paid. */
   const pickCustomer = (id: number | null): void => {
-    if (id == null) update({ customerId: null, ...(form.paid === 'credit' || form.paid === 'part' || !paidChosen ? { paid: CASH } : {}) })
-    else update({ customerId: id, ...(!paidChosen ? { paid: CREDIT } : {}) })
+    if (id == null) update({ customerId: null, useAdvance: true, ...(form.paid === 'credit' || form.paid === 'part' || !paidChosen ? { paid: CASH } : {}) })
+    else update({ customerId: id, useAdvance: true, ...(!paidChosen ? { paid: CREDIT } : {}) })
   }
 
   /** A13: a product from the scan box — one more of it, or a new line (addScannedProduct). */
@@ -248,7 +263,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   }
 
   const save = async (): Promise<void> => {
-    if (!ctx || !setup || saving) return
+    if (!ctx || !setup || saving || creditsLoading) return
     setGeneral(null)
     const keys = Object.entries(clientErrors) as [SellField, string][]
     if (keys.length) {
@@ -258,8 +273,9 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
     try {
       const r = await poster.post(saleIntentFrom(form, ctx, setup.defaults))
       setSavedIds(r.voucherIds)
+      setSavedAdvance(r.facts.advanceUsed ?? 0)
       setSavedWalkIn(r.facts.walkIn)
-      for (const k of ['simpleSellSetup', 'simpleSales', 'ledgers', 'stockItems', 'dashboard']) void queryClient.invalidateQueries({ queryKey: [k] }) // i18n-technical
+      for (const k of ['simpleSellSetup', 'simpleSales', 'simpleCredits', 'ledgers', 'stockItems', 'dashboard']) void queryClient.invalidateQueries({ queryKey: [k] }) // i18n-technical
     } catch (err) {
       place(err)
     }
@@ -401,6 +417,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
       {savedIds ? (
         <SaveCard
           voucherIds={savedIds}
+          advance={{ amount: savedAdvance, side: 'customer' }} // i18n-technical
           skipParties={savedWalkIn}
           onNew={startNew}
           onEdit={(id) => nav.go({ name: 'voucher-entry', voucherId: id })} // i18n-technical
@@ -535,6 +552,10 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
             )}
           </section>
 
+          {advanceHeld > 0 && (
+            <UseAdvance held={advanceHeld} left={toPay} checked={form.useAdvance} onChange={(on) => update({ useAdvance: on })} />
+          )}
+
           {/* Paid how? */}
           <PaidHow
             form={form}
@@ -576,14 +597,14 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
                 {formatPaise(totals?.total ?? 0, { symbol: true })}
               </span>
             </div>
-            {form.paid === CASH && (totals?.total ?? 0) > 0 && (
+            {form.paid === CASH && toPay > 0 && (
               <div className="mt-2 flex flex-wrap items-center justify-end gap-3 text-detail" data-testid="sell-cash-given">
                 <label className="flex items-center gap-2 text-muted">
                   {t('simple.sell.cashGiven')}
                   <AmountInput paise={cashGiven} onPaise={setCashGiven} testId="input-sell-cash-given" className="w-32" ariaLabel={t('simple.sell.cashGiven')} />
                 </label>
                 {(() => {
-                  const due = changeDue(cashGiven, totals?.total ?? 0)
+                  const due = changeDue(cashGiven, toPay)
                   if (!due) return null
                   return 'back' in due ? ( // i18n-technical: union tag
                     <span className="num font-semibold text-ink" data-testid="sell-change-back" data-paise={due.back}>
@@ -629,7 +650,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
             <Button data-testid="btn-sell-start-again" disabled={saving} onClick={() => (dirty ? void askDiscard().then((ok) => ok && startNew()) : startNew())}>
               {t('simple.sell.startAgain')}
             </Button>
-            <Button variant="primary" data-testid="btn-sell-save" disabled={saving || !setup || noSalesAccount} onClick={() => void save()}>
+            <Button variant="primary" data-testid="btn-sell-save" disabled={saving || !setup || noSalesAccount || creditsLoading} onClick={() => void save()}>
               {t('simple.sell.save')}
             </Button>
           </SaveBar>

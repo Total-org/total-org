@@ -8,7 +8,7 @@ Jab koi supplier aapko bill de, tab **Purchase likhein** use karein — us maal 
 2. **Unka bill number aur date** — inhe bill se copy karein. Total ek hi supplier ka ek hi bill number saal mein do baar nahi leta, taaki kuch bhi do baar na likha jaye.
 3. **Aapne kya kharida?** Items aur kitne, ya kisi kharche ke liye **Sirf amount**.
 4. **Bill par GST rate** — jab aap GST mein registered hon, to Total aapke diye GST ka hisaab lagata hai; file karte waqt yeh aapke bharne wale GST mein se kam ho jata hai. Agar aapka business ise wapas claim nahi kar sakta, to Total ise cost mein jod deta hai.
-5. **Abhi payment kiya?** Agar aapne kharidte waqt paise diye, to batayein kaise. Nahi to bill supplier ka baaki rehta hai.
+5. **Abhi payment kiya?** Agar aapne kharidte waqt paise diye, to batayein kaise. Nahi to bill supplier ka baaki rehta hai. Agar aapne supplier ko pehle se paise diye the, to upar **Aapne unhe pehle jo diya, woh use karein** tick laga hua dikhta hai: bill pehle woh paisa leta hai, aur Abhi payment kiya? bache hue amount ke liye hai. Agar woh paisa kisi aur order ka tha to tick hata dein.
 6. **Save karein** dabayein.
 
 ## Supplier ko baad mein payment

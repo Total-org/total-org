@@ -479,6 +479,7 @@
  { "channel": "simple:homeAttention", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "simple:intentForm", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "simple:money:bills", "role": "viewer", "ungated": false, "capability": null },
+ { "channel": "simple:money:credits", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "simple:money:entry", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "simple:money:list", "role": "viewer", "ungated": false, "capability": null },
  { "channel": "simple:money:setup", "role": "viewer", "ungated": false, "capability": null },

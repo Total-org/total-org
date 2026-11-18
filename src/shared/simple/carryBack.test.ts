@@ -437,3 +437,67 @@ describe('carryBack — what has no place in the simple form', () => {
     expect(carry('simple-sell', form, E, acc, c)).toEqual({ ok: false, reason: 'form' })
   })
 })
+
+describe('carryBack — R1: "Use their advance"', () => {
+  const credits = (c: IntentContext): IntentContext => ({ ...c, openCredits: new Map([[L.ramesh, [{ name: 'R-1', amount: 50_000 }]], [L.supplier, [{ name: 'PY-1', amount: 50_000 }]]]) })
+  const sellItems = (): SellForm => ({ ...emptySellForm(TODAY, { mode: 'items', ratesIncludeGst: false }), customerId: L.ramesh, paid: 'credit', lines: [{ key: ++key, itemId: 100, qtyText: '2', rate: 100_000, discount: null, auto: false }] })
+  const sellAmount = (): SellForm => ({ ...emptySellForm(TODAY, { mode: 'amount', ratesIncludeGst: false }), customerId: L.ramesh, paid: 'credit', amount: 200_000, gstRate: 18 })
+  const buyAmount = (): BuyForm => ({ ...emptyBuyForm(TODAY, { mode: 'amount', ratesIncludeGst: false }), supplierId: L.supplier, billNo: 'INV-9', amount: 200_000, gstRate: 18 })
+
+  it('straight back keeps it ticked (items and amount)', () => {
+    const c = credits(ictx())
+    for (const form of [sellItems(), sellAmount()]) {
+      const E = handoff(INTENT['simple-sell'](form, c), c)
+      const against = E.form === 'invoice' ? (E.state.advanceRefs ?? []) : E.form === 'accounting' ? E.state.billRefs.filter((r) => r.kind === 'against') : []
+      expect(against).toHaveLength(1)
+      expect(carry('simple-sell', form, E, E, c)).toEqual({ ok: true, form, dropped: [] })
+    }
+  })
+
+  it('taken off in the editor comes back unticked — and maps to exactly that editor again', () => {
+    const c = credits(ictx())
+    const items = sellItems()
+    const E = handoff(INTENT['simple-sell'](items, c), c) as HandoffEntry & { form: 'invoice' }
+    const { advanceRefs: _taken, ...without } = E.state
+    const r = carry('simple-sell', items, E, { ...E, state: without }, c)
+    expect(r.ok && r.form.useAdvance).toBe(false)
+    expect(r.ok && r.dropped).toEqual([])
+    const amount = sellAmount()
+    const A = handoff(INTENT['simple-sell'](amount, c), c) as HandoffEntry & { form: 'accounting' }
+    // ₹2,000 + 18 % = ₹2,360: ₹500 against R-1, ₹1,860 its own bill → unticked: ₹2,360 its own.
+    const own = A.state.billRefs.find((x) => x.kind === 'new')!
+    const editorState: AccountingFormState = { ...A.state, billRefs: [{ ...own, amount: 236_000 }] }
+    const back = carry('simple-sell', amount, A, { ...A, state: editorState }, c)
+    expect(back.ok && back.form.useAdvance).toBe(false)
+    expect(back.ok && back.dropped).toEqual([])
+    const bought = buyAmount()
+    const B = handoff(INTENT['simple-buy'](bought, c), c) as HandoffEntry & { form: 'accounting' }
+    const ownB = B.state.billRefs.find((x) => x.kind === 'new')!
+    const b = carry('simple-buy', bought, B, { ...B, state: { ...B.state, billRefs: [{ ...ownB, amount: 236_000 }] } }, c)
+    expect(b.ok && b.form.useAdvance).toBe(false)
+  })
+})
+
+describe('carryBack — R1 review: a party / date change, and one of two credits taken off', () => {
+  const c = { ...ictx(), openCredits: new Map([[L.ramesh, [{ name: 'R-1', amount: 30_000 }, { name: 'R-2', amount: 30_000 }]], [L.kumar, [{ name: 'K-1', amount: 10_000 }]]]) }
+  const items = (): SellForm => ({ ...emptySellForm(TODAY, { mode: 'items', ratesIncludeGst: false }), customerId: L.ramesh, paid: 'credit', lines: [{ key: ++key, itemId: 100, qtyText: '2', rate: 100_000, discount: null, auto: false }] })
+
+  it('another customer in the editor (it drops the credits itself): the form keeps "Use their advance"', () => {
+    const form = items()
+    const E = handoff(INTENT['simple-sell'](form, c), c) as HandoffEntry & { form: 'invoice' }
+    const { advanceRefs: _dropped, ...rest } = E.state
+    const r = carry('simple-sell', form, E, { ...E, state: { ...rest, partyId: L.kumar } }, c)
+    expect(r.ok && r.form.useAdvance).toBe(true)
+    expect(r.ok && r.form.customerId).toBe(L.kumar)
+  })
+
+  it('one of two credits taken off: named as not carried (the form takes them all, oldest first)', () => {
+    const form = items()
+    const E = handoff(INTENT['simple-sell'](form, c), c) as HandoffEntry & { form: 'invoice' }
+    // ₹2,000 + 18 % = ₹2,360: R-1 ₹300 + R-2 ₹300 → only R-2 kept in the editor.
+    expect((E.state.advanceRefs ?? []).map((x) => x.name)).toEqual(['R-1', 'R-2'])
+    const r = carry('simple-sell', form, E, { ...E, state: { ...E.state, advanceRefs: E.state.advanceRefs!.slice(1) } }, c)
+    expect(r.ok && r.form.useAdvance).toBe(true)
+    expect(r.ok && r.dropped).toEqual(['billRefs'])
+  })
+})

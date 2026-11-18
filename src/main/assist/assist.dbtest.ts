@@ -111,6 +111,51 @@ describe('Ask Total entry drafts for a bill and a purchase (stock on, not regist
   })
 })
 
+describe('R1 review: an Ask Total offer keeps the advance answer it was made with', () => {
+  it('drafted while the customer held nothing, then they pay ₹500 ahead: approving the stored offer leaves that advance alone', async () => {
+    // Sita owes ₹900 (above), holds no advance: the offer "sold 1 bag to Sita for 300" uses none,
+    // so its stored intent says so (useAdvance: false).
+    const sita = (await ok<{ id: number; name: string }[]>('master:ledgers:list')).find((l) => l.name === 'Sita Stores')!.id
+    const offer = (await ask('sold 1 bag to Sita for 300')).entry!
+    expect(offer.intent).toMatchObject({ kind: 'sale', useAdvance: false })
+    const d = await ok<AssistDraftResult>('assist:draft', { text: 'sold 1 bag to Sita for 300', today: T })
+    const draft = (await ok<AiDraftDto[]>('ai:drafts', {})).find((x) => x.id === d.draftId)!
+    expect(draft.payload.simple?.intent).toMatchObject({ useAdvance: false })
+    // Sita now pays ₹1,400: ₹900 settles her bill, ₹500 is kept as an advance for another order.
+    await ok('simple:post', { intent: { kind: 'money_in', clientId: 'r1-sita-advance-1', customerId: sita, amount: 140_000, into: { how: 'cash' }, advance: true }, today: T })
+    // The approval posts the stored intent (as the approval queue does): the ₹300 bill stays due and
+    // the ₹500 stays held — never taken silently.
+    await ok('simple:post', { intent: { ...(draft.payload.simple!.intent as object), clientId: 'r1-sita-approve' }, today: T, aiDraftId: d.draftId })
+    expect(paise(await ask('does Sita owe me'))).toContain(30000)
+    // A new offer now sees the advance: it says so and stores no "keep" answer.
+    const now = (await ask('sold 1 bag to Sita for 300')).entry!
+    expect(now.intent).not.toHaveProperty('useAdvance')
+    expect(now.sentences.join(' ')).toContain('₹300.00 of what they paid ahead is used.')
+  })
+
+  it('drafted while the advance paid it all, approved after another bill used it up: due, no cash invented', async () => {
+    const sita = (await ok<{ id: number; name: string }[]>('master:ledgers:list')).find((l) => l.name === 'Sita Stores')!.id
+    // Sita holds ₹500 (above). "…in cash": ₹300 bill, the ₹300 comes from what she paid ahead, so the
+    // preview takes no cash — the stored offer says so (paid on credit, nothing now).
+    const text = 'sold 1 bag to Sita for 300 cash'
+    const offer = (await ask(text)).entry!
+    expect(offer.sentences.join(' ')).toContain('₹300.00 of what they paid ahead is used.')
+    expect(offer.prefill).toMatchObject({ how: 'cash' })
+    expect(offer.intent).toMatchObject({ kind: 'sale', payment: { how: 'credit' } })
+    const d = await ok<AssistDraftResult>('assist:draft', { text, today: T })
+    const draft = (await ok<AiDraftDto[]>('ai:drafts', {})).find((x) => x.id === d.draftId)!
+    // Another ₹500 bill uses all of her ₹500 first.
+    await ok('simple:post', { intent: { kind: 'sale', clientId: 'r1-sita-other-1', customerId: sita, amount: { amount: 50_000 } }, today: T })
+    const before = await ok<{ people: { ledgerId: number; open: number; ahead: number }[] }>('simple:people:list', { today: T })
+    const was = before.people.find((p) => p.ledgerId === sita)!
+    const posted = await ok<{ entries: { kind: string }[] }>('simple:post', { intent: { ...(draft.payload.simple!.intent as object), clientId: 'r1-sita-approve-2' }, today: T, aiDraftId: d.draftId })
+    // Only the bill — no receipt of cash nobody took; ₹300 more is due.
+    expect(posted.entries.map((e) => e.kind)).toEqual(['sales'])
+    const after = (await ok<{ people: { ledgerId: number; open: number; ahead: number }[] }>('simple:people:list', { today: T })).people.find((p) => p.ledgerId === sita)!
+    expect([after.open - was.open, after.ahead]).toEqual([30_000, 0])
+  })
+})
+
 describe('Ask Total on hand-worked books', () => {
   it('sets up a regular trader with one sale, one purchase and rent (all in September 2025)', async () => {
     slug = (

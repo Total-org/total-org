@@ -212,6 +212,10 @@ function invoiceExtras(o: InvoiceFormState, c: InvoiceFormState, dropped: Droppe
   // A note's split against its bill follows its total; only another bill or kind of split counts.
   const shape = (x: InvoiceFormState): unknown => x.noteBillRefs.map((r) => [r.kind, r.name])
   dropped.add('billRefs', c.manualNewBillMode !== o.manualNewBillMode || !same(shape(c), shape(o)))
+  // R1: some of the credits taken off (not all — that is "Use their advance" unticked): the form
+  // can only take them all, oldest first.
+  const credits = (x: InvoiceFormState): string[] => (x.advanceRefs ?? []).map((r) => r.name)
+  dropped.add('billRefs', credits(c).length > 0 && !same(credits(c), credits(o)))
   c.rows.forEach((r, i) => {
     const was = o.rows[i]
     dropped.add('godowns', (r.godownId ?? null) !== (was?.godownId ?? null) || (r.batchId ?? null) !== (was?.batchId ?? null))
@@ -338,6 +342,15 @@ function readLines<L extends { key: number; itemId: number | null; qtyText: stri
   return { lines, unchanged, baseComplete, incomplete }
 }
 
+/** R1: "Use their advance" — taken off in the editor (or put on there) is the editor's answer;
+ *  otherwise the form's own. The invoice editor drops them itself for another party or an earlier
+ *  date (InvoiceEntry): that is no answer — the form takes the new party's / date's credits. */
+const advanceAnswer = (had: boolean, has: boolean, base: boolean): boolean => (had === has ? base : has)
+const invoiceAdvance = (o: InvoiceFormState, c: InvoiceFormState, base: boolean): boolean =>
+  c.partyId !== o.partyId || c.date < o.date ? base : advanceAnswer((o.advanceRefs?.length ?? 0) > 0, (c.advanceRefs?.length ?? 0) > 0, base)
+const accountingAdvance = (o: AccountingFormState, c: AccountingFormState, base: boolean): boolean =>
+  advanceAnswer(o.billRefs.some((r) => r.kind === 'against'), c.billRefs.some((r) => r.kind === 'against'), base)
+
 // ---------------------------------------------------------------- Make a bill
 
 const sellCtx = (ctx: CarryContext): SellContext => ({ invoice: ctx.invoice, salesAccountId: ctx.defaults.salesId })
@@ -356,7 +369,7 @@ function sellItems(input: CarryInput<'simple-sell'>, ctx: CarryContext, dropped:
   dropped.add('billName', c.billName.trim() !== refInv(dropped).billName.trim())
   dropped.add('account', c.accountId !== refInv(dropped).accountId)
   const customerId = sellParty(c, input.current.pending, ctx)
-  const head: SellForm = { ...base, date: c.date, customerId, mode: 'items', note: c.narration }
+  const head: SellForm = { ...base, date: c.date, customerId, mode: 'items', note: c.narration, useAdvance: invoiceAdvance(o, c, base.useAdvance) }
   const sctx = sellCtx(ctx)
   const complete = (l: SellLine): boolean => l.itemId != null && qtyMilliOf(l.qtyText) != null && l.rate != null
   const { lines, unchanged, incomplete } = readLines(o, c, base.lines, complete)
@@ -393,7 +406,7 @@ function sellAmount(input: CarryInput<'simple-sell'>, ctx: CarryContext, dropped
   const rate = rateFor(now.taxable, now.tax, supply, [base.gstRate, ctx.ledgers.get(now.accountId)?.gstRate])
   if (rate == null || (!charges && rate !== 0)) return refuse('gst')
   dropped.add('rounding', now.total !== roundedBill(now.taxable, rate, supply))
-  const head: SellForm = { ...base, date: c.date, customerId: now.partyId, mode: 'amount', note: c.narration, gstRate: charges ? rate : base.gstRate }
+  const head: SellForm = { ...base, date: c.date, customerId: now.partyId, mode: 'amount', note: c.narration, gstRate: charges ? rate : base.gstRate, useAdvance: accountingAdvance(o, c, base.useAdvance) }
   const untouched = now.taxable === was.taxable && rate === (base.gstRate ?? rate) && same(now.tax, was.tax)
   if (untouched && base.amount != null) return { ...head, gstRate: base.gstRate }
   return { ...head, ...amountIn(now.taxable, rate, supply, base.ratesIncludeGst && charges) }
@@ -438,7 +451,7 @@ function buyItems(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: D
   const supplierId = buyParty(c.partyId, ctx)
   // The supplier's bill number is the bill's name in the editor (mapIntent: billName = billNo).
   const billNo = c.billName.trim() !== o.billName.trim() ? c.billName.trim() : base.billNo
-  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode: 'items', note: c.narration, ...blockedFrom(c, base.gstBlocked) }
+  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode: 'items', note: c.narration, useAdvance: invoiceAdvance(o, c, base.useAdvance), ...blockedFrom(c, base.gstBlocked) }
   const bctx = buyCtx(ctx)
   const complete = (l: BuyLine): boolean => l.itemId != null && qtyMilliOf(l.qtyText) != null && l.rate != null
   const { lines, unchanged, incomplete } = readLines(o, c, base.lines, complete)
@@ -480,7 +493,7 @@ function buyAmount(input: CarryInput<'simple-buy'>, ctx: CarryContext, dropped: 
   // Another expense account: the bill becomes "an expense" on that account.
   const mode = now.accountId === was.accountId ? base.mode : now.accountId === ctx.defaults.purchaseId ? 'amount' : 'expense'
   const categoryId = mode === 'expense' ? now.accountId : base.categoryId
-  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode, categoryId, note: c.narration, ...blockedFrom(c, base.gstBlocked) }
+  const head: BuyForm = { ...base, date: c.date, supplierId, billNo, mode, categoryId, note: c.narration, useAdvance: accountingAdvance(o, c, base.useAdvance), ...blockedFrom(c, base.gstBlocked) }
   const bctx = buyCtx(ctx)
   const g = buyGst(head, bctx)
   const supply = supplyOf(ctx, supplierId, 'purchase')
