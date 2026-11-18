@@ -7,6 +7,7 @@ import type { DB } from '../db/connection'
 import { createLedger } from './masters'
 import { deleteVoucher, getVoucher, saveVoucher, setLockDate } from './vouchers'
 import { export26qCsv, tdsSuggestion } from './tds'
+import { outstandingsWithAdvances } from './analysis'
 import {
   applyTdsToVoucher, autoAllocate, challanFromPayment, challanInterest, challanRows, exemptVoucher, form16aData, form26qData,
   removeTdsFromVoucher, tdsDeducted, tdsEligible, tdsLedgerSummary, tdsPaymentCandidates, unexemptVoucher
@@ -366,3 +367,26 @@ describe('challans, interest and returns', () => {
     expect(csv[csv.length - 1]).toBe('1,0510308,2025-07-20,42,1600.00,1600.00,2')
   })
 })
+
+describe('#288 review: TDS applied to a bill an advance pays in full', () => {
+  it('takes the deduction off the advance it uses, so the bill saves and the rest of the advance stays with the supplier', () => {
+    const db = seededDb()
+    const fx = fixture(db)
+    // ₹40,000 paid ahead (ADV-1), then a ₹40,000 bill set against it only (no bill of its own) —
+    // the shape a simple purchase gives (#288). TDS ₹800 applied by hand: the supplier is owed
+    // ₹39,200, so the bill uses ₹39,200 of the advance and ₹800 stays with the supplier.
+    saveVoucher(db, {
+      voucherTypeId: vtId(db, 'payment'), date: '2025-05-01', partyLedgerId: fx.contractor,
+      lines: [{ ledgerId: fx.contractor, drCr: 'dr', amount: 4000000 }, { ledgerId: fx.bank, drCr: 'cr', amount: 4000000 }],
+      billRefs: [{ kind: 'new', name: 'ADV-1', amount: 4000000, dueDate: null }]
+    })
+    const bill = journal(db, '2025-05-10', fx.contractor, fx.labour, 4000000, { billRefs: [{ kind: 'against', name: 'ADV-1', amount: 4000000, dueDate: null }] })
+    applyTdsToVoucher(db, { voucherId: bill, manualPaise: 80000 })
+    balanced(db, bill)
+    expect(getVoucher(db, bill)!.billRefs).toEqual([{ kind: 'against', name: 'ADV-1', amount: 3920000, dueDate: null }])
+    const held = outstandingsWithAdvances(db, 'payable', '2025-05-31')
+    expect(held.advanceByParty.get(fx.contractor)).toBe(80000)
+    expect(held.parties.find((p) => p.ledgerId === fx.contractor)?.pending ?? 0).toBe(0)
+  })
+})
+
