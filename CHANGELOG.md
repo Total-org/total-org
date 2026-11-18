@@ -20,6 +20,15 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+**The GST cards show a GSTR-1 date that has gone by** (readiness review R6, UI-1 and UI-2). The
+Gateway's Compliance card used to pair a month with the next month's GSTR-1 date ("Oct 2026 —
+GSTR-1 in 23 days" on 18 Nov, when October's was due 11 Nov). It now shows October's own date and
+says "GSTR-1 7 days late"; a GSTR-1 you marked filed says "GSTR-1 filed". The simple Taxes card
+says "this date has passed; file it as soon as you can" beside a due date that has gone by, as the
+Taxes screen already did, in English, Hindi and Hinglish. No figure moves. Also fixes e2e scenario
+28, which picked the wrong invoice on days when the new invoice's number was a day in an earlier
+invoice's date.
+
 **Every release is signed only after the owner approves it** (#292, readiness review R5). A new
 version is published only together with its signed check file, and the signing step waits for the
 owner's click. The Mac app no longer carries the build machine's file paths (SEC3-3). An Intel Mac
