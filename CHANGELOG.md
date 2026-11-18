@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**GST returns follow the registration of the month you file** (#PR_R3, 1.0 readiness review FIG-G-3).
+**GST returns follow the registration of the month you file** (#290, 1.0 readiness review FIG-G-3).
 A month in which the business was under the composition scheme no longer shows a GSTR-1 or GSTR-3B
 with its sales as nil-rated: the screen says "A composition dealer files CMP-08 and GSTR-4, not this
 return", and the file can't be exported. GSTR-2B says there is no GST credit to reconcile (a
