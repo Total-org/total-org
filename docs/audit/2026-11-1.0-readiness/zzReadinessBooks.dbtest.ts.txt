@@ -1,0 +1,570 @@
+// 1.0 readiness figures audit, 18 Nov 2026 (books, stock, TDS, openings, dues, simple screens).
+// Kept as text: copy it to src/main/services/ as a .dbtest.ts and run
+// `npm run test:db -- src/main/services/zzReadinessBooks.dbtest.ts` — the FINDINGS block reproduces FIG-B-1.
+// Every expected figure below is worked BY HAND in the comment above it (integer paise), never
+// taken from running the code.
+import { mkdtempSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import { describe, expect, it, vi } from 'vitest'
+import { freshDb, seededDb, TEST_INFO } from '../db/testdb'
+import type { DB } from '../db/connection'
+import { readCompanyInfo } from '../db/seed'
+import type { CompanyInfo } from '@shared/domain'
+import { ledgerInputSchema, stockItemInputSchema } from '@shared/schemas'
+import { gstRegistrationOf } from '@shared/gst/registration'
+import { emptyMoneyOutForm, moneyOutIntentFrom } from '@shared/simple/money'
+import { applySetup } from './companySetup'
+import { applyOpenings, previewOpenings } from './openings'
+import { balanceSheet, profitAndLoss, trialBalance } from './reports'
+import { outstandingsWithAdvances } from './analysis'
+import { stockSummary } from './stockAnalysis'
+import { createLedger, createStockItem } from './masters'
+import { saveVoucher } from './vouchers'
+import { postIntent, previewIntent } from './simplePost'
+import { simpleHome } from './simpleHome'
+import { peopleList, personView } from './simplePeople'
+import { salesList } from './simpleSell'
+import { purchasesList } from './simpleBuy'
+import { moneyList } from './simpleMoney'
+import { stockList } from './simpleStock'
+import { businessDoing } from './simpleReports'
+import { setBom } from './bom'
+import { postClose } from './yearEnd'
+import { tdsEligible } from './tdsWorkbench'
+import { findPayableLedger, tdsSuggestion } from './tds'
+
+vi.mock('electron', () => ({
+  app: { getVersion: () => '0.12.0-test', getPath: () => tmpdir(), isPackaged: false, on: () => {} },
+  ipcMain: { handle: () => {} },
+  dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
+  shell: { openPath: async () => '', showItemInFolder: () => {} },
+  Notification: class {},
+  BrowserWindow: class {},
+  safeStorage: { isEncryptionAvailable: () => false }
+}))
+vi.mock('../updater', () => ({ checkForUpdatesInteractive: async () => null }))
+process.env.TOTAL_DATA_DIR = mkdtempSync(join(tmpdir(), 'total-readiness-books-'))
+process.env.TOTAL_SUPPRESS_SYNC_WARNING = '1'
+
+const TODAY = '2026-11-18'
+const GSTIN = '27AAPFU0939F1ZV'
+let seq = 0
+
+function shop(gst: 'regular' | 'composition' | 'no', opts: { stock?: boolean; type?: 'trader' | 'manufacturer'; start?: string; today?: string } = {}): { db: DB; info: CompanyInfo } {
+  const db = freshDb()
+  applySetup(db, {
+    name: `Audit ${gst}`, stateCode: '27', businessType: opts.type ?? 'trader', gst, gstin: gst === 'no' ? null : GSTIN,
+    filing: gst === 'regular' ? 'monthly' : null, stock: opts.stock ?? true, startDate: opts.start ?? '2026-04-01', fresh: false
+  }, opts.today ?? TODAY)
+  return { db, info: readCompanyInfo(db) }
+}
+const gid = (db: DB, name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
+const lid = (db: DB, name: string): number => (db.prepare('SELECT id FROM ledgers WHERE name = ?').get(name) as { id: number }).id
+const unit = (db: DB, symbol: string): number => (db.prepare('SELECT id FROM units WHERE symbol = ?').get(symbol) as { id: number }).id
+const vt = (db: DB, kind: string): number => (db.prepare('SELECT id FROM voucher_types WHERE kind = ? ORDER BY id').get(kind) as { id: number }).id
+const sec = (db: DB, code: string): number => (db.prepare('SELECT id FROM tds_sections WHERE code = ?').get(code) as { id: number }).id
+function ledger(db: DB, name: string, group: string, extra: Record<string, unknown> = {}): number {
+  return createLedger(db, ledgerInputSchema.parse({ name, groupId: gid(db, group), stateCode: '27', ...extra })).id
+}
+function item(db: DB, name: string, extra: Record<string, unknown> = {}): number {
+  return createStockItem(db, stockItemInputSchema.parse({ name, unitId: unit(db, 'Nos'), gstRate: 18, ...extra })).id
+}
+const post = (db: DB, info: CompanyInfo, intent: object, today = TODAY) => postIntent(db, info, { clientId: `audit-${++seq}-xyz`, ...intent }, today)
+/** Signed (dr-positive) TB balance of one ledger. */
+function tbBal(db: DB, asOn: string, name: string): number {
+  const r = trialBalance(db, asOn).rows.find((x) => x.ledgerName === name)
+  return r ? r.debit - r.credit : 0
+}
+function tbByTax(db: DB, asOn: string, taxType: string, side: 'Input' | 'Output'): number {
+  const ids = (db.prepare('SELECT id FROM ledgers WHERE tax_type = ? AND name LIKE ?').all(taxType, `%${side}%`) as { id: number }[]).map((r) => r.id)
+  return trialBalance(db, asOn).rows.filter((r) => ids.includes(r.ledgerId)).reduce((s, r) => s + r.debit - r.credit, 0)
+}
+
+// ------------------------------------------------------------------------------------------------
+// 1. Openings — books begin 2026-04-01 (regular trader).
+//   cash 10,000.00 = 10_000_00; bank 50,000.00 = 50_000_00;
+//   customer Sharma 11,800.00 = bill B-1 7,000.00 dated 2026-02-20 (40 days before 1 Apr:
+//   Feb 20→Mar 1 = 9 days (Feb 2026 has 28), Mar 1→Apr 1 = 31 → 40) + an undated bill 4,800.00
+//   (→ "Opening", dated the books-begin day);
+//   supplier Gupta 5,000.00; stock Widget 10 × 250.00 = 2,500.00.
+//   have = 10,000 + 50,000 + 11,800 + 2,500 = 74,300.00; owe = 5,000.00;
+//   capital (owner's money) = −(74,300 − 5,000) = −69,300.00 (a credit).
+//   TB as on 2026-04-01: Dr 74,300.00 (cash, bank, Sharma, opening stock) = Cr 74,300.00 (capital
+//   69,300 + Gupta 5,000).  BS: assets 74,300.00 = liabilities 74,300.00.
+//   Outstandings as on 2026-05-01: B-1 age = Feb 20→May 1 = 8 (rest of Feb) + 31 + 30 + 1 = 70 days;
+//   no credit days → due = bill date → overdue 70 → bucket 61-90. "Opening" age Apr 1→May 1 = 30
+//   → bucket 0-30.  buckets = [4,800.00, 0, 7,000.00, 0].
+// 5. (same company, continuing) Stock count on 2026-05-10: Widget counted 8 (2 short at the 250.00
+//   average → −500.00), Jam (never stocked) counted 5 at a stated cost of 40.00 → +200.00.
+//   Closing stock = 8 × 250 + 5 × 40 = 2,000 + 200 = 2,200.00.
+//   P&L 2026-04-01..2026-05-31: opening stock 2,500.00, purchases 0, closing 2,200.00 →
+//   cost of goods 300.00, sales 0 → profit −300.00.  BS on 2026-05-31: assets 74,300 − 300 =
+//   74,000.00; liabilities 69,300 + 5,000 − 300 = 74,000.00.
+// ------------------------------------------------------------------------------------------------
+describe('1 + 5. openings, then a stock count', () => {
+  it('openings: capital difference, TB, BS, Outstandings ageing; count: stock, P&L, BS, simple screens', () => {
+    const { db, info } = shop('regular')
+    const input = {
+      cash: { amount: 10_000_00, base: 0 },
+      banks: [{ ledgerId: null, name: 'HDFC', amount: 50_000_00, base: null }],
+      customers: [{ ledgerId: null, name: 'Sharma', base: null, bills: [{ ref: 'B-1', date: '2026-02-20', amount: 7_000_00 }, { ref: '', date: null, amount: 4_800_00 }] }],
+      suppliers: [{ ledgerId: null, name: 'Gupta', base: null, bills: [{ ref: 'G-1', date: null, amount: 5_000_00 }] }],
+      items: [{ itemId: null, name: 'Widget', unitId: null, qtyMilli: 10_000, ratePaise: 250_00, base: null, gstRate: 18 }],
+      others: []
+    }
+    const p = previewOpenings(db, input)
+    expect(p.capital.after).toBe(-69_300_00)
+    applyOpenings(db, { ...input, confirmCapital: p.capital.after })
+    const tb = trialBalance(db, '2026-04-01')
+    expect(tb.totalDebit).toBe(74_300_00)
+    expect(tb.totalCredit).toBe(74_300_00)
+    const bs = balanceSheet(db, '2026-04-01', '2026-04-01')
+    expect(bs.totalAssets).toBe(74_300_00)
+    expect(bs.totalLiabilities).toBe(74_300_00)
+    const rec = outstandingsWithAdvances(db, 'receivable', '2026-05-01').parties.find((x) => x.name === 'Sharma')!
+    expect(rec.pending).toBe(11_800_00)
+    expect(rec.bills.map((b) => [b.number, b.date, b.ageDays, b.overdueDays, b.pending])).toEqual([
+      ['B-1', '2026-02-20', 70, 70, 7_000_00],
+      ['Opening', '2026-04-01', 30, 30, 4_800_00]
+    ])
+    expect(rec.buckets).toEqual([4_800_00, 0, 7_000_00, 0])
+    const pay = outstandingsWithAdvances(db, 'payable', '2026-05-01').parties.find((x) => x.name === 'Gupta')!
+    expect(pay.pending).toBe(5_000_00)
+    // Simple Home as on 2026-05-01: customers owe 11,800, you owe 5,000, cash 10,000 + bank 50,000.
+    const home = simpleHome(db, info, { today: '2026-05-01', backups: [] })
+    expect(home.receivables.total).toBe(11_800_00)
+    expect(home.payables.total).toBe(5_000_00)
+    expect(home.cash.cash).toBe(10_000_00)
+    expect(home.cash.bank).toBe(50_000_00)
+    // People: opening bills without a due date are due on their own date → both late; the
+    // oldest 70 days.
+    const sharma = peopleList(db, '2026-05-01').people.find((x) => x.name === 'Sharma')!
+    expect([sharma.open, sharma.late, sharma.lateBills, sharma.maxLateDays]).toEqual([11_800_00, 11_800_00, 2, 70])
+    // Stock list = 10 × 250 = 2,500.
+    expect(stockList(db, '2026-05-01').rows.find((r) => r.name === 'Widget')).toMatchObject({ qtyMilli: 10_000, value: 2_500_00 })
+
+    // ---- 5. the count
+    const widget = (db.prepare("SELECT id FROM stock_items WHERE name = 'Widget'").get() as { id: number }).id
+    const jam = item(db, 'Jam')
+    const out = post(db, info, { kind: 'stock_count', date: '2026-05-10', counts: [{ itemId: widget, qty: '8' }, { itemId: jam, qty: '5', cost: '40' }] }, '2026-05-15')
+    expect(out.facts.count!.lines.map((l) => [l.beforeMilli, l.countedMilli, l.valueChange])).toEqual([[10_000, 8_000, -500_00], [0, 5_000, 200_00]])
+    const list = stockList(db, '2026-05-31').rows
+    expect(list.find((r) => r.itemId === widget)).toMatchObject({ qtyMilli: 8_000, value: 2_000_00 })
+    expect(list.find((r) => r.itemId === jam)).toMatchObject({ qtyMilli: 5_000, value: 200_00 })
+    const ss = stockSummary(db, '2026-05-31')
+    expect(ss.reduce((s, r) => s + r.closingValue, 0)).toBe(2_200_00)
+    const pl = profitAndLoss(db, '2026-04-01', '2026-05-31')
+    expect([pl.openingStock, pl.closingStock, pl.grossProfit, pl.netProfit]).toEqual([2_500_00, 2_200_00, -300_00, -300_00])
+    const doing = businessDoing(db, { period: 'custom', from: '2026-04-01', to: '2026-05-31' }, '2026-06-15')
+    expect([doing.lines.costOfGoods, doing.lines.profit]).toEqual([300_00, -300_00])
+    const bs2 = balanceSheet(db, '2026-04-01', '2026-05-31')
+    expect([bs2.totalAssets, bs2.totalLiabilities, bs2.profitCurrentPeriod]).toEqual([74_000_00, 74_000_00, -300_00])
+    const tb2 = trialBalance(db, '2026-05-31')
+    expect(tb2.totalDebit).toBe(tb2.totalCredit)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 2. Simple sale part paid. Regular, intra-state walk-up named customer Ramesh (27), no credit days.
+//   Bill 2026-11-01: value 1,000.00 at 18 % → CGST 9 % = 90.00, SGST 90.00 → total 1,180.00
+//   (no round off). Paid now in cash 500.00 against the bill → due 1,180 − 500 = 680.00.
+//   TB on TODAY: Sales Cr 1,000.00; Output CGST Cr 90.00; Output SGST Cr 90.00; Ramesh Dr 680.00;
+//   Cash Dr 500.00. Dr = 680 + 500 = 1,180 = Cr 1,000 + 180.
+//   Outstandings / Home receivables / People open = 680.00; People late = 0 (no due date set →
+//   never late on the simple screens). Sales list: total 1,180.00, tax 180.00, paid 500.00,
+//   due 680.00. Money list: one receipt of 500.00.
+// ------------------------------------------------------------------------------------------------
+describe('2. simple sale, part paid', () => {
+  it('bill + receipt, Outstandings, Home, People, person page, Sales list, Money list agree', () => {
+    const { db, info } = shop('regular')
+    const ramesh = ledger(db, 'Ramesh', 'Sundry Debtors')
+    const out = post(db, info, { kind: 'sale', date: '2026-11-01', customerId: ramesh, amount: { amount: 1_000_00, gstRate: 18 }, payment: { how: 'cash', amount: 500_00 } })
+    expect(out.voucherIds).toHaveLength(2)
+    expect(tbBal(db, TODAY, 'Ramesh')).toBe(680_00)
+    expect(tbBal(db, TODAY, 'Cash')).toBe(500_00)
+    expect(tbByTax(db, TODAY, 'cgst', 'Output')).toBe(-90_00)
+    expect(tbByTax(db, TODAY, 'sgst', 'Output')).toBe(-90_00)
+    const salesAcc = trialBalance(db, TODAY).rows.filter((r) => r.groupName === 'Sales Accounts').reduce((s, r) => s + r.debit - r.credit, 0)
+    expect(salesAcc).toBe(-1_000_00)
+    const o = outstandingsWithAdvances(db, 'receivable', TODAY).parties.find((x) => x.ledgerId === ramesh)!
+    expect([o.pending, o.bills[0]!.amount]).toEqual([680_00, 1_180_00])
+    expect(simpleHome(db, info, { today: TODAY, backups: [] }).receivables.total).toBe(680_00)
+    const row = peopleList(db, TODAY).people.find((x) => x.ledgerId === ramesh)!
+    expect([row.open, row.late, row.ahead]).toEqual([680_00, 0, 0])
+    expect(personView(db, info, ramesh, TODAY)!.bills.map((b) => [b.amount, b.pending])).toEqual([[1_180_00, 680_00]])
+    const sale = salesList(db, '2026-04-01', TODAY, TODAY).find((r) => r.partyId === ramesh)!
+    expect([sale.total, sale.tax, sale.paid, sale.due]).toEqual([1_180_00, 180_00, 500_00, 680_00])
+    const money = moneyList(db, '2026-04-01', TODAY, TODAY)
+    expect(money.map((m) => [m.direction, m.amount])).toEqual([['in', 500_00]])
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 3. Money in beyond the bills. Two customers, each billed 1,180.00 on credit (1,000 + 18 %) on
+//   2026-11-02. Asha pays 2,000.00 with "for a bill not made yet" → 1,180 settles her bill, the
+//   other 820.00 is a named advance. Bala pays 2,000.00 without the flag → on account: the engine
+//   settles her bill FIFO and holds 820.00 unapplied.
+//   Outstandings receivable: no open bill for either; advances = 820 + 820 = 1,640.00 in 2 parties.
+//   Home: receivables.total 0, receivables.advances 1,640.00. People: open 0, ahead 820.00 each.
+//   TB: Asha −820.00, Bala −820.00 (credits).
+// ------------------------------------------------------------------------------------------------
+describe('3. money in beyond the bills', () => {
+  it('advance flag and on account both hold 820.00 as unapplied credit, everywhere', () => {
+    const { db, info } = shop('regular')
+    const asha = ledger(db, 'Asha', 'Sundry Debtors')
+    const bala = ledger(db, 'Bala', 'Sundry Debtors')
+    for (const c of [asha, bala]) post(db, info, { kind: 'sale', date: '2026-11-02', customerId: c, amount: { amount: 1_000_00, gstRate: 18 }, payment: { how: 'credit' } })
+    post(db, info, { kind: 'money_in', date: '2026-11-05', customerId: asha, amount: 2_000_00, into: { how: 'cash' }, advance: true })
+    post(db, info, { kind: 'money_in', date: '2026-11-05', customerId: bala, amount: 2_000_00, into: { how: 'cash' } })
+    const r = outstandingsWithAdvances(db, 'receivable', TODAY)
+    expect(r.parties.filter((p) => p.ledgerId === asha || p.ledgerId === bala)).toEqual([])
+    expect([r.advances, r.advanceParties, r.advanceByParty.get(asha), r.advanceByParty.get(bala)]).toEqual([1_640_00, 2, 820_00, 820_00])
+    const home = simpleHome(db, info, { today: TODAY, backups: [] })
+    expect([home.receivables.total, home.receivables.advances]).toEqual([0, 1_640_00])
+    const people = peopleList(db, TODAY)
+    for (const c of [asha, bala]) expect(people.people.find((x) => x.ledgerId === c)).toMatchObject({ open: 0, ahead: 820_00 })
+    expect(people.totals.customersAhead).toBe(1_640_00)
+    expect([tbBal(db, TODAY, 'Asha'), tbBal(db, TODAY, 'Bala')]).toEqual([-820_00, -820_00])
+    expect(tbBal(db, TODAY, 'Cash')).toBe(4_000_00)
+    // The receipts in the Money list: 2 × 2,000.00 in.
+    expect(moneyList(db, '2026-04-01', TODAY, TODAY).map((m) => m.amount)).toEqual([2_000_00, 2_000_00])
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 4. Stock: Widget (weighted average — the default, stock_items.valuation_method) and Gadget (FIFO).
+//   Each: buy 10 @ 100.00 (2026-10-01), buy 10 @ 130.00 (2026-10-05), sell 15 @ 200.00 (2026-10-10).
+//   Widget WA: 20 units 1,000 + 1,300 = 2,300.00 → avg 115.00; COGS 15 × 115 = 1,725.00;
+//     closing 5 × 115 = 575.00.
+//   Gadget FIFO: COGS 10 × 100 + 5 × 130 = 1,650.00; closing 5 × 130 = 650.00.
+//   Purchases 2 × 2,300 = 4,600.00 (+ input GST 18 % = 828.00: CGST 414.00 + SGST 414.00).
+//   Sales 2 × 3,000 = 6,000.00 (+ output GST 1,080.00). Closing stock 575 + 650 = 1,225.00.
+//   Cost of goods = 0 + 4,600 − 1,225 = 3,375.00 (= 1,725 + 1,650). Gross = net = 6,000 − 3,375 =
+//   2,625.00. BS: assets stock 1,225 + customer 7,080 + input GST 828 = 9,133.00; liabilities
+//   supplier 5,428 + output GST 1,080 + profit 2,625 = 9,133.00.
+//   Purchase bills: 2,000 + 360 = 2,360.00; 2,600 + 468 = 3,068.00 → supplier 5,428.00.
+// ------------------------------------------------------------------------------------------------
+describe('4. stock: weighted average and FIFO', () => {
+  it('cost of goods, closing stock, gross profit in P&L, simple doing and stock list', () => {
+    const { db, info } = shop('regular')
+    const sup = ledger(db, 'Bharat', 'Sundry Creditors')
+    const cus = ledger(db, 'Kiran', 'Sundry Debtors')
+    const w = item(db, 'Widget')
+    const g = item(db, 'Gadget', { valuationMethod: 'fifo' })
+    post(db, info, { kind: 'purchase', supplierId: sup, billNo: 'P-1', date: '2026-10-01', items: [{ itemId: w, qty: '10', rate: '100' }, { itemId: g, qty: '10', rate: '100' }], payment: { how: 'credit' } })
+    post(db, info, { kind: 'purchase', supplierId: sup, billNo: 'P-2', date: '2026-10-05', items: [{ itemId: w, qty: '10', rate: '130' }, { itemId: g, qty: '10', rate: '130' }], payment: { how: 'credit' } })
+    post(db, info, { kind: 'sale', customerId: cus, date: '2026-10-10', items: [{ itemId: w, qty: '15', rate: '200' }, { itemId: g, qty: '15', rate: '200' }], payment: { how: 'credit' } })
+    const list = stockList(db, TODAY).rows
+    expect(list.find((r) => r.itemId === w)).toMatchObject({ qtyMilli: 5_000, value: 575_00 })
+    expect(list.find((r) => r.itemId === g)).toMatchObject({ qtyMilli: 5_000, value: 650_00 })
+    const pl = profitAndLoss(db, '2026-04-01', TODAY)
+    expect([pl.openingStock, pl.closingStock, pl.grossProfit, pl.netProfit]).toEqual([0, 1_225_00, 2_625_00, 2_625_00])
+    const d = businessDoing(db, { period: 'custom', from: '2026-04-01', to: TODAY }, TODAY)
+    expect([d.lines.sales, d.lines.purchases, d.lines.closingStock, d.lines.costOfGoods, d.lines.profit]).toEqual([6_000_00, 4_600_00, 1_225_00, 3_375_00, 2_625_00])
+    expect(tbBal(db, TODAY, 'Bharat')).toBe(-5_428_00)
+    expect(tbBal(db, TODAY, 'Kiran')).toBe(7_080_00)
+    expect(tbByTax(db, TODAY, 'cgst', 'Input') + tbByTax(db, TODAY, 'sgst', 'Input')).toBe(828_00)
+    const bs = balanceSheet(db, '2026-04-01', TODAY)
+    // Re-checked: the BS shows Duties & Taxes as one net group — output 1,080 − input 828 = 252
+      // liability — so assets 1,225 + 7,080 = 8,305.00 = 5,428 + 252 + 2,625 (Tally presents the
+      // group net the same way; my first hand figure grossed input GST up as an asset).
+      expect([bs.totalAssets, bs.totalLiabilities, bs.profitCurrentPeriod]).toEqual([8_305_00, 8_305_00, 2_625_00])
+    expect(purchasesList(db, '2026-04-01', TODAY, TODAY).map((r) => r.total).sort()).toEqual([2_360_00, 3_068_00])
+    const home = simpleHome(db, info, { today: TODAY, backups: [] })
+    expect(home.profit.year.netProfit).toBe(2_625_00)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 6. Made goods (manufacturer). Openings: Flour 100 kg @ 40.00 = 4,000.00; Box 50 @ 10.00 =
+//   500.00 → capital −4,500.00. Recipe: 1 Bread = 0.5 kg flour + 1 box.
+//   Make 20 bread on 2026-06-01, labour 100.00 not yet recorded (Labour Charges Dr / Wages Payable Cr).
+//   Materials: flour 10 kg × 40 = 400.00; boxes 20 × 10 = 200.00 → 600.00; + labour 100.00 →
+//   bread 700.00 (35.00 each). Left: flour 90 kg 3,600.00, box 30 300.00. Stock 4,600.00.
+//   P&L 2026-04-01..2026-06-30: opening 4,500, labour 100 expense, closing 4,600 → net 0.00.
+//   TB: Labour Charges Dr 100.00, Wages Payable Cr 100.00.
+// ------------------------------------------------------------------------------------------------
+describe('6. made goods', () => {
+  it('finished goods = materials at engine cost + labour; net profit nil', () => {
+    const { db, info } = shop('regular', { type: 'manufacturer' })
+    const input = {
+      cash: { amount: 0, base: 0 },
+      items: [
+        { itemId: null, name: 'Flour', unitId: unit(db, 'Kg'), qtyMilli: 100_000, ratePaise: 40_00, base: null, gstRate: 5 },
+        { itemId: null, name: 'Box', unitId: null, qtyMilli: 50_000, ratePaise: 10_00, base: null, gstRate: 18 }
+      ]
+    }
+    const p = previewOpenings(db, input)
+    expect(p.capital.after).toBe(-4_500_00)
+    applyOpenings(db, { ...input, confirmCapital: p.capital.after })
+    const id = (n: string): number => (db.prepare('SELECT id FROM stock_items WHERE name = ?').get(n) as { id: number }).id
+    const bread = item(db, 'Bread', { gstRate: 5 })
+    setBom(db, { itemId: bread, lines: [{ componentId: id('Flour'), qtyMilliPerUnit: 500 }, { componentId: id('Box'), qtyMilliPerUnit: 1000 }] })
+    post(db, info, { kind: 'make_goods', date: '2026-06-01', itemId: bread, qty: '20', price: '50', labour: '100', labourRecorded: false }, '2026-06-05')
+    const list = stockList(db, '2026-06-30').rows
+    expect(list.find((r) => r.itemId === bread)).toMatchObject({ qtyMilli: 20_000, value: 700_00 })
+    expect(list.find((r) => r.itemId === id('Flour'))).toMatchObject({ qtyMilli: 90_000, value: 3_600_00 })
+    expect(list.find((r) => r.itemId === id('Box'))).toMatchObject({ qtyMilli: 30_000, value: 300_00 })
+    const pl = profitAndLoss(db, '2026-04-01', '2026-06-30')
+    expect([pl.openingStock, pl.closingStock, pl.netProfit]).toEqual([4_500_00, 4_600_00, 0])
+    const labour = trialBalance(db, '2026-06-30').rows.filter((r) => /labour|wage/i.test(r.ledgerName)).map((r) => [r.ledgerName, r.groupName, r.debit - r.credit])
+    expect(labour.map((x) => x[2]).sort()).toEqual([-100_00, 100_00])
+    const tb = trialBalance(db, '2026-06-30')
+    expect(tb.totalDebit).toBe(tb.totalCredit)
+    expect(businessDoing(db, { period: 'custom', from: '2026-04-01', to: '2026-06-30' }, '2026-07-01').lines.profit).toBe(0)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 7. TDS 194C, FY 2025-26 (seeded company, books from 2025). Rate rows (migration 020): 1 %
+//   individual / HUF, 2 % others; single > 30,000.00 OR FY aggregate > 1,00,000.00
+//   (s.194C(5) and its proviso: "does not exceed thirty thousand rupees … aggregate … exceeds one
+//   lakh rupees").
+//  7a. Four payments of 25,000.00 to contractor P (PAN 4th letter P = individual), no bills
+//   (advance events): aggregate 1,00,000.00 — NOT more than 1,00,000 → nothing eligible.
+//   A fifth 25,000.00 → 1,25,000.00 > 1,00,000 → all five liable: 5 × 25,000 × 1 % = 5 × 250.00
+//   = 1,250.00.
+//  7b. Bills (journals) to contractor B: 30,000 (May) + 30,000 (Jun) + 30,000 (Jul) = 90,000;
+//   debit note 15 Jul returns 10,000 → aggregate 80,000; bill 20,000 (Aug) → 1,00,000 — not
+//   exceeded → nothing eligible. Twin C without the return: 1,10,000 > 1,00,000 → all four
+//   liable, 1,10,000 × 1 % = 1,100.00.
+//  7c. Return AFTER crossing (contractor D = C's bills, crossed at 1,10,000 in Aug), DN 10,000
+//   on 15 Aug lowers nothing; bill 5,000 on 1 Sep still liable: 5,000 × 1 % = 50.00.
+//  7d. Company contractor E (PAN 4th letter C): one bill 40,000.00 (single > 30,000) → 2 % =
+//   800.00; deducted on the bill: Dr Exp 40,000 / Cr E 39,200 / Cr TDS payable 800.00.
+// ------------------------------------------------------------------------------------------------
+describe('7. TDS 194C', () => {
+  const contractor = (db: DB, name: string, pan: string): number => ledger(db, name, 'Sundry Creditors', { tdsSectionId: sec(db, '194C'), pan, stateCode: null })
+  const expense = (db: DB, name = 'Contract work'): number => {
+    const r = db.prepare('SELECT id FROM ledgers WHERE name = ?').get(name) as { id: number } | undefined
+    return r?.id ?? ledger(db, name, 'Indirect Expenses', { stateCode: null })
+  }
+  const base = { partyLedgerId: null, narration: null, reference: null, billRefs: [], inventory: [] }
+  const pay = (db: DB, party: number, date: string, amt: number) => saveVoucher(db, { ...base, voucherTypeId: vt(db, 'payment'), date, partyLedgerId: party, lines: [{ ledgerId: party, drCr: 'dr', amount: amt }, { ledgerId: lid(db, 'Cash'), drCr: 'cr', amount: amt }], tds: null })
+  const bill = (db: DB, party: number, date: string, amt: number) => saveVoucher(db, { ...base, voucherTypeId: vt(db, 'journal'), date, partyLedgerId: party, lines: [{ ledgerId: expense(db), drCr: 'dr', amount: amt }, { ledgerId: party, drCr: 'cr', amount: amt }], tds: null })
+  const dn = (db: DB, party: number, date: string, amt: number) => saveVoucher(db, { ...base, voucherTypeId: vt(db, 'debit_note'), date, partyLedgerId: party, lines: [{ ledgerId: party, drCr: 'dr', amount: amt }, { ledgerId: expense(db), drCr: 'cr', amount: amt }], tds: null })
+  const eligible = (db: DB, party: number) => tdsEligible(db, '2025-04-01', '2026-03-31').filter((r) => r.partyLedgerId === party)
+
+  it('7a. four payments of 25,000 → none; the fifth → all five at 1 %', () => {
+    const db = seededDb()
+    const p = contractor(db, 'Contractor P', 'ABCPE1234F')
+    for (const d of ['2025-05-01', '2025-06-01', '2025-07-01', '2025-08-01']) pay(db, p, d, 25_000_00)
+    expect(eligible(db, p)).toEqual([])
+    pay(db, p, '2025-09-01', 25_000_00)
+    const rows = eligible(db, p)
+    expect(rows.map((r) => [r.basePaise, r.rateBp, r.tdsPaise])).toEqual(Array(5).fill([25_000_00, 100, 250_00]))
+    expect(rows.reduce((s, r) => s + (r.tdsPaise ?? 0), 0)).toBe(1_250_00)
+  })
+
+  it('7b. a purchase return before the crossing keeps the aggregate at 1,00,000 → none; the twin crosses', () => {
+    const db = seededDb()
+    const b = contractor(db, 'Contractor B', 'ABCPE1234F')
+    const c = contractor(db, 'Contractor C', 'ABCPE1235F')
+    for (const x of [b, c]) {
+      bill(db, x, '2025-05-01', 30_000_00)
+      bill(db, x, '2025-06-01', 30_000_00)
+      bill(db, x, '2025-07-01', 30_000_00)
+    }
+    dn(db, b, '2025-07-15', 10_000_00)
+    for (const x of [b, c]) bill(db, x, '2025-08-01', 20_000_00)
+    expect(eligible(db, b)).toEqual([])
+    const rows = eligible(db, c)
+    expect(rows.map((r) => r.basePaise)).toEqual([30_000_00, 30_000_00, 30_000_00, 20_000_00])
+    expect(rows.reduce((s, r) => s + (r.tdsPaise ?? 0), 0)).toBe(1_100_00)
+  })
+
+  it('7c. a return after the crossing lowers nothing: a later 5,000 bill stays liable (50.00)', () => {
+    const db = seededDb()
+    const d = contractor(db, 'Contractor D', 'ABCPE1234F')
+    bill(db, d, '2025-05-01', 30_000_00)
+    bill(db, d, '2025-06-01', 30_000_00)
+    bill(db, d, '2025-07-01', 30_000_00)
+    bill(db, d, '2025-08-01', 20_000_00)
+    dn(db, d, '2025-08-15', 10_000_00)
+    const late = bill(db, d, '2025-09-01', 5_000_00)
+    const r = eligible(db, d).find((x) => x.voucherId === late.id)!
+    expect([r.basePaise, r.tdsPaise]).toEqual([5_000_00, 50_00])
+  })
+
+  it('7d. a company contractor, single bill 40,000 → 2 % = 800, posted to the TDS payable ledger', () => {
+    const db = seededDb()
+    const e = contractor(db, 'Contractor E', 'ABCCE1234F')
+    const s = tdsSuggestion(db, e, 40_000_00, '2025-05-01', { voucherKind: 'journal' })!
+    expect([s.rateBp, s.tdsPaise, s.thresholdCrossed]).toEqual([200, 800_00, true])
+    saveVoucher(db, {
+      ...base, voucherTypeId: vt(db, 'journal'), date: '2025-05-01', partyLedgerId: e,
+      lines: [{ ledgerId: expense(db), drCr: 'dr', amount: 40_000_00 }, { ledgerId: e, drCr: 'cr', amount: 39_200_00 }],
+      tds: { sectionId: sec(db, '194C'), baseAmount: 40_000_00, tdsAmount: 800_00, isManual: false, autoPayable: true }
+    })
+    const payable = findPayableLedger(db, sec(db, '194C'))!
+    const tb = trialBalance(db, '2025-05-31')
+    const bal = (id: number): number => { const r = tb.rows.find((x) => x.ledgerId === id); return r ? r.debit - r.credit : 0 }
+    expect([bal(payable.id), bal(e), bal(expense(db))]).toEqual([-800_00, -39_200_00, 40_000_00])
+    expect(tb.totalDebit).toBe(tb.totalCredit)
+    expect(eligible(db, e)).toEqual([])
+  })
+
+  it('7e. simple Money out preview: the fifth 25,000 payment shows a TDS hint', () => {
+    const db = seededDb()
+    const p = contractor(db, 'Contractor P', 'ABCPE1234F')
+    for (const d of ['2025-05-01', '2025-06-01', '2025-07-01', '2025-08-01']) pay(db, p, d, 25_000_00)
+    const info = readCompanyInfo(db)
+    const pv = previewIntent(db, info, { clientId: 'audit-preview-1', kind: 'money_out', date: '2025-09-01', supplierId: p, amount: 25_000_00, from: { how: 'cash' } }, '2025-09-05')
+    expect(pv.tds?.length ?? 0).toBeGreaterThan(0)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 8. TDS 194J(b) professional fees. FY 2025-26 rows: 10 %, aggregate > 50,000.00 (Finance Act
+//   2025 s.65 raised it from 30,000), no single threshold.
+//   Fees: 30,000 (May) + 20,000 (Jun) = 50,000 — not more than 50,000 → none.
+//   + 5,000 (Jul) → 55,000 → all three liable: 55,000 × 10 % = 5,500.00 (3,000 + 2,000 + 500).
+//   FY 2026-27 (Income-tax Act 2025 s.393(1) Table Sl. 6(iii) D(b) in the app's rows): same 10 % /
+//   50,000; a single 50,001.00 fee → 5,000.10, rounded to the rupee (shared/withholding.ts:208,
+//   TDS is deducted to the rupee) → 5,000.00.
+// ------------------------------------------------------------------------------------------------
+describe('8. TDS 194J', () => {
+  it('crosses at 55,000 in FY 2025-26: 5,500.00; and a 50,001 fee in FY 2026-27', () => {
+    const db = seededDb()
+    const dr = ledger(db, 'Dr Mehta', 'Sundry Creditors', { tdsSectionId: sec(db, '194J'), pan: 'ABCPM1234F', stateCode: null })
+    const fees = ledger(db, 'Professional fees', 'Indirect Expenses', { stateCode: null })
+    const j = (date: string, amt: number) => saveVoucher(db, { partyLedgerId: dr, narration: null, reference: null, billRefs: [], inventory: [], voucherTypeId: vt(db, 'journal'), date, lines: [{ ledgerId: fees, drCr: 'dr', amount: amt }, { ledgerId: dr, drCr: 'cr', amount: amt }], tds: null })
+    j('2025-05-01', 30_000_00)
+    j('2025-06-01', 20_000_00)
+    expect(tdsEligible(db, '2025-04-01', '2026-03-31').filter((r) => r.partyLedgerId === dr)).toEqual([])
+    j('2025-07-01', 5_000_00)
+    const rows = tdsEligible(db, '2025-04-01', '2026-03-31').filter((r) => r.partyLedgerId === dr)
+    expect(rows.map((r) => [r.basePaise, r.rateBp, r.tdsPaise])).toEqual([[30_000_00, 1000, 3_000_00], [20_000_00, 1000, 2_000_00], [5_000_00, 1000, 500_00]])
+    j('2026-05-01', 50_001_00)
+    const next = tdsEligible(db, '2026-04-01', '2027-03-31').filter((r) => r.partyLedgerId === dr)
+    expect(next.map((r) => [r.basePaise, r.rateBp, r.tdsPaise])).toEqual([[50_001_00, 1000, 5_000_00]])
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 9. Rent with a GST bill paid from Money out: total 2,360.00 at 18 %.
+//   Regular: value = 2,360 / 1.18 = 2,000.00; CGST 180.00 + SGST 180.00 (landlord in state 27).
+//   Rent Dr 2,000.00, Input GST 360.00, Cash −2,360.00, landlord nil; P&L expense 2,000 → −2,000.
+//   Money list: one payment of 2,360.00 "for Rent".
+//   Composition: no GST bill question → money_out of 2,360.00 to Rent → Rent 2,360.00, cash
+//   −2,360.00; and the same bill entered as a purchase (2,000 + 18 % GST on the bill) folds the
+//   GST into the cost → Rent 2,360.00 again.
+// ------------------------------------------------------------------------------------------------
+describe('9. expense with a GST bill', () => {
+  const rentId = (db: DB): number => {
+    const r = db.prepare("SELECT id FROM ledgers WHERE name = 'Rent'").get() as { id: number } | undefined
+    return r?.id ?? ledger(db, 'Rent', 'Indirect Expenses', { stateCode: null })
+  }
+  it('regular: 2,000 to Rent, 360 input GST, cash −2,360; money list 2,360', () => {
+    const { db, info } = shop('regular')
+    const landlord = ledger(db, 'Landlord', 'Sundry Creditors')
+    const rent = rentId(db)
+    const f = { ...emptyMoneyOutForm('2026-11-03'), who: 'expense' as const, payeeId: rent, amount: 2_360_00, how: 'cash' as const, gstBill: true, billSupplierId: landlord, billNo: 'R-11', gstRate: 18 }
+    const intent = moneyOutIntentFrom(f, [], { cash: null, upi: null, card: null, bank: null }, { facts: gstRegistrationOf(info), companyStateCode: '27', supplierState: () => '27', drawingsId: null })
+    expect(intent).toMatchObject({ kind: 'purchase', amount: { amount: 2_000_00, gstRate: 18, billTotal: 2_360_00 } })
+    post(db, info, intent)
+    expect(tbBal(db, TODAY, 'Rent')).toBe(2_000_00)
+    expect(tbByTax(db, TODAY, 'cgst', 'Input')).toBe(180_00)
+    expect(tbByTax(db, TODAY, 'sgst', 'Input')).toBe(180_00)
+    expect(tbBal(db, TODAY, 'Cash')).toBe(-2_360_00)
+    expect(tbBal(db, TODAY, 'Landlord')).toBe(0)
+    expect(profitAndLoss(db, '2026-04-01', TODAY).netProfit).toBe(-2_000_00)
+    const m = moneyList(db, '2026-04-01', TODAY, TODAY)
+    expect(m.map((r) => [r.direction, r.amount, r.forWhat])).toEqual([['out', 2_360_00, 'Rent']])
+  })
+  it('composition: GST is cost — 2,360 to Rent either way', () => {
+    const { db, info } = shop('composition')
+    const landlord = ledger(db, 'Landlord', 'Sundry Creditors')
+    const rent = rentId(db)
+    const f = { ...emptyMoneyOutForm('2026-11-03'), who: 'expense' as const, payeeId: rent, amount: 2_360_00, how: 'cash' as const, gstBill: true, billSupplierId: landlord, billNo: 'R-11', gstRate: 18 }
+    const intent = moneyOutIntentFrom(f, [], { cash: null, upi: null, card: null, bank: null }, { facts: gstRegistrationOf(info), companyStateCode: '27', supplierState: () => '27', drawingsId: null })
+    expect(intent).toMatchObject({ kind: 'money_out', amount: 2_360_00, payeeId: rent })
+    post(db, info, intent)
+    expect(tbBal(db, TODAY, 'Rent')).toBe(2_360_00)
+    post(db, info, { kind: 'purchase', supplierId: landlord, billNo: 'R-12', date: '2026-11-04', amount: { amount: 2_000_00, accountId: rent, gstRate: 18 }, gstOnBill: true, payment: { how: 'cash' } })
+    expect(tbBal(db, TODAY, 'Rent')).toBe(4_720_00)
+    expect(tbBal(db, TODAY, 'Cash')).toBe(-4_720_00)
+    const tax = (db.prepare('SELECT COUNT(*) AS n FROM voucher_lines vl JOIN ledgers l ON l.id = vl.ledger_id WHERE l.tax_type IS NOT NULL').get() as { n: number }).n
+    expect(tax).toBe(0)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// 10. Year boundary (seeded company, books from FY 2025-26).
+//   FY 25-26: cash sale 10,000.00 (2025-06-01), rent paid 4,000.00 (2025-07-01) → profit 6,000.00.
+//   Close FY 25-26 (closing journal): Sales Dr 10,000 / Rent Cr 4,000 / retained Cr 6,000.
+//   P&L FY 25-26 still 6,000.00 (closing journals left out).
+//   FY 26-27: cash sale 3,000.00 (2026-05-01) → P&L FY 26-27 = 3,000.00 (income reset); TB on
+//   2026-05-31 shows Sales Cr 3,000.00 only. BS on 2026-05-31: cash 10,000 − 4,000 + 3,000 =
+//   9,000.00 = retained 6,000 + current 3,000. A twin WITHOUT the close shows the same BS totals
+//   and the same FY 26-27 profit (the brought-forward profit via yearOpening).
+// ------------------------------------------------------------------------------------------------
+describe('10. year boundary', () => {
+  function books(close: boolean): DB {
+    const db = seededDb()
+    const sales = ledger(db, 'Sales', 'Sales Accounts', { stateCode: null })
+    const rent = ledger(db, 'Rent', 'Indirect Expenses', { stateCode: null })
+    const cash = lid(db, 'Cash')
+    const v = (kind: string, date: string, dr: number, cr: number, amt: number) => saveVoucher(db, { partyLedgerId: null, narration: null, reference: null, billRefs: [], inventory: [], voucherTypeId: vt(db, kind), date, lines: [{ ledgerId: dr, drCr: 'dr', amount: amt }, { ledgerId: cr, drCr: 'cr', amount: amt }], tds: null })
+    v('receipt', '2025-06-01', cash, sales, 10_000_00)
+    v('payment', '2025-07-01', rent, cash, 4_000_00)
+    if (close) postClose(db, { ...TEST_INFO, booksFrom: 2025 }, 2025)
+    v('receipt', '2026-05-01', cash, sales, 3_000_00)
+    return db
+  }
+  it('closed and not closed: P&L per FY, TB reset, BS retained profit', () => {
+    for (const close of [true, false]) {
+      const db = books(close)
+      expect(profitAndLoss(db, '2025-04-01', '2026-03-31').netProfit).toBe(6_000_00)
+      expect(profitAndLoss(db, '2026-04-01', '2027-03-31').netProfit).toBe(3_000_00)
+      expect(tbBal(db, '2026-05-31', 'Sales')).toBe(-3_000_00)
+      expect(tbBal(db, '2026-05-31', 'Rent')).toBe(0)
+      expect(tbBal(db, '2026-05-31', 'Cash')).toBe(9_000_00)
+      const tb = trialBalance(db, '2026-05-31')
+      expect(tb.totalDebit).toBe(tb.totalCredit)
+      expect(tb.totalDebit).toBe(9_000_00)
+      const bs = balanceSheet(db, '2025-04-01', '2026-05-31')
+      // Re-checked: the P&L A/c line is the profit not yet closed (reports.ts:880-890) — closed:
+      // 3,000 + Reserves 6,000; not closed: ONE line of 9,000 (6,000 brought forward + 3,000
+      // this year, not split — see FIG-B low finding).
+      expect([bs.totalAssets, bs.totalLiabilities, bs.profitCurrentPeriod]).toEqual([9_000_00, 9_000_00, close ? 3_000_00 : 9_000_00])
+      if (close) expect(bs.liabilities.find((n) => n.name === 'Capital Account')!.amount).toBe(6_000_00)
+    }
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// FINDINGS — these assert the HAND figure; a failure reproduces the bug (FIG-B-1).
+// 194C proviso to s.194C(5): once the FY aggregate exceeds 1,00,000.00 the payer is liable on the
+// aggregate, i.e. on all five 25,000.00 sums: 1,25,000 × 1 % = 1,250.00. The app's own walk says so
+// while nothing is deducted (7a). Hand: the bill/payment that crosses should be offered 1,250.00
+// (or the four earlier sums must stay on the Eligible list after only 250.00 is deducted).
+// ------------------------------------------------------------------------------------------------
+describe('FINDINGS (a failure = bug reproduced)', () => {
+  const setup = () => {
+    const db = seededDb()
+    const p = ledger(db, 'Contractor R', 'Sundry Creditors', { tdsSectionId: sec(db, '194C'), pan: 'ABCPE1234F', stateCode: null })
+    const exp = ledger(db, 'Work', 'Indirect Expenses', { stateCode: null })
+    const bill = (d: string, tds: number | null) => saveVoucher(db, { partyLedgerId: p, narration: null, reference: null, billRefs: [], inventory: [], voucherTypeId: vt(db, 'journal'), date: d, lines: [{ ledgerId: exp, drCr: 'dr', amount: 25_000_00 }, { ledgerId: p, drCr: 'cr', amount: 25_000_00 - (tds ?? 0) }], tds: tds != null ? { sectionId: sec(db, '194C'), baseAmount: 25_000_00, tdsAmount: tds, isManual: false, autoPayable: true } : null })
+    for (const d of ['2025-05-01', '2025-06-01', '2025-07-01', '2025-08-01']) bill(d, null)
+    return { db, p, bill }
+  }
+  it('FIG-B-1a: the suggestion on the bill that crosses 1,00,000 offers 1,250.00 (app: 250.00)', () => {
+    const { db, p } = setup()
+    expect(tdsSuggestion(db, p, 25_000_00, '2025-09-01', { voucherKind: 'journal' })!.tdsPaise).toBe(1_250_00)
+  })
+  it('FIG-B-1b: after 250.00 deducted on the crossing bill, the four earlier bills (1,000.00) stay eligible (app: list empty)', () => {
+    const { db, p, bill } = setup()
+    bill('2025-09-01', 250_00)
+    const rows = tdsEligible(db, '2025-04-01', '2026-03-31').filter((r) => r.partyLedgerId === p)
+    expect(rows.reduce((s, r) => s + (r.tdsPaise ?? 0), 0)).toBe(1_000_00)
+  })
+  it('FIG-B-1c: simple Money out preview of the crossing 5th payment names 1,250.00 (app: 250.00)', () => {
+    const db = seededDb()
+    const p = ledger(db, 'Contractor P', 'Sundry Creditors', { tdsSectionId: sec(db, '194C'), pan: 'ABCPE1234F', stateCode: null })
+    for (const d of ['2025-05-01', '2025-06-01', '2025-07-01', '2025-08-01']) saveVoucher(db, { partyLedgerId: p, narration: null, reference: null, billRefs: [], inventory: [], voucherTypeId: vt(db, 'payment'), date: d, lines: [{ ledgerId: p, drCr: 'dr', amount: 25_000_00 }, { ledgerId: lid(db, 'Cash'), drCr: 'cr', amount: 25_000_00 }], tds: null })
+    const pv = previewIntent(db, readCompanyInfo(db), { clientId: 'audit-preview-2', kind: 'money_out', date: '2025-09-01', supplierId: p, amount: 25_000_00, from: { how: 'cash' } }, '2025-09-05')
+    expect((pv.tds ?? []).reduce((s, r) => s + (r.tdsPaise ?? 0), 0)).toBe(1_250_00)
+  })
+})
