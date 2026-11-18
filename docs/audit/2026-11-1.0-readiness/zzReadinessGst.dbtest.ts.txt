@@ -1,0 +1,534 @@
+// 1.0 readiness figures audit, 18 Nov 2026. Kept as text: copy it to src/main/services/ as a .dbtest.ts
+// and run `npm run test:db -- src/main/services/zzReadinessGst.dbtest.ts` to reproduce FIG-G-1 / FIG-G-2.
+// Written for 18 Nov 2026; the clock is not pinned, so on another day fake it (vi.setSystemTime).
+// Cross-screen agreement: the bill, GSTR-1, GSTR-3B, TB / P&L / BS, Outstandings and the simple
+// screens (Home, Taxes, People, sales / purchases lists) for 11 hand-worked scenarios.
+// Every "hand" figure below is worked out by hand in integer paise in the comment above it.
+import { describe, expect, it } from 'vitest'
+import { seededDb, TEST_INFO } from '../db/testdb'
+import { writeCompanyInfo } from '../db/seed'
+import type { DB } from '../db/connection'
+import type { CompanyInfo, VoucherKind } from '@shared/domain'
+import { stockItemInputSchema } from '@shared/schemas'
+import { createLedger, createStockItem } from './masters'
+import { getVoucher, saveVoucher } from './vouchers'
+import { postIntent } from './simplePost'
+import { gstr1, gstr3b, gstValidate } from './gst'
+import { trialBalance, profitAndLoss, balanceSheet } from './reports'
+import { outstandingsWithAdvances } from './analysis'
+import { simpleHome } from './simpleHome'
+import { simpleTaxes } from './simpleTaxes'
+import { lateReminders, peopleList } from './simplePeople'
+import { salesList } from './simpleSell'
+import { purchasesList } from './simpleBuy'
+
+const TODAY = '2026-11-18'
+const OCT = { from: '2026-10-01', to: '2026-10-31', p: '102026' }
+const NOV = { from: '2026-11-01', to: '2026-11-30', p: '112026' }
+const REGULAR: CompanyInfo = { ...TEST_INFO, name: 'Readiness Traders', stateCode: '27', gstin: '27AAPFU0939F1ZV', gstRegistrationType: 'regular', booksFrom: 2026, address: '12 MG Road, Pune' }
+const COMPOSITION: CompanyInfo = { ...REGULAR, name: 'Readiness Composition', gstRegistrationType: 'composition' }
+const UNREGISTERED: CompanyInfo = { ...REGULAR, name: 'Readiness Small Shop', gstRegistrationType: 'unregistered', gstin: null }
+
+// ---------------------------------------------------------------- recorder
+interface Row { scn: string; label: string; hand: unknown; app: unknown; ok: boolean; known?: string }
+const ROWS: Row[] = []
+function chk(scn: string, label: string, hand: unknown, app: unknown, known?: string): void {
+  ROWS.push({ scn, label, hand, app, ok: JSON.stringify(hand) === JSON.stringify(app), ...(known ? { known } : {}) })
+}
+function assertScenario(scn: string): void {
+  const bad = ROWS.filter((r) => r.scn === scn && !r.ok && !r.known)
+  expect(bad).toEqual([])
+}
+
+// ---------------------------------------------------------------- company
+interface Co { db: DB; info: CompanyInfo; L: (n: string) => number; I: (n: string) => number }
+function company(info: CompanyInfo): Co {
+  const db = seededDb()
+  writeCompanyInfo(db, info)
+  const gid = (name: string): number => (db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
+  const led = (name: string, group: string, extra: Record<string, unknown> = {}): void => {
+    createLedger(db, { name, groupId: gid(group), ...extra } as Parameters<typeof createLedger>[1])
+  }
+  led('Sales', 'Sales Accounts')
+  led('Purchases', 'Purchase Accounts')
+  for (const t of ['cgst', 'sgst', 'igst'] as const) {
+    led(`Output ${t.toUpperCase()}`, 'Duties & Taxes', { taxType: t })
+    led(`Input ${t.toUpperCase()}`, 'Duties & Taxes', { taxType: t })
+  }
+  led('Round Off', 'Indirect Expenses')
+  led('HDFC Bank', 'Bank Accounts')
+  led('Staff Welfare', 'Indirect Expenses', { gstRate: 18, hsn: '996334' })
+  led('Freight Inward', 'Direct Expenses', { gstRate: 5, hsn: '996511' })
+  led('Umbrella Retail', 'Sundry Debtors', { stateCode: '27', gstin: '27AABCD1234E1Z8' })
+  led('Krishna Enterprises', 'Sundry Debtors', { stateCode: '29', gstin: '29AABCF9012G1ZQ' })
+  led('Suresh Rao', 'Sundry Debtors', { stateCode: '29' })
+  led('Chennai Walk-in', 'Sundry Debtors', { stateCode: '33' })
+  led('Delhi SEZ Unit', 'Sundry Debtors', { stateCode: '07', gstin: '07AABCK4444Q1Z4', exportType: 'sez_wop' })
+  led('Global Handel GmbH', 'Sundry Debtors', { stateCode: '96', exportType: 'exp_wop' })
+  led('Prepaid Clinic', 'Sundry Debtors', { stateCode: '27', gstin: '27AABCR2222N1ZD', gstRate: 18 })
+  led('Bharat Steel', 'Sundry Creditors', { stateCode: '27', gstin: '27AABCG3456H1ZN' })
+  led('Sharma Transport', 'Sundry Creditors', { stateCode: '27', rcm: true })
+  const unit = (db.prepare("SELECT id FROM units WHERE symbol = 'Nos'").get() as { id: number }).id
+  // Widget: 1,000 Nos at ₹100 = ₹1,00,000 (10,000,000 p). Rice: 500 Nos at ₹30 = ₹15,000 (1,500,000 p).
+  createStockItem(db, stockItemInputSchema.parse({ name: 'Widget', unitId: unit, gstRate: 18, hsn: '8471', openingQtyMilli: 1_000_000, openingValue: 10_000_000 }))
+  createStockItem(db, stockItemInputSchema.parse({ name: 'Rice', unitId: unit, gstRate: 5, hsn: '1006', openingQtyMilli: 500_000, openingValue: 1_500_000 }))
+  const L = (n: string): number => (db.prepare('SELECT id FROM ledgers WHERE name = ?').get(n) as { id: number }).id
+  const I = (n: string): number => (db.prepare('SELECT id FROM stock_items WHERE name = ?').get(n) as { id: number }).id
+  return { db, info, L, I }
+}
+
+let seq = 0
+const post = (c: Co, intent: Record<string, unknown>) => postIntent(c.db, c.info, { clientId: `readiness-${++seq}-x`, ...intent }, TODAY)
+const typeId = (db: DB, kind: VoucherKind): number => (db.prepare('SELECT id FROM voucher_types WHERE kind = ? ORDER BY id LIMIT 1').get(kind) as { id: number }).id
+const p = (rupees: number | undefined): number => Math.round((rupees ?? 0) * 100)
+/** TB balance dr-positive, paise. */
+function tb(c: Co, asOn: string): (name: string) => number {
+  const t = trialBalance(c.db, asOn)
+  return (name) => {
+    const r = t.rows.find((x) => x.ledgerName === name)
+    return r ? r.debit - r.credit : 0
+  }
+}
+function lineOf(c: Co, voucherId: number, name: string): number {
+  const v = getVoucher(c.db, voucherId)!
+  return v.lines.filter((l) => l.ledgerId === c.L(name)).reduce((s, l) => s + (l.drCr === 'dr' ? l.amount : -l.amount), 0)
+}
+const lineUid = (c: Co, voucherId: number, item: string): string =>
+  (c.db.prepare('SELECT line_uid AS u FROM inventory_lines WHERE voucher_id = ? AND stock_item_id = ?').get(voucherId, c.I(item)) as { u: string }).u
+type J = Record<string, any>
+const j1 = (c: Co, m: typeof OCT): J => gstr1(c.db, c.info, m.from, m.to, m.p).json as J
+const j3 = (c: Co, m: typeof OCT): J => gstr3b(c.db, c.info, m.from, m.to, m.p).json as J
+const tax3 = (o: J | undefined) => ({ txval: p(o?.txval), iamt: p(o?.iamt), camt: p(o?.camt), samt: p(o?.samt) })
+const itc3 = (o: J | undefined) => ({ iamt: p(o?.iamt), camt: p(o?.camt), samt: p(o?.samt) })
+const itcRow = (j: J, part: 'itc_avl' | 'itc_rev', ty: string) => itc3((j.itc_elg[part] as J[]).find((r) => r.ty === ty))
+const itms = (list: J[] | undefined) =>
+  (list ?? []).map((i) => i.itm_det ?? i).map((d: J) => ({ rt: d.rt, txval: p(d.txval), iamt: p(d.iamt), camt: p(d.camt), samt: p(d.samt) })).sort((a, b) => a.rt - b.rt)
+const owedOf = (c: Co, side: 'receivable' | 'payable', name: string): number =>
+  outstandingsWithAdvances(c.db, side, TODAY).parties.find((x) => x.name === name)?.pending ?? 0
+const home = (c: Co) => simpleHome(c.db, c.info, { today: TODAY, backups: [] })
+const taxes = (c: Co) => simpleTaxes(c.db, c.info, {}, TODAY)
+
+describe('1.0 readiness — cross-screen GST figures', () => {
+  // ============================================================ 1 + 5
+  it('S1 intra B2B, 18 % + 5 %, line discount, round off up; S5 its part return (simple Returns)', () => {
+    const c = company(REGULAR)
+    const s = post(c, {
+      kind: 'sale', date: '2026-10-05', customerId: c.L('Umbrella Retail'), payment: { how: 'credit' },
+      items: [{ itemId: c.I('Widget'), qty: '3', rate: 125_000, discount: 15_000 }, { itemId: c.I('Rice'), qty: '7', rate: 10_130 }]
+    })
+    const bill = s.entries.find((e) => e.kind === 'sales')!.voucherId
+    // HAND:
+    //  Widget 3 × 1,25,000 p = 3,75,000 − 15,000 discount = 3,60,000 p taxable; CGST 9 % = 32,400; SGST 32,400.
+    //  Rice   7 × 10,130 p = 70,910 p; 2.5 % = 1,772.75 → 1,773 each (half away from zero).
+    //  Taxable 3,60,000 + 70,910 = 4,30,910; CGST 32,400 + 1,773 = 34,173; SGST 34,173.
+    //  4,30,910 + 68,346 = 4,99,256 → nearest rupee 4,99,300; round off +44 (Cr Round Off).
+    const S = 'S1'
+    chk(S, 'bill: party Dr', 499_300, lineOf(c, bill, 'Umbrella Retail'))
+    chk(S, 'bill: Sales Cr', -430_910, lineOf(c, bill, 'Sales'))
+    chk(S, 'bill: Output CGST Cr', -34_173, lineOf(c, bill, 'Output CGST'))
+    chk(S, 'bill: Output SGST Cr', -34_173, lineOf(c, bill, 'Output SGST'))
+    chk(S, 'bill: Round Off Cr', -44, lineOf(c, bill, 'Round Off'))
+    const g1 = j1(c, OCT)
+    const inv = g1.b2b?.[0]?.inv?.[0] ?? {}
+    chk(S, 'GSTR-1 b2b ctin', '27AABCD1234E1Z8', g1.b2b?.[0]?.ctin)
+    chk(S, 'GSTR-1 b2b val (bill total)', 499_300, p(inv.val))
+    chk(S, 'GSTR-1 b2b pos / inv_typ', ['27', 'R'], [inv.pos, inv.inv_typ])
+    chk(S, 'GSTR-1 b2b items by rate', [{ rt: 5, txval: 70_910, iamt: 0, camt: 1_773, samt: 1_773 }, { rt: 18, txval: 360_000, iamt: 0, camt: 32_400, samt: 32_400 }], itms(inv.itms))
+    const hsn = ((g1.hsn?.hsn_b2b ?? g1.hsn?.data ?? []) as J[]).map((h) => ({ hsn: h.hsn_sc, qty: h.qty, txval: p(h.txval), camt: p(h.camt) })).sort((a, b) => a.hsn.localeCompare(b.hsn))
+    chk(S, 'GSTR-1 HSN (B2B)', [{ hsn: '1006', qty: 7, txval: 70_910, camt: 1_773 }, { hsn: '8471', qty: 3, txval: 360_000, camt: 32_400 }], hsn)
+    chk(S, 'GSTR-3B 3.1(a)', { txval: 430_910, iamt: 0, camt: 34_173, samt: 34_173 }, tax3(j3(c, OCT).sup_details.osup_det))
+    const t = tb(c, OCT.to)
+    chk(S, 'TB Umbrella / Sales / OCGST / OSGST / RoundOff', [499_300, -430_910, -34_173, -34_173, -44], ['Umbrella Retail', 'Sales', 'Output CGST', 'Output SGST', 'Round Off'].map(t))
+    // P&L Oct: opening stock (30 Sep) = 1,00,00,000 + 15,00,000 = 1,15,00,000 p.
+    //  Closing: Widget 997 × 10,000 = 99,70,000; Rice 493 × 3,000 = 14,79,000 → 1,14,49,000.
+    //  Gross = 4,30,910 + 1,14,49,000 − 1,15,00,000 = 3,79,910. Net = 3,79,910 + 44 (round-off credit) = 3,79,954.
+    const pl = profitAndLoss(c.db, OCT.from, OCT.to)
+    chk(S, 'P&L opening / closing stock', [11_500_000, 11_449_000], [pl.openingStock, pl.closingStock])
+    chk(S, 'P&L gross / net', [379_910, 379_954], [pl.grossProfit, pl.netProfit])
+    const bs = balanceSheet(c.db, '2026-04-01', OCT.to)
+    chk(S, 'BS assets = liabilities', true, bs.totalAssets === bs.totalLiabilities)
+    chk(S, 'Outstandings receivable Umbrella', 499_300, owedOf(c, 'receivable', 'Umbrella Retail'))
+    const h = home(c)
+    chk(S, 'Home receivables total', 499_300, h.receivables.total)
+    chk(S, 'Home GST period / outwardTax / itc / payable', ['2026-10', 68_346, 0, 68_346], [h.gst?.kind === 'regular' ? h.gst.row.period : null, ...(h.gst?.kind === 'regular' ? [h.gst.row.outwardTax, h.gst.row.itc, h.gst.row.payable] : [])])
+    const tx = taxes(c)
+    if (tx.kind !== 'regular') throw new Error('taxes kind')
+    chk(S, 'Taxes period / collected / onPurchases / toPay', ['2026-10', 68_346, 0, 68_346], [tx.period.period, tx.figures.collected, tx.figures.onPurchases, tx.figures.toPay])
+    // Due dates: GSTR-1 monthly 11th of next month; GSTR-3B 20th (s.39(1) / rule 61; filing.ts).
+    chk(S, 'Taxes due GSTR-1 / GSTR-3B', ['2026-11-11', '2026-11-20'], [tx.due.gstr1, tx.due.gstr3b])
+    const sl = salesList(c.db, OCT.from, OCT.to, TODAY).find((r) => r.voucherId === bill)
+    chk(S, 'simple sales list total / tax / due / paid', [499_300, 68_346, 499_300, 0], [sl?.total, sl?.tax, sl?.due, sl?.paid])
+    const pe = peopleList(c.db, TODAY).people.find((x) => x.name === 'Umbrella Retail')
+    chk(S, 'People Umbrella open', 499_300, pe?.open)
+    assertScenario(S)
+
+    // ---------------- S5: return 1 Widget of the 3 through simple Returns
+    const r = post(c, { kind: 'return_sale', date: '2026-10-20', billId: bill, items: [{ lineUid: lineUid(c, bill, 'Widget'), qty: '1' }] })
+    const note = r.entries.find((e) => e.kind === 'credit_note')!.voucherId
+    // HAND: discount share = 15,000 × 1/3 = 5,000 → 1,25,000 − 5,000 = 1,20,000 taxable (s.34; same rate as the bill).
+    //  CGST 9 % = 10,800; SGST 10,800; total 1,41,600 (no round off).
+    //  The bill is unpaid: the note comes off it → Umbrella 4,99,300 − 1,41,600 = 3,57,700.
+    //  3B 3.1(a) net: 4,30,910 − 1,20,000 = 3,10,910; CGST 34,173 − 10,800 = 23,373; SGST 23,373.
+    const S5 = 'S5'
+    chk(S5, 'note: party Cr / Output CGST Dr / SGST Dr / Sales Dr', [-141_600, 10_800, 10_800, 120_000], ['Umbrella Retail', 'Output CGST', 'Output SGST', 'Sales'].map((n) => lineOf(c, note, n)))
+    chk(S5, 'note reference = bill number', getVoucher(c.db, bill)!.number, getVoucher(c.db, note)!.reference)
+    const g5 = j1(c, OCT)
+    const nt = g5.cdnr?.[0]?.nt?.[0] ?? {}
+    chk(S5, 'GSTR-1 CDNR ctin / ntty / val', ['27AABCD1234E1Z8', 'C', 141_600], [g5.cdnr?.[0]?.ctin, nt.ntty, p(nt.val)])
+    chk(S5, 'GSTR-1 CDNR items', [{ rt: 18, txval: 120_000, iamt: 0, camt: 10_800, samt: 10_800 }], itms(nt.itms))
+    chk(S5, 'GSTR-1 b2b unchanged', 499_300, p(g5.b2b?.[0]?.inv?.[0]?.val))
+    // HSN summary (Table 12) is reported net of credit notes: 8471 → qty 3 − 1 = 2, txval 3,60,000 − 1,20,000 = 2,40,000, CGST 32,400 − 10,800 = 21,600.
+    const hsn5 = ((g5.hsn?.hsn_b2b ?? g5.hsn?.data ?? []) as J[]).map((h) => ({ hsn: h.hsn_sc, qty: h.qty, txval: p(h.txval), camt: p(h.camt) })).sort((a, b) => a.hsn.localeCompare(b.hsn))
+    chk(S5, 'GSTR-1 HSN net of the note', [{ hsn: '1006', qty: 7, txval: 70_910, camt: 1_773 }, { hsn: '8471', qty: 2, txval: 240_000, camt: 21_600 }], hsn5)
+    chk(S5, 'GSTR-3B 3.1(a) net', { txval: 310_910, iamt: 0, camt: 23_373, samt: 23_373 }, tax3(j3(c, OCT).sup_details.osup_det))
+    const t5 = tb(c, OCT.to)
+    chk(S5, 'TB Umbrella / Sales / OCGST / OSGST', [357_700, -310_910, -23_373, -23_373], ['Umbrella Retail', 'Sales', 'Output CGST', 'Output SGST'].map(t5))
+    chk(S5, 'Outstandings Umbrella', 357_700, owedOf(c, 'receivable', 'Umbrella Retail'))
+    const h5 = home(c)
+    chk(S5, 'Home receivables / GST outwardTax / payable', [357_700, 46_746, 46_746], [h5.receivables.total, h5.gst?.kind === 'regular' ? h5.gst.row.outwardTax : null, h5.gst?.kind === 'regular' ? h5.gst.row.payable : null])
+    const tx5 = taxes(c)
+    chk(S5, 'Taxes collected / toPay', [46_746, 46_746], tx5.kind === 'regular' ? [tx5.figures.collected, tx5.figures.toPay] : null)
+    const sl5 = salesList(c.db, OCT.from, OCT.to, TODAY).find((x) => x.voucherId === bill)
+    chk(S5, 'simple sales list total / returned / due / paid', [499_300, 141_600, 357_700, 0], [sl5?.total, sl5?.returned, sl5?.due, sl5?.paid])
+    chk(S5, 'People Umbrella open', 357_700, peopleList(c.db, TODAY).people.find((x) => x.name === 'Umbrella Retail')?.open)
+    const bs5 = balanceSheet(c.db, '2026-04-01', OCT.to)
+    chk(S5, 'BS assets = liabilities', true, bs5.totalAssets === bs5.totalLiabilities)
+    assertScenario(S5)
+  })
+
+  // ============================================================ 2
+  it('S2 inter-state B2B (IGST), B2CL above ₹1 lakh, B2CS at exactly ₹1,00,000', () => {
+    const c = company(REGULAR)
+    const sale = (customer: string, date: string, qty: string, rate: number) =>
+      post(c, { kind: 'sale', date, customerId: c.L(customer), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty, rate }] }).entries.find((e) => e.kind === 'sales')!.voucherId
+    // HAND a: Krishna (29, GSTIN): 10 × 2,40,000 = 24,00,000; IGST 18 % = 4,32,000; total 28,32,000 → B2B pos 29.
+    const a = sale('Krishna Enterprises', '2026-10-06', '10', 240_000)
+    // HAND b: Suresh Rao (29, unregistered): 100 × 1,00,000 = 1,00,00,000; IGST 18,00,000; total 1,18,00,000
+    //   > ₹1,00,000 limit (Notification 12/2024-CT, invoices from 1 Aug 2024) → B2CL pos 29.
+    const b = sale('Suresh Rao', '2026-10-07', '100', 100_000)
+    // HAND c: Chennai (33, unregistered): 1 × 84,74,576 p; IGST 84,74,576 × 18 % = 15,25,423.68 → 15,25,424;
+    //   total 1,00,00,000 = exactly ₹1,00,000 — not MORE than the limit → B2CS (inter, pos 33).
+    const cc = sale('Chennai Walk-in', '2026-10-08', '1', 8_474_576)
+    const S = 'S2'
+    chk(S, 'bills: party Dr a / b / c', [2_832_000, 11_800_000, 10_000_000], [lineOf(c, a, 'Krishna Enterprises'), lineOf(c, b, 'Suresh Rao'), lineOf(c, cc, 'Chennai Walk-in')])
+    chk(S, 'bills: Output IGST a / b / c', [-432_000, -1_800_000, -1_525_424], [lineOf(c, a, 'Output IGST'), lineOf(c, b, 'Output IGST'), lineOf(c, cc, 'Output IGST')])
+    const g = j1(c, OCT)
+    const bi = g.b2b?.[0]?.inv?.[0] ?? {}
+    chk(S, 'GSTR-1 b2b ctin / pos / val', ['29AABCF9012G1ZQ', '29', 2_832_000], [g.b2b?.[0]?.ctin, bi.pos, p(bi.val)])
+    chk(S, 'GSTR-1 b2b items', [{ rt: 18, txval: 2_400_000, iamt: 432_000, camt: 0, samt: 0 }], itms(bi.itms))
+    const cl = g.b2cl as J[] | undefined
+    chk(S, 'GSTR-1 b2cl count / pos / val', [1, '29', 11_800_000], [cl?.length ?? 0, cl?.[0]?.pos, p(cl?.[0]?.inv?.[0]?.val)])
+    chk(S, 'GSTR-1 b2cl items', [{ rt: 18, txval: 10_000_000, iamt: 1_800_000, camt: 0, samt: 0 }], itms(cl?.[0]?.inv?.[0]?.itms))
+    const cs = ((g.b2cs ?? []) as J[]).map((r) => ({ sply_ty: r.sply_ty, pos: r.pos, rt: r.rt, txval: p(r.txval), iamt: p(r.iamt) }))
+    chk(S, 'GSTR-1 b2cs (the ₹1,00,000 bill)', [{ sply_ty: 'INTER', pos: '33', rt: 18, txval: 8_474_576, iamt: 1_525_424 }], cs)
+    const g3 = j3(c, OCT)
+    // 3.1(a): 24,00,000 + 1,00,00,000 + 84,74,576 = 2,08,74,576; IGST 4,32,000 + 18,00,000 + 15,25,424 = 37,57,424.
+    chk(S, 'GSTR-3B 3.1(a)', { txval: 20_874_576, iamt: 3_757_424, camt: 0, samt: 0 }, tax3(g3.sup_details.osup_det))
+    const unreg = ((g3.inter_sup?.unreg_details ?? []) as J[]).map((r) => ({ pos: r.pos, txval: p(r.txval), iamt: p(r.iamt) })).sort((x, y) => x.pos.localeCompare(y.pos))
+    chk(S, 'GSTR-3B 3.2 unregistered by POS', [{ pos: '29', txval: 10_000_000, iamt: 1_800_000 }, { pos: '33', txval: 8_474_576, iamt: 1_525_424 }], unreg)
+    const t = tb(c, OCT.to)
+    chk(S, 'TB Sales / Output IGST', [-20_874_576, -3_757_424], ['Sales', 'Output IGST'].map(t))
+    // Receivables: 28,32,000 + 1,18,00,000 + 1,00,00,000 = 2,46,32,000.
+    const h = home(c)
+    chk(S, 'Home receivables / GST outwardTax', [24_632_000, 3_757_424], [h.receivables.total, h.gst?.kind === 'regular' ? h.gst.row.outwardTax : null])
+    const tx = taxes(c)
+    chk(S, 'Taxes collected / toPay', [3_757_424, 3_757_424], tx.kind === 'regular' ? [tx.figures.collected, tx.figures.toPay] : null)
+    chk(S, 'sales list totals', [2_832_000, 11_800_000, 10_000_000], [a, b, cc].map((id) => salesList(c.db, OCT.from, OCT.to, TODAY).find((r) => r.voucherId === id)?.total))
+    assertScenario(S)
+  })
+
+  // ============================================================ 3 + 6
+  it('S3 intra purchase with ITC, part paid; S6 its part return (debit note)', () => {
+    const c = company(REGULAR)
+    const r = post(c, {
+      kind: 'purchase', date: '2026-10-08', supplierId: c.L('Bharat Steel'), billNo: 'BS-77',
+      items: [{ itemId: c.I('Widget'), qty: '20', rate: 80_000 }], payment: { how: 'bank', amount: 500_000, accountId: c.L('HDFC Bank') }
+    })
+    const bill = r.entries.find((e) => e.kind === 'purchase')!.voucherId
+    // HAND: 20 × 80,000 = 16,00,000; CGST 9 % = 1,44,000; SGST 1,44,000; total 18,88,000. Paid 5,00,000 → due 13,88,000.
+    const S = 'S3'
+    chk(S, 'bill: party Cr / ICGST / ISGST / Purchases', [-1_888_000, 144_000, 144_000, 1_600_000], ['Bharat Steel', 'Input CGST', 'Input SGST', 'Purchases'].map((n) => lineOf(c, bill, n)))
+    const g3 = j3(c, OCT)
+    chk(S, 'GSTR-3B 4(A)(5) OTH', { iamt: 0, camt: 144_000, samt: 144_000 }, itcRow(g3, 'itc_avl', 'OTH'))
+    chk(S, 'GSTR-3B 4(C) net', { iamt: 0, camt: 144_000, samt: 144_000 }, itc3(g3.itc_elg.itc_net))
+    chk(S, 'Outstandings payable Bharat', 1_388_000, owedOf(c, 'payable', 'Bharat Steel'))
+    const t = tb(c, OCT.to)
+    chk(S, 'TB Bharat / ICGST / ISGST / Purchases / HDFC', [-1_388_000, 144_000, 144_000, 1_600_000, -500_000], ['Bharat Steel', 'Input CGST', 'Input SGST', 'Purchases', 'HDFC Bank'].map(t))
+    const pl = purchasesList(c.db, OCT.from, OCT.to, TODAY).find((x) => x.voucherId === bill)
+    chk(S, 'simple purchases list total / tax / paid / due', [1_888_000, 288_000, 500_000, 1_388_000], [pl?.total, pl?.tax, pl?.paid, pl?.due])
+    const h = home(c)
+    chk(S, 'Home payables / GST itc / payable', [1_388_000, 288_000, 0], [h.payables.total, h.gst?.kind === 'regular' ? h.gst.row.itc : null, h.gst?.kind === 'regular' ? h.gst.row.payable : null])
+    const tx = taxes(c)
+    chk(S, 'Taxes onPurchases / toPay / creditLeft', [288_000, 0], tx.kind === 'regular' ? [tx.figures.onPurchases, tx.figures.toPay] : null)
+    chk(S, 'People Bharat open', 1_388_000, peopleList(c.db, TODAY).people.find((x) => x.name === 'Bharat Steel')?.open)
+    assertScenario(S)
+
+    // ---------------- S6: return 5 of the 20
+    const rr = post(c, { kind: 'return_purchase', date: '2026-10-22', billId: bill, items: [{ lineUid: lineUid(c, bill, 'Widget'), qty: '5' }] })
+    const note = rr.entries.find((e) => e.kind === 'debit_note')!.voucherId
+    // HAND: 5 × 80,000 = 4,00,000; CGST 36,000; SGST 36,000; total 4,72,000. Off the open bill:
+    //  Bharat 13,88,000 − 4,72,000 = 9,16,000. ITC net: 1,44,000 − 36,000 = 1,08,000 per head.
+    const S6 = 'S6'
+    chk(S6, 'note: party Dr / ICGST Cr / ISGST Cr / Purchases Cr', [472_000, -36_000, -36_000, -400_000], ['Bharat Steel', 'Input CGST', 'Input SGST', 'Purchases'].map((n) => lineOf(c, note, n)))
+    chk(S6, 'note reference = supplier bill no.', 'BS-77', getVoucher(c.db, note)!.reference)
+    const g6 = j3(c, OCT)
+    chk(S6, 'GSTR-3B 4(A)(5) OTH net of the note', { iamt: 0, camt: 108_000, samt: 108_000 }, itcRow(g6, 'itc_avl', 'OTH'))
+    chk(S6, 'GSTR-3B 4(C) net', { iamt: 0, camt: 108_000, samt: 108_000 }, itc3(g6.itc_elg.itc_net))
+    chk(S6, 'GSTR-1 has no CDNR for an inward debit note', 0, ((j1(c, OCT).cdnr ?? []) as J[]).length)
+    chk(S6, 'Outstandings payable Bharat', 916_000, owedOf(c, 'payable', 'Bharat Steel'))
+    const t6 = tb(c, OCT.to)
+    chk(S6, 'TB Bharat / ICGST / ISGST / Purchases', [-916_000, 108_000, 108_000, 1_200_000], ['Bharat Steel', 'Input CGST', 'Input SGST', 'Purchases'].map(t6))
+    const pl6 = purchasesList(c.db, OCT.from, OCT.to, TODAY).find((x) => x.voucherId === bill)
+    chk(S6, 'simple purchases list returned / paid / due', [472_000, 500_000, 916_000], [pl6?.returned, pl6?.paid, pl6?.due])
+    const h6 = home(c)
+    chk(S6, 'Home payables / GST itc', [916_000, 216_000], [h6.payables.total, h6.gst?.kind === 'regular' ? h6.gst.row.itc : null])
+    const tx6 = taxes(c)
+    chk(S6, 'Taxes onPurchases', 216_000, tx6.kind === 'regular' ? tx6.figures.onPurchases : null)
+    assertScenario(S6)
+  })
+
+  // ============================================================ 4
+  it('S4 s.17(5) blocked purchase: full editor (mark only) vs unmarked twin; simple purchase moves it to cost', () => {
+    const accounting = (c: Co, blocked: boolean, ref: string) =>
+      saveVoucher(c.db, {
+        voucherTypeId: typeId(c.db, 'purchase'), date: '2026-10-09', number: ref, partyLedgerId: c.L('Bharat Steel'), reference: ref, itcBlocked: blocked,
+        lines: [
+          { ledgerId: c.L('Staff Welfare'), drCr: 'dr', amount: 1_000_000, costAllocations: [] },
+          { ledgerId: c.L('Input CGST'), drCr: 'dr', amount: 90_000, costAllocations: [] },
+          { ledgerId: c.L('Input SGST'), drCr: 'dr', amount: 90_000, costAllocations: [] },
+          { ledgerId: c.L('Bharat Steel'), drCr: 'cr', amount: 1_180_000, costAllocations: [] }
+        ],
+        inventory: [], billRefs: [{ kind: 'new', name: ref, amount: 1_180_000, dueDate: null }], tds: null
+      } as Parameters<typeof saveVoucher>[1]).id
+    // HAND: Staff welfare (food for staff, s.17(5)(b)) 10,00,000 + CGST 90,000 + SGST 90,000 = 11,80,000.
+    //  Circular 170/02/2022: the blocked credit is shown in 4(A)(5) and reversed in 4(B)(1); 4(C) = 0.
+    const marked = company(REGULAR)
+    const twin = company(REGULAR)
+    accounting(marked, true, 'BS-90')
+    accounting(twin, false, 'BS-90')
+    const S = 'S4'
+    const gm = j3(marked, OCT)
+    const gt = j3(twin, OCT)
+    chk(S, 'marked: 4(A)(5)', { iamt: 0, camt: 90_000, samt: 90_000 }, itcRow(gm, 'itc_avl', 'OTH'))
+    chk(S, 'marked: 4(B)(1)', { iamt: 0, camt: 90_000, samt: 90_000 }, itcRow(gm, 'itc_rev', 'RUL'))
+    chk(S, 'marked: 4(C)', { iamt: 0, camt: 0, samt: 0 }, itc3(gm.itc_elg.itc_net))
+    chk(S, 'twin: 4(A)(5) / 4(B)(1) / 4(C)', [{ iamt: 0, camt: 90_000, samt: 90_000 }, { iamt: 0, camt: 0, samt: 0 }, { iamt: 0, camt: 90_000, samt: 90_000 }], [itcRow(gt, 'itc_avl', 'OTH'), itcRow(gt, 'itc_rev', 'RUL'), itc3(gt.itc_elg.itc_net)])
+    const tbm = trialBalance(marked.db, OCT.to).rows.map((r) => [r.ledgerName, r.debit, r.credit])
+    const tbt = trialBalance(twin.db, OCT.to).rows.map((r) => [r.ledgerName, r.debit, r.credit])
+    chk(S, 'TB identical marked vs twin (the mark moves no ledger)', tbt, tbm)
+    chk(S, 'P&L net marked = twin = −10,00,000', [-1_000_000, -1_000_000], [profitAndLoss(marked.db, OCT.from, OCT.to).netProfit, profitAndLoss(twin.db, OCT.from, OCT.to).netProfit])
+    // Note (not a hand figure): in the full editor the blocked GST stays as an asset in Input CGST / SGST
+    // (1,80,000 Dr) though 3B never claims it — recorded as an observation.
+    chk(S, 'marked TB Input CGST + SGST still Dr', [90_000, 90_000], [tb(marked, OCT.to)('Input CGST'), tb(marked, OCT.to)('Input SGST')])
+    const hm = home(marked)
+    chk(S, 'marked: Home GST itc / Taxes onPurchases (net credit 0)', [0, 0], [hm.gst?.kind === 'regular' ? hm.gst.row.itc : null, (() => { const t = taxes(marked); return t.kind === 'regular' ? t.figures.onPurchases : null })()])
+
+    // ---- simple mode: the same bill through Record a purchase with "can't claim"
+    const sc = company(REGULAR)
+    const sp = post(sc, {
+      kind: 'purchase', date: '2026-10-09', supplierId: sc.L('Bharat Steel'), billNo: 'BS-91', itcBlocked: true, payment: { how: 'credit' },
+      amount: { amount: 1_000_000, accountId: sc.L('Staff Welfare'), gstRate: 18 }
+    })
+    // HAND: bill as above; plus the gst_cost journal Dr Staff Welfare 1,80,000 / Cr Input CGST 90,000 / Cr Input SGST 90,000.
+    //  TB: Staff Welfare 11,80,000; Input CGST 0; Input SGST 0; Bharat −11,80,000. P&L net −11,80,000.
+    //  3B is the same as the marked full-editor bill (the journal is not a purchase document).
+    chk(S, 'simple: entries (purchase + journal)', ['purchase', 'journal'], sp.entries.map((e) => e.kind))
+    const ts = tb(sc, OCT.to)
+    chk(S, 'simple TB Staff Welfare / ICGST / ISGST / Bharat', [1_180_000, 0, 0, -1_180_000], ['Staff Welfare', 'Input CGST', 'Input SGST', 'Bharat Steel'].map(ts))
+    chk(S, 'simple P&L net', -1_180_000, profitAndLoss(sc.db, OCT.from, OCT.to).netProfit)
+    const gs = j3(sc, OCT)
+    chk(S, 'simple 4(A)(5) / 4(B)(1) / 4(C)', [{ iamt: 0, camt: 90_000, samt: 90_000 }, { iamt: 0, camt: 90_000, samt: 90_000 }, { iamt: 0, camt: 0, samt: 0 }], [itcRow(gs, 'itc_avl', 'OTH'), itcRow(gs, 'itc_rev', 'RUL'), itc3(gs.itc_elg.itc_net)])
+    const bill = sp.entries.find((e) => e.kind === 'purchase')!.voucherId
+    const pl = purchasesList(sc.db, OCT.from, OCT.to, TODAY).find((x) => x.voucherId === bill)
+    chk(S, 'simple purchases list total / tax / due', [1_180_000, 180_000, 1_180_000], [pl?.total, pl?.tax, pl?.due])
+    chk(S, 'simple Home payables', 1_180_000, home(sc).payables.total)
+    assertScenario(S)
+  })
+
+  // ============================================================ 7
+  it('S7 SEZ without payment and export under LUT: zero tax, 3.1(b)', () => {
+    const c = company(REGULAR)
+    // HAND: SEZ (07, sez_wop): 10 × 5,00,000 = 50,00,000; no tax (IGST Act s.16(3)(a) LUT/bond); total 50,00,000.
+    //       Export (96, exp_wop): 5 × 6,00,000 = 30,00,000; no tax; total 30,00,000.
+    //       3.1(b): 80,00,000 / IGST 0. 3.1(a): nil. Home / Taxes: nothing collected.
+    const sez = post(c, { kind: 'sale', date: '2026-10-10', customerId: c.L('Delhi SEZ Unit'), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty: '10', rate: 500_000 }] }).entries.find((e) => e.kind === 'sales')!.voucherId
+    const exp = post(c, { kind: 'sale', date: '2026-10-11', customerId: c.L('Global Handel GmbH'), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty: '5', rate: 600_000 }] }).entries.find((e) => e.kind === 'sales')!.voucherId
+    const S = 'S7'
+    chk(S, 'bills: party Dr sez / exp', [5_000_000, 3_000_000], [lineOf(c, sez, 'Delhi SEZ Unit'), lineOf(c, exp, 'Global Handel GmbH')])
+    chk(S, 'bills: any tax line', [0, 0], [sez, exp].map((id) => getVoucher(c.db, id)!.lines.filter((l) => ['Output IGST', 'Output CGST', 'Output SGST'].map(c.L).includes(l.ledgerId)).reduce((s, l) => s + l.amount, 0)))
+    const g = j1(c, OCT)
+    const si = g.b2b?.[0]?.inv?.[0] ?? {}
+    chk(S, 'GSTR-1 b2b SEWOP inv_typ / pos / val', ['SEWOP', '07', 5_000_000], [si.inv_typ, si.pos, p(si.val)])
+    chk(S, 'GSTR-1 SEWOP items (rate kept, no tax)', [{ rt: 18, txval: 5_000_000, iamt: 0, camt: 0, samt: 0 }], itms(si.itms))
+    const ex = (g.exp as J[] | undefined)?.[0]
+    chk(S, 'GSTR-1 exp exp_typ / val', ['WOPAY', 3_000_000], [ex?.exp_typ, p(ex?.inv?.[0]?.val)])
+    chk(S, 'GSTR-1 exp items txval / iamt', [{ txval: 3_000_000, iamt: 0 }], ((ex?.inv?.[0]?.itms ?? []) as J[]).map((i) => ({ txval: p(i.txval), iamt: p(i.iamt) })))
+    const g3 = j3(c, OCT)
+    chk(S, 'GSTR-3B 3.1(b)', { txval: 8_000_000, iamt: 0 }, { txval: p(g3.sup_details.osup_zero.txval), iamt: p(g3.sup_details.osup_zero.iamt) })
+    chk(S, 'GSTR-3B 3.1(a)', { txval: 0, iamt: 0, camt: 0, samt: 0 }, tax3(g3.sup_details.osup_det))
+    chk(S, 'TB Sales / Output IGST', [-8_000_000, 0], ['Sales', 'Output IGST'].map(tb(c, OCT.to)))
+    const h = home(c)
+    chk(S, 'Home receivables / GST outwardTax', [8_000_000, 0], [h.receivables.total, h.gst?.kind === 'regular' ? h.gst.row.outwardTax : null])
+    const tx = taxes(c)
+    chk(S, 'Taxes collected / toPay', [0, 0], tx.kind === 'regular' ? [tx.figures.collected, tx.figures.toPay] : null)
+    chk(S, 'sales list tax', [0, 0], [sez, exp].map((id) => salesList(c.db, OCT.from, OCT.to, TODAY).find((r) => r.voucherId === id)?.tax))
+    assertScenario(S)
+  })
+
+  // ============================================================ 8
+  it('S8 RCM purchase from an RCM-flagged unregistered GTA: 3.1(d), 4(A)(3)', () => {
+    const c = company(REGULAR)
+    const v = saveVoucher(c.db, {
+      voucherTypeId: typeId(c.db, 'purchase'), date: '2026-10-12', number: 'GT-5', partyLedgerId: c.L('Sharma Transport'), reference: 'GT-5',
+      lines: [
+        { ledgerId: c.L('Freight Inward'), drCr: 'dr', amount: 1_000_000, costAllocations: [] },
+        { ledgerId: c.L('Sharma Transport'), drCr: 'cr', amount: 1_000_000, costAllocations: [] }
+      ],
+      inventory: [], billRefs: [{ kind: 'new', name: 'GT-5', amount: 1_000_000, dueDate: null }], tds: null
+    } as Parameters<typeof saveVoucher>[1]).id
+    // HAND: GTA freight 10,00,000 at 5 % (Notification 13/2017-CT(Rate) entry 1, GTA not opting forward charge),
+    //  intra-state → RCM CGST 2.5 % = 25,000, SGST 25,000. 3.1(d) 10,00,000 / 25,000 / 25,000; 4(A)(3) 25,000 / 25,000.
+    //  Cash payable = 50,000 (RCM is paid in cash, s.49(4) / rule 86(4)? — ITC can't pay RCM); 4(C) 25,000 / 25,000.
+    const S = 'S8'
+    chk(S, 'bill: party Cr / Freight Dr (no tax lines)', [-1_000_000, 1_000_000], [lineOf(c, v, 'Sharma Transport'), lineOf(c, v, 'Freight Inward')])
+    const g3 = j3(c, OCT)
+    chk(S, 'GSTR-3B 3.1(d)', { txval: 1_000_000, iamt: 0, camt: 25_000, samt: 25_000 }, tax3(g3.sup_details.isup_rev))
+    chk(S, 'GSTR-3B 4(A)(3) ISRC', { iamt: 0, camt: 25_000, samt: 25_000 }, itcRow(g3, 'itc_avl', 'ISRC'))
+    chk(S, 'GSTR-3B 4(C)', { iamt: 0, camt: 25_000, samt: 25_000 }, itc3(g3.itc_elg.itc_net))
+    const r = gstr3b(c.db, c.info, OCT.from, OCT.to, OCT.p)
+    chk(S, 'GSTR-3B rcmPayable (cash) / netPayable', [{ igst: 0, cgst: 25_000, sgst: 25_000, cess: 0 }, { igst: 0, cgst: 0, sgst: 0, cess: 0 }], [r.rcmPayable, r.netPayable])
+    const h = home(c)
+    chk(S, 'Home GST rcmTax / itc / payable', [50_000, 50_000, 50_000], h.gst?.kind === 'regular' ? [h.gst.row.rcmTax, h.gst.row.itc, h.gst.row.payable] : null)
+    const tx = taxes(c)
+    chk(S, 'Taxes reverseCharge / onPurchases / toPay', [50_000, 50_000, 50_000], tx.kind === 'regular' ? [tx.figures.reverseCharge, tx.figures.onPurchases, tx.figures.toPay] : null)
+    const t = tb(c, OCT.to)
+    // Observation: the books carry no RCM liability nor its credit (by design — "an RCM purchase posts no input-tax lines").
+    chk(S, 'TB Freight / Sharma / Output CGST / Input CGST', [1_000_000, -1_000_000, 0, 0], ['Freight Inward', 'Sharma Transport', 'Output CGST', 'Input CGST'].map(t))
+    chk(S, 'Outstandings payable Sharma', 1_000_000, owedOf(c, 'payable', 'Sharma Transport'))
+    assertScenario(S)
+  })
+
+  // ============================================================ 9
+  it('S9 composition: bill of supply, no tax; CMP-08 18th after the quarter; GSTR-4 30 June', () => {
+    const c = company(COMPOSITION)
+    // HAND: 2 × 50,000 = 1,00,000; no tax (s.10(4): no tax collected; rule 49 bill of supply). Party Dr 1,00,000; Sales Cr 1,00,000.
+    const s = post(c, { kind: 'sale', date: '2026-10-13', customerId: c.L('Umbrella Retail'), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty: '2', rate: 50_000 }] })
+    const bill = s.entries.find((e) => e.kind === 'sales')!.voucherId
+    const S = 'S9'
+    chk(S, 'bill: lines', [100_000, -100_000, 0, 0], ['Umbrella Retail', 'Sales', 'Output CGST', 'Output SGST'].map((n) => lineOf(c, bill, n)))
+    // HAND (today 18 Nov 2026): CMP-08 of Jul–Sep 2026 was due 18 Oct 2026 (past) → the next is Oct–Dec 2026, due 18 Jan 2027
+    //  (rule 62(1)(i)). GSTR-4 of FY 2025-26 was due 30 Jun 2026 (past) → FY 2026-27, due 30 Jun 2027 (rule 62(1)(ii) as amended by
+    //  Notification 12/2024-CT: 30 June from FY 2024-25).
+    const tx = taxes(c)
+    chk(S, 'Taxes kind', 'composition', tx.kind)
+    chk(S, 'Taxes CMP-08 / GSTR-4', [{ from: '2026-10-01', to: '2026-12-31', due: '2027-01-18' }, { fyLabel: '2026-27', due: '2027-06-30' }], tx.kind === 'composition' ? [tx.composition.cmp08, tx.composition.gstr4] : null)
+    const h = home(c)
+    chk(S, 'Home GST composition note = Taxes', tx.kind === 'composition' ? tx.composition : null, h.gst?.kind === 'composition' ? h.gst.composition : null)
+    let refused = false
+    try {
+      saveVoucher(c.db, {
+        voucherTypeId: typeId(c.db, 'sales'), date: '2026-10-14', number: 'X1', partyLedgerId: c.L('Umbrella Retail'), reference: null,
+        lines: [
+          { ledgerId: c.L('Umbrella Retail'), drCr: 'dr', amount: 118_000, costAllocations: [] },
+          { ledgerId: c.L('Sales'), drCr: 'cr', amount: 100_000, costAllocations: [] },
+          { ledgerId: c.L('Output CGST'), drCr: 'cr', amount: 9_000, costAllocations: [] },
+          { ledgerId: c.L('Output SGST'), drCr: 'cr', amount: 9_000, costAllocations: [] }
+        ],
+        inventory: [], billRefs: [], tds: null
+      } as Parameters<typeof saveVoucher>[1])
+    } catch {
+      refused = true
+    }
+    chk(S, 'a sales entry WITH tax lines is refused for a composition dealer', true, refused)
+    chk(S, 'TB Sales / Output CGST', [-100_000, 0], ['Sales', 'Output CGST'].map(tb(c, OCT.to)))
+    const g1c = j1(c, OCT)
+    chk(S, 'GSTR-1 of a composition dealer (no GSTR-1 is filed): tables', 'none', JSON.stringify({ b2b: g1c.b2b, nil: g1c.nil, hsn: g1c.hsn }), 'diagnostic')
+    chk(S, 'GSTR-3B of a composition dealer: 3.1', 'none', JSON.stringify(j3(c, OCT).sup_details), 'diagnostic')
+    chk(S, 'sales list total / tax', [100_000, 0], (() => { const r = salesList(c.db, OCT.from, OCT.to, TODAY).find((x) => x.voucherId === bill); return [r?.total, r?.tax] })())
+    assertScenario(S)
+  })
+
+  // ============================================================ 10
+  it('S10 unregistered business: no GST lines, nothing to file', () => {
+    const c = company(UNREGISTERED)
+    // HAND: an amount of 1,00,000 with "18 %" asked → the rate is ignored (WP 8.0: an unregistered person charges no GST);
+    //  Party Dr 1,00,000; Sales Cr 1,00,000; no tax lines.
+    const s = post(c, { kind: 'sale', date: '2026-10-14', customerId: c.L('Umbrella Retail'), payment: { how: 'credit' }, amount: { amount: 100_000, gstRate: 18 } })
+    const bill = s.entries.find((e) => e.kind === 'sales')!.voucherId
+    const S = 'S10'
+    chk(S, 'bill: lines', [100_000, -100_000, 0, 0, 0], ['Umbrella Retail', 'Sales', 'Output CGST', 'Output SGST', 'Round Off'].map((n) => lineOf(c, bill, n)))
+    chk(S, 'facts.noGst said', true, !!(s.facts as Record<string, unknown>).noGst)
+    chk(S, 'Taxes kind', 'unregistered', taxes(c).kind)
+    chk(S, 'Home gst', null, home(c).gst)
+    chk(S, 'Home receivables', 100_000, home(c).receivables.total)
+    assertScenario(S)
+  })
+
+  // ============================================================ 11
+  it('S11 advance received (11A) then its invoice next month (11B)', () => {
+    const c = company(REGULAR)
+    // HAND Oct: 11,80,000 received from Prepaid Clinic (ledger rate 18 %), flagged as an advance.
+    //  Rule 35: value = 11,80,000 × 100 / 118 = 10,00,000; tax 1,80,000 → CGST 90,000 + SGST 90,000 (intra, pos 27).
+    //  GSTR-1 Table 11A: pos 27, INTRA, rt 18, ad_amt 10,00,000, camt 90,000, samt 90,000.
+    post(c, { kind: 'money_in', date: '2026-10-10', customerId: c.L('Prepaid Clinic'), amount: 1_180_000, into: { how: 'bank', accountId: c.L('HDFC Bank') }, advance: true })
+    const S = 'S11'
+    const at = ((j1(c, OCT).at ?? []) as J[]).map((r) => ({ pos: r.pos, sply_ty: r.sply_ty, itms: (r.itms as J[]).map((i) => ({ rt: i.rt, ad_amt: p(i.ad_amt), camt: p(i.camt), samt: p(i.samt) })) }))
+    chk(S, 'Oct GSTR-1 11A', [{ pos: '27', sply_ty: 'INTRA', itms: [{ rt: 18, ad_amt: 1_000_000, camt: 90_000, samt: 90_000 }] }], at)
+    chk(S, 'Oct GSTR-3B 3.1(a) incl. 11A (GSTN auto-population)', { txval: 1_000_000, iamt: 0, camt: 90_000, samt: 90_000 }, tax3(j3(c, OCT).sup_details.osup_det), 'golden ADV-01 knownBug (UNVERIFIED, CA)')
+    const o = outstandingsWithAdvances(c.db, 'receivable', TODAY)
+    chk(S, 'Oct: Outstandings advance held', 1_180_000, o.advances)
+    chk(S, 'Oct: Home receivables advances', 1_180_000, home(c).receivables.advances)
+    chk(S, 'Oct: TB Prepaid Clinic Cr / HDFC Dr', [-1_180_000, 1_180_000], ['Prepaid Clinic', 'HDFC Bank'].map(tb(c, OCT.to)))
+
+    // HAND Nov: invoice 10 × 1,00,000 = 10,00,000; CGST 90,000; SGST 90,000; total 11,80,000 (Make a bill, on credit).
+    //  The customer's ledger nets to 0 (11,80,000 Cr advance + 11,80,000 Dr bill).
+    //  GSTR-1 Nov: B2B 10,00,000 / 90,000 / 90,000 and Table 11B (advance adjusted) pos 27 rt 18 ad_amt 10,00,000 / 90,000 / 90,000.
+    const sv = post(c, { kind: 'sale', date: '2026-11-05', customerId: c.L('Prepaid Clinic'), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty: '10', rate: 100_000 }] })
+    const bill = sv.entries.find((e) => e.kind === 'sales')!.voucherId
+    chk(S, 'Nov bill: party Dr / OCGST / OSGST', [1_180_000, -90_000, -90_000], ['Prepaid Clinic', 'Output CGST', 'Output SGST'].map((n) => lineOf(c, bill, n)))
+    const gn = j1(c, NOV)
+    chk(S, 'Nov GSTR-1 b2b items', [{ rt: 18, txval: 1_000_000, iamt: 0, camt: 90_000, samt: 90_000 }], itms(gn.b2b?.[0]?.inv?.[0]?.itms))
+    const txpd = ((gn.txpd ?? []) as J[]).map((r) => ({ pos: r.pos, sply_ty: r.sply_ty, itms: (r.itms as J[]).map((i) => ({ rt: i.rt, ad_amt: p(i.ad_amt), camt: p(i.camt), samt: p(i.samt) })) }))
+    chk(S, 'Nov GSTR-1 11B (advance adjusted)', [{ pos: '27', sply_ty: 'INTRA', itms: [{ rt: 18, ad_amt: 1_000_000, camt: 90_000, samt: 90_000 }] }], txpd)
+    chk(S, 'Nov TB Prepaid Clinic nets to 0', 0, tb(c, NOV.to)('Prepaid Clinic'))
+    const on = outstandingsWithAdvances(c.db, 'receivable', TODAY)
+    const pc = on.parties.find((x) => x.name === 'Prepaid Clinic')
+    chk(S, 'Nov Outstandings Prepaid Clinic pending / advances (net nothing due)', [0, 0], [pc?.pending ?? 0, on.advanceByParty.get(c.L('Prepaid Clinic')) ?? 0])
+    const pe = peopleList(c.db, TODAY).people.find((x) => x.name === 'Prepaid Clinic')
+    chk(S, 'Nov People Prepaid Clinic open / ahead', [0, 0], [pe?.open ?? 0, pe?.ahead ?? 0])
+    const sl = salesList(c.db, NOV.from, NOV.to, TODAY).find((x) => x.voucherId === bill)
+    chk(S, 'Nov sales list due / paid', [0, 1_180_000], [sl?.due, sl?.paid])
+    chk(S, 'Nov GSTR-3B 3.1(a) net of 11B (GSTN auto-population)', { txval: 0, iamt: 0, camt: 0, samt: 0 }, tax3(j3(c, NOV).sup_details.osup_det), 'golden ADV-02 knownBug (UNVERIFIED, CA)')
+    chk(S, 'Nov sale refs (bill refs as saved)', 'see app', getVoucher(c.db, bill)!.billRefs.map((r) => `${r.kind}:${r.name}:${r.amount}`).join(' | '), 'diagnostic')
+    chk(S, 'Oct Home GST tile outwardTax incl. 11A', 180_000, (() => { const h = home(c); return h.gst?.kind === 'regular' ? h.gst.row.outwardTax : null })(), 'follows the ADV-01 knownBug')
+    assertScenario(S)
+  })
+
+  it('S11c an advance from a customer made the simple way (no GST rate on the ledger)', () => {
+    const c = company(REGULAR)
+    // A customer added through simple mode's NewAccountDialog carries gstRate null (NewAccountDialog.tsx:156).
+    c.db.prepare('UPDATE ledgers SET gst_rate = NULL WHERE id = ?').run(c.L('Umbrella Retail'))
+    post(c, { kind: 'money_in', date: '2026-10-10', customerId: c.L('Umbrella Retail'), amount: 1_180_000, into: { how: 'bank', accountId: c.L('HDFC Bank') }, advance: true })
+    // HAND (a services business: s.13(2)(a) CGST Act — time of supply = receipt of payment when earlier than the invoice):
+    //  11A pos 27 rt 18 ad_amt 10,00,000 / 90,000 / 90,000 — or, if the rate can't be known, at least a warning.
+    const S = 'S11c'
+    chk(S, 'Oct GSTR-1 11A rows', 1, ((j1(c, OCT).at ?? []) as J[]).length)
+    chk(S, 'gstValidate says something about the untaxed advance', true, gstValidate(c.db, c.info, OCT.from, OCT.to).some((i) => /advance/i.test(`${i.code} ${i.message}`)))
+    assertScenario(S)
+  })
+
+  it('S11b the same with 7 days to pay: is a prepaid bill chased?', () => {
+    const c = company(REGULAR)
+    c.db.prepare('UPDATE ledgers SET credit_days = 7 WHERE id = ?').run(c.L('Prepaid Clinic'))
+    post(c, { kind: 'money_in', date: '2026-10-10', customerId: c.L('Prepaid Clinic'), amount: 1_180_000, into: { how: 'bank', accountId: c.L('HDFC Bank') }, advance: true })
+    post(c, { kind: 'sale', date: '2026-11-01', customerId: c.L('Prepaid Clinic'), payment: { how: 'credit' }, items: [{ itemId: c.I('Widget'), qty: '10', rate: 100_000 }] })
+    // HAND: paid in full in advance → nothing late; Home overdue 0; no reminder.
+    const S = 'S11b'
+    const h = home(c)
+    chk(S, 'Home receivables overdue', 0, h.receivables.overdue)
+    const pe = peopleList(c.db, TODAY).people.find((x) => x.name === 'Prepaid Clinic')
+    chk(S, 'People late', 0, pe?.late ?? 0)
+    chk(S, 'late reminders listed', [], lateReminders(c.db, TODAY).map((r) => r.name))
+    assertScenario(S)
+  })
+})
