@@ -1,7 +1,7 @@
 // WP 8.0 — the registration rule in the pure engine, the state-code order, compliance applicability
 // and the print title.
 import { describe, expect, it } from 'vitest'
-import { chargesGst, chargesGstOn, BILL_OF_SUPPLY_TITLE, gstNotChargedMessage, nonTaxInvoiceTitle, registrationOn } from './registration'
+import { chargesGst, chargesGstOn, BILL_OF_SUPPLY_TITLE, everGstRegistered, gstNotChargedMessage, gstReturnNotDueMessage, nonTaxInvoiceTitle, registrationOn, returnRegistrationIn } from './registration'
 import { nonClaimableCosts, rateForCost } from '../capture/nonClaimable'
 import { GST_STATE_LIST, GST_STATES } from './states'
 import { buildInvoicePayload, computeInvoice, emptyInvoiceState, invoiceRepresentation, type InvoiceContext, type TaxLedgerIds } from '../voucherEdit'
@@ -121,5 +121,41 @@ describe('non-claimable GST on a captured bill (WP 8.0 review)', () => {
       expect(Math.round((qty * ratePaise) / 1000) - discountPaise).toBe(cost)
       expect(discountPaise).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+// R3 / FIG-G-3 — the registration a return period is filed under (s.37(1), s.39(1) "or part thereof").
+describe('returnRegistrationIn / everGstRegistered', () => {
+  const oct = ['2026-10-01', '2026-10-31'] as const
+  it('one type throughout: that type', () => {
+    for (const t of ['regular', 'composition', 'unregistered'] as const) expect(returnRegistrationIn({ gstRegistrationType: t }, ...oct)).toBe(t)
+  })
+  it('regular on ANY day of the period makes it a regular return — a change on its first, a middle or its last day', () => {
+    const into = (since: string) => ({ gstRegistrationType: 'regular' as const, gstRegistrationSince: since, gstPreviousRegistrationType: 'composition' as const })
+    const outOf = (since: string) => ({ gstRegistrationType: 'composition' as const, gstRegistrationSince: since, gstPreviousRegistrationType: 'regular' as const })
+    expect(returnRegistrationIn(into('2026-10-15'), ...oct)).toBe('regular')
+    expect(returnRegistrationIn(into('2026-10-31'), ...oct)).toBe('regular') // the last day alone
+    expect(returnRegistrationIn(into('2026-11-01'), ...oct)).toBe('composition') // starts after
+    expect(returnRegistrationIn(outOf('2026-10-02'), ...oct)).toBe('regular') // the first day alone
+    expect(returnRegistrationIn(outOf('2026-10-01'), ...oct)).toBe('composition') // left before it
+    expect(returnRegistrationIn(outOf('2026-11-01'), ...oct)).toBe('regular') // left after it
+  })
+  it('no regular day: composition before unregistered (a composition part still owes CMP-08)', () => {
+    const cancelled = { gstRegistrationType: 'unregistered' as const, gstRegistrationSince: '2026-10-15', gstPreviousRegistrationType: 'composition' as const }
+    expect(returnRegistrationIn(cancelled, ...oct)).toBe('composition')
+    expect(returnRegistrationIn(cancelled, '2026-11-01', '2026-11-30')).toBe('unregistered')
+  })
+  it('ever registered: now, or before the one recorded change', () => {
+    expect(everGstRegistered({ gstRegistrationType: 'composition' })).toBe(true)
+    expect(everGstRegistered({ gstRegistrationType: 'unregistered' })).toBe(false)
+    expect(everGstRegistered({ gstRegistrationType: 'unregistered', gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: 'regular' })).toBe(true)
+    expect(everGstRegistered({ gstRegistrationType: 'unregistered', gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: null })).toBe(false)
+  })
+  it('the not-due words: composition names CMP-08 / GSTR-4; 2B says no credit (s.10(4)); a cancellation never says nothing more is due', () => {
+    expect(gstReturnNotDueMessage('gstr1', 'composition', true)).toContain('A composition dealer files CMP-08 and GSTR-4, not GSTR-1')
+    expect(gstReturnNotDueMessage('gstr3b', 'composition', true)).toContain('not GSTR-3B (s.37(1), s.39(1) and (2) CGST Act; rule 62 CGST Rules)')
+    expect(gstReturnNotDueMessage('gstr2b', 'composition', true)).toContain('can’t claim GST credit on purchases (s.10(4) CGST Act)')
+    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', true)).toContain('Ask your CA about the final return after a cancellation')
+    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', false)).toBe('This business is not registered for GST, so no GSTR-3B is due for it. If it registers, add the GSTIN under Company details.')
   })
 })

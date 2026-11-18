@@ -131,18 +131,22 @@ describe('Ask Total — which panel', () => {
     await waitFor(() => expect(useNav.getState().stack.at(-1)).toMatchObject({ name: 'banking' }))
   })
 
+  const REG = { gstRegistrationType: 'regular' } as const
+  const UNREG = { gstRegistrationType: 'unregistered' } as const
   it('fullPlace: a simple place in the full app — bills / entries their voucher, Features, TDS / TCS, the counterpart only where it applies', () => {
-    expect(fullPlace({ name: 'simple-sales', billId: 12 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 12 })
-    expect(fullPlace({ name: 'simple-purchases', billId: 13 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 13 })
-    expect(fullPlace({ name: 'simple-money', entryId: 14 }, 'regular')).toEqual({ name: 'voucher-entry', voucherId: 14 })
-    expect(fullPlace({ name: 'simple-features' }, 'regular')).toEqual({ name: 'settings', tab: 'features' })
-    expect(fullPlace({ name: 'simple-taxes', withholding: 'tds' }, 'unregistered')).toEqual({ name: 'tds' })
-    expect(fullPlace({ name: 'simple-taxes' }, 'regular')).toEqual({ name: 'gstr3b' })
+    expect(fullPlace({ name: 'simple-sales', billId: 12 }, REG)).toEqual({ name: 'voucher-entry', voucherId: 12 })
+    expect(fullPlace({ name: 'simple-purchases', billId: 13 }, REG)).toEqual({ name: 'voucher-entry', voucherId: 13 })
+    expect(fullPlace({ name: 'simple-money', entryId: 14 }, REG)).toEqual({ name: 'voucher-entry', voucherId: 14 })
+    expect(fullPlace({ name: 'simple-features' }, REG)).toEqual({ name: 'settings', tab: 'features' })
+    expect(fullPlace({ name: 'simple-taxes', withholding: 'tds' }, UNREG)).toEqual({ name: 'tds' })
+    expect(fullPlace({ name: 'simple-taxes' }, REG)).toEqual({ name: 'gstr3b' })
     // An unregistered business has no GST return to open: Home, never GSTR-3B.
-    expect(fullPlace({ name: 'simple-taxes' }, 'unregistered')).toEqual({ name: 'gateway' })
-    expect(fullPlace({ name: 'simple-bank', bankId: 3 }, 'regular')).toMatchObject({ name: 'banking', ledgerId: 3 })
+    expect(fullPlace({ name: 'simple-taxes' }, UNREG)).toEqual({ name: 'gateway' })
+    // R3: a cancelled registration still opens its returns (its registered months are filed there).
+    expect(fullPlace({ name: 'simple-taxes' }, { ...UNREG, gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: 'regular' })).toEqual({ name: 'gstr3b' })
+    expect(fullPlace({ name: 'simple-bank', bankId: 3 }, REG)).toMatchObject({ name: 'banking', ledgerId: 3 })
     // A full-app screen stays as it is.
-    expect(fullPlace({ name: 'profit-loss' }, 'regular')).toEqual({ name: 'profit-loss' })
+    expect(fullPlace({ name: 'profit-loss' }, REG)).toEqual({ name: 'profit-loss' })
   })
 
   it('accountant mode, AI set up but not ready: the panel says why and links Settings → AI', async () => {
