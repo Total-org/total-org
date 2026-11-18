@@ -284,6 +284,10 @@ export const ERROR_MAP = {
   // "Remember on this computer" (services/companyKeys.ts, ipc.ts)
   remember_unavailable: e('errors.security.rememberUnavailable'),
   remembered_key_stale: e('errors.security.rememberedStale', 'passphrase'),
+  // 1.0 readiness SEC2-6 / SEC-13 (decisions Q6 / Q7)
+  screen_locked_passphrase: e('errors.security.screenLocked', 'passphrase'),
+  owner_pin_short: e('errors.security.ownerPinShort', 'pin', ['min'], 'errors.security.ownerPinShortPlain'),
+  owner_pin_needed: e('errors.security.ownerPinNeeded', 'pin', ['min'], 'errors.security.ownerPinNeededPlain'),
   /** No longer thrown since a business without people can lock its screen (a privacy screen); kept
    *  for an older main's answer, in the new words. */
   lock_needs_people: e('errors.security.lockPrivacyOnly'),

@@ -30,6 +30,7 @@ import { stopAllChecks, stopChecks, stopChecksUnder } from './db/checkHost'
 import { encryptFile, decryptFile, NewerBackupFormatError } from './db/crypt'
 import { readCompanyInfo, seedCompany, writeCompanyInfo } from './db/seed'
 import { readRegistry, removeCompany, touchLastOpened, upsertCompany } from './registry'
+import { clearScreenLock, forgetScreenLock, isScreenLocked, storeScreenLock } from './services/screenLocks'
 import { companyAttachmentsDir, companyBackupAttachmentsDir, companyBackupsDir, companyDbPath, companyDir, companyExportsDir, dataRoot, ensureCompanyTree, slugify } from './paths'
 import { log, revealLogs } from './log'
 import { checkForUpdatesInteractive, setAutoCheck, updateAction, updatesView } from './updater'
@@ -120,8 +121,10 @@ let sessionUser: { id: number; name: string; role: Role; capabilities: Capabilit
 
 /** WP 7.2 follow-up: the screen lock of a business WITHOUT users (⌘L / its idle minutes) — a
  *  privacy screen: every gated channel is refused until `session:unlock`, which asks for the
- *  business's passphrase when the passphrase lock is on and otherwise just resumes. In memory
- *  only (a restart opens unlocked, as a company without users always did). */
+ *  business's passphrase when the passphrase lock is on and otherwise just resumes. With the
+ *  passphrase lock on it is also STORED outside the books (services/screenLocks.ts, 1.0
+ *  readiness SEC2-6): closing the business, switching or a restart keep it, and the next open
+ *  asks for the passphrase. Without a passphrase it is in memory only (nothing to ask for). */
 let privacyLock: 'manual' | 'idle' | null = null
 
 /** "Remember on this computer" ticked at the passphrase prompt of a business WITH people: the key
@@ -135,8 +138,20 @@ const lockKindOf = (c: OpenCompany): LockKind => (c.usersExist ? 'pin' : c.encry
 
 function lockPrivacy(reason: 'manual' | 'idle'): void {
   if (!current || current.usersExist || privacyLock) return
+  // SEC2-6: stored first, so a business whose passphrase lock is on stays locked past a switch or
+  // a restart. A file that can't be written keeps today's in-memory lock (logged, and said in the
+  // audit row) rather than leaving the screen open.
+  let stored = false
+  if (current.encrypted) {
+    try {
+      storeScreenLock(dataRoot(), current.slug, reason, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
+      stored = true
+    } catch (err) {
+      log('warn', 'screen-lock-store-failed', { slug: current.slug, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
   try {
-    writeAudit(current.db, 'user', 0, 'logout', null, { lock: reason, noUsers: true })
+    writeAudit(current.db, 'user', 0, 'logout', null, { lock: reason, noUsers: true, ...(current.encrypted ? { stored } : {}) })
   } catch (err) {
     log('warn', 'session-lock-audit-failed', { error: err instanceof Error ? err.message : String(err) })
   }
@@ -292,6 +307,21 @@ function otherCompanyHasUsers(): boolean {
 
 /** App-level, append-only record of API key changes (WP 5.1) — beside secrets.json, outside
  *  every company (the key is shared by all of them). */
+const registrySlugs = (): string[] => readRegistry().companies.map((c) => c.slug)
+const logScreenLockCorrupt = (error: string): void => log('warn', 'screen-locks-unreadable', { error })
+
+/** SEC2-6: a correct passphrase was typed for `slug` — its stored screen lock goes. Returns
+ *  whether one was cleared; a file that can't be written is logged (the lock then stays, so the
+ *  passphrase is asked again next time — never the other way round). */
+function clearStoredScreenLock(slug: string): boolean {
+  try {
+    return clearScreenLock(dataRoot(), slug, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
+  } catch (err) {
+    log('warn', 'screen-lock-clear-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+    return false
+  }
+}
+
 function appendAiKeyAudit(entry: AppKeyAuditEntry): void {
   appendFileSync(join(dataRoot(), 'ai-key-audit.jsonl'), `${JSON.stringify({ ...entry, appVersion: app.getVersion() })}\n`, { mode: 0o600 })
 }
@@ -647,6 +677,12 @@ export function registerIpc(): void {
     await stopChecksUnder(companyDir(slug))
     rmSync(companyDir(slug), { recursive: true, force: true })
     removeCompany(slug)
+    // SEC2-6: a stored screen lock of the business goes with it (a new business may get the slug).
+    try {
+      forgetScreenLock(dataRoot(), slug)
+    } catch (err) {
+      log('warn', 'company-delete-screen-lock-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+    }
     // Secrets live outside the company folder; drop them so a future company reusing this slug
     // starts clean. Best-effort — a secret-store failure must not fail a completed delete.
     try {
@@ -668,8 +704,19 @@ export function registerIpc(): void {
     // for this open); a plaintext one opens exactly as before — no prompt, nothing asked. The
     // business open until now is closed first (its key forgotten).
     closeCurrentCompany()
-    const via = await unlockFolderIfNeeded(slug, passphrase)
+    // 1.0 readiness SEC2-6 (decision Q6): a business whose screen was locked with its passphrase
+    // lock on opens only with the passphrase — never with a key remembered on this computer or
+    // still in memory — until that passphrase clears the stored lock.
+    const screenLocked = isEncryptedFile(companyDbPath(slug)) && isScreenLocked(dataRoot(), slug, logScreenLockCorrupt)
+    if (screenLocked && !passphrase) {
+      throw new AppError('screen_locked_passphrase', 'The screen of this business was locked — type its passphrase to open it', { field: 'passphrase' })
+    }
+    const via = await unlockFolderIfNeeded(slug, passphrase, screenLocked ? { useRemembered: false, evenIfKnown: true } : {})
     const opened = await openCompanyNow(slug)
+    if (screenLocked && current?.slug === slug) {
+      const cleared = clearStoredScreenLock(slug)
+      writeAudit(current.db, 'user', 0, 'login', null, { lock: 'stored', noUsers: !current.usersExist, passphrase: true, cleared })
+    }
     // "Remember on this computer" (ticked at the prompt, the passphrase just proved right): stored
     // at once in a business without people (whoever opens it is its owner), else once an owner
     // signs in (auth:login). Never fails the open.
@@ -1187,47 +1234,49 @@ export function registerIpc(): void {
     })
     if (picked.canceled || !picked.filePaths[0]) return null
 
+    // The decrypted books sit in this folder until they become the new company; every path out —
+    // a wrong passphrase, a damaged or newer backup, a failed copy — removes it (1.0 readiness
+    // SEC3-2: a refused import used to leave the plaintext books in the temp folder).
     const tempDir = mkdtempSync(join(tmpdir(), 'total-import-'))
-    const tempDbPath = join(tempDir, 'restored.db')
-    try {
-      await decryptFile(picked.filePaths[0], tempDbPath, passphrase)
-    } catch (err) {
-      if (err instanceof NewerBackupFormatError) throw err
-      throw new Error('Wrong passphrase or corrupted file')
-    }
-
     let info: CompanyInfo
-    try {
-      const check = openDb(tempDbPath, { readonly: true, key: null })
-      try {
-        const result = check.pragma('quick_check') as Array<{ quick_check: string }>
-        if (result[0]?.quick_check !== 'ok') throw new Error('bad')
-        info = readCompanyInfo(check)
-        // Upgrade guard: a backup from a NEWER Total is refused before it becomes a company.
-        assertNotNewer(check)
-      } finally {
-        check.close()
-      }
-    } catch (err) {
-      if (err instanceof AppError && err.code === 'db_newer_version') throw err
-      throw new Error("This file doesn't look like a Total company backup")
-    }
-
-    let slug = slugify(info.name)
-    let n = 2
-    while (existsSync(companyDbPath(slug))) slug = `${slugify(info.name)}-${n++}`
-    ensureCompanyTree(slug)
-    // WP 6.4: the embedded attachments (hash-checked) into the new company's store.
+    let slug: string
     let importedFiles: RestoreFilesResult = { restored: 0, present: 0, missing: [], refused: [] }
     try {
-      importedFiles = restoreAttachmentFilesAt(tempDbPath, companyAttachmentsDir(slug), null)
-    } catch (err) {
-      log('warn', 'import-encrypted-attachments-failed', { slug, error: err instanceof Error ? err.message : String(err) })
-    }
+      const tempDbPath = join(tempDir, 'restored.db')
+      try {
+        await decryptFile(picked.filePaths[0], tempDbPath, passphrase)
+      } catch (err) {
+        if (err instanceof NewerBackupFormatError) throw err
+        throw new Error('Wrong passphrase or corrupted file')
+      }
 
-    const dbPath = companyDbPath(slug)
-    try {
-      renameFile(tempDbPath, dbPath)
+      try {
+        const check = openDb(tempDbPath, { readonly: true, key: null })
+        try {
+          const result = check.pragma('quick_check') as Array<{ quick_check: string }>
+          if (result[0]?.quick_check !== 'ok') throw new Error('bad')
+          info = readCompanyInfo(check)
+          // Upgrade guard: a backup from a NEWER Total is refused before it becomes a company.
+          assertNotNewer(check)
+        } finally {
+          check.close()
+        }
+      } catch (err) {
+        if (err instanceof AppError && err.code === 'db_newer_version') throw err
+        throw new Error("This file doesn't look like a Total company backup")
+      }
+
+      slug = slugify(info.name)
+      let n = 2
+      while (existsSync(companyDbPath(slug))) slug = `${slugify(info.name)}-${n++}`
+      ensureCompanyTree(slug)
+      // WP 6.4: the embedded attachments (hash-checked) into the new company's store.
+      try {
+        importedFiles = restoreAttachmentFilesAt(tempDbPath, companyAttachmentsDir(slug), null)
+      } catch (err) {
+        log('warn', 'import-encrypted-attachments-failed', { slug, error: err instanceof Error ? err.message : String(err) })
+      }
+      renameFile(tempDbPath, companyDbPath(slug))
     } finally {
       rmSync(tempDir, { recursive: true, force: true })
     }
@@ -1382,7 +1431,8 @@ export function registerIpc(): void {
     const reason = privacyLock
     privacyLock = null
     idleClock.touch()
-    writeAudit(c.db, 'user', 0, 'login', null, { lock: reason, noUsers: true, passphrase: c.encrypted })
+    const cleared = c.encrypted ? clearStoredScreenLock(c.slug) : false
+    writeAudit(c.db, 'user', 0, 'login', null, { lock: reason, noUsers: true, passphrase: c.encrypted, ...(c.encrypted ? { cleared } : {}) })
     return { locked: false }
   })
 

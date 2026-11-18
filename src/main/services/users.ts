@@ -4,6 +4,7 @@ import { writeAudit } from './audit'
 import type { Role } from './roles'
 import { normaliseFlags, parseFlags, type CapabilityFlags } from '@shared/capabilities'
 import { AppError } from '@shared/errors'
+import { newPinProblem, OWNER_PIN_MIN_DIGITS } from '@shared/pinRules'
 
 export type { Role }
 
@@ -90,6 +91,7 @@ export function saveUser(db: DB, input: UserInput, id?: number): User {
     if (!input.pin) throw new Error('PIN is required')
     const bootstrap = !usersExist(db)
     const role: Role = bootstrap ? 'owner' : input.role
+    assertPinFits(input.pin, role, null)
     const pinHash = hashPin(input.pin)
     const caps = normaliseFlags(role, input.capabilities)
     const result = db
@@ -99,6 +101,7 @@ export function saveUser(db: DB, input: UserInput, id?: number): User {
   }
 
   const existing = getUser(db, id) // 404s if missing
+  assertPinFits(input.pin, input.role, existing.role === 'owner')
   // WP 7.2: flags are kept unless given; they are re-normalised against the (possibly new) role.
   const caps = normaliseFlags(input.role, input.capabilities !== undefined ? input.capabilities : existing.capabilities)
   db.prepare('UPDATE users SET capabilities_json = ? WHERE id = ?').run(caps ? JSON.stringify(caps) : null, id)
@@ -120,6 +123,16 @@ export function saveUser(db: DB, input: UserInput, id?: number): User {
     )
   }
   return getUser(db, id)
+}
+
+/** 1.0 readiness SEC-13 (decision Q7): an owner's new PIN has at least 6 digits; checked before
+ *  anything is written, so a refused save leaves the person as they were. */
+function assertPinFits(pin: string | undefined, role: Role, wasOwner: boolean | null): void {
+  const problem = newPinProblem(pin, role, wasOwner)
+  if (problem === 'owner_pin_short')
+    throw new AppError('owner_pin_short', `An owner's PIN needs at least ${OWNER_PIN_MIN_DIGITS} digits`, { field: 'pin', params: { min: OWNER_PIN_MIN_DIGITS } })
+  if (problem === 'owner_pin_needed')
+    throw new AppError('owner_pin_needed', `To make this person an owner, give them a new PIN of at least ${OWNER_PIN_MIN_DIGITS} digits`, { field: 'pin', params: { min: OWNER_PIN_MIN_DIGITS } })
 }
 
 /** Soft-deactivate a user. Refused if this would leave the company with zero active owners. */

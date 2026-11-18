@@ -671,9 +671,10 @@ export const searchQuerySchema = z.object({
 })
 export type SearchQueryInput = z.infer<typeof searchQuerySchema>
 
-/** users:save input — pin is digits-only, 4-12 long; required on create, optional on update
- *  (an update without a pin keeps the existing hash). Role requests are honored except for the
- *  very first user of a company, which the service always forces to 'owner'. */
+/** users:save input — pin is digits-only, 4-12 long (an owner's new PIN at least 6 — the service
+ *  checks it with shared/pinRules.ts once it knows the role the save gives); required on create,
+ *  optional on update (an update without a pin keeps the existing hash). Role requests are honored
+ *  except for the very first user of a company, which the service always forces to 'owner'. */
 export const userInputSchema = z.object({
   name: z.string().trim().min(1).max(60),
   role: z.enum(['owner', 'accountant', 'viewer']),

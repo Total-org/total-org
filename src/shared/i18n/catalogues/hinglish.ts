@@ -3217,6 +3217,11 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   // "Remember on this computer" (the passphrase prompt, Settings → Security, the picker)
   'errors.security.rememberUnavailable': 'Is computer mein secure storage nahi hai, isliye Total passphrase yaad nahi rakh sakta. Har baar type karein.',
   'errors.security.rememberedStale': 'Is computer par yaad rakha passphrase ab is hisaab ko nahi kholta, isliye Total ne use bhula diya. Passphrase type karein.',
+  'errors.security.screenLocked': 'Is business ki screen lock ki gayi thi. Kholne ke liye iska passphrase likhein — tab tak is computer par yaad rakha passphrase ise nahi kholta.',
+  'errors.security.ownerPinShort': 'Owner ke PIN mein kam se kam {min} digits hone chahiye.',
+  'errors.security.ownerPinShortPlain': 'Owner ke PIN mein aur digits hone chahiye.',
+  'errors.security.ownerPinNeeded': 'Is vyakti ko owner banane ke liye inhe kam se kam {min} digits ka naya PIN dein.',
+  'errors.security.ownerPinNeededPlain': 'Is vyakti ko owner banane ke liye inhe ek naya, lamba PIN dein.',
   'simple.passphrase.remember': 'Is computer par yaad rakhein',
   'simple.passphrase.rememberHint': 'Jo bhi is computer mein sign in kar sakta hai, woh bina passphrase ke yeh hisaab khol lega. Ise sirf usi computer par chunein jise sirf aap use karte hain.',
   'simple.passphrase.remembered': 'Is computer par yaad rakha gaya. Yahan hisaab bina passphrase ke khulega.',

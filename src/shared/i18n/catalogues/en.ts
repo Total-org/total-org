@@ -3331,6 +3331,11 @@ export const en = {
   // "Remember on this computer" (the passphrase prompt, Settings → Security, the picker)
   'errors.security.rememberUnavailable': 'This computer has no secure storage, so Total cannot remember the passphrase. Type it each time.',
   'errors.security.rememberedStale': 'The passphrase remembered on this computer no longer opens these books, so Total forgot it. Type the passphrase.',
+  'errors.security.screenLocked': 'The screen of this business was locked. Type its passphrase to open it — a passphrase remembered on this computer does not open it until then.',
+  'errors.security.ownerPinShort': 'An owner’s PIN needs at least {min} digits.',
+  'errors.security.ownerPinShortPlain': 'An owner’s PIN needs more digits.',
+  'errors.security.ownerPinNeeded': 'To make this person an owner, give them a new PIN of at least {min} digits.',
+  'errors.security.ownerPinNeededPlain': 'To make this person an owner, give them a new, longer PIN.',
   'simple.passphrase.remember': 'Remember on this computer',
   'simple.passphrase.rememberHint': 'Anyone who can sign in to this computer will open these books without the passphrase. Tick it only on a computer that only you use.',
   'simple.passphrase.remembered': 'Remembered on this computer. The books will open without the passphrase here.',
