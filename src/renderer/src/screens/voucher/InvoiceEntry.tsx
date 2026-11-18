@@ -33,7 +33,7 @@ import { useHandoffLedgers } from '../../lib/handoff'
 import type { HandoffPending, HandoffPendingRefs } from '@shared/simple/handoff'
 import { TransportModal } from './TransportModal'
 import { einvoiceDocNoWarning } from '@shared/gst/einvoiceSchema'
-import { useTcsCollection, useTdsDeduction, type TcsCandidate } from './useTdsDeduction'
+import { appliedBaseFits, useTcsCollection, useTdsDeduction, type TcsCandidate } from './useTdsDeduction'
 import { TdsBanner, TdsNotApplicableNote } from './TdsBanner'
 import { CaCheck } from '../../components/CaCheck'
 import { blankItemRow, ItemLineGrid, type ItemRow } from './ItemLineGrid'
@@ -358,7 +358,7 @@ export function InvoiceEntry({
   })
   const appliedTds = formState.tds ?? null
   const partyAmount = computed.rounded - (appliedTds?.tdsAmount ?? 0)
-  const tdsStale = !!appliedTds && !appliedTds.isManual && appliedTds.baseAmount !== computed.gst.taxable
+  const tdsStale = !!appliedTds && !appliedTds.isManual && !appliedBaseFits(appliedTds.baseAmount, computed.gst.taxable, tdsDeduction.suggestion)
 
   // TCS candidate: the buyer, taxable value, GST (+ round-off), sales ledger and goods — the
   // server decides the section (buyer → goods → sales ledger) and whether GST is in the base.

@@ -5,6 +5,7 @@ import { toDisplayDate } from '@shared/dates'
 import type { TcsSuggestion, TdsSuggestion } from '../../lib/client'
 import { AmountInput, Button, Money, Select, TextInput } from '../../components/ui'
 import { confirmDialog } from '../../lib/dialogs'
+import { CaCheck } from '../../components/CaCheck'
 
 const rs = (p: number): string => formatPaise(p, { symbol: true })
 
@@ -34,13 +35,21 @@ export function tcsReasonText(s: TcsSuggestion): string {
   }
 }
 
+/** FIG-B-1: the earlier sums a crossing voucher deducts with its own, in words. */
+function earlierText(c: NonNullable<TdsSuggestion['crossing']>): string {
+  return `${rs(c.earlierBasePaise)} of ${c.earlierCount} earlier ${c.earlierCount === 1 ? 'sum' : 'sums'} not deducted while the total was under the limit`
+}
+
 /** Why TDS applies (or doesn't) in words — the banner's reason line. Exported for tests. */
 export function tdsReasonText(s: TdsSuggestion): string {
+  const earlier = s.crossing?.earlierBasePaise ?? 0
   if (s.payment) {
     if (s.payment.deductedAtCredit) return 'TDS was deducted when the bills were booked — nothing to deduct on this payment'
     const parts: string[] = []
-    if (s.payment.undeductedBillsPaise > 0) parts.push(`${rs(Math.min(s.payment.undeductedBillsPaise, s.basePaise ?? s.payment.undeductedBillsPaise))} of bills not deducted when booked`)
+    const own = (s.basePaise ?? s.payment.undeductedBillsPaise) - earlier
+    if (s.payment.undeductedBillsPaise > 0) parts.push(`${rs(Math.min(s.payment.undeductedBillsPaise, own))} of bills not deducted when booked`)
     if (s.payment.advancePaise > 0) parts.push(`${rs(s.payment.advancePaise)} paid in advance of the bill`)
+    if (s.crossing) parts.push(earlierText(s.crossing))
     if (parts.length > 0) return `Deduct on payment: ${parts.join(' + ')} (TDS is due at credit or payment, whichever is earlier)`
   }
   const t = s.threshold
@@ -49,7 +58,7 @@ export function tdsReasonText(s: TdsSuggestion): string {
     case 'single':
       return `Single payment above ${rs(t.singlePaise)}`
     case 'aggregate':
-      return `Aggregate ${rs(t.priorPaise + (s.basePaise ?? 0))} this ${period} crosses ${rs(t.aggregateLimitPaise)}`
+      return `Aggregate ${rs(t.priorPaise + (s.basePaise ?? 0) - earlier)} this ${period} crosses ${rs(t.aggregateLimitPaise)}${s.crossing ? ` — includes ${earlierText(s.crossing)}` : ''}`
     case 'none':
       return 'This section has no threshold'
     default:
@@ -162,6 +171,7 @@ export function TdsBanner({
       </div>
       <p className="mt-1 text-muted" data-testid={`banner-${k}-reason`}>
         {reasonText}
+        {!tcs && (s as TdsSuggestion).crossing && <CaCheck place="voucher.tdsCrossing" />}
         {s.certificate && (
           <span data-testid={`banner-${k}-certificate`}>
             {' '}· lower-{noun} certificate {s.certificate.certificateNo} at {s.certificate.rateBp / 100}%

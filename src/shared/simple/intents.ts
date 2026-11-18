@@ -1550,8 +1550,10 @@ export interface SimplePreview {
   /** Non-blocking notes from the save (negative stock, credit limit), every entry's merged. */
   warnings: SaveVoucherWarnings
   /** WP 9.4: TDS is on and the existing eligibility rules say this payment / bill should carry
-   *  TDS (the deduction itself is made in the accountant view). Absent = nothing to say. */
-  tds?: { partyName: string; sectionCode: string; tdsPaise: number | null }[]
+   *  TDS (the deduction itself is made in the accountant view). Absent = nothing to say.
+   *  `earlierCount` (FIG-B-1): this entry lifts the year's total past the limit, so `tdsPaise`
+   *  also carries the tax on that many earlier, undeducted payments / bills — absent = none. */
+  tds?: { partyName: string; sectionCode: string; tdsPaise: number | null; earlierCount?: number }[]
 }
 
 export interface SimplePostResult {

@@ -10,6 +10,13 @@ export interface TdsCandidate {
   expenseLedgerId?: number | null
 }
 
+/** Whether an applied (non-manual) deduction's base still fits the voucher: its own base, or —
+ *  FIG-B-1 — its own base plus the earlier sums its crossing of the aggregate made liable, as the
+ *  current suggestion counts them. */
+export function appliedBaseFits(appliedBasePaise: number, ownBasePaise: number, suggestion: Pick<TdsSuggestion, 'crossing'> | null): boolean {
+  return appliedBasePaise === ownBasePaise || appliedBasePaise === ownBasePaise + (suggestion?.crossing?.earlierBasePaise ?? 0)
+}
+
 /** The suggestion shape the banner reads (TCS adds its basis fields). */
 type AnySuggestion = TdsSuggestion | TcsSuggestion
 

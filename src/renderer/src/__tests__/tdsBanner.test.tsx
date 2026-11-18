@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@t
 import { useState } from 'react'
 import type { TdsDeductionState } from '@shared/voucherEdit'
 import type { TdsSuggestion } from '../lib/client'
-import { useTdsDeduction, type TdsCandidate } from '../screens/voucher/useTdsDeduction'
+import { appliedBaseFits, useTdsDeduction, type TdsCandidate } from '../screens/voucher/useTdsDeduction'
 import { TdsBanner, tdsReasonText } from '../screens/voucher/TdsBanner'
 import { DialogHost } from '../components/dialogs'
 
@@ -52,6 +52,39 @@ describe('tdsReasonText', () => {
       .toMatch(/^Deduct on payment: ₹40,000\.00 of bills not deducted when booked/)
     expect(tdsReasonText(suggestion({ tdsPaise: 0, payment: { undeductedBillsPaise: 0, advancePaise: 0, deductedAtCredit: true } })))
       .toMatch(/deducted when the bills were booked/)
+  })
+
+  it('FIG-B-1: a crossing voucher names the earlier sums it carries, and the aggregate reads its own part', () => {
+    // Prior ₹1,00,000 (4 × ₹25,000), this bill ₹25,000 → aggregate ₹1,25,000; base ₹1,25,000 incl. ₹1,00,000 of 4 earlier.
+    const crossing = suggestion({
+      basePaise: 12500000, tdsPaise: 125000, rate: 1, rateBp: 100,
+      threshold: { ...suggestion().threshold, priorPaise: 10000000 }, crossing: { earlierBasePaise: 10000000, earlierCount: 4 }
+    })
+    expect(tdsReasonText(crossing)).toBe('Aggregate ₹1,25,000.00 this year crosses ₹1,00,000.00 — includes ₹1,00,000.00 of 4 earlier sums not deducted while the total was under the limit')
+    // A payment: its own advance ₹25,000 plus the 4 earlier advances.
+    expect(tdsReasonText({ ...crossing, payment: { undeductedBillsPaise: 0, advancePaise: 2500000, deductedAtCredit: false } }))
+      .toBe('Deduct on payment: ₹25,000.00 paid in advance of the bill + ₹1,00,000.00 of 4 earlier sums not deducted while the total was under the limit (TDS is due at credit or payment, whichever is earlier)')
+    expect(tdsReasonText({ ...crossing, crossing: { earlierBasePaise: 2500000, earlierCount: 1 }, basePaise: 5000000 }))
+      .toMatch(/includes ₹25,000\.00 of 1 earlier sum not deducted/)
+  })
+
+  it('FIG-B-1: the banner shows the CA badge only on a crossing', () => {
+    const { rerender } = render(<TdsBanner suggestion={suggestion()} onApply={() => {}} onDismiss={() => {}} blockedReason={null} />)
+    expect(screen.queryByTestId('ca-check-voucher-tdsCrossing')).toBeNull()
+    rerender(<TdsBanner suggestion={suggestion({ crossing: { earlierBasePaise: 10000000, earlierCount: 4 } })} onApply={() => {}} onDismiss={() => {}} blockedReason={null} />)
+    expect(screen.getByTestId('ca-check-voucher-tdsCrossing')).toBeTruthy()
+  })
+})
+
+describe('appliedBaseFits (FIG-B-1)', () => {
+  it('an applied base is the voucher\'s own, or its own plus the earlier sums the suggestion counts', () => {
+    const crossing = { crossing: { earlierBasePaise: 10000000, earlierCount: 4 } }
+    expect(appliedBaseFits(2500000, 2500000, null)).toBe(true)
+    expect(appliedBaseFits(2500000, 2500000, crossing)).toBe(true)
+    expect(appliedBaseFits(12500000, 2500000, crossing)).toBe(true)
+    // The amounts changed since (own ₹26,000): neither ₹25,000 nor ₹1,25,000 fits any more.
+    expect(appliedBaseFits(12500000, 2600000, crossing)).toBe(false)
+    expect(appliedBaseFits(12500000, 2500000, null)).toBe(false)
   })
 })
 

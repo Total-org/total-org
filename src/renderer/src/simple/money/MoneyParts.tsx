@@ -6,6 +6,7 @@ import { Button } from '../../components/ui'
 import { AccountantViewButton } from '../AccountantViewButton'
 import { SaveBar } from '../SaveBar'
 import { useCanSave, ViewerNote } from '../ViewerNote'
+import { CaCheck } from '../../components/CaCheck'
 
 /** WP 9.4 — a Money screen's heading: its title, one plain line, and "Accountant view". */
 export function MoneyHeader({ title, sub, onAccountant }: { title: string; sub: string; onAccountant: (always: boolean) => void }): React.JSX.Element {
@@ -108,6 +109,12 @@ export function MoneyFooter({
             <p key={i} role="status" className="rounded-md border border-amber/60 bg-amberbar/10 px-3 py-2 text-detail text-ink" data-testid="money-tds-hint">
               {t('simple.money.tds', { name: h.partyName, section: h.sectionCode })}
               {h.tdsPaise != null && ` ${t('simple.money.tdsAmount', { amount: formatPaise(h.tdsPaise, { symbol: true }) })}`}
+              {h.earlierCount != null && (
+                <>
+                  {` ${t('simple.money.tdsEarlier', { count: h.earlierCount })}`}
+                  <CaCheck place="simple.money.tdsHint" />
+                </>
+              )}
             </p>
           ))}
         </section>

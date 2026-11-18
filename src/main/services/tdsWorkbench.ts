@@ -13,7 +13,7 @@ import type { DB } from '../db/connection'
 import type { CompanyInfo, VoucherKind } from '@shared/domain'
 import { fyOf, fyFromStartYear } from '@shared/dates'
 import {
-  addTdsToLines, candidateSections, classifyTdsVoucher, removeTdsFromLines, TDS_KINDS, undeductedCreditsBefore, type TdsLedgerFacts
+  addTdsToLines, candidateSections, classifyTdsVoucher, crossingShortfall, removeTdsFromLines, TDS_KINDS, undeductedCreditsBefore, type TdsLedgerFacts
 } from '@shared/tdsEligibility'
 import { lateDeductionOnPayment, lateDepositInterest, LATE_DEPOSIT_RATE_BP } from '@shared/tdsInterest'
 import { collecteeCodeForReturn, tcsDepositDueDate, TCS_KINDS, TCS_LATE_PAYMENT_RATE_BP } from '@shared/tcs'
@@ -67,6 +67,13 @@ export function tdsEligible(db: DB, from: string, to: string, opts: { includeExe
       const base = exempt ? cls.basePaise : r.row?.thresholdExcessOnly ? r.eventBasePaise : r.eligibleBasePaise
       const resolved = base > 0 ? resolveTds(db, g.sectionId, g.partyLedgerId, base, v.date, v.id) : null
       const rate = resolved?.rate
+      const earlier = exempt ? null : crossingShortfall(results, r.voucherId)
+      const crossing = earlier && earlier.count > 0
+        ? {
+            earlierCount: earlier.count, earlierBasePaise: earlier.basePaise,
+            tdsPaise: resolveTds(db, g.sectionId, g.partyLedgerId, base + earlier.basePaise, v.date, v.id).tdsPaise
+          }
+        : null
       out.push({
         voucherId: v.id, voucherNumber: v.number, date: v.date, kind: v.kind,
         partyLedgerId: g.partyLedgerId, partyName: party?.name ?? '', pan: party?.pan ?? null, deducteeType: party?.deducteeType ?? null,
@@ -77,7 +84,9 @@ export function tdsEligible(db: DB, from: string, to: string, opts: { includeExe
         tdsPaise: resolved?.tdsPaise ?? null,
         reason: r.reason ?? 'none',
         exemptReason: v.exemptReason,
-        candidates: candidateSections(v, g.partyLedgerId, factOf).map((c) => ({ sectionId: c.sectionId, code: codes.get(c.sectionId) ?? '' }))
+        candidates: candidateSections(v, g.partyLedgerId, factOf).map((c) => ({ sectionId: c.sectionId, code: codes.get(c.sectionId) ?? '' })),
+        ...(r.crossedBy != null ? { crossedByVoucherId: r.crossedBy } : {}),
+        ...(crossing ? { crossing } : {})
       })
     }
   }

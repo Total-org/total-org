@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  addTdsToLines, candidateSections, classifyTdsVoucher, priorAggregate, removeTdsFromLines, tdsTargetIndex, undeductedCreditsBefore,
+  addTdsToLines, candidateSections, classifyTdsVoucher, crossingShortfall, priorAggregate, removeTdsFromLines, tdsTargetIndex, undeductedCreditsBefore,
   walkTdsEvents, type TdsLedgerFacts, type WalkEvent
 } from './tdsEligibility'
 import type { TdsRateRow } from './tds'
@@ -151,6 +151,127 @@ describe('walkTdsEvents — eligibility reasons', () => {
     const m = (): TdsRateRow => row({ thresholdSinglePaise: 0, thresholdAnnualPaise: 5000000, thresholdBasis: 'month' })
     const r = walkTdsEvents([ev(1, '2025-04-10', 'credit', 3000000), ev(2, '2025-04-20', 'credit', 3000000), ev(3, '2025-05-10', 'credit', 3000000)], m)
     expect(r.map((x) => x.reason)).toEqual(['aggregate_later', 'aggregate', null])
+  })
+})
+
+describe('walkTdsEvents — FIG-B-1: crossing the aggregate makes the earlier sums liable', () => {
+  // s.194C, an individual contractor: 1 % (100 bp), single > ₹30,000, year > ₹1,00,000.
+  const c194 = (): TdsRateRow => row({ rateBp: 100 })
+
+  it('crossing on the last bill: the earlier four are liable whether or not the fifth carries a deduction', () => {
+    // 4 × ₹25,000 = ₹1,00,000 (not "exceeds"); the fifth ₹25,000 → ₹1,25,000 > ₹1,00,000: all five liable.
+    const four = [1, 2, 3, 4].map((i) => ev(i, `2025-0${i + 4}-01`, 'credit', 2500000))
+    // The fifth as the voucher being entered (no deduction): it crosses, and the shortfall it makes
+    // liable = 4 × ₹25,000 = ₹1,00,000 → the suggestion's base ₹1,25,000 × 1 % = ₹1,250.
+    const entered = walkTdsEvents([...four, ev(5, '2025-09-01', 'credit', 2500000)], c194)
+    expect(crossingShortfall(entered, 5)).toEqual({ basePaise: 10000000, count: 4 })
+    expect(entered.map((x) => x.crossedBy)).toEqual([5, 5, 5, 5, undefined])
+    // Only ₹250 deducted on the fifth (base ₹25,000): the four stay liable at ₹25,000 each (₹1,000 of tax).
+    const short = walkTdsEvents([...four, ev(5, '2025-09-01', 'credit', 2500000, { entryBasePaise: 2500000 })], c194)
+    expect(short.map((x) => [x.reason, x.eligibleBasePaise])).toEqual([
+      ['aggregate_later', 2500000], ['aggregate_later', 2500000], ['aggregate_later', 2500000], ['aggregate_later', 2500000], [null, 0]
+    ])
+    expect(crossingShortfall(short, 5)).toEqual({ basePaise: 10000000, count: 4 })
+    // ₹1,250 deducted on the fifth (base ₹1,25,000): the ₹1,00,000 beyond its own sum covers the four;
+    // only its own ₹25,000 adds to the aggregate (₹1,25,000, never ₹2,25,000).
+    const full = walkTdsEvents([...four, ev(5, '2025-09-01', 'credit', 2500000, { entryBasePaise: 12500000 })], c194)
+    expect(full.every((x) => x.eligibleBasePaise === 0)).toBe(true)
+    expect(full.map((x) => x.eventBasePaise)).toEqual([2500000, 2500000, 2500000, 2500000, 2500000])
+    expect(priorAggregate(full, 'fy', '2025-10-01')).toBe(12500000)
+    expect(crossingShortfall(full, 5)).toEqual({ basePaise: 0, count: 0 })
+  })
+
+  it('crossing on the last of five advance payments (no bills): the fifth payment carries the four', () => {
+    // 4 × ₹25,000 paid ahead of any bill = ₹1,00,000; the fifth ₹25,000 → ₹1,25,000: all five liable.
+    const four = [1, 2, 3, 4].map((i) => ev(i, `2025-0${i + 4}-01`, 'payment', 2500000))
+    const entered = walkTdsEvents([...four, ev(5, '2025-09-01', 'payment', 2500000)], c194)
+    expect(entered.map((x) => x.reason)).toEqual(['aggregate_later', 'aggregate_later', 'aggregate_later', 'aggregate_later', 'advance'])
+    expect(crossingShortfall(entered, 5)).toEqual({ basePaise: 10000000, count: 4 })
+    // ₹1,250 deducted on the fifth payment (base ₹1,25,000): its own advance ₹25,000, the ₹1,00,000
+    // beyond it covers the four earlier advances; the aggregate stays ₹1,25,000.
+    const full = walkTdsEvents([...four, ev(5, '2025-09-01', 'payment', 2500000, { entryBasePaise: 12500000 })], c194)
+    expect(full.every((x) => x.eligibleBasePaise === 0)).toBe(true)
+    expect(full[4]!.eventBasePaise).toBe(2500000)
+    expect(priorAggregate(full, 'fy', '2025-10-01')).toBe(12500000)
+    // A ₹1,25,000 bill later is all covered by those advances: nothing more to deduct, nothing added.
+    const billed = walkTdsEvents([...four, ev(5, '2025-09-01', 'payment', 2500000, { entryBasePaise: 12500000 }), ev(6, '2025-10-01', 'credit', 12500000)], c194)
+    expect([billed[5]!.eventBasePaise, billed[5]!.eligibleBasePaise]).toEqual([0, 0])
+  })
+
+  it('crossing mid-year with earlier bills partly deducted', () => {
+    // Apr bill ₹20,000 (undeducted); May payment ₹20,000 deducting on ₹10,000 of it (covers ₹10,000,
+    // ₹10,000 left open; not an advance: paid ₹20,000 = credited ₹20,000); Jun bill ₹35,000 > ₹30,000
+    // single → deducted on ₹35,000 at the time; Jul bill ₹20,000 (undeducted). Aggregate ₹75,000.
+    // Aug bill ₹30,000 → ₹1,05,000 > ₹1,00,000: the open ₹10,000 of April and ₹20,000 of July become
+    // liable (₹30,000, 2 sums); June was deducted. Suggestion base ₹30,000 + ₹30,000 = ₹60,000 → ₹600.
+    const before = [
+      ev(1, '2025-04-10', 'credit', 2000000), ev(2, '2025-05-10', 'payment', 2000000, { entryBasePaise: 1000000 }),
+      ev(3, '2025-06-10', 'credit', 3500000, { entryBasePaise: 3500000 }), ev(4, '2025-07-10', 'credit', 2000000)
+    ]
+    const entered = walkTdsEvents([...before, ev(5, '2025-08-10', 'credit', 3000000)], c194)
+    expect(crossingShortfall(entered, 5)).toEqual({ basePaise: 3000000, count: 2 })
+    expect(entered.map((x) => x.eligibleBasePaise)).toEqual([1000000, 0, 0, 2000000, 3000000])
+    // ₹300 only on August's own ₹30,000: April's ₹10,000 and July's ₹20,000 stay eligible.
+    const short = walkTdsEvents([...before, ev(5, '2025-08-10', 'credit', 3000000, { entryBasePaise: 3000000 })], c194)
+    expect(short.map((x) => x.eligibleBasePaise)).toEqual([1000000, 0, 0, 2000000, 0])
+    // ₹600 on ₹60,000: the ₹30,000 beyond August's own covers both; aggregate ₹20,000 + ₹35,000 +
+    // ₹20,000 + ₹30,000 = ₹1,05,000 (the payment added nothing).
+    const full = walkTdsEvents([...before, ev(5, '2025-08-10', 'credit', 3000000, { entryBasePaise: 6000000 })], c194)
+    expect(full.every((x) => x.eligibleBasePaise === 0)).toBe(true)
+    expect(priorAggregate(full, 'fy', '2025-09-01')).toBe(10500000)
+  })
+
+  it('a return before the crossing lowers the aggregate; after it, it lowers nothing and the shortfall stays', () => {
+    // Bills ₹30,000 × 3, a ₹10,000 debit note, a ₹20,000 bill → ₹80,000 + ₹20,000 = ₹1,00,000: not
+    // exceeded, nothing liable, no shortfall on the ₹20,000 bill.
+    const lowered = [ev(1, '2025-05-01', 'credit', 3000000), ev(2, '2025-06-01', 'credit', 3000000), ev(3, '2025-07-01', 'credit', 3000000), ev(4, '2025-07-15', 'return', 1000000)]
+    const atLimit = walkTdsEvents([...lowered, ev(5, '2025-08-01', 'credit', 2000000)], c194)
+    expect(atLimit.every((x) => x.eligibleBasePaise === 0)).toBe(true)
+    expect(crossingShortfall(atLimit, 5)).toEqual({ basePaise: 0, count: 0 })
+    // A ₹5,000 bill then → ₹1,05,000: the four bills before it become liable on their own sums
+    // (₹30,000 × 3 + ₹20,000 = ₹1,10,000 — a return touches only the aggregate, WP 2d / Q56).
+    const crossing = walkTdsEvents([...lowered, ev(5, '2025-08-01', 'credit', 2000000), ev(6, '2025-08-20', 'credit', 500000)], c194)
+    expect(crossingShortfall(crossing, 6)).toEqual({ basePaise: 11000000, count: 4 })
+    // The return AFTER a crossing where only the crossing bill's own ₹20,000 was deducted: bills
+    // ₹30,000 × 3 + ₹20,000 (deducted) = ₹1,10,000; a ₹10,000 return lowers nothing; the three
+    // earlier bills (₹90,000) stay eligible, and a later ₹5,000 bill is liable on its own.
+    const after = walkTdsEvents([
+      ev(1, '2025-05-01', 'credit', 3000000), ev(2, '2025-06-01', 'credit', 3000000), ev(3, '2025-07-01', 'credit', 3000000),
+      ev(4, '2025-08-01', 'credit', 2000000, { entryBasePaise: 2000000 }), ev(5, '2025-08-15', 'return', 1000000), ev(6, '2025-09-01', 'credit', 500000)
+    ], c194)
+    expect(after.map((x) => [x.reason, x.eligibleBasePaise])).toEqual([
+      ['aggregate_later', 3000000], ['aggregate_later', 3000000], ['aggregate_later', 3000000], [null, 0], [null, 0], ['aggregate', 500000]
+    ])
+    expect(after[4]!.eventBasePaise).toBe(0)
+  })
+
+  it('month basis (194-I): the crossing reaches back within the month only', () => {
+    // ₹50,000 a month: 10 Apr ₹30,000 (open), 20 Apr ₹30,000 → April ₹60,000 > ₹50,000: 10 Apr liable
+    // (shortfall ₹30,000, 1 sum) whether or not 20 Apr carries a deduction; a 31 Mar ₹40,000 is another
+    // month and stays out. 10 May ₹30,000: May starts at nil.
+    const m = (): TdsRateRow => row({ rateBp: 1000, thresholdSinglePaise: 0, thresholdAnnualPaise: 5000000, thresholdBasis: 'month' })
+    const events = [ev(1, '2025-03-31', 'credit', 4000000), ev(2, '2025-04-10', 'credit', 3000000)]
+    const entered = walkTdsEvents([...events, ev(3, '2025-04-20', 'credit', 3000000), ev(4, '2025-05-10', 'credit', 3000000)], m)
+    expect(crossingShortfall(entered, 3)).toEqual({ basePaise: 3000000, count: 1 })
+    expect(entered.map((x) => x.reason)).toEqual([null, 'aggregate_later', 'aggregate', null])
+    const deducted = walkTdsEvents([...events, ev(3, '2025-04-20', 'credit', 3000000, { entryBasePaise: 3000000 })], m)
+    expect(deducted.map((x) => x.eligibleBasePaise)).toEqual([0, 3000000, 0])
+  })
+
+  it('194Q (excess only): nothing earlier becomes liable, deducted or not', () => {
+    // ₹40 lakh, then ₹20 lakh → ₹60 lakh: only the ₹10 lakh above ₹50 lakh is liable; the first purchase never.
+    const q = (): TdsRateRow => row({ rateBp: 10, thresholdSinglePaise: 0, thresholdAnnualPaise: 500000000, thresholdExcessOnly: true })
+    const entered = walkTdsEvents([ev(1, '2025-04-10', 'credit', 400000000), ev(2, '2025-05-10', 'credit', 200000000)], q)
+    expect(crossingShortfall(entered, 2)).toEqual({ basePaise: 0, count: 0 })
+    const deducted = walkTdsEvents([ev(1, '2025-04-10', 'credit', 400000000), ev(2, '2025-05-10', 'credit', 200000000, { entryBasePaise: 200000000 })], q)
+    expect(deducted.map((x) => [x.reason, x.eligibleBasePaise, x.crossedBy])).toEqual([[null, 0, undefined], [null, 0, undefined]])
+  })
+
+  it('books where every sum was deducted at the time are unchanged', () => {
+    // Five ₹25,000 bills each deducted on its own ₹25,000: nothing open, nothing marked, aggregate ₹1,25,000.
+    const r = walkTdsEvents([1, 2, 3, 4, 5].map((i) => ev(i, `2025-0${i + 4}-01`, 'credit', 2500000, { entryBasePaise: 2500000 })), c194)
+    expect(r.map((x) => [x.reason, x.eligibleBasePaise, x.eventBasePaise])).toEqual(Array(5).fill([null, 0, 2500000]))
+    expect(priorAggregate(r, 'fy', '2025-10-01')).toBe(12500000)
   })
 })
 

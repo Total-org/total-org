@@ -57,7 +57,7 @@ export interface TcsSuggestInput {
 
 /** The suggestion has the TDS banner's shape (amount in `tdsPaise` = the TCS to collect) plus
  *  the TCS basis: whether GST is in the base, and the goods that set the section. */
-export type TcsSuggestion = Omit<TdsSuggestion, 'sectionFrom' | 'candidates'> & {
+export type TcsSuggestion = Omit<TdsSuggestion, 'sectionFrom' | 'candidates' | 'crossing'> & {
   kind: 'tcs'
   sectionFrom: 'party' | 'goods' | 'ledger' | 'chosen' | 'credits'
   candidates: { sectionId: number; code: string; from: 'party' | 'goods' | 'ledger' | 'credits' }[]
