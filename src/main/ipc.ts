@@ -299,18 +299,25 @@ function otherCompanyHasUsers(): boolean {
   return readRegistry().companies.some((co) => co.slug !== current?.slug && companyHasUsers(companyDbPath(co.slug)))
 }
 
-/** App-level, append-only record of API key changes (WP 5.1) — beside secrets.json, outside
- *  every company (the key is shared by all of them). */
 const registrySlugs = (): string[] => readRegistry().companies.map((c) => c.slug)
 const logScreenLockCorrupt = (error: string): void => log('warn', 'screen-locks-unreadable', { error })
 
+/** SEC2-6: the businesses screen-locked in this run — a second guard beside the lock file, so a
+ *  switch of business asks for the passphrase even when neither the file nor the secret store
+ *  could be written (only a restart then loses it; both failures are logged). */
+const screenLockedThisRun = new Set<string>()
+
 /** SEC2-6: take the remembered key of the open business away for its screen lock and store the
- *  lock. A key the secret store would not let go of is logged — the stored lock still refuses it
- *  at open. Returns what the audit row says. */
-function holdRememberedKey(c: OpenCompany, reason: 'manual' | 'idle'): { rememberHeld: boolean; stored: boolean } {
+ *  lock. Returns what the audit row says: `rememberHeld` only when the key is really gone (a
+ *  secret store that would not let go of it is logged as `rememberKeyKept` — the stored lock and
+ *  `screenLockedThisRun` still refuse it at open). */
+function holdRememberedKey(c: OpenCompany, reason: 'manual' | 'idle'): { rememberHeld: boolean; stored: boolean; rememberKeyKept?: true } {
   const store = appSecretStore()
-  const rememberHeld = dropRememberedKey(c.slug, store)
-  if (rememberHeld && hasRememberedKey(c.slug, store)) log('warn', 'screen-lock-remembered-key-kept', { slug: c.slug })
+  screenLockedThisRun.add(c.slug)
+  const had = dropRememberedKey(c.slug, store)
+  const kept = had && hasRememberedKey(c.slug, store)
+  const rememberHeld = had && !kept
+  if (kept) log('warn', 'screen-lock-remembered-key-kept', { slug: c.slug })
   if (rememberHeld) {
     try {
       writeAudit(c.db, 'security', 0, 'update', { rememberedOnThisComputer: true }, { rememberedOnThisComputer: false, heldByScreenLock: true })
@@ -320,10 +327,10 @@ function holdRememberedKey(c: OpenCompany, reason: 'manual' | 'idle'): { remembe
   }
   try {
     storeScreenLock(dataRoot(), c.slug, { reason, rememberHeld }, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
-    return { rememberHeld, stored: true }
+    return { rememberHeld, stored: true, ...(kept ? { rememberKeyKept: true as const } : {}) }
   } catch (err) {
     log('warn', 'screen-lock-store-failed', { slug: c.slug, error: err instanceof Error ? err.message : String(err) })
-    return { rememberHeld, stored: false }
+    return { rememberHeld, stored: false, ...(kept ? { rememberKeyKept: true as const } : {}) }
   }
 }
 
@@ -331,6 +338,7 @@ function holdRememberedKey(c: OpenCompany, reason: 'manual' | 'idle'): { remembe
  *  lock cleared (null = none); a file that can't be written is logged (the lock then stays, so the
  *  passphrase is asked again next time — never the other way round). */
 function clearStoredScreenLock(slug: string): StoredScreenLock | null {
+  screenLockedThisRun.delete(slug)
   try {
     return clearScreenLock(dataRoot(), slug, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
   } catch (err) {
@@ -339,6 +347,8 @@ function clearStoredScreenLock(slug: string): StoredScreenLock | null {
   }
 }
 
+/** App-level, append-only record of API key changes (WP 5.1) — beside secrets.json, outside
+ *  every company (the key is shared by all of them). */
 function appendAiKeyAudit(entry: AppKeyAuditEntry): void {
   appendFileSync(join(dataRoot(), 'ai-key-audit.jsonl'), `${JSON.stringify({ ...entry, appVersion: app.getVersion() })}\n`, { mode: 0o600 })
 }
@@ -695,6 +705,7 @@ export function registerIpc(): void {
     rmSync(companyDir(slug), { recursive: true, force: true })
     removeCompany(slug)
     // SEC2-6: a stored screen lock of the business goes with it (a new business may get the slug).
+    screenLockedThisRun.delete(slug)
     try {
       forgetScreenLock(dataRoot(), slug)
     } catch (err) {
@@ -724,7 +735,7 @@ export function registerIpc(): void {
     // 1.0 readiness SEC2-6 (decision Q6): a business whose screen was locked with its passphrase
     // lock on opens only with the passphrase — never with a key remembered on this computer or
     // still in memory — until that passphrase clears the stored lock.
-    const screenLocked = isEncryptedFile(companyDbPath(slug)) && isScreenLocked(dataRoot(), slug, logScreenLockCorrupt)
+    const screenLocked = isEncryptedFile(companyDbPath(slug)) && (screenLockedThisRun.has(slug) || isScreenLocked(dataRoot(), slug, logScreenLockCorrupt))
     if (screenLocked && !passphrase) {
       throw new AppError('screen_locked_passphrase', 'The screen of this business was locked — type its passphrase to open it', { field: 'passphrase' })
     }
@@ -767,7 +778,14 @@ export function registerIpc(): void {
    *  "Remember on this computer" tick does it). */
   function releaseScreenLock(c: OpenCompany, rememberTicked: boolean): void {
     const lock = clearStoredScreenLock(c.slug)
-    if (lock?.rememberHeld && !rememberTicked && !c.usersExist) rememberOpenKey(c, null)
+    if (!lock?.rememberHeld || rememberTicked || c.usersExist) return
+    // The books are open / unlocked by now: a key that can't be remembered again (or its audit row)
+    // is logged, never a failed open; the owner can tick "Remember on this computer" again.
+    try {
+      rememberOpenKey(c, null)
+    } catch (err) {
+      log('warn', 'screen-lock-remember-again-failed', { slug: c.slug, error: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   /** Store the open company's key as remembered on this computer, audited ('security', no key in

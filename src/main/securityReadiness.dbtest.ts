@@ -7,7 +7,7 @@
 //  - SEC3-2: a refused encrypted-backup import leaves no decrypted books in the temp folder.
 import { TRUSTED_EVENT } from './ipcSender.testutil'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -146,8 +146,10 @@ describe('SEC2-6: a stored screen lock asks for the passphrase on every open unt
     await ok('session:lock')
     await ok('company:close')
     rmSync(LOCK_FILE)
-    // The plain prompt (the note's reason is gone with the file) — never the remembered key.
-    expect((await call('company:open', { slug })).code).toBe('passphrase_required')
+    // Still refused (this run remembers the lock too); and the remembered key is gone from the
+    // secret store, so after a restart — with no file and no run — only the passphrase opens it.
+    expect((await call('company:open', { slug })).code).toBe('screen_locked_passphrase')
+    expect(await ok<string[]>('company:remembered')).not.toContain(slug)
     expect(await ok<{ openedWith?: string }>('company:open', { slug, passphrase: PASS })).toMatchObject({ openedWith: 'passphrase' })
     // Nothing says a key was held, so none comes back: "Remember on this computer" is ticked again.
     expect(await ok<string[]>('company:remembered')).not.toContain(slug)
@@ -164,6 +166,29 @@ describe('SEC2-6: a stored screen lock asks for the passphrase on every open unt
     expect(isLockedOnDisk(slug)).toBe(false)
     await ok('company:close')
     await ok('company:open', { slug, passphrase: PASS, remember: true })
+  })
+
+  // A read-only data folder makes the secret store AND the lock file refuse their writes at once.
+  // Windows has no folder permission that refuses a new file, so it can't be made there.
+  it.skipIf(process.platform === 'win32')('when neither the secret store nor the lock file can be written, a switch still asks for the passphrase and the audit says the key was kept (round 2)', async () => {
+    expect(await ok<string[]>('company:remembered')).toContain(slug)
+    chmodSync(DATA_DIR, 0o500)
+    try {
+      await ok('session:lock')
+      await ok('company:close')
+      expect((await call('company:open', { slug })).code).toBe('screen_locked_passphrase')
+    } finally {
+      chmodSync(DATA_DIR, 0o700)
+    }
+    expect(storedLocks()).not.toHaveProperty(slug)
+    expect(await ok<string[]>('company:remembered')).toContain(slug) // the store kept it
+    await ok('company:open', { slug, passphrase: PASS })
+    const logout = (await userAuditRows(slug, PASS)).find((r) => r.action === 'logout')
+    expect(logout?.after).toMatchObject({ lock: 'manual', noUsers: true, rememberHeld: false, stored: false, rememberKeyKept: true })
+    // Nothing was taken away, so nothing was audited as held.
+    const security = (await ok<{ rows: { afterJson: string | null }[] }>('audit:list', { entity: 'security' })).rows
+    expect(JSON.parse(security[0]?.afterJson ?? '{}')).not.toHaveProperty('heldByScreenLock', true)
+    expect(await ok<{ openedWith?: string }>('company:open', { slug })).toMatchObject({ openedWith: 'remembered' })
   })
 
   it('unlocking the screen with the passphrase while the business stays open clears the stored lock too, and remembers the key again', async () => {
