@@ -18,7 +18,7 @@ import {
 import type { MessageKey, Translate } from '@shared/i18n'
 import { gstRegistrationOf } from '@shared/gst/registration'
 import { mapError, type CaughtError } from '@shared/errors'
-import type { SimpleIntentInput } from '@shared/simple/intents'
+import { pinOfferedAdvance, type SimpleIntentDraft } from '@shared/simple/intents'
 import { emptyMoneyInForm, emptyMoneyOutForm, moneyInErrors, moneyInIntentFrom, moneyOutErrors, moneyOutIntentFrom, type MoneyInForm, type MoneyOutForm } from '@shared/simple/money'
 import { emptySellForm, saleIntentFrom, sellFormErrors, sellTotals, type SellContext, type SellForm } from '@shared/simple/sell'
 import { buyFormErrors, emptyBuyForm, purchaseIntentFrom, type BuyContext, type BuyForm } from '@shared/simple/buy'
@@ -41,9 +41,7 @@ import { ledgerClassifier } from '../ai/ledgerClass'
 import type { AskEnv, AskInput } from './answer'
 
 type EntryIntent = Extract<AssistIntent, { kind: 'entry' }>
-type Intent = Omit<SimpleIntentInput, 'clientId'>
-/** R1: the sale / purchase intent's "keep the party's advance" answer (`useAdvance: false`). */
-const KEEP_ADVANCE: Pick<Extract<SimpleIntentInput, { kind: 'sale' }>, 'useAdvance'> = { useAdvance: false }
+type Intent = SimpleIntentDraft
 
 const OWNER_WORDS = /\b(?:owner|personal|ghar|home|self|drawings|khud|apne liye|family)\b/
 
@@ -350,10 +348,9 @@ export function buildEntry(
     try {
       const p = previewIntent(db, company, { ...intent, clientId: `ask-total-preview-${++previewSeq}` }, input.today)
       sentences = p.sentences
-      // R1: a bill offered without the party's advance (they held none now) keeps it that way when
-      // the offer is approved later — an advance received since is for the user to use, never
-      // taken silently by a one-click Approve (the approval queue posts this intent as stored).
-      if ((intent.kind === 'sale' || intent.kind === 'purchase') && !p.facts.advanceUsed) intent = { ...intent, ...KEEP_ADVANCE }
+      // R1: the approval queue posts this intent as stored — it says what the preview said about the
+      // party's credit and the money paid now (pinOfferedAdvance).
+      intent = pinOfferedAdvance(intent, p.facts)
     } catch (err) {
       const m = mapError(err as CaughtError, { simple: true, t })
       missing = [m.general, ...Object.values(m.fields)].filter(Boolean).join(' ') || t('assist.entry.cannotSave')

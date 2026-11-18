@@ -132,6 +132,28 @@ describe('R1 review: an Ask Total offer keeps the advance answer it was made wit
     expect(now.intent).not.toHaveProperty('useAdvance')
     expect(now.sentences.join(' ')).toContain('₹300.00 of what they paid ahead is used.')
   })
+
+  it('drafted while the advance paid it all, approved after another bill used it up: due, no cash invented', async () => {
+    const sita = (await ok<{ id: number; name: string }[]>('master:ledgers:list')).find((l) => l.name === 'Sita Stores')!.id
+    // Sita holds ₹500 (above). "…in cash": ₹300 bill, the ₹300 comes from what she paid ahead, so the
+    // preview takes no cash — the stored offer says so (paid on credit, nothing now).
+    const text = 'sold 1 bag to Sita for 300 cash'
+    const offer = (await ask(text)).entry!
+    expect(offer.sentences.join(' ')).toContain('₹300.00 of what they paid ahead is used.')
+    expect(offer.prefill).toMatchObject({ how: 'cash' })
+    expect(offer.intent).toMatchObject({ kind: 'sale', payment: { how: 'credit' } })
+    const d = await ok<AssistDraftResult>('assist:draft', { text, today: T })
+    const draft = (await ok<AiDraftDto[]>('ai:drafts', {})).find((x) => x.id === d.draftId)!
+    // Another ₹500 bill uses all of her ₹500 first.
+    await ok('simple:post', { intent: { kind: 'sale', clientId: 'r1-sita-other-1', customerId: sita, amount: { amount: 50_000 } }, today: T })
+    const before = await ok<{ people: { ledgerId: number; open: number; ahead: number }[] }>('simple:people:list', { today: T })
+    const was = before.people.find((p) => p.ledgerId === sita)!
+    const posted = await ok<{ entries: { kind: string }[] }>('simple:post', { intent: { ...(draft.payload.simple!.intent as object), clientId: 'r1-sita-approve-2' }, today: T, aiDraftId: d.draftId })
+    // Only the bill — no receipt of cash nobody took; ₹300 more is due.
+    expect(posted.entries.map((e) => e.kind)).toEqual(['sales'])
+    const after = (await ok<{ people: { ledgerId: number; open: number; ahead: number }[] }>('simple:people:list', { today: T })).people.find((p) => p.ledgerId === sita)!
+    expect([after.open - was.open, after.ahead]).toEqual([30_000, 0])
+  })
 })
 
 describe('Ask Total on hand-worked books', () => {

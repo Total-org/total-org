@@ -4,7 +4,7 @@ import { bannedWordsIn } from './bannedWords'
 import { en } from '../i18n'
 import type { VoucherPayload } from '../voucherEdit'
 import {
-  advanceTake, allocateToBills, returnRow, intentSentences, mapIntent, NeedTaxLedgers, normaliseIntent, readAmount, readQty,
+  advanceTake, allocateToBills, pinOfferedAdvance, returnRow, intentSentences, mapIntent, NeedTaxLedgers, normaliseIntent, readAmount, readQty,
   type IntentContext, type IntentLedger, type IntentLedgerClass, type IntentOriginal, type MappedIntent
 } from './intents'
 
@@ -635,5 +635,23 @@ describe('R1 (FIG-G-1): a new bill uses the party’s open advances — the edit
       used: 1000
     })
     expect(advanceTake([], 1000)).toEqual({ refs: [], used: 0 })
+  })
+})
+
+describe('R1 review: pinOfferedAdvance — an offer approved later posts what its preview said', () => {
+  const sale = { kind: 'sale' as const, customerId: L.ramesh, amount: { amount: 30_000 }, payment: { how: 'cash' as const } }
+  it('no credit used → keeps them; used with nothing paid now → on credit; used with ₹680 paid now → exactly ₹680', () => {
+    expect(pinOfferedAdvance(sale, { advanceUsed: undefined, paid: 30_000 })).toEqual({ ...sale, useAdvance: false })
+    expect(pinOfferedAdvance(sale, { advanceUsed: 30_000, paid: 0 })).toEqual({ ...sale, payment: { how: 'credit' } })
+    expect(pinOfferedAdvance(sale, { advanceUsed: 50_000, paid: 68_000 })).toEqual({ ...sale, payment: { how: 'cash', amount: 68_000 } })
+    const moneyIn = { kind: 'money_in' as const, amount: 100, into: { how: 'cash' as const }, customerId: L.ramesh }
+    expect(pinOfferedAdvance(moneyIn, { advanceUsed: undefined, paid: 0 })).toBe(moneyIn)
+  })
+  it('pinned on credit, approved after the credit was used elsewhere: the bill is due, no money is invented', () => {
+    const pinned = pinOfferedAdvance(sale, { advanceUsed: 30_000, paid: 0 })
+    // ₹300, no GST rate asked and none on Sales → a ₹300 bill; no credit in this context now.
+    const m = map(pinned)
+    expect(m.entries.map((e) => e.kind)).toEqual(['sales'])
+    expect(m.facts).toMatchObject({ paid: 0, due: 30_000 })
   })
 })

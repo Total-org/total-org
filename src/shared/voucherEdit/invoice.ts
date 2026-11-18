@@ -617,6 +617,10 @@ export function invoiceStateFromVoucher(
     if (own[0]) {
       billName = own[0].name
       billDueDate = own[0].dueDate ?? ''
+    } else if (!refs.some((r) => r.name === v.number)) {
+      // Paid in full by the credits: no bill of its own yet — named after its number (unchanged, it
+      // still posts none), so a total raised later opens one for the rest.
+      billName = v.number
     }
     advanceRefs = refs.filter((r) => r.kind === 'against').map((r) => ({ ...r }))
   }

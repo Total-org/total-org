@@ -286,6 +286,8 @@ export const simpleIntentSchema = z.discriminatedUnion('kind', [
 export type SimpleIntent = z.infer<typeof simpleIntentSchema>
 /** What a screen sends (schema input: optional fields may be left out). */
 export type SimpleIntentInput = z.input<typeof simpleIntentSchema>
+/** An intent as a screen builds it, before useSimplePost adds the clientId — per kind. */
+export type SimpleIntentDraft = SimpleIntentInput extends infer K ? (K extends unknown ? Omit<K, 'clientId'> : never) : never
 export type SimpleIntentKind = SimpleIntent['kind']
 export const SIMPLE_INTENT_KINDS: readonly SimpleIntentKind[] = ['sale', 'purchase', 'money_in', 'money_out', 'move_money', 'return_sale', 'return_purchase', 'stock_count', 'make_goods']
 
@@ -902,6 +904,18 @@ export function advanceTake(credits: readonly { name: string; amount: number }[]
     left -= take
   }
   return { refs, used: total - left }
+}
+
+/** R1 (review of #288): an offer made now and approved later (Ask Total → the approval queue)
+ *  posts what its preview said. A bill that used none of the party's credit keeps them
+ *  (`useAdvance: false` — one that came since is for the user to use); one that used some is
+ *  paid now exactly what the preview showed (nothing → on credit), so a credit used up since
+ *  leaves the rest due — never money nobody received. Other kinds are returned as they are. */
+export function pinOfferedAdvance(intent: SimpleIntentDraft, facts: Pick<IntentFacts, 'advanceUsed' | 'paid'>): SimpleIntentDraft {
+  if (intent.kind !== 'sale' && intent.kind !== 'purchase') return intent
+  if (!facts.advanceUsed) return { ...intent, useAdvance: false }
+  const paidNow = intent.payment && intent.payment.how !== 'credit' && facts.paid > 0
+  return { ...intent, payment: paidNow && intent.payment ? { ...intent.payment, amount: facts.paid } : { how: 'credit' } }
 }
 
 function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: IntentContext): MappedIntent {

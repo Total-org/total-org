@@ -4,9 +4,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { Group, Ledger, StockItem, VoucherType } from '@shared/domain'
+import type { Group, Ledger, StockItem, Voucher, VoucherType } from '@shared/domain'
 import type { SimpleHandoff } from '@shared/simple/handoff'
-import { emptyInvoiceState, emptyPhysicalState } from '@shared/voucherEdit'
+import { emptyInvoiceState, emptyPhysicalState, type InvoiceFormState } from '@shared/voucherEdit'
+import { InvoiceEntry } from '../screens/voucher/InvoiceEntry'
 import { VoucherEntry } from '../screens/VoucherEntry'
 import { DialogHost } from '../components/dialogs'
 import { useNav, useSession } from '../state/stores'
@@ -277,4 +278,37 @@ describe('R1: a handed-off bill that uses the customer’s advance', () => {
     await waitFor(() => expect(saved).toHaveLength(1))
     expect(billRefs(0)).toEqual([{ kind: 'new', name: 'S-1', amount: 30_000, dueDate: '2026-10-14' }])
   })
+
+  it('altering a SAVED bill: an earlier date keeps what it is set against (only a hand-off drops them)', async () => {
+    ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' })]
+    const state = { ...handoff().entry.state as InvoiceFormState, number: '7', billName: 'S-1' }
+    // The bill as saved: Ramesh Dr ₹300, Sales Cr ₹300; R-1 ₹100 then its own S-1 ₹200.
+    const voucher: Voucher = {
+      id: 5, voucherTypeId: 1, date: '2026-10-14', number: '7', partyLedgerId: 40, narration: null, reference: null, instrumentNo: null, instrumentDate: null,
+      transporterId: null, vehicleNo: null, transportDistanceKm: null, posOverride: null, currencyCode: null, exchangeRate: null,
+      irn: null, irnAckNo: null, irnAckDate: null, ewbNo: null, ewbValidUpto: null, postDated: false, isOptional: false, isYearEndClose: false, deletedAt: null,
+      createdAt: '2026-10-14 10:00:00', updatedAt: '2026-10-14 10:00:00',
+      lines: [{ id: 1, ledgerId: 40, drCr: 'dr', amount: 30_000, bankDate: null, costAllocations: [] }, { id: 2, ledgerId: 20, drCr: 'cr', amount: 30_000, bankDate: null, costAllocations: [] }],
+      inventory: [{ id: 3, stockItemId: 100, godownId: null, batchId: null, qtyMilli: 3000, ratePaise: 10_000, discountPaise: 0, amount: 30_000, direction: 'out', isAbsolute: false, serials: [] }],
+      billRefs: [{ kind: 'against', name: 'R-1', amount: 10_000, dueDate: null }, { kind: 'new', name: 'S-1', amount: 20_000, dueDate: '2026-10-14' }],
+      tds: null
+    }
+    useNav.setState({ stack: [{ name: 'gateway' }, { name: 'voucher-entry', voucherId: 5 }] })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <InvoiceEntry typeId={1} kind="sales" voucherId={5} voucher={voucher} initial={state} />
+        <DialogHost />
+      </QueryClientProvider>
+    )
+    await screen.findByTestId('invoice-advance-refs', undefined, { timeout: 3000 })
+    const date = screen.getAllByTestId('input-date')[0] as HTMLInputElement // the voucher's date (the bill's due date is the other)
+    fireEvent.change(date, { target: { value: '10/10/2026' } })
+    fireEvent.blur(date)
+    // The date took (shown in the editor's own format) — 4 days before the saved one.
+    await waitFor(() => expect(date.value).toMatch(/10.?(10|Oct).?(20)?26/))
+    expect(screen.getByTestId('invoice-advance-refs').textContent).toContain('Set against R-1')
+    expect(screen.queryByTestId('invoice-advance-dropped')).toBeNull()
+  })
 })
+

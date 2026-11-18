@@ -279,11 +279,13 @@ export function InvoiceEntry({
     [kind, info, items, ledgers]
   )
 
-  // They are the party's credits as on the date they were taken: another party, or an earlier date
-  // (before the credit may exist), drops them — said under Bill allocation; changing back keeps them.
+  // They are that party's credits: another party drops them — said under Bill allocation; changing
+  // back keeps them. A hand-off's were taken as on its date, so an earlier date (before a credit may
+  // exist) drops them too; a saved bill's keep theirs when only its date is altered (as the
+  // accounting form keeps any bill's refs).
   const advanceKept = useMemo(
-    () => (partyId === (initial?.partyId ?? null) && date >= (initial?.date ?? date) ? advanceRefs : []),
-    [advanceRefs, partyId, date, initial?.partyId, initial?.date]
+    () => (partyId === (initial?.partyId ?? null) && (isEdit || date >= (initial?.date ?? date)) ? advanceRefs : []),
+    [advanceRefs, partyId, date, isEdit, initial?.partyId, initial?.date]
   )
   const formState: InvoiceFormState = useMemo(
     () => ({
