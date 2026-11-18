@@ -63,6 +63,58 @@ export function registrationOn(c: GstRegistrationFacts, date: string): GstRegist
 /** Does a bill dated `date` charge GST? */
 export const chargesGstOn = (c: GstRegistrationFacts, date: string): boolean => chargesGst(registrationOn(c, date))
 
+/**
+ * R3 / FIG-G-3 — the registration a GST return period is filed under. Read 2026-11-18 in the CBIC
+ * copies (taxinformation.cbic.gov.in, CGST Act ss.10, 37, 39 and CGST Rules rule 62):
+ *  - s.37(1) (GSTR-1) and s.39(1) (GSTR-3B) bind "every registered person, other than ... a person
+ *    paying tax under the provisions of section 10 ..."; s.39(1) is "for every calendar month or part
+ *    thereof";
+ *  - s.39(2) and rule 62(1) give a s.10 (composition) person CMP-08 every quarter and GSTR-4 every
+ *    year instead; rule 62(4) / (5) split a year that changes scheme into the regular part (rules
+ *    59–61) and the composition part (CMP-08 / GSTR-4).
+ * So a period is filed as a regular return when the registration is regular on ANY day of it (the
+ * "part thereof" of a month the registration changes in); otherwise it is the registration in force
+ * — composition before unregistered, since a composition part still owes CMP-08. Only one change is
+ * kept (`gstRegistrationSince`), so the two ends of the period decide it.
+ */
+export function returnRegistrationIn(c: GstRegistrationFacts, from: string, to: string): GstRegistrationType {
+  const first = registrationOn(c, from)
+  const last = registrationOn(c, to)
+  if (first === 'regular' || last === 'regular') return 'regular'
+  return first === 'composition' || last === 'composition' ? 'composition' : 'unregistered'
+}
+
+/** Was the business ever GST-registered (now, or before its one recorded change)? A cancelled
+ *  registration still reads and files its registered months (review of #245, Checks → GST 2B). */
+export function everGstRegistered(c: GstRegistrationFacts): boolean {
+  return c.gstRegistrationType !== 'unregistered' || (c.gstPreviousRegistrationType != null && c.gstPreviousRegistrationType !== 'unregistered')
+}
+
+/** The GST return screens a period can be gated on. */
+export type GstReturnForm = 'gstr1' | 'gstr3b' | 'gstr2b'
+
+const RETURN_NAME: Record<GstReturnForm, string> = { gstr1: 'GSTR-1', gstr3b: 'GSTR-3B', gstr2b: 'GSTR-2B' }
+
+/**
+ * Why a period has no GSTR-1 / GSTR-3B to file, or no GSTR-2B credit to reconcile (the accountant
+ * screens' banner, the export refusal and the AI's GST summary; English like the rest of those
+ * screens). `registration` is `returnRegistrationIn`'s answer for the period, never 'regular'. 2B: a
+ * composition dealer can't take credit (s.10(4) "nor shall he be entitled to any credit of input
+ * tax") — rule 60(7) makes GSTR-2B available to "the registered person", so the words never say
+ * none is made. A cancellation is never told nothing more is due: the final return is the CA's.
+ */
+export function gstReturnNotDueMessage(form: GstReturnForm, registration: Exclude<GstRegistrationType, 'regular'>, everRegistered: boolean): string {
+  if (registration === 'composition') {
+    return form === 'gstr2b'
+      ? 'In this period the business was under the composition scheme, which can’t claim GST credit on purchases (s.10(4) CGST Act) — so there is no GSTR-2B credit to reconcile. Supplier bills still count for CMP-08 and GSTR-4.'
+      : `In this period the business was under the composition scheme. A composition dealer files CMP-08 and GSTR-4, not ${RETURN_NAME[form]} (s.37(1), s.39(1) and (2) CGST Act; rule 62 CGST Rules).`
+  }
+  const what = form === 'gstr2b' ? 'there is no GSTR-2B credit to reconcile' : `no ${RETURN_NAME[form]} is due for it`
+  return everRegistered
+    ? `The business was not registered for GST on any day of this period, so ${what}. Ask your CA about the final return after a cancellation.`
+    : `This business is not registered for GST, so ${what}. If it registers, add the GSTIN under Company details.`
+}
+
 /** Just the registration facts of a company (to spread into an invoice context). */
 export function gstRegistrationOf(c: GstRegistrationFacts): GstRegistrationFacts {
   return {
