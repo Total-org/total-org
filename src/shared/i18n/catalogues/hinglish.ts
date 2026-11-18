@@ -3115,6 +3115,11 @@ export const hinglish: Partial<Record<MessageKey, string>> = {
   'settings.language.companyNote': 'Aap owner hain, isliye aapki chuni bhasha mein hi Total is business ke bill aur kaagaz print karega.',
   'settings.language.loading': 'Bhasha load ho rahi hai…',
   // ---------- WP 7.2 security: passphrase lock, screen lock, backup checks, permissions ----------
+  'errors.msme.noBill': 'Yeh bill ab hisaab mein nahi hai. List dobara kholein aur phir try karein.',
+  'errors.msme.notMsme': 'Acceptance ka din sirf us supplier ke bill par hota hai jo MSME mein registered hai.',
+  'errors.msme.afterToday': 'Acceptance ka din aaj ke baad ka nahi ho sakta.',
+  'errors.msme.farFromBill': 'Acceptance ka din bill ki date ({date}) se {days} din ke andar hona chahiye.',
+  'errors.msme.farFromBillPlain': 'Acceptance ka din bill ki date se ek saal ke andar hona chahiye.',
   'errors.security.locked': 'Yeh business passphrase se lock hai. Kholne ke liye passphrase likhein.',
   'errors.security.keyMismatch': 'Yeh file is business ki chaabi se nahi khuli. Ho sakta hai yeh kisi aur business ki ho ya kharab ho gayi ho.',
   'errors.security.passphraseRequired': 'Passphrase likhein.',

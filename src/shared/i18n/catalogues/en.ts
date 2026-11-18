@@ -3229,6 +3229,11 @@ export const en = {
   'settings.language.companyNote': 'As the owner, your choice is also this business’s language for what Total prints.',
   'settings.language.loading': 'Loading the language…',
   // ---------- WP 7.2 security: passphrase lock, screen lock, backup checks, permissions ----------
+  'errors.msme.noBill': 'That bill is not in the books any more. Refresh the list and try again.',
+  'errors.msme.notMsme': 'Only a bill from a supplier marked as MSME-registered has a day of acceptance.',
+  'errors.msme.afterToday': 'The day of acceptance can’t be after today.',
+  'errors.msme.farFromBill': 'The day of acceptance must be within {days} days of the bill date ({date}).',
+  'errors.msme.farFromBillPlain': 'The day of acceptance must be within a year of the bill date.',
   'errors.security.locked': 'This business is locked with a passphrase. Type the passphrase to open it.',
   'errors.security.keyMismatch': 'This file could not be opened with this business’s key. It may belong to another business or be damaged.',
   'errors.security.passphraseRequired': 'Type the passphrase.',

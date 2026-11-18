@@ -257,6 +257,11 @@ export const ERROR_MAP = {
   // Audit A3: a PIN locked out after wrong tries (services/users.ts), the minutes left in params.
   auth_throttled: e('errors.security.pinWait', undefined, ['minutes'], 'errors.security.pinWaitPlain'),
   passphrase_mismatch: e('errors.security.passphrasesDiffer', 'confirm'),
+  // ---------- MSME day of acceptance (services/payables.ts setMsmeAcceptance) ----------
+  msme_acceptance_no_bill: e('errors.msme.noBill'),
+  msme_acceptance_not_msme: e('errors.msme.notMsme'),
+  msme_acceptance_after_today: e('errors.msme.afterToday', 'acceptedOn'),
+  msme_acceptance_far_from_bill: e('errors.msme.farFromBill', 'acceptedOn', ['days', 'date'], 'errors.msme.farFromBillPlain'),
   security_already_locked: e('errors.security.alreadyLocked'),
   security_not_locked: e('errors.security.notLocked'),
   security_files_pending: e('errors.security.filesPending', 'passphrase'),

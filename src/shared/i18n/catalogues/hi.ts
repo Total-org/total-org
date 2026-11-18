@@ -3120,6 +3120,11 @@ export const hi: Partial<Record<MessageKey, string>> = {
   'settings.language.companyNote': 'आप मालिक हैं, इसलिए आपकी चुनी भाषा में ही Total इस बिज़नेस के बिल और कागज़ प्रिंट करेगा।',
   'settings.language.loading': 'भाषा लोड हो रही है…',
   // ---------- WP 7.2 security: passphrase lock, screen lock, backup checks, permissions ----------
+  'errors.msme.noBill': 'यह बिल अब हिसाब में नहीं है। सूची दोबारा खोलें और फिर कोशिश करें।',
+  'errors.msme.notMsme': 'स्वीकृति का दिन सिर्फ़ उस सप्लायर के बिल पर होता है जो MSME में रजिस्टर्ड है।',
+  'errors.msme.afterToday': 'स्वीकृति का दिन आज के बाद का नहीं हो सकता।',
+  'errors.msme.farFromBill': 'स्वीकृति का दिन बिल की तारीख ({date}) से {days} दिन के अंदर होना चाहिए।',
+  'errors.msme.farFromBillPlain': 'स्वीकृति का दिन बिल की तारीख से एक साल के अंदर होना चाहिए।',
   'errors.security.locked': 'यह बिज़नेस पासफ़्रेज़ से लॉक है। खोलने के लिए पासफ़्रेज़ लिखें।',
   'errors.security.keyMismatch': 'यह फ़ाइल इस बिज़नेस की चाबी से नहीं खुली। हो सकता है यह किसी और बिज़नेस की हो या खराब हो गई हो।',
   'errors.security.passphraseRequired': 'पासफ़्रेज़ लिखें।',
