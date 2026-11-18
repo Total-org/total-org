@@ -437,8 +437,8 @@ describe('R1 (FIG-G-1): "Use their advance"', () => {
     const f = (p: Partial<IntentFacts>): IntentFacts => ({
       kind: 'sale', partyName: 'Ramesh', total: 1_180_000, tax: 180_000, paid: 0, how: null, moneyAccount: null, due: 0, settled: [], advance: 0, fromName: null, toName: null, againstBill: null, offBill: 0, credit: 0, balance: null, noGst: null, side: 'customer', walkIn: false, ...p
     })
-    expect(salePreviewLine(f({ advanceUsed: 1_180_000 }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹11,800.00 from their advance.')
-    expect(salePreviewLine(f({ advanceUsed: 500_000, due: 680_000, dueDate: '2026-10-28' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from their advance. ₹6,800.00 due by 28 Oct 2026.')
-    expect(salePreviewLine(f({ advanceUsed: 500_000, paid: 680_000, how: 'upi' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from their advance. ₹6,800.00 by UPI now.')
+    expect(salePreviewLine(f({ advanceUsed: 1_180_000 }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹11,800.00 from what they paid ahead.')
+    expect(salePreviewLine(f({ advanceUsed: 500_000, due: 680_000, dueDate: '2026-10-28' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from what they paid ahead. ₹6,800.00 due by 28 Oct 2026.')
+    expect(salePreviewLine(f({ advanceUsed: 500_000, paid: 680_000, how: 'upi' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from what they paid ahead. ₹6,800.00 by UPI now.')
   })
 })

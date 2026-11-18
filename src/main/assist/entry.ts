@@ -42,6 +42,8 @@ import type { AskEnv, AskInput } from './answer'
 
 type EntryIntent = Extract<AssistIntent, { kind: 'entry' }>
 type Intent = Omit<SimpleIntentInput, 'clientId'>
+/** R1: the sale / purchase intent's "keep the party's advance" answer (`useAdvance: false`). */
+const KEEP_ADVANCE: Pick<Extract<SimpleIntentInput, { kind: 'sale' }>, 'useAdvance'> = { useAdvance: false }
 
 const OWNER_WORDS = /\b(?:owner|personal|ghar|home|self|drawings|khud|apne liye|family)\b/
 
@@ -348,6 +350,10 @@ export function buildEntry(
     try {
       const p = previewIntent(db, company, { ...intent, clientId: `ask-total-preview-${++previewSeq}` }, input.today)
       sentences = p.sentences
+      // R1: a bill offered without the party's advance (they held none now) keeps it that way when
+      // the offer is approved later — an advance received since is for the user to use, never
+      // taken silently by a one-click Approve (the approval queue posts this intent as stored).
+      if ((intent.kind === 'sale' || intent.kind === 'purchase') && !p.facts.advanceUsed) intent = { ...intent, ...KEEP_ADVANCE }
     } catch (err) {
       const m = mapError(err as CaughtError, { simple: true, t })
       missing = [m.general, ...Object.values(m.fields)].filter(Boolean).join(' ') || t('assist.entry.cannotSave')

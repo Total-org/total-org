@@ -142,10 +142,12 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   const regular = charges
   const customer = setup?.customers.find((c) => c.id === form.customerId) ?? null
   // R1: the customer's open advance (the list simple:post takes it from), as on the bill's date.
-  const { data: credits } = useQuery({
+  // Read afresh on every visit (a Money in / Return / Undo since may have changed them); Save waits.
+  const { data: credits, isFetching: creditsLoading } = useQuery({
     queryKey: ['simpleCredits', form.customerId, form.date], // i18n-technical
     queryFn: () => api.simpleMoney.credits(form.customerId ?? 0, form.date),
-    enabled: form.customerId != null
+    enabled: form.customerId != null,
+    staleTime: 0
   })
   const advanceHeld = form.customerId != null ? (credits ?? []).reduce((s, c) => s + c.amount, 0) : 0
   const advanceUsed = sellAdvance(form, credits ?? [], totals?.total ?? 0)
@@ -261,7 +263,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
   }
 
   const save = async (): Promise<void> => {
-    if (!ctx || !setup || saving) return
+    if (!ctx || !setup || saving || creditsLoading) return
     setGeneral(null)
     const keys = Object.entries(clientErrors) as [SellField, string][]
     if (keys.length) {
@@ -648,7 +650,7 @@ export function MakeBill({ party, ask }: { party?: number; ask?: AskOpen<'simple
             <Button data-testid="btn-sell-start-again" disabled={saving} onClick={() => (dirty ? void askDiscard().then((ok) => ok && startNew()) : startNew())}>
               {t('simple.sell.startAgain')}
             </Button>
-            <Button variant="primary" data-testid="btn-sell-save" disabled={saving || !setup || noSalesAccount} onClick={() => void save()}>
+            <Button variant="primary" data-testid="btn-sell-save" disabled={saving || !setup || noSalesAccount || creditsLoading} onClick={() => void save()}>
               {t('simple.sell.save')}
             </Button>
           </SaveBar>

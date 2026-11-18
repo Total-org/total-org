@@ -193,8 +193,8 @@ export function InvoiceEntry({
   const [billDueDateTouched, setBillDueDateTouched] = useState(!!initial)
   const [manualNewBillMode, setManualNewBillMode] = useState(initial?.manualNewBillMode ?? false)
   const [noteBillRefs, setNoteBillRefs] = useState<VoucherBillRef[]>(initial?.noteBillRefs ?? [])
-  // R1: a simple bill handed over ("Accountant view") with the party's advance it uses — set
-  // against those credits before its own bill (shared/voucherEdit/invoice.ts `advanceRefs`).
+  // R1: the earlier credits (an advance) this bill is set against before its own bill — from a simple
+  // bill's hand-off ("Accountant view") or a saved bill (shared/voucherEdit/invoice.ts `advanceRefs`).
   const [advanceRefs, setAdvanceRefs] = useState<VoucherBillRef[]>(initial?.advanceRefs ?? [])
 
   // ---------- TDS (purchase invoices; same suggestion/apply hook as AccountingEntry) ----------
@@ -279,6 +279,12 @@ export function InvoiceEntry({
     [kind, info, items, ledgers]
   )
 
+  // They are the party's credits as on the date they were taken: another party, or an earlier date
+  // (before the credit may exist), drops them — said under Bill allocation; changing back keeps them.
+  const advanceKept = useMemo(
+    () => (partyId === (initial?.partyId ?? null) && date >= (initial?.date ?? date) ? advanceRefs : []),
+    [advanceRefs, partyId, date, initial?.partyId, initial?.date]
+  )
   const formState: InvoiceFormState = useMemo(
     () => ({
       date,
@@ -299,7 +305,7 @@ export function InvoiceEntry({
       billDueDate,
       manualNewBillMode,
       noteBillRefs,
-      ...(advanceRefs.length ? { advanceRefs } : {}),
+      ...(advanceKept.length ? { advanceRefs: advanceKept } : {}),
       reference: initial?.reference ?? null,
       instrumentNo: initial?.instrumentNo ?? null,
       instrumentDate: initial?.instrumentDate ?? null,
@@ -318,7 +324,7 @@ export function InvoiceEntry({
       ...(initial?.legacyZeroRated != null ? { legacyZeroRated: initial.legacyZeroRated } : {}),
       ...(followsBill ? { followsBill } : {})
     }),
-    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, advanceRefs, initial, kind, tds, tcs, taxedOriginal, followsBill]
+    [date, isEdit, alterNumber, numberField.forPayload, partyId, accountId, rows, narration, vehicleNo, transporterId, distanceKm, currencyCode, fxRateText, posOverride, itcBlocked, optionalVoucher, billName, billDueDate, manualNewBillMode, noteBillRefs, advanceKept, initial, kind, tds, tcs, taxedOriginal, followsBill]
   )
   // A bill name still following the number (not typed) is reported as the hand-off had it: blank —
   // the number arriving from the numbering query is no change of the user's.
@@ -387,7 +393,7 @@ export function InvoiceEntry({
   })
   const appliedTcs = formState.tcs ?? null
   // R1: what of a handed-over advance this bill takes (as the payload posts it), and its own bill's rest.
-  const advanceTaken = advanceWithin(advanceRefs, partyAmount + (appliedTcs?.tdsAmount ?? 0))
+  const advanceTaken = advanceWithin(advanceKept, partyAmount + (appliedTcs?.tdsAmount ?? 0))
   const tcsKey = JSON.stringify(tcsCandidate)
   // The candidate the applied TCS was computed for (an alteration: the saved invoice's own).
   const tcsAppliedKey = useRef<string | null>(initial?.tcs ? tcsKey : null)
@@ -1140,12 +1146,17 @@ export function InvoiceEntry({
                 </>
               ) : (
                 <>
-                  {advanceRefs.length > 0 && (
+                  {advanceRefs.length > 0 && advanceKept.length === 0 && (
+                    <p className="mb-2 text-hint text-muted" data-testid="invoice-advance-dropped">
+                      Not set against {advanceRefs.map((r) => r.name).join(', ')} any more: the party or date changed.
+                    </p>
+                  )}
+                  {advanceTaken.length > 0 && (
                     <div className="mb-2 flex flex-col gap-1" data-testid="invoice-advance-refs">
                       {advanceTaken.map((r) => (
                         <label key={r.name} className="flex items-center gap-3 rounded-md px-1 py-1 text-body-sm hover:bg-panel2">
                           <input type="checkbox" checked onChange={() => setAdvanceRefs((refs) => refs.filter((x) => x.name !== r.name))} />
-                          <span className="flex-1">Against advance {r.name}</span>
+                          <span className="flex-1">Set against {r.name}</span>
                           <Money paise={r.amount} className="w-28 text-right" />
                         </label>
                       ))}

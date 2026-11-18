@@ -547,7 +547,7 @@ describe('R1 (FIG-G-1): a new bill uses the party’s open advances — the edit
     expect(m.entries[0]!.payload.billRefs).toEqual([{ kind: 'against', name: 'R-1', amount: 1_180_000, dueDate: null }])
     expect(m.facts).toMatchObject({ total: 1_180_000, paid: 0, due: 0, advanceUsed: 1_180_000 })
     expect(m.facts.dueDate).toBeUndefined()
-    expect(intentSentences(m.facts, t)).toEqual(['Bill ₹11,800.00 to Ramesh.', 'Includes GST ₹1,800.00.', '₹11,800.00 of their advance is used.'])
+    expect(intentSentences(m.facts, t)).toEqual(['Bill ₹11,800.00 to Ramesh.', 'Includes GST ₹1,800.00.', '₹11,800.00 of what they paid ahead is used.'])
   })
 
   it('a part advance (items): it pays part of the bill, oldest credit first; paid now takes what is left', () => {

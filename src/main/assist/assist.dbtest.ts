@@ -111,6 +111,29 @@ describe('Ask Total entry drafts for a bill and a purchase (stock on, not regist
   })
 })
 
+describe('R1 review: an Ask Total offer keeps the advance answer it was made with', () => {
+  it('drafted while the customer held nothing, then they pay ₹500 ahead: approving the stored offer leaves that advance alone', async () => {
+    // Sita owes ₹900 (above), holds no advance: the offer "sold 1 bag to Sita for 300" uses none,
+    // so its stored intent says so (useAdvance: false).
+    const sita = (await ok<{ id: number; name: string }[]>('master:ledgers:list')).find((l) => l.name === 'Sita Stores')!.id
+    const offer = (await ask('sold 1 bag to Sita for 300')).entry!
+    expect(offer.intent).toMatchObject({ kind: 'sale', useAdvance: false })
+    const d = await ok<AssistDraftResult>('assist:draft', { text: 'sold 1 bag to Sita for 300', today: T })
+    const draft = (await ok<AiDraftDto[]>('ai:drafts', {})).find((x) => x.id === d.draftId)!
+    expect(draft.payload.simple?.intent).toMatchObject({ useAdvance: false })
+    // Sita now pays ₹1,400: ₹900 settles her bill, ₹500 is kept as an advance for another order.
+    await ok('simple:post', { intent: { kind: 'money_in', clientId: 'r1-sita-advance-1', customerId: sita, amount: 140_000, into: { how: 'cash' }, advance: true }, today: T })
+    // The approval posts the stored intent (as the approval queue does): the ₹300 bill stays due and
+    // the ₹500 stays held — never taken silently.
+    await ok('simple:post', { intent: { ...(draft.payload.simple!.intent as object), clientId: 'r1-sita-approve' }, today: T, aiDraftId: d.draftId })
+    expect(paise(await ask('does Sita owe me'))).toContain(30000)
+    // A new offer now sees the advance: it says so and stores no "keep" answer.
+    const now = (await ask('sold 1 bag to Sita for 300')).entry!
+    expect(now.intent).not.toHaveProperty('useAdvance')
+    expect(now.sentences.join(' ')).toContain('₹300.00 of what they paid ahead is used.')
+  })
+})
+
 describe('Ask Total on hand-worked books', () => {
   it('sets up a regular trader with one sale, one purchase and rent (all in September 2025)', async () => {
     slug = (

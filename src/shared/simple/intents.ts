@@ -123,7 +123,7 @@ export const saleIntentSchema = z
     amount: amountLineSchema.optional(),
     /** The sales account; omitted = "Sales" (its category), else the first sales account. */
     accountId: id.optional(),
-    /** R1 (FIG-G-1): "Use their advance" — the bill is set against the party's open named credits
+    /** R1 (FIG-G-1): "Use what they paid ahead" — the bill is set against the party's open named credits
      *  (an advance received / paid ahead, a return kept as credit), oldest first, up to the bill;
      *  "Paid how?" then works on what is left. Omitted = use them; false = keep them (the advance
      *  is for another order). */
@@ -1005,7 +1005,7 @@ function mapTrade(n: Extract<NormalIntent, { kind: 'sale' | 'purchase' }>, ctx: 
   // "Paid how?" works on what is left after the advance (all of it when none was used).
   const left = total - used
   const paid = payment.how === 'credit' ? 0 : (payment.amount ?? left)
-  if (paid > left && used > 0) fail('simple_overpaid_after_advance', `${formatPaise(paid, { symbol: true })} is more than what is left after their advance (${formatPaise(left, { symbol: true })})`, 'payment.amount', { amount: formatPaise(left, { symbol: true }) })
+  if (paid > left && used > 0) fail('simple_overpaid_after_advance', `${formatPaise(paid, { symbol: true })} is more than what is left to pay on this bill (${formatPaise(left, { symbol: true })})`, 'payment.amount', { amount: formatPaise(left, { symbol: true }) })
   if (paid > total) fail('simple_overpaid', `${formatPaise(paid, { symbol: true })} is more than the bill (${formatPaise(total, { symbol: true })})`, 'payment.amount', { amount: formatPaise(total, { symbol: true }) })
   if (walkIn && paid !== total) fail('simple_walk_in_unpaid', 'A walk-in sale is paid in full — pick the customer to sell on credit', 'payment')
   const entries = [bill]

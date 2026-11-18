@@ -248,6 +248,7 @@ describe('Record a purchase (WP 9.3)', () => {
     await pick('picker-buy-supplier', 'Bharat')
     click('buy-mode-expense')
     expect(screen.queryByTestId('buy-gst-rate-12')).toBeNull()
+    await ready() // R1: Save waits for what was paid the supplier ahead
     click('btn-buy-save')
     expect((await screen.findByTestId('field-error-account')).textContent).toContain('Pick what the money was spent on')
   })

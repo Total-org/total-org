@@ -221,3 +221,60 @@ describe('Phase 5: the two-step hand-off (a payment made now)', () => {
     expect(intentForms).toHaveLength(1)
   })
 })
+
+describe('R1: a handed-off bill that uses the customer’s advance', () => {
+  // Ramesh holds credit R-1 ₹100. Bill 3 × ₹100 = ₹300 (no GST): R-1 ₹100, its own bill ₹200.
+  const handoff = (): SimpleHandoff => ({
+    from: 'simple-sell', kind: 'sale', others: [], missing: [], addedOnSave: [],
+    entry: {
+      role: 'bill', kind: 'sales', voucherTypeId: 1, form: 'invoice', amount: 30_000,
+      state: {
+        ...emptyInvoiceState('2026-10-14'), partyId: 40, accountId: 20, billName: 'S-1',
+        rows: [{ itemId: 100, qtyText: '3', rate: 10_000, discount: null, godownId: null, batchId: null }],
+        advanceRefs: [{ kind: 'against', name: 'R-1', amount: 10_000, dueDate: null }]
+      }
+    }
+  })
+  const billRefs = (i: number): unknown => (saved[i]!.data as unknown as { billRefs: unknown }).billRefs
+
+  it('lists what it is set against and saves it before the bill’s own; taken off, the bill is saved alone', async () => {
+    ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' })]
+    renderHandoff(handoff())
+    const rows = await screen.findByTestId('invoice-advance-refs', undefined, { timeout: 3000 })
+    expect(rows.textContent).toContain('Set against R-1')
+    await act(async () => fireEvent.click(screen.getByTestId('btn-save-voucher')))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(billRefs(0)).toEqual([{ kind: 'against', name: 'R-1', amount: 10_000, dueDate: null }, { kind: 'new', name: 'S-1', amount: 20_000, dueDate: '2026-10-14' }])
+  })
+
+  it('the box taken off: no set-off is saved', async () => {
+    ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' })]
+    renderHandoff(handoff())
+    const rows = await screen.findByTestId('invoice-advance-refs', undefined, { timeout: 3000 })
+    fireEvent.click(rows.querySelector('input[type="checkbox"]')!)
+    await waitFor(() => expect(screen.queryByTestId('invoice-advance-refs')).toBeNull())
+    await act(async () => fireEvent.click(screen.getByTestId('btn-save-voucher')))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(billRefs(0)).toEqual([{ kind: 'new', name: 'S-1', amount: 30_000, dueDate: '2026-10-14' }])
+  })
+
+  it('another customer picked: the set-off is dropped (said under Bill allocation) and not saved', async () => {
+    ledgers = [...ledgers, ledger(40, 'Ramesh', 1, { stateCode: '27' }), ledger(41, 'Kumar', 1, { stateCode: '27' })]
+    renderHandoff(handoff())
+    await screen.findByTestId('invoice-advance-refs', undefined, { timeout: 3000 })
+    const party = screen.getByTestId('picker-party')
+    const input = party.tagName === 'INPUT' ? party : (party.querySelector('input') as HTMLInputElement)
+    fireEvent.change(input, { target: { value: 'Kumar' } })
+    let option: HTMLElement | undefined
+    await waitFor(() => {
+      option = screen.getAllByRole('option').find((o) => !o.dataset.create && (o.textContent ?? '').includes('Kumar'))
+      expect(option).toBeTruthy()
+    })
+    fireEvent.mouseDown(option!)
+    expect((await screen.findByTestId('invoice-advance-dropped')).textContent).toContain('Not set against R-1 any more')
+    expect(screen.queryByTestId('invoice-advance-refs')).toBeNull()
+    await act(async () => fireEvent.click(screen.getByTestId('btn-save-voucher')))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(billRefs(0)).toEqual([{ kind: 'new', name: 'S-1', amount: 30_000, dueDate: '2026-10-14' }])
+  })
+})

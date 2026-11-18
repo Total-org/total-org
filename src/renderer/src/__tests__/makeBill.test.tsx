@@ -412,12 +412,14 @@ describe('Make a bill (WP 9.2)', () => {
     await pickCustomer('Hold Traders')
     await pickItem(0, 'Tea')
     typeIn('input-sell-rate-0', '100')
+    await ready() // R1: Save waits for what the customer paid ahead
     click('btn-sell-save')
     expect((await screen.findByTestId('field-error-party')).textContent).toContain('on credit hold, so a bill can’t be made for them here. Ask the owner.')
     expect(calls('simple:post')).toHaveLength(0)
     // And if main refuses it (the hold set meanwhile), the same plain words.
     postReply = () => ({ ok: false, error: 'Ramesh is on credit hold', code: 'credit_hold', field: 'party', params: { name: 'Ramesh', part: 'bill' } })
     await pickCustomer('Ramesh')
+    await ready()
     click('btn-sell-save')
     await waitFor(() => expect(calls('simple:post')).toHaveLength(1))
     expect((await screen.findByTestId('field-error-party')).textContent).toContain('Ask the owner.')
@@ -486,7 +488,7 @@ describe('Make a bill (WP 9.2)', () => {
       renderUi()
       await ready()
       await bill()
-      expect(text('sell-advance')).toContain('Use their advance of ₹5,000.00')
+      expect(text('sell-advance')).toContain('Use what they paid ahead (₹5,000.00)')
       expect((screen.getByTestId('sell-advance-use') as HTMLInputElement).checked).toBe(true)
       expect(screen.getByTestId('sell-advance-left').getAttribute('data-paise')).toBe('550000')
       expect(calls('simple:money:credits')).toContainEqual({ partyId: 10, date: '2026-10-13' })
@@ -501,7 +503,7 @@ describe('Make a bill (WP 9.2)', () => {
       await screen.findByTestId('save-card')
       expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'sale', customerId: 10 } })
       expect((calls('simple:post')[0] as { intent: object }).intent).not.toHaveProperty('useAdvance')
-      await waitFor(() => expect(text('save-card')).toContain('₹5,000.00 of their advance is used.'))
+      await waitFor(() => expect(text('save-card')).toContain('₹5,000.00 of what they paid ahead is used.'))
       expect(bannedWordsIn(visibleText())).toEqual([])
     })
 
@@ -517,6 +519,20 @@ describe('Make a bill (WP 9.2)', () => {
       click('btn-sell-save')
       await screen.findByTestId('save-card')
       expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'sale', customerId: 10, useAdvance: false } })
+    })
+
+    it('Save waits while what they paid ahead is being read (main takes it on save)', async () => {
+      let answer: (v: unknown) => void = () => undefined
+      const base = invoke.getMockImplementation()!
+      invoke.mockImplementation(async (channel: string, payload: unknown) =>
+        channel === 'simple:money:credits' ? new Promise((resolve) => { answer = resolve }) : base(channel, payload))
+      renderUi()
+      await ready()
+      await pickCustomer('Ramesh')
+      await waitFor(() => expect(disabled('btn-sell-save')).toBe(true))
+      await act(async () => answer({ ok: true, data: [{ name: 'R-1', amount: 500_000 }] }))
+      await waitFor(() => expect(disabled('btn-sell-save')).toBe(false))
+      await screen.findByTestId('sell-advance')
     })
 
     it('a customer holding nothing: no advance line', async () => {

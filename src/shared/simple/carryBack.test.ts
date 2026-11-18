@@ -477,3 +477,27 @@ describe('carryBack — R1: "Use their advance"', () => {
     expect(b.ok && b.form.useAdvance).toBe(false)
   })
 })
+
+describe('carryBack — R1 review: a party / date change, and one of two credits taken off', () => {
+  const c = { ...ictx(), openCredits: new Map([[L.ramesh, [{ name: 'R-1', amount: 30_000 }, { name: 'R-2', amount: 30_000 }]], [L.kumar, [{ name: 'K-1', amount: 10_000 }]]]) }
+  const items = (): SellForm => ({ ...emptySellForm(TODAY, { mode: 'items', ratesIncludeGst: false }), customerId: L.ramesh, paid: 'credit', lines: [{ key: ++key, itemId: 100, qtyText: '2', rate: 100_000, discount: null, auto: false }] })
+
+  it('another customer in the editor (it drops the credits itself): the form keeps "Use their advance"', () => {
+    const form = items()
+    const E = handoff(INTENT['simple-sell'](form, c), c) as HandoffEntry & { form: 'invoice' }
+    const { advanceRefs: _dropped, ...rest } = E.state
+    const r = carry('simple-sell', form, E, { ...E, state: { ...rest, partyId: L.kumar } }, c)
+    expect(r.ok && r.form.useAdvance).toBe(true)
+    expect(r.ok && r.form.customerId).toBe(L.kumar)
+  })
+
+  it('one of two credits taken off: named as not carried (the form takes them all, oldest first)', () => {
+    const form = items()
+    const E = handoff(INTENT['simple-sell'](form, c), c) as HandoffEntry & { form: 'invoice' }
+    // ₹2,000 + 18 % = ₹2,360: R-1 ₹300 + R-2 ₹300 → only R-2 kept in the editor.
+    expect((E.state.advanceRefs ?? []).map((x) => x.name)).toEqual(['R-1', 'R-2'])
+    const r = carry('simple-sell', form, E, { ...E, state: { ...E.state, advanceRefs: E.state.advanceRefs!.slice(1) } }, c)
+    expect(r.ok && r.form.useAdvance).toBe(true)
+    expect(r.ok && r.dropped).toEqual(['billRefs'])
+  })
+})

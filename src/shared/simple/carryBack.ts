@@ -212,6 +212,10 @@ function invoiceExtras(o: InvoiceFormState, c: InvoiceFormState, dropped: Droppe
   // A note's split against its bill follows its total; only another bill or kind of split counts.
   const shape = (x: InvoiceFormState): unknown => x.noteBillRefs.map((r) => [r.kind, r.name])
   dropped.add('billRefs', c.manualNewBillMode !== o.manualNewBillMode || !same(shape(c), shape(o)))
+  // R1: some of the credits taken off (not all — that is "Use their advance" unticked): the form
+  // can only take them all, oldest first.
+  const credits = (x: InvoiceFormState): string[] => (x.advanceRefs ?? []).map((r) => r.name)
+  dropped.add('billRefs', credits(c).length > 0 && !same(credits(c), credits(o)))
   c.rows.forEach((r, i) => {
     const was = o.rows[i]
     dropped.add('godowns', (r.godownId ?? null) !== (was?.godownId ?? null) || (r.batchId ?? null) !== (was?.batchId ?? null))
@@ -339,10 +343,11 @@ function readLines<L extends { key: number; itemId: number | null; qtyText: stri
 }
 
 /** R1: "Use their advance" — taken off in the editor (or put on there) is the editor's answer;
- *  otherwise the form's own. */
+ *  otherwise the form's own. The invoice editor drops them itself for another party or an earlier
+ *  date (InvoiceEntry): that is no answer — the form takes the new party's / date's credits. */
 const advanceAnswer = (had: boolean, has: boolean, base: boolean): boolean => (had === has ? base : has)
 const invoiceAdvance = (o: InvoiceFormState, c: InvoiceFormState, base: boolean): boolean =>
-  advanceAnswer((o.advanceRefs?.length ?? 0) > 0, (c.advanceRefs?.length ?? 0) > 0, base)
+  c.partyId !== o.partyId || c.date < o.date ? base : advanceAnswer((o.advanceRefs?.length ?? 0) > 0, (c.advanceRefs?.length ?? 0) > 0, base)
 const accountingAdvance = (o: AccountingFormState, c: AccountingFormState, base: boolean): boolean =>
   advanceAnswer(o.billRefs.some((r) => r.kind === 'against'), c.billRefs.some((r) => r.kind === 'against'), base)
 

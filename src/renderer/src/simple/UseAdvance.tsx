@@ -2,7 +2,7 @@ import { formatPaise } from '@shared/money'
 import { useT } from '../lib/i18n'
 
 /**
- * R1 (FIG-G-1) — "Use their advance of ₹X" on Make a bill / Record a purchase (`supplier`): shown
+ * R1 (FIG-G-1) — "Use what they paid ahead (₹X)" on Make a bill / Record a purchase (`supplier`): shown
  * while the party holds open credits the bill can use (`simple:money:credits`, the list simple:post
  * takes them from), ticked by default; unticked when the money was for another order. While ticked
  * it says what is left to pay, which "Paid how?" then works on. The figures come from the screen:

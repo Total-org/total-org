@@ -1305,10 +1305,9 @@ describe('R1 (FIG-G-1): a simple bill uses the party’s open advance — hand-w
     expect(gstr1(db, INFO, '2025-08-01', '2025-08-31', '082025').json.txpd).toEqual([
       { pos: '27', sply_ty: 'INTRA', itms: [{ rt: 18, ad_amt: 10_000, iamt: 0, camt: 900, samt: 900, csamt: 0 }] }
     ])
-    // It is the full editor's own entry: opens in the accounting form (a bill allocated against
-    // another, as golden ADV-02) and saves back unchanged; the same answers typed there by an
-    // accountant post the same voucher.
-    roundTripsAllocated(out.voucherIds[0]!)
+    // It is the full editor's own entry: opens in the accounting form (as golden ADV-02) and saves
+    // back unchanged.
+    roundTripsAllocated(out.voucherIds[0]!, 'accounting')
     const bill = getVoucher(db, out.voucherIds[0]!)!
     expect(bill.billRefs).toEqual([{ kind: 'against', name: getVoucher(db, advanceVoucher(id))!.number, amount: 1_180_000, dueDate: null }])
   })
@@ -1320,9 +1319,9 @@ describe('R1 (FIG-G-1): a simple bill uses the party’s open advance — hand-w
     expect(receivable(L('Ramesh'))).toEqual({ pending: 680_000, ahead: 0 })
     const row = salesList(db, '2025-08-01', '2025-08-31', TODAY).find((s) => s.voucherId === out.voucherIds[0])!
     expect(row).toMatchObject({ due: 680_000, paid: 500_000 })
-    expect(out.sentences).toContain('₹5,000.00 of their advance is used.')
+    expect(out.sentences).toContain('₹5,000.00 of what they paid ahead is used.')
     expect(out.sentences).toContain('Ramesh still owes ₹6,800.00.')
-    roundTripsAllocated(out.voucherIds[0]!)
+    roundTripsAllocated(out.voucherIds[0]!, 'invoice')
   })
 
   it('an advance larger than the bill: ₹11,800 used, ₹8,200 still held', () => {
@@ -1399,12 +1398,12 @@ describe('R1 (FIG-G-1): a simple bill uses the party’s open advance — hand-w
     return (db.prepare("SELECT v.id FROM vouchers v JOIN voucher_types vt ON vt.id = v.voucher_type_id WHERE v.party_ledger_id = ? AND vt.kind IN ('receipt', 'payment') ORDER BY v.id DESC").get(partyId) as { id: number }).id
   }
 
-  /** A bill allocated against another opens in the accounting form (the editor's fallback for it)
-   *  and re-saves unchanged. */
-  function roundTripsAllocated(id: number): void {
+  /** A bill set against an advance opens in its editor — products the invoice form (its
+   *  `advanceRefs`), just an amount the accounting form — and re-saves unchanged. */
+  function roundTripsAllocated(id: number, mode: 'invoice' | 'accounting'): void {
     const before = rows(db, id)
     const { plan, payload } = editorResave(db, id)
-    expect(plan.mode).toBe('accounting')
+    expect(plan.mode).toBe(mode)
     saveVoucher(db, payload, id)
     expect(rows(db, id)).toEqual(before)
   }

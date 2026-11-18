@@ -22,13 +22,14 @@ Things to know about the version numbers:
 
 **A bill uses the advance the customer already paid** (#288, readiness review FIG-G-1). When a
 customer pays ahead (Money in → "Is this for a bill you haven't made yet?" → Yes), their next bill
-in Make a bill now shows "Use their advance of ₹X", ticked: the bill takes that money first and
-"Paid how?" is only about what is left. Before, the bill stayed unpaid on Home, People and the
+in Make a bill now shows "Use what they paid ahead (₹X)", ticked: the bill takes that money first
+and "Paid how?" is only about what is left (a return kept for the next bill counts too). Before, the bill stayed unpaid on Home, People and the
 sales list, and Total offered a reminder to a customer who had paid in full. Untick it when the
 money was for another order. Record a purchase does the same with money you paid a supplier ahead.
 For accountants: the bill is set against the advance by its own bill-wise "against" reference, as
 in the full editor, so GSTR-1 Table 11B now shows the advance used for a customer with a GST
-rate. Bills saved before keep their figures.
+rate. Bills saved before keep their figures. Such a bill with products opens in the full invoice
+editor, which lists what it is set against.
 
 **Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
 printing asks "How do you print your bills?" — on A4 paper, or on a receipt printer 3-inch (80 mm)

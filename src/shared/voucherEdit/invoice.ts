@@ -54,9 +54,10 @@ export interface InvoiceFormState {
   billName: string
   billDueDate: string
   /** R1 (FIG-G-1), sales / purchases: the party's open credits (an advance) this bill uses, as
-   *  `against` refs posted before its own bill — `billName` then carries what is left. Set only by a
-   *  simple bill (and its Accountant-view hand-off); absent = none, the bill alone as before. A saved
-   *  bill with such refs opens in the accounting form, as any bill allocated against others does. */
+   *  `against` refs posted before its own bill — `billName` then carries what is left. Set by a
+   *  simple bill (and its Accountant-view hand-off), and loaded from a saved sale / purchase whose
+   *  refs are `against` refs then at most one `new` ref (rebuilt exactly, else the accounting
+   *  form); absent = none, the bill alone as before. */
   advanceRefs?: VoucherBillRef[]
   /** Notes only: true = post one 'new' bill (billName) instead of allocating against bills. */
   manualNewBillMode: boolean
@@ -591,6 +592,7 @@ export function invoiceStateFromVoucher(
   let billDueDate = v.date
   let manualNewBillMode = false
   let noteBillRefs: VoucherBillRef[] = []
+  let advanceRefs: VoucherBillRef[] | null = null
   const refs = v.billRefs
   const singleNew = refs.length === 1 && refs[0]!.kind === 'new' ? refs[0]! : null
   if (isNoteKind(kind)) {
@@ -607,7 +609,16 @@ export function invoiceStateFromVoucher(
     billName = singleNew.name
     billDueDate = singleNew.dueDate ?? ''
   } else if (refs.length > 0) {
-    return { ok: false, reason: 'it allocates against existing bills' }
+    // R1: a bill set against earlier credits (a simple bill using an advance): its `against` refs,
+    // then at most one `new` ref — its own bill — last. Any other shape stays in the accounting
+    // form; this one is still accepted only when the form rebuilds it exactly (representAs).
+    const own = refs.filter((r) => r.kind === 'new')
+    if (own.length > 1 || (own.length === 1 && refs[refs.length - 1]!.kind !== 'new')) return { ok: false, reason: 'it allocates against existing bills' }
+    if (own[0]) {
+      billName = own[0].name
+      billDueDate = own[0].dueDate ?? ''
+    }
+    advanceRefs = refs.filter((r) => r.kind === 'against').map((r) => ({ ...r }))
   }
 
   const p = passthroughOf(v)
@@ -632,6 +643,7 @@ export function invoiceStateFromVoucher(
       billDueDate,
       manualNewBillMode,
       noteBillRefs,
+      ...(advanceRefs ? { advanceRefs } : {}),
       reference: p.reference,
       instrumentNo: p.instrumentNo,
       instrumentDate: p.instrumentDate,

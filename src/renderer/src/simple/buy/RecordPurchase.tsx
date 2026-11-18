@@ -157,10 +157,12 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   const gst = ctx ? buyGst(form, ctx) : 'paid' // i18n-technical
   const asksGst = gst === 'claim' || gst === 'none'
   // R1: what was paid the supplier ahead (the list simple:post takes it from), as on the bill's date.
-  const { data: credits } = useQuery({
+  // Read afresh on every visit (a Money in / Return / Undo since may have changed them); Save waits.
+  const { data: credits, isFetching: creditsLoading } = useQuery({
     queryKey: ['simpleCredits', form.supplierId, form.date], // i18n-technical
     queryFn: () => api.simpleMoney.credits(form.supplierId ?? 0, form.date),
-    enabled: form.supplierId != null
+    enabled: form.supplierId != null,
+    staleTime: 0
   })
   const advanceHeld = form.supplierId != null ? (credits ?? []).reduce((s, c) => s + c.amount, 0) : 0
   const advanceUsed = buyAdvance(form, credits ?? [], totals?.total ?? 0)
@@ -242,7 +244,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
   placeRef.current = place
 
   const save = async (): Promise<void> => {
-    if (!ctx || !setup || saving) return
+    if (!ctx || !setup || saving || creditsLoading) return
     setGeneral(null)
     setDupId(null)
     const keys = Object.entries(clientErrors) as [BuyField, string][]
@@ -643,7 +645,7 @@ export function RecordPurchase({ party, ask }: { party?: number; ask?: AskOpen<'
             <Button data-testid="btn-buy-start-again" disabled={saving} onClick={() => (dirty ? void askDiscard().then((ok) => ok && startNew()) : startNew())}>
               {t('simple.buy.startAgain')}
             </Button>
-            <Button variant="primary" data-testid="btn-buy-save" disabled={saving || !setup || noPurchaseAccount} onClick={() => void save()}>
+            <Button variant="primary" data-testid="btn-buy-save" disabled={saving || !setup || noPurchaseAccount || creditsLoading} onClick={() => void save()}>
               {t('simple.buy.save')}
             </Button>
           </SaveBar>

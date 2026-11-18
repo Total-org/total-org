@@ -63,7 +63,7 @@ export interface SellForm {
   accountId: number | null
   /** "What for" — the bill's note. */
   note: string
-  /** R1: "Use their advance" — ticked by default; unticked when the advance is for another order. */
+  /** R1: "Use what they paid ahead" (their advance, a return kept as credit) — ticked by default; unticked when that money is for another order. */
   useAdvance: boolean
 }
 
@@ -261,7 +261,7 @@ export function sellTotals(form: SellForm, ctx: SellContext): SellTotals {
 }
 
 /** R1: what the customer's open credits (`simple:money:credits`) pay of a bill of `total` while "Use
- *  their advance" is ticked — the take simple:post makes (advanceTake); never for the walk-in. */
+ *  what they paid ahead" is ticked — the take simple:post makes (advanceTake); never for the walk-in. */
 export function sellAdvance(form: Pick<SellForm, 'customerId' | 'useAdvance'>, credits: readonly { name: string; amount: number }[], total: number): number {
   return form.customerId != null && form.useAdvance ? advanceTake(credits, total).used : 0
 }
@@ -330,7 +330,7 @@ const money = (p: number): string => formatPaise(p, { symbol: true })
  *  by 20 Nov 2026." — from simple:preview's facts (computed by main, never typed). */
 export function salePreviewLine(f: IntentFacts, t: Translate): string {
   const bill = f.walkIn ? t('simple.sell.preview.walkIn', { amount: money(f.total) }) : t('simple.sell.preview.bill', { amount: money(f.total), name: f.partyName ?? '' })
-  // R1: what their advance pays comes first; the rest is paid now or due.
+  // R1: what they paid ahead comes first; the rest is paid now or due.
   const advance = f.advanceUsed ?? 0
   const head = advance > 0 ? `${bill} ${t('simple.sell.preview.advance', { amount: money(advance) })}` : bill
   const how = f.how ?? 'cash'
