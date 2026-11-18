@@ -426,7 +426,8 @@ function prepareRun(db: DB, input: ReturnType<typeof paymentRunSchema.parse>, ru
           .filter((x) => x.bill.voucherId != null && !deductedAtCredit(db, x.bill.voucherId, item.partyLedgerId))
           .reduce((s, x) => s + x.amount, 0) + advance
       const s = candidate > 0 ? tdsSuggestion(db, item.partyLedgerId, candidate, input.date, { voucherKind: 'payment' }) : null
-      if (s && s.tdsPaise > 0 && s.thresholdCrossed && s.basePaise <= candidate) {
+      // The base may also carry the earlier sums this payment's crossing made liable (FIG-B-1).
+      if (s && s.tdsPaise > 0 && s.thresholdCrossed && s.basePaise - (s.crossing?.earlierBasePaise ?? 0) <= candidate) {
         tds = { sectionId: s.sectionId, code: s.code, base: s.basePaise, amount: s.tdsPaise }
         if (s.tdsPaise >= item.amount) errors.push('TDS would exceed the payment')
       }

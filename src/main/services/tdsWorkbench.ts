@@ -13,9 +13,9 @@ import type { DB } from '../db/connection'
 import type { CompanyInfo, VoucherKind } from '@shared/domain'
 import { fyOf, fyFromStartYear } from '@shared/dates'
 import {
-  addTdsToLines, candidateSections, classifyTdsVoucher, removeTdsFromLines, TDS_KINDS, undeductedCreditsBefore, type TdsLedgerFacts
+  addTdsToLines, candidateSections, classifyTdsVoucher, crossingShortfalls, removeTdsFromLines, TDS_KINDS, undeductedCreditsBefore, type TdsLedgerFacts
 } from '@shared/tdsEligibility'
-import { lateDeductionOnPayment, lateDepositInterest, LATE_DEPOSIT_RATE_BP } from '@shared/tdsInterest'
+import { lateDeductionOnCover, lateDepositInterest, LATE_DEPOSIT_RATE_BP } from '@shared/tdsInterest'
 import { collecteeCodeForReturn, tcsDepositDueDate, TCS_KINDS, TCS_LATE_PAYMENT_RATE_BP } from '@shared/tcs'
 import { KIND, type WithholdingKind } from './withholdingKind'
 import { rateRowOn, tdsQuarterBounds, tdsQuarterOf, IT_ACT_2025_FROM, type DeducteeType } from '@shared/tds'
@@ -56,6 +56,7 @@ export function tdsEligible(db: DB, from: string, to: string, opts: { includeExe
   for (const g of groups.values()) {
     const party = facts.get(g.partyLedgerId)
     const results = walkGroup(g, rates, party?.deducteeType ?? null)
+    const shortfalls = crossingShortfalls(results)
     for (const r of results) {
       if (r.date < from || r.date > to) continue
       const v = byId.get(r.voucherId)!
@@ -67,6 +68,15 @@ export function tdsEligible(db: DB, from: string, to: string, opts: { includeExe
       const base = exempt ? cls.basePaise : r.row?.thresholdExcessOnly ? r.eventBasePaise : r.eligibleBasePaise
       const resolved = base > 0 ? resolveTds(db, g.sectionId, g.partyLedgerId, base, v.date, v.id) : null
       const rate = resolved?.rate
+      // The crossing's whole deduction, as the voucher-entry suggestion offers it: a bill's own
+      // taxable base (advances it used up included) plus the earlier sums it made liable.
+      const earlier = exempt ? undefined : shortfalls.get(r.voucherId)
+      const crossing = earlier
+        ? {
+            earlierCount: earlier.count, earlierBasePaise: earlier.basePaise,
+            tdsPaise: resolveTds(db, g.sectionId, g.partyLedgerId, (r.kind === 'credit' ? cls.basePaise : base) + earlier.basePaise, v.date, v.id).tdsPaise
+          }
+        : null
       out.push({
         voucherId: v.id, voucherNumber: v.number, date: v.date, kind: v.kind,
         partyLedgerId: g.partyLedgerId, partyName: party?.name ?? '', pan: party?.pan ?? null, deducteeType: party?.deducteeType ?? null,
@@ -77,7 +87,9 @@ export function tdsEligible(db: DB, from: string, to: string, opts: { includeExe
         tdsPaise: resolved?.tdsPaise ?? null,
         reason: r.reason ?? 'none',
         exemptReason: v.exemptReason,
-        candidates: candidateSections(v, g.partyLedgerId, factOf).map((c) => ({ sectionId: c.sectionId, code: codes.get(c.sectionId) ?? '' }))
+        candidates: candidateSections(v, g.partyLedgerId, factOf).map((c) => ({ sectionId: c.sectionId, code: codes.get(c.sectionId) ?? '' })),
+        ...(r.crossedBy != null ? { crossedByVoucherId: r.crossedBy } : {}),
+        ...(crossing ? { crossing } : {})
       })
     }
   }
@@ -295,25 +307,24 @@ export function tdsDeducted(db: DB, from: string, to: string, kind: WithholdingK
        ORDER BY v.date, v.id`
     )
     .all(from, to, kind) as (Omit<TdsDeductedRow, 'isManual' | 'challanStatus'> & { isManual: number; paidBy: number | null })[]
-  const late = kind === 'tds' ? lateCoverByVoucher(db, rows.filter((r) => r.kind === 'payment').map((r) => r.date), to) : new Map()
+  const late = kind === 'tds' ? lateCoverByVoucher(db, rows.map((r) => r.date), to) : new Map()
   return rows.map(({ paidBy, ...r }) => {
     const challanStatus: ChallanStatus = r.challanId == null ? 'unallocated' : paidBy != null ? 'paid' : 'allocated'
     const row: TdsDeductedRow = { ...r, deducteeType: r.deducteeType as DeducteeType | null, isManual: !!r.isManual, challanStatus }
-    const lateDeduction = r.kind === 'payment'
-      ? lateDeductionOnPayment(r.tdsPaise, r.basePaise, r.date, late.get(`${r.voucherId}|${r.partyLedgerId}|${r.sectionId}`))
-      : null
+    const lateDeduction = lateDeductionOnCover(r.tdsPaise, r.basePaise, r.date, late.get(`${r.voucherId}|${r.partyLedgerId}|${r.sectionId}`))
     return lateDeduction ? { ...row, lateDeduction } : row
   })
 }
 
-/** The walk's `lateCover` of every deduction on payment, by voucher | party | section — walked
- *  per financial year of the given payment dates, from its start (as tdsEligible walks). */
-function lateCoverByVoucher(db: DB, paymentDates: string[], to: string): Map<string, NonNullable<WalkResult['lateCover']>> {
+/** The walk's `lateCover` of every deduction — on a payment, or (since R2) on a bill that used up
+ *  a liable advance or whose base went beyond its own sum — by voucher | party | section, walked
+ *  per financial year of the given deduction dates, from its start (as tdsEligible walks). */
+function lateCoverByVoucher(db: DB, deductionDates: string[], to: string): Map<string, NonNullable<WalkResult['lateCover']>> {
   const out = new Map<string, NonNullable<WalkResult['lateCover']>>()
-  if (paymentDates.length === 0) return out
+  if (deductionDates.length === 0) return out
   const facts = ledgerTdsFacts(db)
   const rates = ratesBySection(db)
-  for (const fy of new Map(paymentDates.map((d) => { const f = fyOf(d); return [f.from, f] as const })).values()) {
+  for (const fy of new Map(deductionDates.map((d) => { const f = fyOf(d); return [f.from, f] as const })).values()) {
     const upTo = fy.to < to ? fy.to : to
     for (const g of buildEventGroups(loadTdsVouchers(db, fy.from, upTo), facts).values()) {
       for (const r of walkGroup(g, rates, facts.get(g.partyLedgerId)?.deducteeType ?? null)) {

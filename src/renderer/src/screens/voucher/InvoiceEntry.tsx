@@ -33,7 +33,7 @@ import { useHandoffLedgers } from '../../lib/handoff'
 import type { HandoffPending, HandoffPendingRefs } from '@shared/simple/handoff'
 import { TransportModal } from './TransportModal'
 import { einvoiceDocNoWarning } from '@shared/gst/einvoiceSchema'
-import { useTcsCollection, useTdsDeduction, type TcsCandidate } from './useTdsDeduction'
+import { appliedBaseCheck, useTcsCollection, useTdsDeduction, type TcsCandidate } from './useTdsDeduction'
 import { TdsBanner, TdsNotApplicableNote } from './TdsBanner'
 import { CaCheck } from '../../components/CaCheck'
 import { blankItemRow, ItemLineGrid, type ItemRow } from './ItemLineGrid'
@@ -358,7 +358,11 @@ export function InvoiceEntry({
   })
   const appliedTds = formState.tds ?? null
   const partyAmount = computed.rounded - (appliedTds?.tdsAmount ?? 0)
-  const tdsStale = !!appliedTds && !appliedTds.isManual && appliedTds.baseAmount !== computed.gst.taxable
+  const tdsBase = appliedTds && !appliedTds.isManual ? appliedBaseCheck(appliedTds.baseAmount, computed.gst.taxable, tdsDeduction) : 'fits'
+  const tdsStale = tdsBase === 'stale'
+  const tdsChecking = tdsBase === 'checking'
+  // FIG-B-1: an applied base that also carries earlier sums the year's limit made liable.
+  const tdsWithEarlier = !!appliedTds && appliedTds.baseAmount > computed.gst.taxable
 
   // TCS candidate: the buyer, taxable value, GST (+ round-off), sales ledger and goods — the
   // server decides the section (buyer → goods → sales ledger) and whether GST is in the base.
@@ -477,7 +481,12 @@ export function InvoiceEntry({
           : `${party?.name ?? 'This party'} is on credit hold${party?.creditHoldReason ? ` (${party.creditHoldReason})` : ''} — ${canOverrideHold ? 'override it with a reason to save' : 'an owner can override it'}`
       )
     }
-    if (tdsStale) return void toast.push('error', 'The invoice changed since TDS was applied — apply TDS again (or remove it) before saving')
+    if (tdsChecking) return void toast.push('info', 'Checking the TDS on this bill — save again in a moment')
+    if (tdsStale) {
+      return void toast.push('error', tdsWithEarlier
+        ? 'The TDS includes earlier sums that no longer add up to its base — apply TDS again (or remove it) before saving'
+        : 'The invoice changed since TDS was applied — apply TDS again (or remove it) before saving')
+    }
     if (tcsStale) return void toast.push('error', 'The invoice changed since TCS was applied — apply TCS again (or remove it) before saving')
     setSaving(true)
     try {
@@ -551,7 +560,7 @@ export function InvoiceEntry({
       setSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the hook objects are rebuilt every render; only their stable members are listed
-  }, [saving, partyId, accountId, computed, buildPayload, isSalesSide, kind, typeId, voucherId, isEdit, date, toast, setWorkingDate, queryClient, numberField.reset, leave, tdsDeduction.reset, tdsDeduction.afterSave, tdsStale, tcsStale, tcsCollection.reset, tcsCollection.afterSave, features.tcs, grandTotal, onHold, overrideReason, canOverrideHold, party, draft?.aiDraftId, formErrors, errorShell, saveCard, pendingParty, createPending, followsPending])
+  }, [saving, partyId, accountId, computed, buildPayload, isSalesSide, kind, typeId, voucherId, isEdit, date, toast, setWorkingDate, queryClient, numberField.reset, leave, tdsDeduction.reset, tdsDeduction.afterSave, tdsStale, tdsChecking, tdsWithEarlier, tcsStale, tcsCollection.reset, tcsCollection.afterSave, features.tcs, grandTotal, onHold, overrideReason, canOverrideHold, party, draft?.aiDraftId, formErrors, errorShell, saveCard, pendingParty, createPending, followsPending])
   useEffect(() => {
     if (resave.current == null || partyId == null || saving || !party) return
     const andPdf = resave.current
@@ -939,8 +948,9 @@ export function InvoiceEntry({
 
       {tdsStale && (
         <p className="mt-2 text-body-sm text-cr" data-testid="invoice-tds-stale">
-          TDS was applied on a taxable value of {formatPaise(appliedTds!.baseAmount, { symbol: true })}; the invoice now
-          totals {formatPaise(computed.gst.taxable, { symbol: true })} — apply TDS again before saving.
+          {tdsWithEarlier
+            ? `TDS was applied on ${formatPaise(appliedTds!.baseAmount, { symbol: true })} — this bill's ${formatPaise(computed.gst.taxable, { symbol: true })} and earlier sums the year's limit made liable, which no longer add up to that — apply TDS again before saving.`
+            : `TDS was applied on a taxable value of ${formatPaise(appliedTds!.baseAmount, { symbol: true })}; the invoice now totals ${formatPaise(computed.gst.taxable, { symbol: true })} — apply TDS again before saving.`}
         </p>
       )}
       {tcsStale && (

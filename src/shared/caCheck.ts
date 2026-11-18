@@ -56,6 +56,8 @@ export const CA_PLACES = {
   'masters.exportType': 'Masters → ledger → Export / SEZ type',
   'notes.followsBill': 'Credit note / Returns → a return of an SEZ / export bill saved before 8 Nov that charged GST',
   'tds.screen': 'TDS screen header (rates, due dates, returns)',
+  'voucher.tdsCrossing': 'Voucher entry → TDS banner, when the bill or payment takes the year over the limit',
+  'simple.money.tdsHint': 'Money out → TDS note, when the payment takes the year over the limit',
   'tds.lateInterest': 'TDS → late-deduction interest',
   'tcs.screen': 'TCS screen header',
   'payroll.screen': 'Payroll screen header (salary TDS, Form 16)',
@@ -421,6 +423,16 @@ export const CA_POINTS = [
     covers: [],
     questions: [56],
     places: ['tds.screen']
+  },
+  {
+    // FIG-B-1 (1.0 readiness audit, R2): once the aggregate is crossed the earlier sums are liable
+    // too, deducted on the crossing voucher (shared/tdsEligibility.ts header). The proviso's full
+    // text could not be fetched from an official copy; "deductible on" = the crossing date.
+    id: 'tds-aggregate-crossing',
+    rule: 'Proviso to s.194C(5); ss.194H, 194J, 194-I (Income-tax Act 1961); Income-tax Act 2025 s.393(1) Table — "the aggregate of the amounts of such sums credited or paid or likely to be credited or paid … exceeds"',
+    covers: [],
+    questions: [59],
+    places: ['tds.screen', 'voucher.tdsCrossing', 'simple.money.tdsHint']
   },
   {
     // WP 2d (owner, 13 Nov): a discount booked on an account is taken off the GST value (s.15(3)(a)).

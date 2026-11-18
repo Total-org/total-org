@@ -679,9 +679,16 @@ export function previewIntent(db: DB, company: CompanyInfo, raw: unknown, today:
     // WP 9.4: with TDS on, the EXISTING eligibility rules (tdsWorkbench.tdsEligible) run over the
     // rehearsed entries — a read-only hint for the simple screen; no TDS is added here.
     if ((n.kind === 'money_out' || n.kind === 'purchase') && getFeatures(db).tds) {
+      // A row that lifts the year's total past the limit carries the earlier sums it made liable
+      // (FIG-B-1) — the same figure the voucher-entry suggestion offers.
       const ids = new Set(out.saved.map((s) => s.id))
       const hits = tdsEligible(db, n.date, n.date).filter((r) => ids.has(r.voucherId))
-      if (hits.length) preview.tds = hits.map((r) => ({ partyName: r.partyName, sectionCode: r.sectionCode, tdsPaise: r.tdsPaise }))
+      if (hits.length) {
+        preview.tds = hits.map((r) => ({
+          partyName: r.partyName, sectionCode: r.sectionCode, tdsPaise: r.crossing ? r.crossing.tdsPaise : r.tdsPaise,
+          ...(r.crossing ? { earlierCount: r.crossing.earlierCount } : {})
+        }))
+      }
     }
     return preview
   })

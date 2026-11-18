@@ -78,7 +78,7 @@ export const TDS_INTEREST_UNVERIFIED: readonly string[] = [
   's.201(1A) wording: the department page refused automated access (see the sources above); the 2025-Act text was read from a secondary reproduction.',
   '"Month or part of a month" counted as calendar months with both the first and the last month counted (TRACES\'s reading; no official text quoted here says so — courts have also read it as periods of a month from the date).',
   'A bill that became liable only when a LATER bill crossed the annual threshold is taken as deductible on that later bill\'s date.',
-  'Bills of an earlier financial year are not followed: a deduction on payment is compared only with the bills of its own year.',
+  'Bills of an earlier financial year are not followed: a deduction (on a payment, or on a bill carrying earlier sums) is compared only with the sums of its own year.',
   'Each bill\'s share of the deducted tax is the entry\'s TDS × that bill\'s share of the entry\'s base (half-up), its interest rounded to the rupee per bill.'
 ]
 
@@ -92,9 +92,10 @@ export interface LateDeduction {
   parts: { voucherId: number; deductibleOn: string; tdsPaise: number; months: number; interestPaise: number }[]
 }
 
-/** s.201(1A)(i) for a deduction made on payment that covered bills already liable at credit
- *  (`cover` = the walk's `lateCover`). Null when it covered none. */
-export function lateDeductionOnPayment(
+/** s.201(1A)(i) for a deduction that covered earlier sums already liable before it — on a payment
+ *  covering bills liable at credit, or (since R2) on a bill covering a liable advance it used up
+ *  or carrying sums liable before it (`cover` = the walk's `lateCover`). Null when it covered none. */
+export function lateDeductionOnCover(
   entryTdsPaise: number, entryBasePaise: number, deductedOn: string,
   cover: readonly { voucherId: number; deductibleOn: string; basePaise: number }[] | undefined,
   rateBp = LATE_DEDUCTION_RATE_BP
