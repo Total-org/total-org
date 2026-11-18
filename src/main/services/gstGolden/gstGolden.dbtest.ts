@@ -182,6 +182,11 @@ function record(x: unknown, what: string): Record<string, unknown> {
   if (!isRecord(x)) throw new Error(`${what} is not an object: ${JSON.stringify(x)}`)
   return x
 }
+/** A JSON list of objects the test reads; fails the test when it is missing or holds anything else. */
+function records(x: unknown, what: string): Record<string, unknown>[] {
+  if (!Array.isArray(x)) throw new Error(`${what} is not a list: ${JSON.stringify(x)}`)
+  return x.map((row, i) => record(row, `${what}[${i}]`))
+}
 const pick = (o: unknown, keys: string[]): Record<string, unknown> => {
   const r = record(o, 'picked')
   return Object.fromEntries(keys.map((k) => [k, r[k] ?? 0]))
@@ -273,15 +278,15 @@ function runFixture(f: GoldenFixture) {
     expect(sup).toEqual(want.sup_details)
     expect(interSup.unreg_details).toEqual(want.unreg_details)
     const itcElg = record(json.itc_elg, 'itc_elg')
-    const avl = Object.fromEntries((itcElg.itc_avl as Record<string, unknown>[]).map(({ ty, ...h }) => [ty, h]))
+    const avl = Object.fromEntries(records(itcElg.itc_avl, 'itc_avl').map(({ ty, ...h }) => [ty, h]))
     expect({ IMPG: avl.IMPG, ISRC: avl.ISRC, OTH: avl.OTH }).toEqual(want.itc_avl)
     // No fixture imports services or receives ISD credit: 4(A)(2) / 4(A)(4) stay nil.
     expect({ IMPS: avl.IMPS, ISD: avl.ISD }).toEqual({ IMPS: { iamt: 0, camt: 0, samt: 0, csamt: 0 }, ISD: { iamt: 0, camt: 0, samt: 0, csamt: 0 } })
-    const rev = Object.fromEntries((itcElg.itc_rev as Record<string, unknown>[]).map(({ ty, ...h }) => [ty, pick(h, ['iamt', 'camt', 'samt', 'csamt'])]))
+    const rev = Object.fromEntries(records(itcElg.itc_rev, 'itc_rev').map(({ ty, ...h }) => [ty, pick(h, ['iamt', 'camt', 'samt', 'csamt'])]))
     expect(rev).toEqual({ RUL: want.itc_rev_rul, OTH: { iamt: 0, camt: 0, samt: 0, csamt: 0 } })
     expect(itcElg.itc_net).toEqual(want.itc_net)
     // No fixture here has ineligible credit outside Circular 170's re-shaping: 4(D) stays nil.
-    for (const row of itcElg.itc_inelg as Record<string, unknown>[]) expect(pick(row, ['iamt', 'camt', 'samt', 'csamt'])).toEqual({ iamt: 0, camt: 0, samt: 0, csamt: 0 })
+    for (const row of records(itcElg.itc_inelg, 'itc_inelg')) expect(pick(row, ['iamt', 'camt', 'samt', 'csamt'])).toEqual({ iamt: 0, camt: 0, samt: 0, csamt: 0 })
     expect(validateGstr3bJson(json)).toEqual(schemaErrors('gstr3b', asToday))
   })
 
