@@ -28,7 +28,7 @@ import {
   type TemplateList,
   type TemplateSummary
 } from '@shared/printTemplates'
-import { renderDocument, type InvoiceAuditTrail, type InvoiceDocument, type PrintCounterInfo, type PrintDocument, type PrintUpiInfo, type VoucherDocLine, type VoucherDocument } from '@shared/print/render'
+import { receiptNeedsFullInvoice, renderDocument, type InvoiceAuditTrail, type InvoiceDocument, type PrintCounterInfo, type PrintDocument, type PrintUpiInfo, type VoucherDocLine, type VoucherDocument } from '@shared/print/render'
 import { sampleDocument } from '@shared/print/sample'
 import type { EdocItem } from '@shared/gst/edocs'
 import { computeGst, supplyTypeFor } from '@shared/gst/calc'
@@ -413,8 +413,17 @@ export function documentHtml(
   const head = voucherHead(db, voucherId)
   const kind = printKindForVoucherKind(head.kind)
   if (!kind) throw new Error('This voucher type has no printed form')
-  const template = templateOverride ?? resolveTemplate(db, kind, voucherId)
-  const doc = loadPrintDocument(db, company, voucherId, template.totals.showOutstanding)
+  let template = templateOverride ?? resolveTemplate(db, kind, voucherId)
+  let doc = loadPrintDocument(db, company, voucherId, template.totals.showOutstanding)
+  // PROD-11: a B2B or inter-state tax invoice never prints as a till receipt — it prints on the
+  // Classic (A4) template and says why; every other bill keeps the receipt.
+  const fullInvoice = template.style === 'receipt' ? receiptNeedsFullInvoice(doc) : null
+  if (fullInvoice) {
+    template = getTemplate(db, 'classic')
+    // Reloaded with Classic's outstanding option; `fullInvoice` is only ever set on an invoice.
+    const reloaded = loadPrintDocument(db, company, voucherId, template.totals.showOutstanding)
+    doc = reloaded.shape === 'invoice' ? { ...reloaded, fullInvoice } : reloaded
+  }
   const itemCount = doc.shape === 'invoice' ? doc.invoice.items.length : doc.voucher.lines.length
   // WP 10.4: a simple company in Hindi / Hinglish prints in its language (identity otherwise).
   const locale = printLocale(db)

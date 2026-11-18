@@ -7,7 +7,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import type { CompanyInfo, DrCr } from '@shared/domain'
 import { DEFAULT_INVOICE_CONFIG, type InvoiceConfig } from '@shared/invoiceConfig'
-import { PRINT_DOC_KINDS, printTemplateSchema } from '@shared/printTemplates'
+import { PRINT_DOC_KINDS, pdfOptionsFor, printTemplateSchema } from '@shared/printTemplates'
 import { legacyBuildInvoiceHtml } from '@shared/print/legacyInvoiceHtml.fixture'
 import { normaliseHtml } from '@shared/print/render'
 import { seededDb, TEST_INFO } from '../db/testdb'
@@ -102,7 +102,7 @@ describe('print templates service', () => {
   it('lists the built-ins (incl. the WP 2.6 thermal receipt) with Classic as every kind default', () => {
     const { db } = setup()
     const l = pt.listTemplates(db)
-    expect(l.templates.map((t) => t.id)).toEqual(['classic', 'compact', 'modern', 'receipt-80mm'])
+    expect(l.templates.map((t) => t.id)).toEqual(['classic', 'compact', 'modern', 'receipt-80mm', 'receipt-58mm'])
     expect(l.templates.every((t) => t.builtIn && !t.customised)).toBe(true)
     expect(Object.values(l.defaults)).toEqual(PRINT_DOC_KINDS.map(() => 'classic'))
   })
@@ -163,7 +163,7 @@ describe('print templates service', () => {
   it('survives a corrupt store (falls back to built-ins) and drops invalid stored templates', () => {
     const s = setup()
     s.db.prepare("INSERT INTO meta (key, value) VALUES ('printTemplates', '{not json')").run()
-    expect(pt.listTemplates(s.db).templates).toHaveLength(4)
+    expect(pt.listTemplates(s.db).templates).toHaveLength(5)
     s.db.prepare("UPDATE meta SET value = ? WHERE key = 'printTemplates'").run(JSON.stringify({ version: 1, templates: [{ id: 'BAD' }], defaults: { sales: 'BAD' } }))
     expect(pt.listTemplates(s.db).defaults.sales).toBe('classic')
     expect(invoiceHtml(s.db, INFO, s.inv.id).html).toContain('TAX INVOICE')
@@ -204,3 +204,71 @@ describe('print templates service', () => {
 function copyId(db: ReturnType<typeof seededDb>): string {
   return pt.duplicateTemplate(db, 'classic').id
 }
+
+// ---------------------------------------------------------------- PROD-11 (owner, 18 Nov)
+describe('a receipt never prints a B2B or inter-state tax invoice', () => {
+  function bills() {
+    const s = setup()
+    const groupId = (name: string): number => (s.db.prepare('SELECT id FROM groups WHERE name = ?').get(name) as { id: number }).id
+    const id = (name: string): number => (s.db.prepare('SELECT id FROM ledgers WHERE name = ?').get(name) as { id: number }).id
+    const vt = (s.db.prepare("SELECT id FROM voucher_types WHERE kind = 'sales'").get() as { id: number }).id
+    const walkIn = createLedger(s.db, { name: 'Walk-in Ramesh', groupId: groupId('Sundry Debtors'), stateCode: '27' }).id
+    const delhi = createLedger(s.db, { name: 'Delhi Kumar', groupId: groupId('Sundry Debtors'), stateCode: '07' }).id
+    const igst = createLedger(s.db, { name: 'IGST', groupId: groupId('Duties & Taxes'), taxType: 'igst' }).id
+    const sale = (party: number, tax: { ledgerId: number; amount: number }[], taxable = 10000) =>
+      saveVoucher(s.db, {
+        voucherTypeId: vt, date: '2026-07-06', partyLedgerId: party, reference: null, narration: null,
+        lines: [
+          { ledgerId: party, drCr: 'dr' as const, amount: taxable + tax.reduce((n, t) => n + t.amount, 0), costAllocations: [] },
+          { ledgerId: id('Sales 18'), drCr: 'cr' as const, amount: taxable, costAllocations: [] },
+          ...tax.map((t) => ({ ...t, drCr: 'cr' as const, costAllocations: [] }))
+        ],
+        inventory: [], billRefs: [], tds: null
+      }).id
+    // ₹100 at 18 %: CGST 9 + SGST 9 within Maharashtra (27); IGST 18 to Delhi (07).
+    const local = sale(walkIn, [{ ledgerId: id('CGST'), amount: 900 }, { ledgerId: id('SGST'), amount: 900 }])
+    const inter = sale(delhi, [{ ledgerId: igst, amount: 1800 }])
+    // Rule 46(e) boundary, walk-in Ramesh (no GSTIN, Maharashtra): ₹49,999.99 at 18 % —
+    // 4,999,999 × 9 % = 449,999.91 → ₹4,500.00 per head; ₹50,000.00 — ₹4,500.00 per head.
+    const below = sale(walkIn, [{ ledgerId: id('CGST'), amount: 450000 }, { ledgerId: id('SGST'), amount: 450000 }], 4999999)
+    const atLimit = sale(walkIn, [{ ledgerId: id('CGST'), amount: 450000 }, { ledgerId: id('SGST'), amount: 450000 }], 5000000)
+    return { ...s, local, inter, below, atLimit }
+  }
+
+  it('58 mm default: a walk-in same-state bill prints the receipt; B2B and inter-state print Classic with one line', () => {
+    const s = bills()
+    pt.setDefaultTemplate(s.db, 'sales', 'receipt-58mm')
+    const local = pt.documentHtml(s.db, INFO, s.local)
+    expect(local.template.id).toBe('receipt-58mm')
+    expect(local.html).toContain('<table class="rc-items">')
+    expect(local.html).not.toContain('data-full-invoice-note')
+
+    const b2b = pt.documentHtml(s.db, INFO, s.inv.id) // Buyer & Sons has a GSTIN
+    expect(b2b.template.id).toBe('classic')
+    expect(b2b.html).not.toContain('rc-items')
+    expect(b2b.html).toContain('data-full-invoice-note>Printed as the full tax invoice, not a receipt: the buyer is registered for GST.</div>')
+
+    const inter = pt.documentHtml(s.db, INFO, s.inter)
+    expect(inter.template.id).toBe('classic')
+    expect(inter.html).toContain('the bill goes to another state.</div>')
+    expect(pdfOptionsFor(inter.template).pageSize).toBe('A4')
+  })
+
+  it('rule 46(e): ₹49,999.99 taxable to a walk-in prints the receipt; ₹50,000.00 prints Classic with its line', () => {
+    const s = bills()
+    pt.setDefaultTemplate(s.db, 'sales', 'receipt-58mm')
+    expect(pt.documentHtml(s.db, INFO, s.below).template.id).toBe('receipt-58mm')
+    const at = pt.documentHtml(s.db, INFO, s.atLimit)
+    expect(at.template.id).toBe('classic')
+    expect(at.html).toContain('data-full-invoice-note>Printed as the full tax invoice, not a receipt: a bill of ₹50,000 or more to a buyer without a GSTIN carries their name, address and state.</div>')
+  })
+
+  it('the counter (a receipt template passed in) follows the same rule; an A4 default never shows the line', () => {
+    const s = bills()
+    expect(pt.documentHtml(s.db, INFO, s.inv.id, pt.getTemplate(s.db, 'receipt-80mm')).template.id).toBe('classic')
+    expect(pt.documentHtml(s.db, INFO, s.local, pt.getTemplate(s.db, 'receipt-80mm')).template.id).toBe('receipt-80mm')
+    const classic = pt.documentHtml(s.db, INFO, s.inv.id)
+    expect(classic.template.id).toBe('classic')
+    expect(classic.html).not.toContain('data-full-invoice-note')
+  })
+})

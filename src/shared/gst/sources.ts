@@ -70,7 +70,7 @@ export const GST_SOURCES = {
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter7/section31_v1.00.html', accessed: ACCESSED, verified: true
   },
   rule46: {
-    id: 'rule46', title: 'Rule 46 CGST Rules — tax invoice particulars (serial ≤ 16 characters, unique per FY; (p) reverse charge)',
+    id: 'rule46', title: 'Rule 46 CGST Rules — tax invoice particulars (re-read 2026-11-18 for PROD-11): (a) supplier name, address, GSTIN; (b) serial no.; (c) date; (d) recipient name, address, GSTIN / UIN if registered; (e) an unregistered recipient\'s name, address, delivery address and State with its code where the taxable value is ₹50,000 or more; (g) HSN; (h) description; (i) quantity and unit; (j) total value; (k) taxable value; (l) rate and (m) amount of each tax; (n) place of supply with the State for an inter-State supply; (o) delivery address where different from the place of supply; (p) reverse charge; (q) signature; (r) the IRN QR where e-invoiced',
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/rules/cgst_rules/active/chapter6/rule46_v1.00.html', accessed: ACCESSED, verified: true
   },
   s12s13: {
@@ -169,6 +169,11 @@ export const GST_SOURCES = {
   s34: {
     id: 's34', title: 'Section 34(1) CGST Act — where the taxable value or tax charged in a tax invoice exceeds what is payable, or the goods are returned, the supplier may issue credit notes; (2) the tax liability is adjusted as prescribed',
     url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter7/section34_v1.00.html', accessed: '2026-11-14', verified: true
+  },
+  // PROD-11 (accessed 2026-11-18): what a printed bill must carry (print/render.ts receiptNeedsFullInvoice).
+  rule49: {
+    id: 'rule49', title: 'Rule 49 CGST Rules — bill of supply particulars: (a) supplier name, address, GSTIN; (b) serial no.; (c) date; (d) recipient name, address, GSTIN / UIN if registered; (e) HSN; (f) description; (g) value; (h) signature',
+    url: 'https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/rules/cgst_rules/active/chapter6/rule49_v1.00.html', accessed: '2026-11-18', verified: true
   },
   // WP 2d (accessed 2026-11-13): advances for goods (shared/gst/advanceGoods.ts).
   n66_2017: {
