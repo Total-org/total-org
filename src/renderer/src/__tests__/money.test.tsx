@@ -408,11 +408,26 @@ describe('Money out (WP 9.4)', () => {
     typeAmount('35000')
     await waitFor(() => expect(screen.getByTestId('money-tds-hint').textContent).toContain('TDS (tax deducted at source) may apply'))
     expect(screen.getByTestId('money-tds-hint').textContent).toContain('₹700.00')
+    expect(screen.getByTestId('money-tds-hint').textContent).not.toContain('earlier')
     click('money-out-who-owner')
     expect(screen.getByTestId('money-owner').textContent).toContain('not a business expense')
     click('btn-money-save')
     await waitFor(() => expect(calls('simple:post')).toHaveLength(1))
     expect((calls('simple:post')[0] as { intent: Record<string, unknown> }).intent).toMatchObject({ kind: 'money_out', drawings: true })
+  })
+})
+
+describe('FIG-B-1: the TDS hint on a payment that takes the year over the limit', () => {
+  it('says the amount includes the earlier payments, with the CA badge', async () => {
+    // ₹1,250 = (₹25,000 + 4 × ₹25,000) × 1 %, as simple:preview returns it.
+    previewReply = () => ({ ok: true, data: { ...PREVIEW, kind: 'money_out', sentences: ['₹25,000.00 to Bharat Steel from Cash.'], tds: [{ partyName: 'Bharat Steel', sectionCode: '194C', tdsPaise: 125_000, earlierCount: 4 }] } })
+    renderUi(<MoneyOut />)
+    await ready()
+    await pick('picker-money-supplier', 'Bharat')
+    typeAmount('25000')
+    await waitFor(() => expect(screen.getByTestId('money-tds-hint').textContent).toContain('₹1,250.00'))
+    expect(screen.getByTestId('money-tds-hint').textContent).toContain('This includes the tax on 4 earlier payments or bills')
+    expect(screen.getByTestId('ca-check-simple-money-tdsHint')).toBeTruthy()
   })
 })
 

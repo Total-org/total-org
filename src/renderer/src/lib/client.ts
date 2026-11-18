@@ -334,11 +334,14 @@ export interface TdsSuggestion {
   candidates?: { sectionId: number; code: string; from: 'party' | 'ledger' | 'credits' }[]
   /** Payments: bills liable and not deducted at credit time, and the advance part. */
   payment?: { undeductedBillsPaise: number; advancePaise: number; deductedAtCredit: boolean } | null
+  /** FIG-B-1: the earlier undeducted sums this voucher's crossing of the aggregate made liable —
+   *  already INCLUDED in basePaise / tdsPaise. Absent / null = none. */
+  crossing?: { earlierBasePaise: number; earlierCount: number } | null
 }
 
 /** Mirrors src/main/services/tcs.ts's TcsSuggestion (WP 3.3): the TDS banner's shape — the
  *  amount to collect rides in `tdsPaise` — plus the TCS basis. */
-export type TcsSuggestion = Omit<TdsSuggestion, 'sectionFrom' | 'candidates'> & {
+export type TcsSuggestion = Omit<TdsSuggestion, 'sectionFrom' | 'candidates' | 'crossing'> & {
   kind: 'tcs'
   sectionFrom: 'party' | 'goods' | 'ledger' | 'chosen' | 'credits'
   candidates: { sectionId: number; code: string; from: 'party' | 'goods' | 'ledger' | 'credits' }[]

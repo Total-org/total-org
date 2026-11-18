@@ -37,6 +37,12 @@ export interface TdsEligibleRow {
   /** Set when the row is a "Not applicable" mark (only listed with includeExempt). */
   exemptReason: string | null
   candidates: { sectionId: number; code: string }[]
+  /** 'aggregate_later' rows: the voucher whose sum lifted the period aggregate past the limit. */
+  crossedByVoucherId?: number
+  /** The crossing voucher's row, while earlier sums it made liable are still undeducted (FIG-B-1):
+   *  their count and base, and the deduction on this voucher's base plus theirs — what the
+   *  voucher-entry suggestion offers on it. */
+  crossing?: { earlierCount: number; earlierBasePaise: number; tdsPaise: number | null }
   /** TCS: the stock item whose goods category set the section, if any. */
   stockItemId?: number | null
   stockItemName?: string | null

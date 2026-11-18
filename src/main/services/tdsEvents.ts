@@ -191,13 +191,18 @@ export function walkGroup(group: EventGroup, rates: ReadonlyMap<number, TdsRateR
   return walkTdsEvents(group.events, (d) => rateRowOn(rows, d, deducteeType))
 }
 
-/** The walk for one party × section over [from, to] (vouchers touching the party only). */
+/** The walk for one party × section over [from, to] (vouchers touching the party only).
+ *  `candidate` adds a voucher being entered (not saved, or `excludeVoucherId` as it is being
+ *  edited) as one more event — the suggestion reads what its sum would make liable (FIG-B-1). */
 export function partySectionWalk(
-  db: DB, partyLedgerId: number, sectionId: number, from: string, to: string, excludeVoucherId?: number
+  db: DB, partyLedgerId: number, sectionId: number, from: string, to: string, excludeVoucherId?: number, candidate?: WalkEvent
 ): { results: WalkResult[]; group: EventGroup | null; facts: Map<number, LedgerTdsFacts> } {
   const facts = ledgerTdsFacts(db)
   const vouchers = loadTdsVouchers(db, from, to, { partyLedgerId, excludeVoucherId })
-  const group = buildEventGroups(vouchers, facts).get(groupKey(partyLedgerId, sectionId)) ?? null
+  const found = buildEventGroups(vouchers, facts).get(groupKey(partyLedgerId, sectionId)) ?? null
+  const group = candidate
+    ? { partyLedgerId, sectionId, events: [...(found?.events ?? []), candidate], classes: found?.classes ?? new Map<number, TdsVoucherClass>() }
+    : found
   if (!group) return { results: [], group: null, facts }
   return { results: walkGroup(group, ratesBySection(db), facts.get(partyLedgerId)?.deducteeType ?? null), group, facts }
 }

@@ -15,7 +15,7 @@ import { slabbedTcs, tcsSlabOn, TCS_NO_PAN_MULTIPLE, validateTcsEntries, type Sl
 import { KIND, type WithholdingKind } from './withholdingKind'
 import type { PostingError } from '@shared/posting'
 import { fyFromStartYear, fyOf, todayISO } from '@shared/dates'
-import { priorAggregate, undeductedCreditsBefore } from '@shared/tdsEligibility'
+import { crossingShortfalls, priorAggregate, undeductedCreditsBefore } from '@shared/tdsEligibility'
 import { buildEventGroups, ledgerTdsFacts, loadTdsVouchers, partySectionWalk } from './tdsEvents'
 // Function-body use only (the tds <-> tcsEvents cycle is harmless).
 import { tcsPartySectionWalk } from './tcsEvents'
@@ -476,6 +476,11 @@ export interface TdsSuggestion {
   /** Payments only: bills to this party that were liable and not deducted at credit time
    *  (first-of-credit-or-payment) — the deduction is offered now. */
   payment: { undeductedBillsPaise: number; advancePaise: number; deductedAtCredit: boolean } | null
+  /** FIG-B-1: this voucher's sum lifts the period aggregate past the limit, which makes the
+   *  earlier undeducted sums of the period liable too (s.194C(5) proviso reading — CA point
+   *  `tds-aggregate-crossing`). Their base is INCLUDED in `basePaise` / `tdsPaise`, so one
+   *  deduction on this voucher covers them; null when there are none. */
+  crossing: { earlierBasePaise: number; earlierCount: number } | null
 }
 
 /**
@@ -531,26 +536,38 @@ export function tdsSuggestion(
 
   let base = basePaise
   let payment: TdsSuggestion['payment'] = null
+  // FIG-B-1: walk the year with this voucher as one more event — the earlier sums its crossing
+  // makes liable are deducted with it (the crossing voucher carries the shortfall).
+  const candidateId = opts.excludeVoucherId ?? Number.MAX_SAFE_INTEGER
+  const walk = partySectionWalk(db, partyLedgerId, sectionId, fy.from, dateISO, opts.excludeVoucherId, {
+    voucherId: candidateId, date: dateISO, kind: isPayment ? 'payment' : 'credit', basePaise, grossPaise: basePaise, entryBasePaise: null, exempt: false
+  })
+  const shortfall = crossingShortfalls(walk.results).get(candidateId) ?? { basePaise: 0, count: 0 }
   if (isPayment) {
-    const { results, group } = partySectionWalk(db, partyLedgerId, sectionId, fy.from, dateISO, opts.excludeVoucherId)
-    const undeducted = undeductedCreditsBefore(results, dateISO, opts.excludeVoucherId)
+    // The bills liable and undeducted before this payment: the same walk without this payment and
+    // the sums its own crossing makes liable (those are the shortfall).
+    const before = walk.results.filter((r) => r.voucherId !== candidateId && r.crossedBy !== candidateId)
+    const undeducted = undeductedCreditsBefore(before, dateISO)
     let credited = 0
     let paid = 0
-    for (const e of group?.events ?? []) {
-      if (e.exempt) continue
+    for (const e of walk.group?.events ?? []) {
+      if (e.exempt || e.voucherId === candidateId) continue
       if (e.kind === 'credit') credited += e.grossPaise
-      else paid += e.grossPaise
+      else if (e.kind === 'payment') paid += e.grossPaise
     }
     const advance = Math.min(basePaise, Math.max(0, paid + basePaise - credited))
     base = Math.min(basePaise, undeducted + advance)
-    payment = { undeductedBillsPaise: undeducted, advancePaise: advance, deductedAtCredit: base === 0 }
+    payment = { undeductedBillsPaise: undeducted, advancePaise: advance, deductedAtCredit: base === 0 && shortfall.basePaise === 0 }
   }
+  // The voucher's own part — what the threshold test and the banner's aggregate read.
+  const ownBase = base
+  base += shortfall.basePaise
 
   const resolved = resolveTds(db, sectionId, partyLedgerId, Math.max(base, 1), dateISO, opts.excludeVoucherId)
   if (!resolved.rate || resolved.tdsPaise == null) return null
   const row = resolved.rate.row
   const prior = resolved.priorPaise
-  const status = thresholdStatus(row, dateISO, base, prior)
+  const status = thresholdStatus(row, dateISO, ownBase, prior)
   const payable = findPayableLedger(db, sectionId)
   const cert = resolved.rate.certificateId != null
     ? (db.prepare('SELECT * FROM tds_certificates WHERE id = ?').get(resolved.rate.certificateId) as CertRow)
@@ -580,7 +597,8 @@ export function tdsSuggestion(
     certificate: cert ? { id: cert.id, certificateNo: cert.certificate_no, rateBp: cert.rate_bp, validTo: cert.valid_to } : null,
     sectionFrom,
     candidates,
-    payment
+    payment,
+    crossing: shortfall.basePaise > 0 ? { earlierBasePaise: shortfall.basePaise, earlierCount: shortfall.count } : null
   }
 }
 

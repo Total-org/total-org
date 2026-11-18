@@ -137,7 +137,7 @@ export function DeductedTab({ period, kind = 'tds' }: { period: TdsPeriod; kind?
     />
     {late.length > 0 && (
       <p className="mt-2 text-small text-muted" data-testid="tds-late-interest-note">
-        {`${late.length} deduction${late.length === 1 ? ' was' : 's were'} made on payment for bills already liable when booked — late-deduction interest ${formatPaise(late.reduce((s, r) => s + r.lateDeduction!.interestPaise, 0), { symbol: true })}. ${LATE_DEDUCTION_CITATION}.`}
+        {`${late.length} deduction${late.length === 1 ? '' : 's'} covered earlier sums already liable before ${late.length === 1 ? 'it' : 'them'} — late-deduction interest ${formatPaise(late.reduce((s, r) => s + r.lateDeduction!.interestPaise, 0), { symbol: true })}. ${LATE_DEDUCTION_CITATION}.`}
         <CaCheck place="tds.lateInterest" />
       </p>
     )}

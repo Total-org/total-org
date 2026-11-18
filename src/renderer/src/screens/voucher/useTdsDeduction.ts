@@ -10,12 +10,29 @@ export interface TdsCandidate {
   expenseLedgerId?: number | null
 }
 
+/**
+ * Whether an applied (non-manual) deduction's base still fits the voucher: its own base, or —
+ * FIG-B-1 — its own base plus the earlier sums its crossing of the aggregate made liable, as the
+ * suggestion answered for the CURRENT amounts counts them. 'checking' while that answer is still
+ * on its way (an edited crossing bill opens with the base of both before the first answer).
+ */
+export function appliedBaseCheck(
+  appliedBasePaise: number, ownBasePaise: number, flow: { suggestion: Pick<TdsSuggestion, 'crossing'> | null; checking: boolean }
+): 'fits' | 'checking' | 'stale' {
+  if (appliedBasePaise === ownBasePaise) return 'fits'
+  if (appliedBasePaise < ownBasePaise) return 'stale'
+  if (flow.checking) return 'checking'
+  return appliedBasePaise === ownBasePaise + (flow.suggestion?.crossing?.earlierBasePaise ?? 0) ? 'fits' : 'stale'
+}
+
 /** The suggestion shape the banner reads (TCS adds its basis fields). */
 type AnySuggestion = TdsSuggestion | TcsSuggestion
 
 export interface WithholdingFlow<S extends AnySuggestion = TdsSuggestion> {
   /** Latest read-only suggestion for the current candidate (null = nothing applies). */
   suggestion: S | null
+  /** A suggestion is due for the current candidate and has not answered yet. */
+  checking: boolean
   /** The banner is hidden (dismissed, or just applied). */
   dismissed: boolean
   dismiss: () => void
@@ -76,6 +93,9 @@ function useWithholding<S extends AnySuggestion>(opts: {
   // The base the current suggestion was computed on — Apply refuses a stale suggestion (the
   // user changed amounts and the debounce hasn't refetched yet).
   const suggestedBaseRef = useRef<number | null>(null)
+  // Which request the current suggestion answers (null = none): `checking` until it is this one.
+  const requestKey = `${base}|${candidateKey}|${date}|${excludeVoucherId ?? ''}|${chosenSectionId ?? ''}`
+  const [answeredKey, setAnsweredKey] = useState<string | null>(null)
   // An alteration's first candidate is the saved voucher itself: fetch (so Apply can re-apply)
   // but keep the banner closed.
   const keepDismissedRef = useRef(startDismissed)
@@ -104,25 +124,30 @@ function useWithholding<S extends AnySuggestion>(opts: {
     if (!enabled || base == null || base <= 0) {
       suggestedBaseRef.current = null
       setSuggestion(null)
+      setAnsweredKey(null)
       return
     }
     let live = true
+    const key = requestKey
     const handle = setTimeout(() => {
       fetchRef.current(chosenSectionId)
         .then((s) => {
           if (!live) return
           suggestedBaseRef.current = base
           setSuggestion(s)
+          setAnsweredKey(key)
         })
         .catch(() => {
-          if (live) setSuggestion(null)
+          if (!live) return
+          setSuggestion(null)
+          setAnsweredKey(key)
         })
     }, debounceMs)
     return () => {
       live = false
       clearTimeout(handle)
     }
-  }, [enabled, base, candidateKey, date, excludeVoucherId, debounceMs, chosenSectionId])
+  }, [enabled, base, candidateKey, date, excludeVoucherId, debounceMs, chosenSectionId, requestKey])
 
   const commit = useCallback(
     (amount: number, isManual: boolean): TdsDeductionState | null => {
@@ -171,8 +196,9 @@ function useWithholding<S extends AnySuggestion>(opts: {
     setNotApplicableState(null)
   }, [onChange])
 
+  const checking = enabled && base != null && base > 0 && answeredKey !== requestKey
   return {
-    suggestion, dismissed, dismiss: useCallback(() => setDismissed(true), []), apply, applyManual,
+    suggestion, checking, dismissed, dismiss: useCallback(() => setDismissed(true), []), apply, applyManual,
     chosenSectionId, chooseSection: setChosenSectionId, notApplicable, setNotApplicable, savedExemption, afterSave, reset
   }
 }
