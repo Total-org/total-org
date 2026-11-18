@@ -316,9 +316,9 @@ export function tdsDeducted(db: DB, from: string, to: string, kind: WithholdingK
   })
 }
 
-/** The walk's `lateCover` of every deduction (on a payment, or on a bill whose base went beyond its
- *  own sum — FIG-B-1), by voucher | party | section — walked per financial year of the given
- *  deduction dates, from its start (as tdsEligible walks). */
+/** The walk's `lateCover` of every deduction — on a payment, or (since R2) on a bill that used up
+ *  a liable advance or whose base went beyond its own sum — by voucher | party | section, walked
+ *  per financial year of the given deduction dates, from its start (as tdsEligible walks). */
 function lateCoverByVoucher(db: DB, deductionDates: string[], to: string): Map<string, NonNullable<WalkResult['lateCover']>> {
   const out = new Map<string, NonNullable<WalkResult['lateCover']>>()
   if (deductionDates.length === 0) return out

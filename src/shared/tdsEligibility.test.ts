@@ -341,6 +341,32 @@ describe('walkTdsEvents — FIG-B-1: crossing the aggregate makes the earlier su
     expect(priorAggregate(r, 'fy', '2025-08-01')).toBe(11000000)
   })
 
+  it('review of #289 round 2: a bill deducted on its whole base covers a liable advance it used up (late)', () => {
+    // 1 Apr: ₹50,000 paid ahead, not deducted — over ₹30,000, liable at once (advance). 1 Jun: the
+    // ₹50,000 bill, deducted on ₹50,000: it used up the advance (fresh sum nil), and its deduction
+    // covers that same ₹50,000 — deductible since 1 April, so late. The advance leaves Eligible.
+    const r = walkTdsEvents([ev(1, '2025-04-01', 'payment', 5000000), ev(2, '2025-06-01', 'credit', 5000000, { entryBasePaise: 5000000 })], c194)
+    expect(r.map((x) => [x.reason, x.eligibleBasePaise, x.eventBasePaise])).toEqual([[null, 0, 5000000], [null, 0, 0]])
+    expect(r[1]!.consumedFrom).toEqual([{ voucherId: 1, basePaise: 5000000 }])
+    expect(r[1]!.lateCover).toEqual([{ voucherId: 1, deductibleOn: '2025-04-01', basePaise: 5000000 }])
+    // TCS shares the walk: an excess-only row (206C(1H)-style, ₹50 lakh) — a ₹60 lakh receipt ahead
+    // (₹10 lakh above the limit liable), then the ₹60 lakh sale collected on ₹60 lakh: the receipt is covered.
+    const h1 = (): TdsRateRow => row({ rateBp: 10, thresholdSinglePaise: 0, thresholdAnnualPaise: 500000000, thresholdExcessOnly: true })
+    const t = walkTdsEvents([ev(1, '2025-04-01', 'payment', 600000000), ev(2, '2025-06-01', 'credit', 600000000, { entryBasePaise: 600000000 })], h1)
+    expect(t.map((x) => x.eligibleBasePaise)).toEqual([0, 0])
+    expect(walkTdsEvents([ev(1, '2025-04-01', 'payment', 600000000)], h1)[0]!.eligibleBasePaise).toBe(100000000)
+  })
+
+  it('review of #289 round 2: a base wider than the bill covers an earlier bill already liable (late)', () => {
+    // April ₹40,000 (liable at once, over ₹30,000), not deducted; May ₹40,000 deducted on ₹47,200 (GST
+    // included). The ₹7,200 beyond May's own ₹40,000 covers ₹7,200 of April (liable since April —
+    // late): April stays on Eligible at ₹32,800. (Reading flagged in Q59: GST over-deducted on one
+    // bill counted as a deduction for another.)
+    const r = walkTdsEvents([ev(1, '2025-04-10', 'credit', 4000000), ev(2, '2025-05-10', 'credit', 4000000, { entryBasePaise: 4720000 })], c194)
+    expect(r.map((x) => x.eligibleBasePaise)).toEqual([3280000, 0])
+    expect(r[1]!.lateCover).toEqual([{ voucherId: 1, deductibleOn: '2025-04-10', basePaise: 720000 }])
+  })
+
   it('books where every sum was deducted at the time are unchanged', () => {
     // Five ₹25,000 bills each deducted on its own ₹25,000: nothing open, nothing marked, aggregate ₹1,25,000.
     const r = walkTdsEvents([1, 2, 3, 4, 5].map((i) => ev(i, `2025-0${i + 4}-01`, 'credit', 2500000, { entryBasePaise: 2500000 })), c194)

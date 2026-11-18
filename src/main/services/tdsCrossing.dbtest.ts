@@ -201,4 +201,16 @@ describe('review of #289', () => {
     const row = tdsDeducted(db, '2025-04-01', '2026-03-31').find((r) => r.voucherId === aug.id)
     expect(row?.lateDeduction).toMatchObject({ deductibleOn: '2025-04-10', months: 5, interestPaise: 20_00 })
   })
+
+  it('round 2: a liable advance used up by a bill deducted on its whole base leaves Eligible; the bill shows ₹15 late interest', () => {
+    const { db, bill, pay, eligible } = setup()
+    // 1 Apr: ₹50,000 paid ahead (over ₹30,000 — liable: ₹500). 1 Jun: the ₹50,000 bill, ₹500 deducted.
+    pay('2025-04-01', undefined, 50_000_00)
+    expect(eligible().map((r) => [r.basePaise, r.tdsPaise, r.reason])).toEqual([[50_000_00, 500_00, 'advance']])
+    const jun = bill('2025-06-01', [50_000_00, 500_00], 50_000_00)
+    expect(eligible()).toEqual([])
+    // Deductible 1 Apr, deducted 1 Jun: April, May, June = 3 months (or part) × 1 % × ₹500 = ₹15.
+    const row = tdsDeducted(db, '2025-04-01', '2026-03-31').find((r) => r.voucherId === jun.id)
+    expect(row?.lateDeduction).toMatchObject({ deductibleOn: '2025-04-01', months: 3, interestPaise: 15_00 })
+  })
 })

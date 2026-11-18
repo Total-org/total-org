@@ -93,8 +93,8 @@ export interface LateDeduction {
 }
 
 /** s.201(1A)(i) for a deduction that covered earlier sums already liable before it — on a payment
- *  covering bills liable at credit, or (FIG-B-1) on a bill carrying sums liable before it
- *  (`cover` = the walk's `lateCover`). Null when it covered none. */
+ *  covering bills liable at credit, or (since R2) on a bill covering a liable advance it used up
+ *  or carrying sums liable before it (`cover` = the walk's `lateCover`). Null when it covered none. */
 export function lateDeductionOnCover(
   entryTdsPaise: number, entryBasePaise: number, deductedOn: string,
   cover: readonly { voucherId: number; deductibleOn: string; basePaise: number }[] | undefined,

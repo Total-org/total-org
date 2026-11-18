@@ -13,22 +13,28 @@
  *  - a CREDIT event: a purchase or journal crediting the party (the bill is booked);
  *  - a PAYMENT event: a payment debiting the party. It is a TDS event only for its ADVANCE part
  *    (what is paid beyond what has been credited so far this year) — a payment that settles a
- *    bill already credited is not a second taxable sum. A payment that itself carries a
- *    deduction covers earlier credits that were not deducted at bill time (oldest first); any
- *    excess counts as an advance. Advances counted as events reduce the base of later credits
+ *    bill already credited is not a second taxable sum. Advances counted as events are used up,
+ *    oldest first, by later credits, whose fresh sum is only what the advances did not cover
  *    (the same sum is never counted twice).
  *
- * THRESHOLDS: every event base counts towards the party × section aggregate for the period
- * (FY, or month for 194-I), whether or not TDS was deducted on it — the aggregate tests in
- * ss.194C(5)/194J/194H etc. are on "the aggregate of the amounts credited or paid", not on the
- * deductions booked (this fixes WP 3.1's priorBase, which only summed recorded entries). When
- * an event lifts the aggregate past the aggregate threshold, the earlier below-threshold events
- * of the same period become liable too ("aggregate crossed later") — whether or not the crossing
- * event itself carries a deduction (FIG-B-1, 1.0 readiness audit) — except for excess-only rows
- * (194Q: only the amount above Rs 50 lakh is liable). The earlier sums stay eligible until a
- * deduction covers them: a deduction whose recorded base goes beyond its own voucher's sum (the
- * crossing bill or payment carrying the shortfall, as the suggestion offers it) covers the
- * earlier undeducted sums oldest first, and only the voucher's own sum adds to the aggregate.
+ * WHAT A DEDUCTION COVERS (R2 review of #289): a deduction on a bill covers first the advances
+ * that bill used up (the same sums — late when one was liable before, s.201(1A)(i)), then the
+ * bill itself; a deduction on a payment covers the earlier undeducted bills, oldest first, then
+ * its own advance. What its recorded base goes beyond that covers the sums this voucher's
+ * crossing of the aggregate made liable, then sums already liable (late) — never a sum still
+ * under the limit. A covered sum leaves the Eligible list; a late part is in `lateCover`.
+ *
+ * THRESHOLDS: every event's fresh sum counts towards the party × section aggregate for the
+ * period (FY, or month for 194-I), whether or not TDS was deducted on it — the aggregate tests
+ * in ss.194C(5)/194J/194H etc. are on "the aggregate of the amounts credited or paid", not on
+ * the deductions booked (this fixes WP 3.1's priorBase, which only summed recorded entries; and
+ * since R2 a deduction's recorded base never counts in place of the sum). When an event lifts
+ * the aggregate past the aggregate threshold — whatever other test it also trips — the earlier
+ * below-threshold events of the same period become liable too ("aggregate crossed later",
+ * `crossedBy`), whether or not the crossing event itself carries a deduction (FIG-B-1, 1.0
+ * readiness audit), except for excess-only rows (194Q: only the amount above Rs 50 lakh is
+ * liable). They stay eligible until a deduction covers them (above); the suggestion offers them
+ * on the crossing voucher (`crossingShortfalls`).
  * Reading of the s.194C(5) proviso ("where the aggregate of the amounts of such sums credited or
  * paid or likely to be credited or paid during the financial year exceeds one lakh rupees, the
  * person responsible ... shall be liable to deduct") — the app holds only a fragment of it
@@ -226,8 +232,8 @@ export interface WalkResult {
   row: TdsRateRow | null
   deducted: boolean
   exempt: boolean
-  /** Liable for TDS and not deducted (credit events: after later payment-deductions covered
-   *  part of it). 0 = nothing to deduct. */
+  /** Liable for TDS and not deducted, after what later deductions (on a bill or a payment)
+   *  covered of it. 0 = nothing to deduct. */
   eligibleBasePaise: number
   reason: EligibleReason | null
   /** 'aggregate_later' only: the voucher whose sum lifted the period aggregate past the limit. */

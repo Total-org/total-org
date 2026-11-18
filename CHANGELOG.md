@@ -30,10 +30,13 @@ instead of disappearing. The simple Money out note says the same, and a payment 
 For accountants, on books that have TDS: the Eligible list, the suggestions and the late-deduction
 interest change where a sum crossed the yearly limit with smaller undeducted sums before it,
 where a bill that used up an advance was deducted (the advance is no longer counted twice in the
-year's total), where a deduction's base was wider than its own sum (only its own sum counts
-towards the limit now), and where a payment followed a debit note (the note is no longer taken
-as money paid). No saved voucher, ledger or return changes. 194Q is unchanged (only the part
-above ₹50 lakh). Marked "Check with your CA" (Q59): the proviso to s.194C(5) could not be read
+year's total, and an advance that was liable leaves the Eligible list — the bill's deduction
+covers it, late, with its interest on the Deducted tab), where a deduction's base was wider than
+its own sum (only its own sum counts towards the limit; the extra counts as tax deducted, late,
+for an earlier bill that was already liable), and where a payment followed a debit note (the
+note is no longer taken as money paid). TCS shares these rules: a sale with TCS collected that
+uses up an earlier advance receipt now covers it on the TCS Eligible list. No saved voucher,
+ledger or return changes. 194Q is unchanged (only the part above ₹50 lakh). Marked "Check with your CA" (Q59): the proviso to s.194C(5) could not be read
 from an official copy.
 
 **Bills print on a 2-inch (58 mm) receipt printer** (#284, audit PROD-11). Settings → Bills &
