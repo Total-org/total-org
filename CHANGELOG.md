@@ -20,7 +20,7 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
-**The GST cards show a GSTR-1 date that has gone by** (readiness review R6, UI-1 and UI-2). The
+**The GST cards show a GSTR-1 date that has gone by** (#293, readiness review R6, UI-1 and UI-2). The
 Gateway's Compliance card used to pair a month with the next month's GSTR-1 date ("Oct 2026 —
 GSTR-1 in 23 days" on 18 Nov, when October's was due 11 Nov). It now shows October's own date and
 says "GSTR-1 7 days late"; a GSTR-1 you marked filed says "GSTR-1 filed". The simple Taxes card

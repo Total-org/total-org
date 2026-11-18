@@ -137,7 +137,7 @@ describe('gstDuePeriod (UX-4)', () => {
     }
   })
 
-  it('UI-1: a quarterly filer\u2019s card carries the 13th after its quarter (Oct–Dec → 13 Jan), and the running quarter shows no date yet', () => {
+  it('UI-1: a quarterly filer\u2019s card carries the 13th after its quarter (Oct–Dec → 13 Jan), and the running quarter lists it only inside the 45-day window', () => {
     setGstProfile(db, { filing: 'quarterly' })
     try {
       expect(gstDuePeriod(db, info, '2027-01-03')).toMatchObject({ period: '2026-12', gstr1Due: '2027-01-13' })
