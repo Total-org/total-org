@@ -143,7 +143,13 @@ describe('gstDuePeriod (UX-4)', () => {
       expect(gstDuePeriod(db, info, '2027-01-03')).toMatchObject({ period: '2026-12', gstr1Due: '2027-01-13' })
       // 14 Jan: the quarter's GSTR-1 (13 Jan) has passed and its GSTR-3B (22 / 24 Jan) is still due.
       expect(gstDuePeriod(db, info, '2027-01-14')).toMatchObject({ period: '2026-12', gstr1Due: '2027-01-13' })
-      // Unchanged: more than 45 days from the quarter's GSTR-3B, no dates at all.
+      // The running quarter lists its GSTR-1 once that date is inside the 45-day window: 13 Jan is
+      // 43 days after 1 Dec (30 + 13), 44 days after 30 Nov, 45 after 29 Nov, 46 after 28 Nov —
+      // while its 22 / 24 Jan GSTR-3B (≥ 52 days) is still not listed.
+      expect(gstDuePeriod(db, info, '2026-11-28')).toMatchObject({ period: '2026-11', soFar: true, gstr1Due: null, gstr3bDue: null })
+      expect(gstDuePeriod(db, info, '2026-11-29')).toMatchObject({ period: '2026-11', soFar: true, gstr1Due: '2027-01-13', gstr3bDue: null })
+      expect(gstDuePeriod(db, info, '2026-12-01')).toMatchObject({ period: '2026-12', soFar: true, gstr1Due: '2027-01-13', gstr3bDue: null })
+      // Otherwise (more than 45 days from the quarter's dates) no dates at all.
       expect(gstDuePeriod(db, info, '2026-11-07')).toMatchObject({ period: '2026-11', soFar: true, gstr1Due: null, gstr3bDue: null })
     } finally {
       setGstProfile(db, { filing: 'monthly' })

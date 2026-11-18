@@ -136,8 +136,10 @@ export function gstDuePeriod(db: DB, company: CompanyInfo, today: string, notBef
   const lastMonth = (): string => (filing === 'quarterly' ? addMonths(quarterStartOf(monthOf(to)), 2) : monthOf(to))
   // UI-1: the GSTR-1 date is the named period's OWN (gstr1DueDate), not "the next GSTR-1 within 45
   // days" — that one was the following period's, so an overdue GSTR-1 never showed. A running
-  // quarter whose GSTR-3B is more than 45 days off lists no date, as before.
-  let gstr1Due: string | null = soFar ? null : gstr1DueDate(lastMonth(), filing)
+  // quarter (its GSTR-3B is more than 45 days off) lists its GSTR-1 only once that date is inside
+  // the same 45-day window, as before.
+  const ownGstr1 = gstr1DueDate(lastMonth(), filing)
+  let gstr1Due: string | null = soFar && !due.some((d) => d.form === 'GSTR-1' && d.date === ownGstr1) ? null : ownGstr1
   let gstr3bDue = next3b?.date ?? null
   /** The running period so far, with that period's own due dates. */
   const running = (): void => {
