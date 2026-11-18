@@ -6,7 +6,8 @@
 //                      a quarterly filer's quarter, the Home tile's rule)
 //   awaiting in 2B     simpleHome.gstCredit (the stored GSTR-2B statements, WP 3.4 matcher)
 //   due dates          shared/gst/filing.ts (rule 61 / 62 CGST Rules, Notification 83/2020-CT)
-//   step 1             assistants.closeChecklist per month of the period (MISSING_BILL_CHECKS)
+//   step 1             assistants.closeChecklist per month of the period (MISSING_BILL_CHECKS) + the
+//                      GSTR-1 checks' advances without a GST rate (gst.rateLessAdvanceParties)
 //   step 2             assistants.gst2bMismatches per month (unresolved rows by category)
 //   step 3             the export snapshots gst:exportGstr1 / gst:exportGstr3b write (meta
 //                      `gst.exported.<form>.<MMYYYY>`); the exports themselves are unchanged
@@ -34,6 +35,7 @@ import { dashGst, gst3bFigures, readGstFiledAll } from './dashboard'
 import { gstCredit, homeGstStart, readGstFiled } from './simpleHome'
 import { closeChecklist, getStatement, gst2bMismatches, gstPreparedAt, withholdingFacts } from './assistants'
 import { listLedgers } from './masters'
+import { rateLessAdvanceParties } from './gst'
 import { writeAudit } from './audit'
 
 const META_KEY = GST_FILED_META_KEY
@@ -132,6 +134,9 @@ export function simpleTaxes(db: DB, company: CompanyInfo, q: { period?: string }
       }
     }
 
+    // Step 1 (R3 / FIG-G-2): advances Table 11A leaves out for want of a GST rate on the account.
+    const rateLess = rateLessAdvanceParties(db, company, period.from, period.to)
+
     // Step 2: each month's GSTR-2B statement and its open mismatches.
     const supplierBills: SupplierBillsMonth[] = months.map((m) => {
       const imported = !!getStatement(db, gstPeriodOf(`${m}-01`))
@@ -177,6 +182,7 @@ export function simpleTaxes(db: DB, company: CompanyInfo, q: { period?: string }
         pmt06: period.quarterly ? months.map(pmt06DueDate).filter((d): d is string => d != null) : []
       },
       missing: MISSING_BILL_CHECKS.filter((k) => missing.has(k)).map((key) => ({ key, count: missing.get(key)! })),
+      ...(rateLess.length ? { advancesNoRate: { receipts: rateLess.reduce((n, p) => n + p.voucherIds.length, 0), customers: rateLess.map((p) => p.partyName) } } : {}),
       supplierBills,
       prepared: { gstr1: preparedAt(db, 'gstr1', period), gstr3b: preparedAt(db, 'gstr3b', period) },
       filesMonthly: period.quarterly,

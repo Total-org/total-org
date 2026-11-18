@@ -15,8 +15,8 @@ import {
 import { backOutAdvance, computeGst, supplyTypeFor } from '@shared/gst/calc'
 import { spreadPosted } from '@shared/gst/postedSpread'
 import { toUqc } from '@shared/gst/uqc'
-import { blendedRateIssue, validateGstr1, VAL_MISMATCH_TOLERANCE_PAISE, type GstIssue } from '@shared/gst/validate'
-import { goodsAdvanceMessage, goodsAdvanceParties, supplyKindOfHsn, type AdvanceParty, type SupplyCounts } from '@shared/gst/advanceGoods'
+import { blendedRateIssue, notRegularDaysIssue, validateGstr1, VAL_MISMATCH_TOLERANCE_PAISE, type GstIssue } from '@shared/gst/validate'
+import { goodsAdvanceMessage, goodsAdvanceParties, openAdvanceReceipts, rateLessAdvanceMessage, supplyKindOfHsn, type AdvanceParty, type AdvanceReceipt, type SupplyCounts } from '@shared/gst/advanceGoods'
 import { fyFromStartYear, fyOf } from '@shared/dates'
 import { plainRupees } from '@shared/money'
 import { parseGstr2b, reconcile2b, type PurchaseDoc, type Recon2bOptions, type Recon2bResult } from '@shared/gst/recon2b'
@@ -27,7 +27,8 @@ import { einvoiceTurnOnNotice, type EinvoiceStatus } from '@shared/compliance'
 import { companyExportsDir } from '../paths'
 import { IN_BOOKS } from './vouchers'
 import { mismatchedNoteIds } from './itcBlockedNotes'
-import { chargesGstOn, registrationOn } from '@shared/gst/registration'
+import { chargesGstOn, everGstRegistered, gstReturnNotDueMessage, registrationOn, returnRegistrationIn } from '@shared/gst/registration'
+import { AppError } from '@shared/errors'
 import { hasTradeSchema } from './tradeLinks'
 import { writeAudit } from './audit'
 import { hasPartySideSnapshot, lineSnapSql, partySnapSql, partySnapshots, withPartySnap } from './taxFacts'
@@ -1293,17 +1294,25 @@ export function einvoiceStatus(db: DB, company: Pick<CompanyInfo, 'gstRegistrati
 export function gstValidate(db: DB, company: CompanyInfo, from: string, to: string): GstIssue[] {
   const notes: OutwardExtractionNotes = { blended: [], discounted: [], discountKept: [], discountAsRecorded: [] }
   const docs = extractOutwardDocs(db, company, from, to, notes)
+  // R3 / FIG-G-3: the registration the PERIOD is filed under (regular on any day of it), never
+  // today's — a business that left the regular scheme still checks its regular months.
+  const registration = returnRegistrationIn(company, from, to)
   const issues = validateGstr1(docs, {
     stateCode: company.stateCode,
     gstin: company.gstin,
-    gstRegistrationType: company.gstRegistrationType,
+    gstRegistrationType: registration,
     einvoicing: einvoicingOn(db, company) || einvoiceProfileApplicability(db, company, to).required
   })
+  const offDays = registration === 'regular' ? notRegularDaysIssue(docs, company) : null
   const goods = goodsAdvanceIssue(db, company, from, to)
+  const rateLess = rateLessAdvanceIssue(db, company, from, to)
   const blended = blendedRateIssue(notes.blended)
   const discount = salesDiscountIssue(notes.discounted ?? [], notes.discountKept ?? [], notes.discountAsRecorded ?? [])
   const marks = blockedNoteIssue(db, from, to)
-  return [...issues, ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : []), ...(marks ? [marks] : [])]
+  return [
+    ...issues, ...(offDays ? [offDays] : []), ...(blended ? [blended] : []), ...(discount ? [discount] : []), ...(goods ? [goods] : []),
+    ...(rateLess ? [rateLess] : []), ...(marks ? [marks] : [])
+  ]
 }
 
 /**
@@ -1376,13 +1385,36 @@ export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to
     )
     .all(from, to) as { partyId: number; partyName: string; voucherId: number }[]
   if (receipts.length === 0) return null
+  const parties = advanceParties(receipts)
+  const flagged = goodsAdvanceParties(parties, classifyAdvanceParties(db, parties, to))
+  if (flagged.length === 0) return null
+  return {
+    code: 'advance_goods',
+    severity: 'warning',
+    message: goodsAdvanceMessage(flagged),
+    voucherIds: flagged.flatMap((p) => p.voucherIds)
+  }
+}
 
+/** The receipts grouped by customer (in the order given), their sales not counted yet. */
+function advanceParties(receipts: readonly { partyId: number; partyName: string; voucherId: number }[]): AdvanceParty[] {
   const parties = new Map<number, AdvanceParty>()
   for (const r of receipts) {
     const p = parties.get(r.partyId) ?? { partyId: r.partyId, partyName: r.partyName, voucherIds: [], sales: { goods: 0, services: 0 } }
-    p.voucherIds.push(r.voucherId)
+    if (!p.voucherIds.includes(r.voucherId)) p.voucherIds.push(r.voucherId)
     parties.set(r.partyId, p)
   }
+  return [...parties.values()]
+}
+
+/**
+ * Counts each advance customer's coded sale lines up to the period end into `sales` (goods / services
+ * — shared/gst/advanceGoods.ts) and returns the business's own: whether it sells any goods / any
+ * services code at all, read only when a customer has no coded sale of their own. One grouped read
+ * over the customers' sales; the business-wide fallback is two EXISTS probes.
+ */
+function classifyAdvanceParties(db: DB, parties: readonly AdvanceParty[], to: string): SupplyCounts {
+  const byId = new Map(parties.map((p) => [p.partyId, p]))
   // Coded sale lines up to the period end: item lines by the item's HSN, ledger lines by a non-tax,
   // non-party ledger's HSN (as each reader takes them — the voucher's snapshot first).
   const item = lineSnapSql(db, 'v', 'il', 's').hsn
@@ -1402,7 +1434,7 @@ export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to
      JOIN ledgers l ON l.id = vl.ledger_id
      WHERE vt.kind = 'sales' AND vl.dr_cr = 'cr' AND l.tax_type IS NULL
        AND l.id IS NOT v.party_ledger_id AND v.date <= @to AND ${IN_BOOKS} ${partyFilter}`
-  const ids = [...parties.keys()]
+  const ids = [...byId.keys()]
   const params: Record<string, string | number> = { to }
   ids.forEach((id, i) => (params[`p${i}`] = id))
   const rows = db
@@ -1413,13 +1445,13 @@ export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to
     .all(params) as { partyId: number; hsn: string; n: number }[]
   for (const r of rows) {
     const kind = supplyKindOfHsn(r.hsn)
-    const p = parties.get(r.partyId)
+    const p = byId.get(r.partyId)
     if (kind && p) p.sales[kind] += r.n
   }
   // The business decides only for a customer with no coded sale of their own: does it sell any
   // goods code / any services code at all (presence is all goodsAdvanceParties reads)?
   const business: SupplyCounts = { goods: 0, services: 0 }
-  if ([...parties.values()].some((p) => p.sales.goods + p.sales.services === 0)) {
+  if (parties.some((p) => p.sales.goods + p.sales.services === 0)) {
     const probe = (pattern: string): number =>
       db.prepare(`SELECT EXISTS (SELECT 1 FROM (${coded('')}) WHERE ${pattern}) AS x`).pluck().get({ to }) as number
     // A code is 4–8 digits; chapter 99 is a service (SAC), any other chapter goods (supplyKindOfHsn).
@@ -1427,20 +1459,77 @@ export function goodsAdvanceIssue(db: DB, company: CompanyInfo, from: string, to
     business.goods = probe(`${isCode} AND TRIM(hsn) NOT GLOB '99*'`)
     business.services = probe(`${isCode} AND TRIM(hsn) GLOB '99*'`)
   }
-  const flagged = goodsAdvanceParties([...parties.values()], business)
-  if (flagged.length === 0) return null
+  return business
+}
+
+/**
+ * R3 / FIG-G-2 — the customers whose advances Table 11A leaves out (shared/gst/advanceGoods.ts): a
+ * receipt in the period opening an advance (a 'new' bill ref, as extractAdvances reads) from a
+ * customer whose account has NO GST rate (NULL — an explicit 0 % is a declared nil rate and is in
+ * 11A), dated on a day the registration is regular (`registrationOn` — no GST on an advance
+ * otherwise), not wholly taken by a sales invoice of the same period (`openAdvanceReceipts`), from a
+ * customer who is not taken to buy only goods (`goodsAdvanceParties` — Notification 66/2017-CT).
+ * Reads only the period's receipts and invoices. Shared by gstValidate and the simple Taxes screen.
+ */
+export function rateLessAdvanceParties(db: DB, company: CompanyInfo, from: string, to: string): AdvanceParty[] {
+  const rows = db
+    .prepare(
+      `SELECT p.id AS partyId, p.name AS partyName, v.id AS voucherId, v.date AS date, br.name AS name, br.amount AS amount
+       FROM bill_refs br
+       JOIN vouchers v ON v.id = br.voucher_id
+       JOIN voucher_types vt ON vt.id = v.voucher_type_id
+       JOIN ledgers p ON p.id = br.party_ledger_id
+       WHERE vt.kind = 'receipt' AND br.kind = 'new' AND p.gst_rate IS NULL
+         AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
+       ORDER BY p.name, v.date, v.id, br.id`
+    )
+    .all(from, to) as (AdvanceReceipt & { date: string })[]
+  const regular = rows.filter((r) => registrationOn(company, r.date) === 'regular')
+  if (regular.length === 0) return []
+  // What the period's sales invoices took of each advance (11B's own match: same customer + name).
+  const used = new Map<string, number>()
+  const taken = db
+    .prepare(
+      `SELECT br.party_ledger_id AS partyId, br.name AS name, SUM(br.amount) AS amount
+       FROM bill_refs br
+       JOIN vouchers v ON v.id = br.voucher_id
+       JOIN voucher_types vt ON vt.id = v.voucher_type_id
+       JOIN ledgers p ON p.id = br.party_ledger_id
+       WHERE vt.kind = 'sales' AND br.kind = 'against' AND p.gst_rate IS NULL
+         AND v.date BETWEEN ? AND ? AND ${IN_BOOKS}
+       GROUP BY br.party_ledger_id, br.name`
+    )
+    .all(from, to) as { partyId: number; name: string; amount: number }[]
+  for (const t of taken) used.set(`${t.partyId}|${t.name}`, t.amount)
+  const open = openAdvanceReceipts(regular, used)
+  if (open.length === 0) return []
+  const parties = advanceParties(open)
+  const goodsOnly = new Set(goodsAdvanceParties(parties, classifyAdvanceParties(db, parties, to)).map((p) => p.partyId))
+  return parties.filter((p) => !goodsOnly.has(p.partyId))
+}
+
+/** gstValidate's warning for `rateLessAdvanceParties` — never a figure (11A is computed as before). */
+export function rateLessAdvanceIssue(db: DB, company: CompanyInfo, from: string, to: string): GstIssue | null {
+  const parties = rateLessAdvanceParties(db, company, from, to)
+  if (parties.length === 0) return null
   return {
-    code: 'advance_goods',
+    code: 'advance_no_rate',
     severity: 'warning',
-    message: goodsAdvanceMessage(flagged),
-    voucherIds: flagged.flatMap((p) => p.voucherIds)
+    message: rateLessAdvanceMessage(parties),
+    voucherIds: parties.flatMap((p) => p.voucherIds)
   }
 }
 
 /** Throw (with the issue list) when blocking issues exist — the server-side export gate.
  *  Guards BOTH return exports: GSTR-1 and GSTR-3B are computed from the same extracted
  *  documents, so a period the app knows is unsound must not export either JSON. */
-export function assertExportable(db: DB, company: CompanyInfo, from: string, to: string): void {
+export function assertExportable(db: DB, company: CompanyInfo, from: string, to: string, form: 'gstr1' | 'gstr3b'): void {
+  // R3 / FIG-G-3: a period with no regular day has no GSTR-1 / GSTR-3B (s.37(1), s.39(1) CGST Act)
+  // — refused with the reason, before anything is computed or written.
+  const registration = returnRegistrationIn(company, from, to)
+  if (registration !== 'regular') {
+    throw new AppError('gst_return_not_due', gstReturnNotDueMessage(form, registration, everGstRegistered(company)))
+  }
   const blocking = gstValidate(db, company, from, to).filter((i) => i.severity === 'blocking')
   if (blocking.length) {
     throw new Error(`GST export blocked: ${blocking.map((i) => i.message).join(' | ')}`)

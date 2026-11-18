@@ -226,6 +226,11 @@ export type SimpleTaxes =
       running?: { period: GstPeriod; collected: number; onPurchases: number }
       due: GstDue
       missing: MissingBillsItem[]
+      /** R3 / FIG-G-2 — step 1's note: advances received in the period that GSTR-1 Table 11A leaves
+       *  out because the customer's account has no GST rate (services/gst.ts rateLessAdvanceParties —
+       *  the GSTR-1 checks' own list). Absent = none (so a period without one reads as before).
+       *  Advice only: it never marks step 1 open. */
+      advancesNoRate?: { receipts: number; customers: string[] }
       supplierBills: SupplierBillsMonth[]
       /** When the GSTR-1 / 3B file for the period was last prepared (export snapshot), or null. */
       prepared: Record<GstForm, string | null>
