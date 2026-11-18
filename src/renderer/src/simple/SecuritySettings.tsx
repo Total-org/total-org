@@ -250,7 +250,15 @@ function RememberCard({ view, canEdit }: { view: SecurityView; canEdit: boolean 
     <section className={cardCls} data-testid="security-remember" data-remembered={state}>
       <h2 className="text-title font-semibold text-ink">{t('simple.security.remember.title')}</h2>
       <p className="mt-1 text-detail text-ink" data-testid="security-remember-text">
-        {view.remembered ? t('simple.security.remember.on') : view.rememberPending ? t('simple.security.remember.pending') : t('simple.security.remember.off')}
+        {/* 1.0 readiness SEC2-6: without people the screen lock takes the remembered key away until
+            the passphrase is typed; with people a locked screen asks for a PIN. */}
+        {view.remembered
+          ? view.usersExist
+            ? t('simple.security.remember.on')
+            : t('simple.security.remember.onNoPeople')
+          : view.rememberPending
+            ? t('simple.security.remember.pending')
+            : t('simple.security.remember.off')}
       </p>
       {canEdit && view.remembered && (
         <Button className="mt-2" variant="secondary" disabled={busy} onClick={() => void forget()} data-testid="btn-security-forget">

@@ -30,7 +30,7 @@ import { stopAllChecks, stopChecks, stopChecksUnder } from './db/checkHost'
 import { encryptFile, decryptFile, NewerBackupFormatError } from './db/crypt'
 import { readCompanyInfo, seedCompany, writeCompanyInfo } from './db/seed'
 import { readRegistry, removeCompany, touchLastOpened, upsertCompany } from './registry'
-import { clearScreenLock, forgetScreenLock, isScreenLocked, storeScreenLock } from './services/screenLocks'
+import { clearScreenLock, forgetScreenLock, isScreenLocked, storeScreenLock, type StoredScreenLock } from './services/screenLocks'
 import { companyAttachmentsDir, companyBackupAttachmentsDir, companyBackupsDir, companyDbPath, companyDir, companyExportsDir, dataRoot, ensureCompanyTree, slugify } from './paths'
 import { log, revealLogs } from './log'
 import { checkForUpdatesInteractive, setAutoCheck, updateAction, updatesView } from './updater'
@@ -138,20 +138,14 @@ const lockKindOf = (c: OpenCompany): LockKind => (c.usersExist ? 'pin' : c.encry
 
 function lockPrivacy(reason: 'manual' | 'idle'): void {
   if (!current || current.usersExist || privacyLock) return
-  // SEC2-6: stored first, so a business whose passphrase lock is on stays locked past a switch or
-  // a restart. A file that can't be written keeps today's in-memory lock (logged, and said in the
-  // audit row) rather than leaving the screen open.
-  let stored = false
-  if (current.encrypted) {
-    try {
-      storeScreenLock(dataRoot(), current.slug, reason, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
-      stored = true
-    } catch (err) {
-      log('warn', 'screen-lock-store-failed', { slug: current.slug, error: err instanceof Error ? err.message : String(err) })
-    }
-  }
+  // SEC2-6: a business whose passphrase lock is on stays locked past a switch or a restart. What
+  // keeps it shut is that the key remembered on this computer is taken away here — closing the
+  // business forgets the key in memory too, so the next open needs the passphrase whatever happens
+  // to the lock file. The stored lock (services/screenLocks.ts) says why the passphrase is asked
+  // and that the remembered key comes back with it. A file that can't be written is logged.
+  const held = current.encrypted ? holdRememberedKey(current, reason) : { rememberHeld: false, stored: false }
   try {
-    writeAudit(current.db, 'user', 0, 'logout', null, { lock: reason, noUsers: true, ...(current.encrypted ? { stored } : {}) })
+    writeAudit(current.db, 'user', 0, 'logout', null, { lock: reason, noUsers: true, ...(current.encrypted ? held : {}) })
   } catch (err) {
     log('warn', 'session-lock-audit-failed', { error: err instanceof Error ? err.message : String(err) })
   }
@@ -310,15 +304,38 @@ function otherCompanyHasUsers(): boolean {
 const registrySlugs = (): string[] => readRegistry().companies.map((c) => c.slug)
 const logScreenLockCorrupt = (error: string): void => log('warn', 'screen-locks-unreadable', { error })
 
-/** SEC2-6: a correct passphrase was typed for `slug` — its stored screen lock goes. Returns
- *  whether one was cleared; a file that can't be written is logged (the lock then stays, so the
+/** SEC2-6: take the remembered key of the open business away for its screen lock and store the
+ *  lock. A key the secret store would not let go of is logged — the stored lock still refuses it
+ *  at open. Returns what the audit row says. */
+function holdRememberedKey(c: OpenCompany, reason: 'manual' | 'idle'): { rememberHeld: boolean; stored: boolean } {
+  const store = appSecretStore()
+  const rememberHeld = dropRememberedKey(c.slug, store)
+  if (rememberHeld && hasRememberedKey(c.slug, store)) log('warn', 'screen-lock-remembered-key-kept', { slug: c.slug })
+  if (rememberHeld) {
+    try {
+      writeAudit(c.db, 'security', 0, 'update', { rememberedOnThisComputer: true }, { rememberedOnThisComputer: false, heldByScreenLock: true })
+    } catch (err) {
+      log('warn', 'screen-lock-hold-audit-failed', { slug: c.slug, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  try {
+    storeScreenLock(dataRoot(), c.slug, { reason, rememberHeld }, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
+    return { rememberHeld, stored: true }
+  } catch (err) {
+    log('warn', 'screen-lock-store-failed', { slug: c.slug, error: err instanceof Error ? err.message : String(err) })
+    return { rememberHeld, stored: false }
+  }
+}
+
+/** SEC2-6: a correct passphrase was typed for `slug` — its stored screen lock goes. Returns the
+ *  lock cleared (null = none); a file that can't be written is logged (the lock then stays, so the
  *  passphrase is asked again next time — never the other way round). */
-function clearStoredScreenLock(slug: string): boolean {
+function clearStoredScreenLock(slug: string): StoredScreenLock | null {
   try {
     return clearScreenLock(dataRoot(), slug, new Date().toISOString(), registrySlugs(), logScreenLockCorrupt)
   } catch (err) {
     log('warn', 'screen-lock-clear-failed', { slug, error: err instanceof Error ? err.message : String(err) })
-    return false
+    return null
   }
 }
 
@@ -714,14 +731,17 @@ export function registerIpc(): void {
     const via = await unlockFolderIfNeeded(slug, passphrase, screenLocked ? { useRemembered: false, evenIfKnown: true } : {})
     const opened = await openCompanyNow(slug)
     if (screenLocked && current?.slug === slug) {
-      const cleared = clearStoredScreenLock(slug)
-      // The books are open by now: an audit row that can't be written is logged (as lockPrivacy's
-      // own row is), never turned into a failed open of books that did open.
+      // The books are open by now: the row first, and only once it is written does the lock go (a
+      // row that can't be written is logged and the lock stays — the next open asks again), never
+      // a failed open of books that did open.
+      let audited = false
       try {
-        writeAudit(current.db, 'user', 0, 'login', null, { lock: 'stored', noUsers: !current.usersExist, passphrase: true, cleared })
+        writeAudit(current.db, 'user', 0, 'login', null, { lock: 'stored', noUsers: !current.usersExist, passphrase: true })
+        audited = true
       } catch (err) {
         log('warn', 'screen-lock-open-audit-failed', { slug, error: err instanceof Error ? err.message : String(err) })
       }
+      if (audited) releaseScreenLock(current, remember === true)
     }
     // "Remember on this computer" (ticked at the prompt, the passphrase just proved right): stored
     // at once in a business without people (whoever opens it is its owner), else once an owner
@@ -740,6 +760,14 @@ export function registerIpc(): void {
   /** Audit A3 (SEC-3): refuse a slug that is not in the registry (company:delete checks it itself). */
   function knownSlug(slug: string): void {
     if (!readRegistry().companies.some((c) => c.slug === slug)) throw new Error('Company not found')
+  }
+
+  /** SEC2-6: the passphrase of a screen-locked business was typed right — its stored lock goes and
+   *  a key its lock took away is remembered again (audited as remembering, unless the open's own
+   *  "Remember on this computer" tick does it). */
+  function releaseScreenLock(c: OpenCompany, rememberTicked: boolean): void {
+    const lock = clearStoredScreenLock(c.slug)
+    if (lock?.rememberHeld && !rememberTicked && !c.usersExist) rememberOpenKey(c, null)
   }
 
   /** Store the open company's key as remembered on this computer, audited ('security', no key in
@@ -1434,11 +1462,11 @@ export function registerIpc(): void {
       }
       noteRightPassphrase(c.slug)
     }
-    const reason = privacyLock
+    // The row first: a refused write leaves the business locked (and its stored lock in place).
+    writeAudit(c.db, 'user', 0, 'login', null, { lock: privacyLock, noUsers: true, passphrase: c.encrypted })
     privacyLock = null
     idleClock.touch()
-    const cleared = c.encrypted ? clearStoredScreenLock(c.slug) : false
-    writeAudit(c.db, 'user', 0, 'login', null, { lock: reason, noUsers: true, passphrase: c.encrypted, ...(c.encrypted ? { cleared } : {}) })
+    if (c.encrypted) releaseScreenLock(c, false)
     return { locked: false }
   })
 

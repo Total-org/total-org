@@ -21,14 +21,19 @@ describe('stored screen locks', () => {
   it('no file = nothing locked; a stored lock stays until it is cleared, per business', () => {
     const root = scratch()
     expect(isScreenLocked(root, 'a')).toBe(false)
-    storeScreenLock(root, 'a', 'idle', AT, ['a', 'b'])
+    storeScreenLock(root, 'a', { reason: 'idle', rememberHeld: false }, AT, ['a', 'b'])
     expect(isScreenLocked(root, 'a')).toBe(true)
     expect(isScreenLocked(root, 'b')).toBe(false)
-    // A second lock keeps the first time and reason.
-    storeScreenLock(root, 'a', 'manual', '2026-11-18T11:00:00.000Z', ['a', 'b'])
-    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle' } })
-    expect(clearScreenLock(root, 'b', AT, ['a', 'b'])).toBe(false)
-    expect(clearScreenLock(root, 'a', AT, ['a', 'b'])).toBe(true)
+    // A second lock keeps the first time and reason, and adds a key it took away.
+    storeScreenLock(root, 'a', { reason: 'manual', rememberHeld: false }, '2026-11-18T11:00:00.000Z', ['a', 'b'])
+    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle', rememberHeld: false } })
+    storeScreenLock(root, 'a', { reason: 'manual', rememberHeld: true }, '2026-11-18T11:00:00.000Z', ['a', 'b'])
+    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle', rememberHeld: true } })
+    // …and never drops one it holds.
+    storeScreenLock(root, 'a', { reason: 'manual', rememberHeld: false }, '2026-11-18T12:00:00.000Z', ['a', 'b'])
+    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle', rememberHeld: true } })
+    expect(clearScreenLock(root, 'b', AT, ['a', 'b'])).toBeNull()
+    expect(clearScreenLock(root, 'a', AT, ['a', 'b'])).toEqual({ since: AT, reason: 'idle', rememberHeld: true })
     expect(isScreenLocked(root, 'a')).toBe(false)
     expect(stored(root)).toEqual({})
   })
@@ -40,15 +45,18 @@ describe('stored screen locks', () => {
     expect(isScreenLocked(root, 'a', (e) => heard.push(e))).toBe(true)
     expect(isScreenLocked(root, 'b')).toBe(true)
     expect(heard).toHaveLength(1)
-    expect(clearScreenLock(root, 'a', AT, ['a', 'b', 'c'])).toBe(true)
+    // Cleared, but what it held is unknown: no key comes back.
+    expect(clearScreenLock(root, 'a', AT, ['a', 'b', 'c'])).toEqual({ since: '', reason: 'manual', rememberHeld: false })
     expect(isScreenLocked(root, 'a')).toBe(false)
     expect(isScreenLocked(root, 'b')).toBe(true)
-    expect(stored(root)).toEqual({ b: { since: AT, reason: 'manual' }, c: { since: AT, reason: 'manual' } })
+    expect(stored(root)).toEqual({ b: { since: AT, reason: 'manual', rememberHeld: false }, c: { since: AT, reason: 'manual', rememberHeld: false } })
     writeFileSync(join(root, 'screen-locks.json'), '[1]')
     expect(isScreenLocked(root, 'z')).toBe(true)
     // Storing a lock over a damaged file keeps every known business locked too.
-    storeScreenLock(root, 'a', 'idle', AT, ['a', 'b'])
-    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle' }, b: { since: AT, reason: 'manual' } })
+    storeScreenLock(root, 'a', { reason: 'idle', rememberHeld: true }, AT, ['a', 'b'])
+    expect(stored(root)).toEqual({ a: { since: AT, reason: 'idle', rememberHeld: true }, b: { since: AT, reason: 'manual', rememberHeld: false } })
+    writeFileSync(join(root, 'screen-locks.json'), '')
+    expect(isScreenLocked(root, 'a')).toBe(true) // an emptied file is damaged too
   })
 
   it('an entry that is not a lock still locks its business; a deleted business’s lock is forgotten', () => {

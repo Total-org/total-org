@@ -54,6 +54,14 @@ const company = (name: string): Record<string, unknown> => ({
 const dbFile = (slug: string): string => join(DATA_DIR, 'companies', slug, 'company.db')
 const LOCK_FILE = join(DATA_DIR, 'screen-locks.json')
 const storedLocks = (): Record<string, { reason: string }> => (existsSync(LOCK_FILE) ? JSON.parse(readFileSync(LOCK_FILE, 'utf8')) : {})
+/** Whether the lock file holds `slug` (a damaged file holds every business). */
+const isLockedOnDisk = (slug: string): boolean => {
+  try {
+    return slug in storedLocks()
+  } catch {
+    return true
+  }
+}
 
 let ipc: typeof import('./ipc')
 let encryption: typeof import('./db/encryption')
@@ -97,7 +105,9 @@ describe('SEC2-6: a stored screen lock asks for the passphrase on every open unt
 
   it('after ⌘L, switching business and back asks for the passphrase — the remembered key does not open it', async () => {
     await ok('session:lock')
-    expect(storedLocks()).toMatchObject({ [slug]: { reason: 'manual' } })
+    expect(storedLocks()).toMatchObject({ [slug]: { reason: 'manual', rememberHeld: true } })
+    // The lock takes the remembered key away: that, not the file, is what keeps the books shut.
+    expect(await ok<string[]>('company:remembered')).not.toContain(slug)
     await ok('company:close')
     const refused = await call('company:open', { slug })
     expect(refused).toMatchObject({ ok: false, code: 'screen_locked_passphrase', field: 'passphrase' })
@@ -118,20 +128,52 @@ describe('SEC2-6: a stored screen lock asks for the passphrase on every open unt
   it('the passphrase opens it and clears the stored lock (audited in the books); the remembered key works again after', async () => {
     expect(await ok<{ openedWith?: string; locked: boolean }>('company:open', { slug, passphrase: PASS })).toMatchObject({ openedWith: 'passphrase', locked: false })
     expect(storedLocks()).toEqual({})
+    expect(await ok<string[]>('company:remembered')).toContain(slug)
     await ok('company:close')
     expect(await ok<{ openedWith?: string }>('company:open', { slug })).toMatchObject({ openedWith: 'remembered' })
     await ok('company:close')
     const rows = await userAuditRows(slug, PASS)
-    expect(rows.find((r) => r.action === 'logout' && r.after.lock === 'manual')?.after).toMatchObject({ noUsers: true, stored: true })
-    expect(rows.find((r) => r.action === 'login' && r.after.lock === 'stored')?.after).toMatchObject({ passphrase: true, cleared: true })
+    expect(rows.find((r) => r.action === 'logout' && r.after.lock === 'manual')?.after).toMatchObject({ noUsers: true, stored: true, rememberHeld: true })
+    expect(rows.find((r) => r.action === 'login' && r.after.lock === 'stored')?.after).toMatchObject({ passphrase: true })
+    const security = (await ok<{ rows: { afterJson: string | null }[] }>('audit:list', { entity: 'security' })).rows.map((r) => JSON.parse(r.afterJson ?? '{}') as Record<string, unknown>)
+    // Newest first: remembered again after the passphrase, held by the lock before it.
+    expect(security.slice(0, 2)).toEqual([{ rememberedOnThisComputer: true }, { rememberedOnThisComputer: false, heldByScreenLock: true }])
+    await ok('company:close')
   })
 
-  it('unlocking the screen with the passphrase while the business stays open clears the stored lock too', async () => {
+  it('deleting the lock file does not open the books: the remembered key went with the lock (review of #291)', async () => {
+    await ok('company:open', { slug })
+    await ok('session:lock')
+    await ok('company:close')
+    rmSync(LOCK_FILE)
+    // The plain prompt (the note's reason is gone with the file) — never the remembered key.
+    expect((await call('company:open', { slug })).code).toBe('passphrase_required')
+    expect(await ok<{ openedWith?: string }>('company:open', { slug, passphrase: PASS })).toMatchObject({ openedWith: 'passphrase' })
+    // Nothing says a key was held, so none comes back: "Remember on this computer" is ticked again.
+    expect(await ok<string[]>('company:remembered')).not.toContain(slug)
+    await ok('company:close')
+    expect(await ok<{ remember?: string }>('company:open', { slug, passphrase: PASS, remember: true })).toMatchObject({ remember: 'saved' })
+  })
+
+  it('an emptied lock file fails closed: the passphrase is asked', async () => {
+    await ok('session:lock')
+    await ok('company:close')
+    writeFileSync(LOCK_FILE, '')
+    expect((await call('company:open', { slug })).code).toBe('screen_locked_passphrase')
+    await ok('company:open', { slug, passphrase: PASS })
+    expect(isLockedOnDisk(slug)).toBe(false)
+    await ok('company:close')
+    await ok('company:open', { slug, passphrase: PASS, remember: true })
+  })
+
+  it('unlocking the screen with the passphrase while the business stays open clears the stored lock too, and remembers the key again', async () => {
     await ok('session:lock')
     expect(storedLocks()).toHaveProperty(slug)
+    expect(await ok<string[]>('company:remembered')).not.toContain(slug)
     expect((await call('session:unlock', {})).code).toBe('passphrase_required')
     await ok('session:unlock', { passphrase: PASS })
     expect(storedLocks()).toEqual({})
+    expect(await ok<string[]>('company:remembered')).toContain(slug)
     await ok('company:close')
     expect(await ok<{ openedWith?: string }>('company:open', { slug })).toMatchObject({ openedWith: 'remembered' })
   })

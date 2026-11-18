@@ -130,9 +130,17 @@ describe('Lock and safety', () => {
       expect(said).toContain(words)
     }
     expect(screen.queryByTestId('security-needs-people')).toBeNull()
-    expect(screen.getByTestId('security-remember-text').textContent).toContain('only the passphrase opens them again')
+    expect(screen.getByTestId('security-remember-text').textContent).toContain('Total stops remembering it until the passphrase is typed')
     expect(screen.getByTestId('security-remember-text').textContent).not.toContain('still works as before')
     expect(bannedWordsIn(visible())).toEqual([])
+  })
+
+  it('1.0 readiness SEC2-6: with people, the remembered passphrase and the screen lock are said as they work — a PIN, no passphrase promise', async () => {
+    view = { ...view, usersExist: true, encrypted: true, keyFile: true, remembered: true }
+    renderUi(<SecuritySettings />)
+    await waitFor(() => expect(screen.getByTestId('security-remember-text').textContent).toContain('A locked screen still asks for a PIN'))
+    expect(screen.queryByTestId('security-lock-passphrase')).toBeNull()
+    expect(screen.queryByTestId('security-needs-people')).toBeNull()
   })
 })
 
