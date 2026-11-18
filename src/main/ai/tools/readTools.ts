@@ -13,7 +13,8 @@ import * as reports from '../../services/reports'
 import { outstandings as outstandingsSvc } from '../../services/analysis'
 import { search } from '../../services/search'
 import { stockSummary as stockSummarySvc } from '../../services/stockAnalysis'
-import { gstr3b } from '../../services/gst'
+import { gstr3b, returnSpanAt } from '../../services/gst'
+import { gstReturnNotDueMessage, returnRegistrationIn } from '@shared/gst/registration'
 import { tdsSummary as tdsSummarySvc } from '../../services/tds'
 import { defineTool, type ToolDef } from './registry'
 import { assertProfitVisible, profitHidden } from './profitGuard'
@@ -419,6 +420,14 @@ export const gstSummaryTool = defineTool({
     const [y, m] = period.split('-').map(Number) as [number, number]
     const from = `${period}-01`
     const to = `${period}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
+    const sources: AiSource[] = [{ kind: 'screen', screen: 'gstr3b', label: `GSTR-3B ${period}` }]
+    // R3 / FIG-G-3: a month whose return period (a quarterly filer's quarter) has no regular day has
+    // no GSTR-3B (the screen says so) — never nil-rated figures.
+    const span = returnSpanAt(ctx.db, from, to)
+    const registration = returnRegistrationIn(ctx.company, span.from, span.to)
+    if (registration !== 'regular') {
+      return { data: { period, from, to, noReturn: gstReturnNotDueMessage('gstr3b', registration, ctx.company, span.to) }, sources }
+    }
     const v = gstr3b(ctx.db, ctx.company, from, to, gstPeriodOf(from))
     return {
       data: {
@@ -433,7 +442,7 @@ export const gstSummaryTool = defineTool({
         netPayableAfterItc: taxRow(v.netPayable),
         reverseChargePayable: taxRow(v.rcmPayable)
       },
-      sources: [{ kind: 'screen', screen: 'gstr3b', label: `GSTR-3B ${period}` }]
+      sources
     }
   }
 })

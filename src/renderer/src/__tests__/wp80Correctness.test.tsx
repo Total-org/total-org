@@ -119,9 +119,12 @@ describe('GST screens for an unregistered company', () => {
   it('the GST returns / e-documents are flagged and hidden; GSTR-3B says no return is due', async () => {
     const flagged = SCREENS.filter((s) => s.requiresGstRegistration).map((s) => s.name).sort()
     expect(flagged).toEqual(['edocs', 'gstr1', 'gstr2b', 'gstr3b', 'gstr9', 'itc-reversal', 'itc04'])
-    expect(screenApplies({ requiresGstRegistration: true }, 'unregistered')).toBe(false)
-    expect(screenApplies({ requiresGstRegistration: true }, 'composition')).toBe(true)
-    expect(screenApplies({}, 'unregistered')).toBe(true)
+    expect(screenApplies({ requiresGstRegistration: true }, { gstRegistrationType: 'unregistered' })).toBe(false)
+    expect(screenApplies({ requiresGstRegistration: true }, { gstRegistrationType: 'composition' })).toBe(true)
+    expect(screenApplies({}, { gstRegistrationType: 'unregistered' })).toBe(true)
+    // R3: a cancelled registration keeps its GST screens (its registered months are still filed).
+    expect(screenApplies({ requiresGstRegistration: true }, { gstRegistrationType: 'unregistered', gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: 'regular' })).toBe(true)
+    expect(screenApplies({ requiresGstRegistration: true }, { gstRegistrationType: 'unregistered', gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: 'unregistered' })).toBe(false)
     act(() => useSession.setState({ slug: 'k3', info: info('unregistered'), from: '2026-04-01', to: '2027-03-31' }))
     renderUi(<Gstr3bScreen />)
     expect((await screen.findByTestId('gstr3b-unregistered')).textContent).toMatch(/not registered for GST, so no GSTR-3B is due/)

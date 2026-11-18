@@ -545,7 +545,7 @@ export function useAlwaysFullRedirect(): void {
   const mode = useMode()
   const slug = useSession((s) => s.slug)
   const userId = useSession((s) => s.user?.id)
-  const gstType = useSession((s) => s.info?.gstRegistrationType)
+  const info = useSession((s) => s.info)
   useEffect(() => {
     const cameBack = lastDepth.current != null && depth < lastDepth.current
     lastDepth.current = depth
@@ -555,7 +555,7 @@ export function useAlwaysFullRedirect(): void {
     const full = fullCounterpart(screen)
     // Never into a screen the company can't use (GST returns of an unregistered business).
     const def = full ? screenDef(full.name) : undefined
-    if (full && (!def || screenApplies(def, gstType))) useNav.getState().replace(full)
+    if (full && (!def || screenApplies(def, info))) useNav.getState().replace(full)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- on arrival only (the screen entry)
   }, [screen])
 }

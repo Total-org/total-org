@@ -88,7 +88,7 @@ export function Shell({ children, onOpenPalette }: { children: ReactNode; onOpen
   useRovingRadios(simple)
   const visibleNav = NAV.filter((s) => !s.feature || features[s.feature]).map((s) => ({
     ...s,
-    items: s.items.filter((i) => (!i.feature || features[i.feature]) && screenApplies(i, info?.gstRegistrationType))
+    items: s.items.filter((i) => (!i.feature || features[i.feature]) && screenApplies(i, info))
   }))
   const navBtnCls = (top: boolean): string =>
     `t-nav-item flex w-full items-center gap-2 rounded-md py-[5px] text-left text-detail text-muted hover:bg-ink/5 hover:text-ink ${top ? 'px-2.5' : 'pr-2.5 pl-8'}`

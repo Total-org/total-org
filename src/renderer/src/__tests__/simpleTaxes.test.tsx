@@ -99,6 +99,22 @@ describe('Taxes — regular GST (WP 9.9)', () => {
     expect(bannedWordsIn(visibleText())).toEqual([])
   })
 
+  it('R3 / FIG-G-2: step 1 says an advance from a customer with no GST rate is not in the return, with its CA point — step 1 stays as it was', async () => {
+    renderUi(<TaxesScreen />)
+    await screen.findByTestId('taxes-step-1')
+    expect(screen.queryByTestId('taxes-advance-no-rate')).toBeNull()
+    cleanup()
+    reply = { ...REGULAR, missing: [], advancesNoRate: { receipts: 2, customers: ['Ravi Consulting', 'Asha Tutors'] } }
+    renderUi(<TaxesScreen />)
+    const note = await screen.findByTestId('taxes-advance-no-rate')
+    expect(note.textContent).toContain('2 advances you received (Ravi Consulting, Asha Tutors) are not in your GST return, because the customer’s account has no GST rate.')
+    expect(note.textContent).toContain('Ask your CA what to do')
+    expect(screen.getByTestId('ca-check-simple-taxes-advanceNoRate')).toBeTruthy()
+    // Advice only: with nothing missing, step 1 is still done.
+    expect(screen.getByTestId('taxes-step-1').getAttribute('data-done')).toBe('true')
+    expect(bannedWordsIn(visibleText())).toEqual([])
+  })
+
   it('"not checked yet" when no GSTR-2B is imported', async () => {
     reply = { ...REGULAR, figures: { ...REGULAR.figures, checked: 'none', awaiting: 0 }, supplierBills: [{ month: '2026-09', imported: false, matched: 0, categories: [] }] }
     renderUi(<TaxesScreen />)

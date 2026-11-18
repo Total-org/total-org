@@ -9,7 +9,7 @@
 //     refuses a bad ARN / date on their fields; a viewer reads but can't note a filing.
 import { TRUSTED_EVENT } from './ipcSender.testutil'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
@@ -24,6 +24,7 @@ import { saveVoucher } from './services/vouchers'
 import { getFeatures, setFeatures } from './services/config'
 import { ensureTdsPayableLedger } from './services/tds'
 import { simpleTaxes } from './services/simpleTaxes'
+import { companyExportsDir } from './paths'
 
 const handlers = new Map<string, (event: unknown, payload: unknown) => Promise<{ ok: boolean; data?: unknown; error?: string; code?: string; field?: string }>>()
 
@@ -380,6 +381,15 @@ describe('simple:taxes — not regular, roles (WP 9.9)', () => {
     await ok('company:open', { slug: comp.slug })
     const c = await ok<SimpleTaxes>('simple:taxes', { today: TODAY })
     expect(c).toEqual({ kind: 'composition', today: TODAY, composition: nextCompositionDue(TODAY, cmp08DueDate, gstr4DueDate), withholding: [] })
+    // R3 / FIG-G-3: a composition period's GSTR-1 / GSTR-3B export is refused with its own code and
+    // writes nothing (s.37(1), s.39(1) CGST Act — the dealer files CMP-08 and GSTR-4).
+    const args = { from: '2026-09-01', to: '2026-09-30', period: '092026' }
+    for (const form of ['gstr1', 'gstr3b'] as const) {
+      const r = await call(form === 'gstr1' ? 'gst:exportGstr1' : 'gst:exportGstr3b', args)
+      expect(r).toMatchObject({ ok: false, code: 'gst_return_not_due' })
+      expect(r.error).toContain('A composition dealer files CMP-08 and GSTR-4')
+      expect(existsSync(join(companyExportsDir(comp.slug), `${form}-092026.json`))).toBe(false)
+    }
   })
 
   it('TDS (feature on, a payable account): this month’s deduction, its date, and what is unpaid — FIFO, March due 30 April', () => {

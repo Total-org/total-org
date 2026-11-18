@@ -147,7 +147,7 @@ export async function signIn(g: OpenGateway, otp: string): Promise<{ signedIn: t
 /** The return's JSON — the export's, behind the export's own gate (blocking issues refuse it). */
 function returnJson(db: DB, company: CompanyInfo, form: GatewayForm, retPeriod: string): Record<string, unknown> {
   const { from, to } = periodRange(retPeriod)
-  gst.assertExportable(db, company, from, to)
+  gst.assertExportable(db, company, from, to, form)
   return form === 'gstr1' ? gst.gstr1(db, company, from, to, retPeriod).json : gst.gstr3b(db, company, from, to, retPeriod).json
 }
 

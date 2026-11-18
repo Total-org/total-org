@@ -73,6 +73,12 @@ export function GstSteps({ x }: { x: Regular }): React.JSX.Element {
       </div>
       <ol className="mt-2">
         <Step n={1} title={t('simple.taxes.gst.step1')} done={done.missing} testId="taxes-step-1">
+          {x.advancesNoRate && (
+            <p className="mb-1" data-testid="taxes-advance-no-rate">
+              {t('simple.taxes.step1.advanceNoRate', { count: x.advancesNoRate.receipts, names: x.advancesNoRate.customers.join(', ') })}
+              <CaCheck place="simple.taxes.advanceNoRate" />
+            </p>
+          )}
           {x.missing.length === 0 ? (
             <p>{t('simple.taxes.step1.ok')}</p>
           ) : (

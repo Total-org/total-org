@@ -137,6 +137,27 @@ function nextMonthDay(ym: string, day: number): string {
   return m === 12 ? `${y + 1}-01-${pad2(day)}` : `${y}-${pad2(m + 1)}-${pad2(day)}`
 }
 
+/**
+ * R3 (review of #290) — the return period a span of days is filed in. A quarterly (QRMP) filer
+ * furnishes its return "for every quarter or part thereof" (proviso to s.39(1) CGST Act, read in the
+ * CBIC copy 2026-11-18), so a month of theirs belongs to its quarter (Apr–Jun, Jul–Sep, Oct–Dec,
+ * Jan–Mar: the calendar quarters); a monthly filer's span is itself. `from` / `to` are ISO dates.
+ */
+export function returnPeriodSpan(from: string, to: string, filing: GstFilingFrequency): { from: string; to: string } {
+  if (filing !== 'quarterly') return { from, to }
+  const firstMonth = (iso: string): [number, number] => {
+    const y = Number(iso.slice(0, 4))
+    const m = Number(iso.slice(5, 7))
+    return [y, m - ((m - 1) % 3)]
+  }
+  const [fy, fm] = firstMonth(from)
+  const [ty, tm] = firstMonth(to)
+  const lastMonth = tm + 2
+  const lastDay = new Date(Date.UTC(ty, lastMonth, 0)).getUTCDate()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return { from: `${fy}-${pad(fm)}-01`, to: `${ty}-${pad(lastMonth)}-${pad(lastDay)}` }
+}
+
 /** True for the last month of an Indian FY quarter (Jun / Sep / Dec / Mar). */
 export const isQuarterEndMonth = (ym: string): boolean => Number(ym.slice(5, 7)) % 3 === 0
 

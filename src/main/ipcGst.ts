@@ -73,7 +73,7 @@ export function registerGstIpc(handle: IpcHandle, { requireCompany }: IpcContext
   const exportGstQuarter = (c: OpenCompany, form: 'gstr1' | 'gstr3b', from: string, to: string, period: string): { folder: string; files: string[] } => {
     const months = quarterExportMonths(from, to, period)
     if (!months) throw new AppError('invalid_input', 'A quarterly export covers a whole quarter, named by its last month.', { field: 'period' })
-    for (const m of months) gst.assertExportable(c.db, c.info, m.from, m.to)
+    for (const m of months) gst.assertExportable(c.db, c.info, m.from, m.to, form)
     // One transaction: a failure on a later month (or while copying) leaves no month's GSTR-9
     // snapshot or audit row behind, so the quarter is never half "prepared". Files already written
     // are the monthly exports' own (a re-export rewrites them).
@@ -95,7 +95,7 @@ export function registerGstIpc(handle: IpcHandle, { requireCompany }: IpcContext
     if (quarter) return exportGstQuarter(c, 'gstr1', from, to, period)
     // Server-side export gate (G7): blocking validation issues refuse the export outright —
     // the renderer disables the button too, but the gate must hold for any caller.
-    gst.assertExportable(c.db, c.info, from, to)
+    gst.assertExportable(c.db, c.info, from, to, 'gstr1')
     const { jsonPath, csvPath } = exportGstr1Month(c, from, to, period)
     shell.showItemInFolder(jsonPath)
     return { jsonPath, csvPath }
@@ -140,7 +140,7 @@ export function registerGstIpc(handle: IpcHandle, { requireCompany }: IpcContext
     if (quarter) return exportGstQuarter(c, 'gstr3b', from, to, period)
     // Same server-side gate as gst:exportGstr1 — 3B is computed from the same extracted
     // documents, so a period with blocking validation issues must not export either return.
-    gst.assertExportable(c.db, c.info, from, to)
+    gst.assertExportable(c.db, c.info, from, to, 'gstr3b')
     const { jsonPath } = exportGstr3bMonth(c, from, to, period)
     shell.showItemInFolder(jsonPath)
     return { jsonPath }

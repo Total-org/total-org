@@ -35,6 +35,21 @@ edit-log row, with plain messages when it is refused (SEC3-4).
 For developers: `<dataRoot>/screen-locks.json` (`services/screenLocks.ts`), `shared/pinRules.ts`,
 error codes `screen_locked_passphrase`, `owner_pin_short`, `owner_pin_needed`, `msme_acceptance_*`.
 
+**GST returns follow the registration of the month you file** (#290, 1.0 readiness review FIG-G-3).
+A month in which the business was under the composition scheme no longer shows a GSTR-1 or GSTR-3B
+with its sales as nil-rated: the screen says "A composition dealer files CMP-08 and GSTR-4, not this
+return", and the file can't be exported. GSTR-2B says there is no GST credit to reconcile (a
+composition dealer can't claim it). This goes by the month, not today: a business that moved from
+regular to composition (or whose registration was cancelled) still opens, checks and exports the
+returns of its regular months — before, today's composition blocked them, and a cancelled
+registration hid the GST screens. A month the registration changed in counts as a regular month
+(s.39(1) "or part thereof"), and a quarterly filer's month goes by its quarter; the bills of the
+other days are listed with a "Check with your CA" warning. A month before a new registration
+says when the registration took effect. **An advance from a customer with no GST rate is now
+pointed out** (FIG-G-2): GSTR-1 Table 11A leaves such an advance out, and the GSTR-1 checks and
+the simple Taxes screen (step 1) now say so and send you to your CA — Total does not add it by
+itself. No figure in any return or report changes. Marked "Check with your CA" (Q60, Q61).
+
 ## [0.12.6] - 2026-11-18
 
 **A bill uses the advance the customer already paid** (#288, readiness review FIG-G-1). When a

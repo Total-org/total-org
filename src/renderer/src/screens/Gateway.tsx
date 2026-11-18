@@ -70,8 +70,7 @@ export function Gateway(): React.JSX.Element {
   const { from, to, info } = useSession()
   const today = todayISO()
   const features = useFeatures()
-  const regType = info?.gstRegistrationType
-  const shortcuts = useMemo(() => SHORTCUTS.filter((c) => (!c.feature || features[c.feature]) && screenApplies(c, regType)), [features, regType])
+  const shortcuts = useMemo(() => SHORTCUTS.filter((c) => (!c.feature || features[c.feature]) && screenApplies(c, info)), [features, info])
 
   const opts = useScreenOptions('gateway', { charts: true, parties: true, activity: true })
   // Launch to Home: the series, report:dashboard and the two chips (MSME due, promised) are ONE
