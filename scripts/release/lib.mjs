@@ -172,15 +172,31 @@ export function blockerVerdict(openPrs) {
   return { ok: true, reason: `no open PR is labelled ${BLOCKER_LABEL}` }
 }
 
+/** Is a release of the last tag still under way? `releaseRuns` are release.yml's own runs (a tag
+ *  pushed by hand, a re-run by dispatch), `slotRuns` scheduled-release.yml's runs (a slot CALLS
+ *  release.yml, so its build runs inside the slot's run), each `{ id, status, event }`; `ownRunId` is
+ *  this run. GitHub gives a run the status 'waiting' while a job waits for an environment's
+ *  reviewers — here only the sign job's `production-release`, so 'waiting' = the owner's approval.
+ *  Returns 'approval', 'building' or null. A release.yml run that has not finished counts in any
+ *  status (a queued one will build it); a slot run only while it runs (in_progress / waiting) and
+ *  never a pull-request dry run — a queued slot has not built anything yet. */
+export function releaseBuildState(releaseRuns, slotRuns, ownRunId) {
+  const slots = slotRuns.filter((r) => String(r.id) !== String(ownRunId) && r.event !== 'pull_request' && (r.status === 'in_progress' || r.status === 'waiting'))
+  const going = [...releaseRuns.filter((r) => r.status !== 'completed'), ...slots]
+  if (going.some((r) => r.status === 'waiting')) return 'approval'
+  return going.length ? 'building' : null
+}
+
 /** Is the last tag a finished release — published (not a draft) with every asset? `release` is the
- *  GitHub release for the tag, or null when there is none. */
-export function lastReleaseVerdict(tag, release, buildRunning = false) {
+ *  GitHub release for the tag, or null when there is none; `building` is `releaseBuildState`'s answer. */
+export function lastReleaseVerdict(tag, release, building = null) {
   const version = String(tag).replace(/^v/, '')
   const rerun = 're-run it: Actions → Release → Run workflow with that tag'
-  // A draft while its Release run is still going = being built (a release by hand): wait, quietly.
-  if ((!release || release.draft) && buildRunning) return { ok: false, wait: true, reason: `${tag} is still being built (its Release run is in progress)` }
+  // A draft while a release run is still going = being built, or signed once the owner approves: wait, quietly.
+  if ((!release || release.draft) && building === 'approval') return { ok: false, wait: true, reason: `${tag} is built and waiting for the owner's approval to be signed and published (environment production-release)` }
+  if ((!release || release.draft) && building) return { ok: false, wait: true, reason: `${tag} is still being built (its release run is in progress)` }
   if (!release) return { ok: false, reason: `${tag} has no GitHub release — ${rerun}` }
-  if (release.draft) return { ok: false, reason: `the ${tag} release is still a draft — its build did not finish; ${rerun}` }
+  if (release.draft) return { ok: false, reason: `the ${tag} release is still a draft — its build or signing did not finish, or the signing was not approved; ${rerun}` }
   const missing = missingAssets(version, (release.assets ?? []).map((a) => a.name))
   if (missing.length) return { ok: false, reason: `the ${tag} release lacks ${missing.join(', ')} — ${rerun}` }
   return { ok: true, reason: `${tag} is published with every asset` }

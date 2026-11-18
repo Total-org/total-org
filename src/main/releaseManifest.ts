@@ -87,14 +87,14 @@ export const releaseAssetUrl = (repo: string, version: string, name: string): st
   `https://github.com/${repo}/releases/download/v${encodeURIComponent(version.replace(/^v/, ''))}/${encodeURIComponent(name)}`
 
 /** The installer a person downloads by hand on this platform (macOS → the DMG, Windows → the setup exe).
- *  On macOS the DMG built for this machine's `arch` is preferred (`Total-<v>-arm64.dmg`, or the
- *  arch-less x64 name), else any DMG of that version as before. */
-export function installerFor(manifest: ReleaseManifest, platform: string, arch?: string): ManifestAsset | null {
+ *  On macOS only the DMG built for this machine's `arch` (`Total-<v>-arm64.dmg`, or the arch-less
+ *  x64 name) — never another Mac's: 1.0 ships for Apple silicon only (readiness review SEC3-7), so
+ *  an Intel Mac gets null and is told there is no download for this computer. */
+export function installerFor(manifest: ReleaseManifest, platform: string, arch: string): ManifestAsset | null {
   const v = manifest.version
   if (platform === 'win32') return manifest.assets.find((a) => a.name === `Total-Setup-${v}.exe`) ?? null
   if (platform !== 'darwin') return null
-  const exact = arch ? manifest.assets.find((a) => a.name === `Total-${v}-${arch}.dmg` || (arch === 'x64' && a.name === `Total-${v}.dmg`)) : undefined
-  return exact ?? manifest.assets.find((a) => a.name.startsWith(`Total-${v}`) && a.name.endsWith('.dmg')) ?? null
+  return manifest.assets.find((a) => a.name === `Total-${v}-${arch}.dmg` || (arch === 'x64' && a.name === `Total-${v}.dmg`)) ?? null
 }
 
 /** Audit 2 SEC2-5: the asset names electron-updater may install on this platform — the setup exe on

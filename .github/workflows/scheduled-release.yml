@@ -18,7 +18,10 @@
 #   4. bump       — npm version patch + CHANGELOG "Unreleased" → the new version, committed and
 #                   tagged by github-actions[bot], pushed to main (refused if main moved).
 #   5. release    — calls release.yml (mac DMG/ZIP, Windows EXE, latest.yml name check,
-#                   packaged smoke). Releases publish directly, never drafts.
+#                   packaged smoke) into a DRAFT; its sign job (environment production-release)
+#                   waits for the owner's approval, signs total-manifest.json and only then
+#                   publishes. Meanwhile later slots wait in this group; a PR dry run reads the
+#                   draft as a quiet "waiting for approval" (lib.mjs releaseBuildState).
 #   6. verify     — /releases/latest carries every asset and irminflow.com/api/latest AND
 #                   devjindal.tech/api/latest (old installs ask it) say the new version.
 #
@@ -76,6 +79,7 @@ jobs:
       # Always main (a dry run from a PR judges what the next slot would see); the PR's own scripts.
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Fetch main and the tags
         run: git fetch --force --tags origin main
@@ -108,16 +112,19 @@ jobs:
       - name: Check out main HEAD (the code under test)
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.sha }}
           path: head
       - name: Check out the last release (${{ needs.preflight.outputs.last_tag }})
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           ref: refs/tags/${{ needs.preflight.outputs.last_tag }}
           path: old
       - name: This run's gate scripts (a PR dry run tests its own)
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           path: gate
           sparse-checkout: |
             scripts/release
@@ -178,6 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           sparse-checkout: scripts/release
       - uses: actions/setup-node@v4
         with:
@@ -272,7 +280,11 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.bump.outputs.tag }}
-    secrets: inherit
+    # Only the signing key, and only while it is still a repository secret: once the owner has moved
+    # it into the production-release environment (readiness review SEC2-1) release.yml's sign job
+    # reads that one, which wins, and this passes nothing.
+    secrets:
+      RELEASE_MANIFEST_KEY: ${{ secrets.RELEASE_MANIFEST_KEY }}
 
   verify:
     needs: [decide, release]
@@ -284,6 +296,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           # src/main: releaseKeys.json, the pinned key the signed manifest is checked against (A4).
           sparse-checkout: |
             scripts/release
@@ -316,6 +329,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           sparse-checkout: scripts/release
       - uses: actions/setup-node@v4
         with:

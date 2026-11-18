@@ -17,8 +17,11 @@ on:
         required: true
         type: string
     secrets:
-      # Audit A4: the Ed25519 key that signs total-manifest.json (scheduled-release passes it with
-      # `secrets: inherit`; without it the signing step fails and the release stays a draft).
+      # Audit A4: the Ed25519 key that signs total-manifest.json. Scheduled-release passes the
+      # REPOSITORY secret of that name, if there still is one; the sign job's environment
+      # (production-release) has its own secret of the same name, which wins when both exist
+      # (readiness review SEC2-1: the owner moves the key there and deletes the repository secret).
+      # With neither the signing step fails and the release stays a draft.
       RELEASE_MANIFEST_KEY:
         required: false
   # Re-run a release whose build failed after its tag was pushed (Actions → Release → Run workflow).
@@ -41,9 +44,12 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
+      # Readiness review SEC2-4: no token on disk while npm ci, the tests and electron-builder run;
+      # GH_TOKEN reaches only the steps that create / upload to the release.
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -83,8 +89,8 @@ jobs:
           SMOKE_OUT: ${{ runner.temp }}/smoke
 
       - name: Ensure the release exists (one per tag)
-        # electron-builder's parallel asset uploads race to CREATE the release and can end up
-        # with two releases on one tag (observed on v0.3.0) — pre-creating makes it only upload.
+        # One release per tag, created here; both build jobs only upload into it with `gh` (electron-
+        # builder's own publishing raced to create it and made two releases on v0.3.0 / v0.2.0).
         # Created as a DRAFT and published only after the Windows files are up (last step of
         # sign-and-publish, after release-win), so /releases/latest never points at a release without its assets.
         # Notes = the version's CHANGELOG section when the tree has the script (scheduled releases).
@@ -94,28 +100,40 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish DMG + ZIP to the release
-        run: npx electron-builder --mac --publish always
+      # SEC2-4: electron-builder runs without a token (--publish never); the files are uploaded by
+      # the step after the checks. It still writes latest-mac.yml and the blockmaps (publish config).
+      - name: Build DMG + ZIP (no publish)
+        run: npx electron-builder --mac --publish never
         env:
           DEBUG: '@electron/get:index'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Unsigned beta builds: users right-click → Open on first launch, and the
           # in-app updater falls back to a "download the new version" prompt.
           # When you have an Apple Developer ID, add CSC_LINK + CSC_KEY_PASSWORD
-          # secrets here and auto-update becomes fully silent.
+          # secrets here and auto-update becomes fully silent (to-do.md §3, SEC3-1).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       # Audit 2026-11 A2: the DMG / ZIP were built with the fuses package.json sets, and the ad-hoc
       # re-sign after flipping them left a valid signature (an arm64 Mac refuses to start a binary
-      # whose signature is broken). The release is still a draft here — release-win needs this job,
-      # so a failure keeps it unpublished.
-      - name: Electron fuses + signature of the packaged build
+      # whose signature is broken). Checked BEFORE anything is uploaded.
+      - name: Electron fuses + signature + contents of the packaged build
         run: |
           app="$(ls -d dist/mac*/Total.app | head -1)"
           node scripts/fuses.mjs check "$app/Contents/MacOS/Total"
           codesign --verify --deep --strict "$app"
           # Audit 2 SEC2-3: the shipped build refuses --remote-debugging-port / -pipe.
           node scripts/debug-switch-check.mjs "$app/Contents/MacOS/Total"
+          # Readiness review SEC3-3: no type-check output (build paths, source file names) in the app.
+          node scripts/release/asar-check.mjs "$app/Contents/Resources/app.asar"
+
+      # Readiness review SEC3-7: 1.0 is Apple silicon only — exactly the arm64 files, by name (a
+      # missing one fails here), and latest-mac.yml must name that zip. The release is still a draft.
+      - name: Upload DMG + ZIP to the release
+        run: |
+          v="${TAG#v}"
+          grep -q "^path: Total-$v-arm64-mac.zip$" dist/latest-mac.yml || { echo "latest-mac.yml does not name Total-$v-arm64-mac.zip"; cat dist/latest-mac.yml; exit 1; }
+          gh release upload "$TAG" "dist/Total-$v-arm64.dmg" "dist/Total-$v-arm64.dmg.blockmap" "dist/Total-$v-arm64-mac.zip" "dist/Total-$v-arm64-mac.zip.blockmap" dist/latest-mac.yml --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-win:
     # Runs after the mac job so both publish into the SAME release —
@@ -124,9 +142,12 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
+      # Readiness review SEC2-4: no token on disk while npm ci, the tests and electron-builder run;
+      # GH_TOKEN reaches only the steps that create / upload to the release.
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -177,6 +198,7 @@ jobs:
         run: |
           node scripts/fuses.mjs check dist/win-unpacked/Total.exe
           node scripts/debug-switch-check.mjs dist/win-unpacked/Total.exe
+          node scripts/release/asar-check.mjs dist/win-unpacked/resources/app.asar
           node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
 
       - name: Hermetic IPC smoke test against the packaged Total.exe
@@ -198,16 +220,26 @@ jobs:
   # against the key pinned in src/main/releaseKeys.json. Signed in a job of its own (review of #251):
   # no `npm ci`, no tests, no electron-builder ran on this runner, so no third-party package code
   # shares a machine with the key; it signs the files as GitHub now holds them, checks them back, and
-  # only then publishes. No key = the release stays a draft (apps from A4 on would never take an
-  # unsigned one). The checkout is the workflow's own ref (main for a scheduled / dispatched run) so a
-  # re-run of an older tag is signed too; a tag pushed from a tree without the script skips signing.
+  # only then publishes.
+  # Readiness review SEC2-1 / SEC3-6:
+  #   - environment production-release: the owner is its required reviewer and it deploys only from
+  #     main and v* tags, so EVERY release (a scheduled slot's too) waits here for the owner's click,
+  #     and a run on any other branch never reaches the key. The scheduled gate reads that wait as a
+  #     quiet "waiting for approval" (scripts/release/lib.mjs releaseBuildState).
+  #   - the scripts are the TAG's (the code being released), not the workflow's ref.
+  #   - signing is not optional: no key, no script or a failed check = the job fails and the release
+  #     stays a draft; publishing runs only after the signed manifest is confirmed on the release.
+  #     (A tag cut before A4 has no script and can no longer be published this way.)
   sign-and-publish:
     needs: release-win
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production-release
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
           sparse-checkout: |
             scripts/release
             src/main
@@ -217,7 +249,6 @@ jobs:
           node-version: 22
 
       - name: Sign the release manifest
-        if: hashFiles('scripts/release/manifest.mjs') != ''
         run: |
           dir="$RUNNER_TEMP/release-assets"
           rm -rf "$dir" && mkdir -p "$dir"
@@ -230,7 +261,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_MANIFEST_KEY: ${{ secrets.RELEASE_MANIFEST_KEY }}
 
-      - name: Publish the release (never left as a draft)
-        run: gh release edit "${TAG}" --draft=false --latest --repo "${GITHUB_REPOSITORY}"
+      - name: Publish the release (only with the manifest just signed on it; never left as a draft)
+        run: |
+          gh release download "${TAG}" --pattern total-manifest.json --output "$RUNNER_TEMP/published-manifest.json" --repo "${GITHUB_REPOSITORY}"
+          cmp "$RUNNER_TEMP/total-manifest.json" "$RUNNER_TEMP/published-manifest.json"
+          gh release edit "${TAG}" --draft=false --latest --repo "${GITHUB_REPOSITORY}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

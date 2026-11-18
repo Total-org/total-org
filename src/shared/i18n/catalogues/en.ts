@@ -1777,6 +1777,7 @@ export const en = {
   'simple.updates.checking': 'Checking…',
   'simple.updates.upToDate': 'You have the latest version ({version}).',
   'simple.updates.unverified': 'Total {version} was found, but it could not be checked as a genuine release, so it is not offered. Try again later.',
+  'simple.updates.noInstaller': 'Total {version} has no download for this computer. On a Mac, Total needs Apple silicon (M1 or newer).',
   'simple.updates.checked': 'Total {version} is downloaded and checked.',
   'simple.updates.checkedHint': 'It matches the signed release. Open it to install the new version. Your business records are not touched.',
   'simple.updates.openInstaller': 'Open it',

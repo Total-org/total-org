@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
+    "@electron/asar": "^3.4.1",
     "@electron/fuses": "^1.8.0",
     "@tailwindcss/vite": "^4.1.0",
     "@tanstack/react-query": "^5.62.0",
@@ -72,6 +73,7 @@
     "files": [
       "out/**/*",
       "!out/cli/**",
+      "!out/types-*/**",
       "package.json",
       "!**/node_modules/better-sqlite3-multiple-ciphers/{deps,src,build}/**",
       "!**/node_modules/better-sqlite3-multiple-ciphers/prebuilds/!(${platform}-${arch}).node"

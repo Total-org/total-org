@@ -10,6 +10,11 @@ on:
   pull_request:
     branches: [main]
 
+# Readiness review SEC2-4: read-only token (no job writes to the repository; caches and artifacts use
+# their own runtime token), and no checkout leaves it on disk.
+permissions:
+  contents: read
+
 jobs:
   # Every job has a timeout (audit A11 / HEALTH-7: the default is 6 h, so a hung Electron or
   # vitest run used to hold a runner all that time). Roughly 3x each job's usual length.
@@ -23,6 +28,8 @@ jobs:
       TZ: Asia/Kolkata
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -68,6 +75,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -103,6 +112,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -154,6 +165,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -205,6 +218,8 @@ jobs:
           Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
 
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -280,6 +295,8 @@ jobs:
         run: |
           node scripts/fuses.mjs check dist/win-unpacked/Total.exe
           node scripts/debug-switch-check.mjs dist/win-unpacked/Total.exe
+          # Readiness review SEC3-3: the typecheck above wrote out/types-*; none of it may ship.
+          node scripts/release/asar-check.mjs dist/win-unpacked/resources/app.asar
           node scripts/fuses.mjs test-copy dist/win-unpacked/Total.exe
 
       - name: Hermetic IPC smoke test (packaged Total.exe)
