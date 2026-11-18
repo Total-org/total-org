@@ -377,6 +377,13 @@ describe('every read tool runs on a real company', () => {
     expect(st.ok && (st.data as { closing: string }).closing).toBe('₹1,10,000.00 Dr')
     const tb = await registry.run('trial_balance', JSON.stringify({ asOn: '2025-08-31' }), ctx)
     expect(tb.ok && (tb.data as { totalDebit: string }).totalDebit).toBe('₹1,50,000.00')
+    // R3 / FIG-G-3: a month under composition has no GSTR-3B — the tool says so instead of nil-rated
+    // figures; a regular month of the same business (composition only from 1 Aug 2025) keeps them.
+    const moved = { ...ctx, company: { ...INFO, gstRegistrationType: 'composition' as const, gstRegistrationSince: '2025-08-01', gstPreviousRegistrationType: 'regular' as const } }
+    const aug = await registry.run('gst_summary', JSON.stringify({ period: '2025-08' }), moved)
+    expect(aug.ok && (aug.data as { noReturn?: string }).noReturn).toContain('A composition dealer files CMP-08 and GSTR-4, not GSTR-3B')
+    const jul = await registry.run('gst_summary', JSON.stringify({ period: '2025-07' }), moved)
+    expect(jul.ok && 'outwardTaxable' in (jul.data as object)).toBe(true)
     // the facts resolver the draft tool shares with saveVoucher
     expect(ledgerFactsResolver(f.db)(f.cash)).toMatchObject({ exists: true, isCashOrBank: true })
   })

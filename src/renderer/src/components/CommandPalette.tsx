@@ -78,7 +78,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
   const toast = useToasts()
   const t = useT()
   const from = useSession((s) => s.from)
-  const regType = useSession((s) => s.info?.gstRegistrationType)
+  const info = useSession((s) => s.info)
+  const regType = info?.gstRegistrationType
   const user = useSession((s) => s.user)
   const features = useFeatures()
   const [query, setQuery] = useState('')
@@ -214,8 +215,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): React.JSX.
     () =>
       simpleMode && !searchText.trim()
         ? []
-        : matching(commands.filter((c) => (!c.feature || features[c.feature]) && screenApplies(c, regType) && !(c.capability && capabilityRefused(user, c.capability)))),
-    [commands, matching, features, regType, simpleMode, searchText, user]
+        : matching(commands.filter((c) => (!c.feature || features[c.feature]) && screenApplies(c, info) && !(c.capability && capabilityRefused(user, c.capability)))),
+    [commands, matching, features, info, simpleMode, searchText, user]
   )
   const filteredSimple = useMemo(() => matching(simpleCommands), [simpleCommands, matching])
 

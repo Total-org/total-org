@@ -2,6 +2,8 @@ import { GST_STATES } from './states'
 import { B2CL_THRESHOLD_PAISE, b2clLimitOn, isZeroRatedTyp, type GstDoc } from './returns'
 import { isUqc } from './uqc'
 import { einvoiceDocNoWarning } from './einvoiceSchema'
+import { registrationOn, type GstRegistrationFacts } from './registration'
+import { toDisplayDate } from '../dates'
 
 const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -80,6 +82,9 @@ export interface GstIssue {
     | 'sales_discount_line'
     | 'einvoice_doc_no'
     | 'itc_blocked_note_mismatch'
+    | 'not_registered'
+    | 'advance_no_rate'
+    | 'not_regular_days'
   severity: 'blocking' | 'warning'
   message: string
   /** Vouchers to drill into from the issues panel (empty for company-level issues). */
@@ -89,10 +94,38 @@ export interface GstIssue {
 export interface Gstr1ValidationCompany {
   stateCode: string
   gstin: string | null
+  /** The registration the PERIOD is filed under (registration.ts `returnRegistrationIn` — regular
+   *  when it is regular on any day of the period), never today's for an earlier month. */
   gstRegistrationType: 'regular' | 'composition' | 'unregistered'
   /** The company e-invoices (services/gst.ts `einvoicingOn`): sales numbers the IRP would refuse
    *  (DocDtls.No) are warned about. Absent = no such warning. */
   einvoicing?: boolean
+}
+
+/**
+ * R3 / FIG-G-3 — a period filed as a regular return because the registration is regular on SOME of
+ * its days (s.39(1): "for every calendar month or part thereof"), holding documents dated on days it
+ * was not: under composition (rule 62(4) / (5) CGST Rules — that part goes in CMP-08 / GSTR-4) or not
+ * registered. Those documents carry no GST (WP 8.0, `chargesGstOn`) and so appear in this return at
+ * 0 % (Table 8 / 3.1(c)), which is not where they belong. A warning — the figures are as before
+ * (taking them out would move a filed month; that is the owner's call, to-do.md). Null when there
+ * are none, or when the whole period is not regular (the return is then not due at all).
+ */
+export function notRegularDaysIssue(docs: readonly Pick<GstDoc, 'voucherId' | 'date'>[], facts: GstRegistrationFacts): GstIssue | null {
+  const off = docs.filter((d) => registrationOn(facts, d.date) !== 'regular')
+  if (off.length === 0) return null
+  const n = off.length
+  const composition = off.some((d) => registrationOn(facts, d.date) === 'composition')
+  return {
+    code: 'not_regular_days',
+    severity: 'warning',
+    message:
+      `${n} document${n === 1 ? ' is' : 's are'} dated on days the company was ${composition ? 'under the composition scheme' : 'not registered for GST'} (the registration changed on ${facts.gstRegistrationSince ? toDisplayDate(facts.gstRegistrationSince) : 'a day in this period'}). ` +
+      `${n === 1 ? 'It appears' : 'They appear'} in this return at 0 %, but only the regular days belong in GSTR-1 / GSTR-3B (s.37(1), s.39(1) CGST Act)` +
+      (composition ? '; the composition days go in CMP-08 and GSTR-4 (rule 62 CGST Rules)' : '') +
+      '. Check with your CA before you upload this period’s file.',
+    voucherIds: [...new Set(off.map((d) => d.voucherId))]
+  }
 }
 
 /** Booked-vs-computed invoice value differences within ±₹1 are treated as legitimate round-off. */
@@ -125,14 +158,21 @@ export function blendedRateIssue(voucherIds: readonly number[]): GstIssue | null
 export function validateGstr1(docs: GstDoc[], company: Gstr1ValidationCompany): GstIssue[] {
   const issues: GstIssue[] = []
 
-  // Composition dealers file CMP-08/GSTR-4, never GSTR-1 — exporting one would just be
-  // rejected by the portal, so this blocks with an explanation instead of failing there.
+  // A period filed under composition (or with no registration on any day of it) has no GSTR-1
+  // (s.37(1) CGST Act excludes a s.10 person; s.39(2) / rule 62 give it CMP-08 and GSTR-4) — the
+  // portal would reject one, so this blocks with an explanation instead of failing there.
   if (company.gstRegistrationType === 'composition') {
     issues.push({
       code: 'composition',
       severity: 'blocking',
-      message:
-        'This company is registered under the composition scheme — composition dealers file CMP-08/GSTR-4, not GSTR-1.',
+      message: 'In this period the company was under the composition scheme — composition dealers file CMP-08 / GSTR-4, not GSTR-1.',
+      voucherIds: []
+    })
+  } else if (company.gstRegistrationType === 'unregistered') {
+    issues.push({
+      code: 'not_registered',
+      severity: 'blocking',
+      message: 'The company was not registered for GST on any day of this period, so no GSTR-1 is due for it.',
       voucherIds: []
     })
   }

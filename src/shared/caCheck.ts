@@ -31,6 +31,7 @@ export const CA_PLACES = {
   'simple.taxes.einvoice': 'Taxes → "e-invoicing applies to you"',
   'simple.taxes.tds': 'Taxes → TDS card',
   'simple.taxes.tcs': 'Taxes → TCS card',
+  'simple.taxes.advanceNoRate': 'Taxes → step 1, an advance from a customer with no GST rate',
   'simple.ratePicker': 'Every simple GST rate picker (new product, bill, purchase, money out, return, bank line)',
   'simple.returns.total': 'Returns → the return\'s total',
   'simple.returns.followsBill': 'Returns → a return of an SEZ / export bill saved before 8 Nov that charged GST',
@@ -40,6 +41,8 @@ export const CA_PLACES = {
   'gateway.tds': 'Gateway → Compliance card, TDS row',
   'gstr1.screen': 'GSTR-1 screen header',
   'gstr3b.screen': 'GSTR-3B screen header',
+  'gstr1.advanceNoRate': 'GSTR-1 checks → an advance from a customer with no GST rate',
+  'gstReturns.notRegularDays': 'GSTR-1 checks / GSTR-3B → bills of the days a changed registration was not regular',
   'gstr3b.outward': 'GSTR-3B → 3.1(a) row',
   'gstr3b.itc': 'GSTR-3B → 4(B) / 4(D) rows',
   'gstr9.screen': 'GSTR-9 screen',
@@ -433,6 +436,24 @@ export const CA_POINTS = [
     covers: [],
     questions: [59],
     places: ['tds.screen', 'voucher.tdsCrossing', 'simple.money.tdsHint']
+  },
+  {
+    // R3 / FIG-G-2 (1.0 readiness review): an advance from a customer without a GST rate is left out of
+    // Table 11A; Total only warns (services/gst.ts rateLessAdvanceIssue) — whether it is taxed is the CA's.
+    id: 'gst-advance-no-rate',
+    rule: 's.13(2) CGST Act; rule 50 proviso CGST Rules; Notification 66/2017-CT; GSTR-1 Table 11A',
+    covers: [],
+    questions: [60],
+    places: ['gstr1.advanceNoRate', 'simple.taxes.advanceNoRate']
+  },
+  {
+    // R3 / FIG-G-3: a month the registration changed in is filed as a regular return; the bills of its
+    // other days stay in it at 0 % (a warning — moving them out would move a filed month).
+    id: 'gst-split-registration-month',
+    rule: 's.37(1), s.39(1) CGST Act ("for every calendar month or part thereof"); rule 62(4) and (5) CGST Rules',
+    covers: [],
+    questions: [61],
+    places: ['gstReturns.notRegularDays']
   },
   {
     // WP 2d (owner, 13 Nov): a discount booked on an account is taken off the GST value (s.15(3)(a)).

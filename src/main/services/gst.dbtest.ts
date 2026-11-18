@@ -268,11 +268,11 @@ describe('gst service — extraction (G1)', () => {
     expect(missing.severity).toBe('blocking')
     expect(missing.voucherIds).toHaveLength(1)
 
-    expect(() => assertExportable(s.db, TEST_INFO, FROM, TO)).toThrow(/GST export blocked/)
+    expect(() => assertExportable(s.db, TEST_INFO, FROM, TO, 'gstr1')).toThrow(/GST export blocked/)
 
     // Composition companies are refused outright, with an explanation.
     expect(() =>
-      assertExportable(s.db, { ...TEST_INFO, gstRegistrationType: 'composition' }, FROM, TO)
+      assertExportable(s.db, { ...TEST_INFO, gstRegistrationType: 'composition' }, FROM, TO, 'gstr1')
     ).toThrow(/composition/)
   })
 })

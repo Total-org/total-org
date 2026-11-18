@@ -217,6 +217,8 @@ export const ERROR_MAP = {
   simple_report_period: e('errors.reports.period', 'to'),
   simple_taxes_period: e('errors.taxes.period', 'period'),
   gst_filed_not_regular: e('errors.taxes.notRegular'),
+  // R3 / FIG-G-3: a GSTR-1 / GSTR-3B export of a period with no regular day (services/gst.ts assertExportable).
+  gst_return_not_due: e('errors.taxes.notDue'),
   gst_filed_too_early: e('errors.taxes.tooEarly', 'date'),
   gst_filed_arn: e('errors.taxes.arn', 'arn'),
   gst_filed_date: e('errors.taxes.filedDate', 'date'),

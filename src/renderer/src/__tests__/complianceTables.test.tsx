@@ -127,7 +127,8 @@ beforeEach(() => {
       slug: 'alpha-co',
       from: '2026-04-01',
       to: '2026-04-30',
-      info: { gstin: '27AAAAA0000A1Z5' } as CompanyInfo
+      // A regular registration (R3: the return screens read it for the month shown).
+      info: { gstin: '27AAAAA0000A1Z5', gstRegistrationType: 'regular' } as CompanyInfo
     })
     useNav.setState({ go })
   })

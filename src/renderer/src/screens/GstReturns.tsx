@@ -15,6 +15,8 @@ import type { GstIssue } from '@shared/gst/validate'
 import type { Gst3bManualInput } from '@shared/schemas'
 import { CAPABILITY_REFUSED_TEXT, useCapabilityRefused } from '../lib/capabilities'
 import { CaCheck } from '../components/CaCheck'
+import { gstReturnNotDueMessage, returnRegistrationIn, type GstRegistrationType, type GstReturnForm } from '@shared/gst/registration'
+import { returnPeriodSpan } from '@shared/gst/filing'
 
 export interface MonthChoice {
   key: string // YYYY-MM
@@ -164,6 +166,40 @@ export function NoMonths({ pending = false }: { pending?: boolean } = {}): React
   )
 }
 
+// ---------- R3 / FIG-G-3: is a return due for the month? ----------
+
+/** The month's return period and the registration it is filed under (registration.ts
+ *  `returnRegistrationIn`: regular when it is regular on ANY day of the period — a quarterly filer's
+ *  quarter, filing.ts `returnPeriodSpan`, review of #290 — so a business that changed or cancelled its
+ *  registration still reads its regular months). Null while the month or the filing frequency is
+ *  being read (a failed read = monthly, as the gst:duePeriod read falls back); 'regular' when the
+ *  company's facts are not loaded. */
+export function useReturnRegistration(month: MonthChoice | null): { registration: GstRegistrationType; periodTo: string } | null {
+  const info = useSession((s) => s.info)
+  const profile = useQuery({ queryKey: ['gstProfile'], queryFn: api.gstProfile.get, enabled: !!info, retry: false })
+  if (!month || (info && profile.isPending)) return null
+  if (!info) return { registration: 'regular', periodTo: month.to }
+  const span = returnPeriodSpan(month.from, month.to, profile.data?.filing ?? 'monthly')
+  return { registration: returnRegistrationIn(info, span.from, span.to), periodTo: span.to }
+}
+
+const NOT_DUE_TITLE: Record<GstReturnForm, string> = {
+  gstr1: 'No GSTR-1 is due for this month',
+  gstr3b: 'No GSTR-3B is due for this month',
+  gstr2b: 'No GSTR-2B credit to reconcile for this month'
+}
+
+/** Said instead of a return's figures for a month whose return period has no regular day (testid
+ *  `<form>-composition` / `<form>-unregistered`). The month picker stays, so a regular month opens. */
+export function ReturnNotDue({ form, registration, periodTo }: { form: GstReturnForm; registration: Exclude<GstRegistrationType, 'regular'>; periodTo: string }): React.JSX.Element {
+  const info = useSession((s) => s.info)
+  return (
+    <Banner tone="info" testId={`${form}-${registration}`} title={NOT_DUE_TITLE[form]}>
+      {gstReturnNotDueMessage(form, registration, info ?? { gstRegistrationType: registration }, periodTo)}
+    </Banner>
+  )
+}
+
 // ---------- the GST returns tab family (WP 3.4) ----------
 
 export type GstReturnTab = 'gstr1' | 'gstr3b' | 'gstr9' | 'itc04' | 'itc-reversal'
@@ -224,11 +260,14 @@ const SEVERITY_CLASS: Record<GstIssue['severity'], string> = {
 }
 
 function IssueRow({
+  code,
   severity,
   message,
   voucherIds,
   onOpen
 }: {
+  /** The check's code (absent for the e-invoice round-off rows, which are no GstIssue). */
+  code?: GstIssue['code']
   severity: GstIssue['severity']
   message: string
   voucherIds: number[]
@@ -242,7 +281,12 @@ function IssueRow({
         <span className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-label font-medium capitalize ${SEVERITY_CLASS[severity]}`}>
           {severity}
         </span>
-        <span className="text-body-sm text-ink">{message}</span>
+        <span className="text-body-sm text-ink">
+          {message}
+          {/* The checks whose advice rests on a point not confirmed in the law's text (shared/caCheck.ts). */}
+          {code === 'advance_no_rate' && <CaCheck place="gstr1.advanceNoRate" />}
+          {code === 'not_regular_days' && <CaCheck place="gstReturns.notRegularDays" />}
+        </span>
       </div>
       {voucherIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pl-1">
@@ -304,15 +348,18 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
   const gatewayRecord = useGatewayRecord('gstr1', month?.period, portalShown)
   const nav = useNav()
   const toast = useToasts()
+  // R3 / FIG-G-3: a month with no regular day has no GSTR-1 — nothing is computed for it.
+  const filed = useReturnRegistration(month)
+  const due = !!month && filed?.registration === 'regular'
   const { data, isLoading } = useQuery({
     queryKey: ['gstr1', month?.key],
     queryFn: () => api.gst.gstr1(month!.from, month!.to, month!.period),
-    enabled: !!month
+    enabled: due
   })
   const { data: validation, isLoading: validating } = useQuery({
     queryKey: ['gstValidate', month?.key],
     queryFn: () => api.gst.validate(month!.from, month!.to),
-    enabled: !!month
+    enabled: due
   })
 
   // The B2C (Large) row names the limit of the month shown (₹2,50,000 before Aug 2024); the
@@ -344,11 +391,24 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
 
   const openVoucher = (voucherId: number): void => nav.go({ name: 'voucher-entry', voucherId })
 
-  if (!month) {
+  if (!month || !filed) {
     return (
       <Page>
         <PageHeader title="GSTR-1 · Outward supplies" />
-        <NoMonths pending={pending} />
+        <NoMonths pending={pending || !!month} />
+      </Page>
+    )
+  }
+
+  if (filed.registration !== 'regular') {
+    return (
+      <Page>
+        <PageHeader
+          title="GSTR-1 · Outward supplies"
+          tabs={<GstReturnTabs current="gstr1" />}
+          controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr1-month" quarter={dueQuarter} />}
+        />
+        <ReturnNotDue form="gstr1" registration={filed.registration} periodTo={filed.periodTo} />
       </Page>
     )
   }
@@ -404,7 +464,7 @@ export function Gstr1Screen({ initialMonth }: { initialMonth?: string } = {}): R
         <Panel className="mb-section" scroll={{ maxH: '18rem' }}>
           <div data-testid="rows-gstr1-issues">
             {[...blocking, ...warnings].map((issue, i) => (
-              <IssueRow key={`${issue.code}-${i}`} severity={issue.severity} message={issue.message} voucherIds={issue.voucherIds} onOpen={openVoucher} />
+              <IssueRow key={`${issue.code}-${i}`} code={issue.code} severity={issue.severity} message={issue.message} voucherIds={issue.voucherIds} onOpen={openVoucher} />
             ))}
             {roundOff.map((r) => (
               <IssueRow
@@ -593,20 +653,24 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
   const portalShown = !!info?.gstin && info.gstRegistrationType === 'regular'
   const gatewayRecord = useGatewayRecord('gstr3b', month?.period, portalShown)
   const toast = useToasts()
+  // R3 / FIG-G-3: a month with no regular day has no GSTR-3B — nothing is computed for it.
+  const filed = useReturnRegistration(month)
+  const due = !!month && filed?.registration === 'regular'
   const { data, isLoading } = useQuery({
     queryKey: ['gstr3b', month?.key],
     queryFn: () => api.gst.gstr3b(month!.from, month!.to, month!.period),
-    enabled: !!month
+    enabled: due
   })
   // Owner Q2 (audit 2 COR2-1): a debit note whose s.17(5) mark differs from its purchases' puts
-  // Table 4 out by its GST — the GSTR-1 checks' warning, shown here where Table 4 is filed.
+  // Table 4 out by its GST — the GSTR-1 checks' warning, shown here where Table 4 is filed. R3: so
+  // are documents of a month's composition / unregistered days, which sit in 3.1(c) at 0 %.
   const nav = useNav()
   const { data: validation } = useQuery({
     queryKey: ['gstValidate', month?.key],
     queryFn: () => api.gst.validate(month!.from, month!.to),
-    enabled: !!month
+    enabled: due
   })
-  const noteMarks = (validation?.issues ?? []).filter((i) => i.code === 'itc_blocked_note_mismatch')
+  const noteMarks = (validation?.issues ?? []).filter((i) => i.code === 'itc_blocked_note_mismatch' || i.code === 'not_regular_days')
 
   const exportRefused = useCapabilityRefused('canExport') // #148: hide / disable export buttons the owner refused
   const doExport = async (): Promise<void> => {
@@ -642,23 +706,26 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
     )
   }
 
-  // WP 8.0: an unregistered business files no GST returns — say so instead of nil-rated rows.
-  if (info?.gstRegistrationType === 'unregistered') {
+  if (!month || !filed) {
     return (
       <Page>
         <PageHeader title="GSTR-3B · Summary return" />
-        <Banner tone="info" testId="gstr3b-unregistered" title="No GSTR-3B is due">
-          This business is not registered for GST, so no GSTR-3B is due. If it registers, add the GSTIN under Company details.
-        </Banner>
+        <NoMonths pending={pending || !!month} />
       </Page>
     )
   }
 
-  if (!month) {
+  // WP 8.0 / R3: a month with no regular day (composition, or not registered) has no GSTR-3B — say
+  // so instead of nil-rated rows; the month picker stays for the registered months.
+  if (filed.registration !== 'regular') {
     return (
       <Page>
-        <PageHeader title="GSTR-3B · Summary return" />
-        <NoMonths pending={pending} />
+        <PageHeader
+          title="GSTR-3B · Summary return"
+          tabs={<GstReturnTabs current="gstr3b" />}
+          controls={<MonthBar months={months} value={monthKey} onChange={setMonthKey} testId="input-gstr3b-month" quarter={dueQuarter} />}
+        />
+        <ReturnNotDue form="gstr3b" registration={filed.registration} periodTo={filed.periodTo} />
       </Page>
     )
   }
@@ -700,7 +767,7 @@ export function Gstr3bScreen({ initialMonth }: { initialMonth?: string } = {}): 
         <Panel className="mb-3">
           <div data-testid="gstr3b-note-marks">
             {noteMarks.map((issue, i) => (
-              <IssueRow key={`${issue.code}-${i}`} severity={issue.severity} message={issue.message} voucherIds={issue.voucherIds} onOpen={(voucherId) => nav.go({ name: 'voucher-entry', voucherId })} />
+              <IssueRow key={`${issue.code}-${i}`} code={issue.code} severity={issue.severity} message={issue.message} voucherIds={issue.voucherIds} onOpen={(voucherId) => nav.go({ name: 'voucher-entry', voucherId })} />
             ))}
           </div>
         </Panel>

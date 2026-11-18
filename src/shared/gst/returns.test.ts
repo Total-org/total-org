@@ -16,7 +16,7 @@ import {
   buildEInvoiceJson, buildEwbJson, ewbEligibility, ewbIssues, splitAddress,
   EWB_THRESHOLD_PAISE, type EdocCompany, type EdocInvoice
 } from './edocs'
-import { validateGstr1 } from './validate'
+import { notRegularDaysIssue, validateGstr1 } from './validate'
 import { backOutAdvance } from './calc'
 import { isUqc, toUqc, UQC_CODES } from './uqc'
 import { singleEinvoiceDoc, singleEwbBill } from './edocs.testutil'
@@ -714,6 +714,29 @@ describe('validateGstr1', () => {
       .find((i) => i.code === 'composition')!
     expect(issue.severity).toBe('blocking')
     expect(issue.message).toContain('CMP-08')
+  })
+
+  it('R3: a period with no registration on any day is blocked too (no GSTR-1 is due)', () => {
+    const issue = validateGstr1(fixtureDocs(), { ...company, gstRegistrationType: 'unregistered' }).find((i) => i.code === 'not_registered')!
+    expect(issue).toMatchObject({ severity: 'blocking', voucherIds: [] })
+    expect(issue.message).toBe('The company was not registered for GST on any day of this period, so no GSTR-1 is due for it.')
+    expect(validateGstr1(fixtureDocs(), company).some((i) => i.code === 'not_registered' || i.code === 'composition')).toBe(false)
+  })
+
+  it('R3: notRegularDaysIssue names the documents of a changed month’s non-regular days, nothing else', () => {
+    const docs = [{ voucherId: 1, date: '2026-10-05' }, { voucherId: 2, date: '2026-10-14' }, { voucherId: 3, date: '2026-10-15' }]
+    const movedIn = { gstRegistrationType: 'regular' as const, gstRegistrationSince: '2026-10-15', gstPreviousRegistrationType: 'composition' as const }
+    const issue = notRegularDaysIssue(docs, movedIn)!
+    expect(issue).toMatchObject({ code: 'not_regular_days', severity: 'warning', voucherIds: [1, 2] })
+    expect(issue.message).toBe(
+      '2 documents are dated on days the company was under the composition scheme (the registration changed on 15-Oct-26). ' +
+        'They appear in this return at 0 %, but only the regular days belong in GSTR-1 / GSTR-3B (s.37(1), s.39(1) CGST Act); ' +
+        'the composition days go in CMP-08 and GSTR-4 (rule 62 CGST Rules). Check with your CA before you upload this period’s file.'
+    )
+    // Cancelled from 15 Oct: the later days are not registered.
+    const cancelled = { gstRegistrationType: 'unregistered' as const, gstRegistrationSince: '2026-10-15', gstPreviousRegistrationType: 'regular' as const }
+    expect(notRegularDaysIssue(docs, cancelled)?.message).toMatch(/^1 document is dated on days the company was not registered for GST .*CGST Act\)\. Check with your CA/)
+    expect(notRegularDaysIssue(docs, { gstRegistrationType: 'regular' })).toBeNull()
   })
 
   it('CGST/SGST on a zero-rated (SEZ/export) document blocks — legacy intra-taxed SEZ data cannot slip through', () => {
