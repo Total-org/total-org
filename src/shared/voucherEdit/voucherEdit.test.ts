@@ -361,6 +361,18 @@ describe('invoice mode state ⇄ payload', () => {
       expect(more.billRefs.map((r) => [r.kind, r.name])).toEqual([['against', 'A'], ['new', v.number]])
       expect(more.billRefs.reduce((s, r) => s + r.amount, 0)).toBe(party(more))
     })
+    it('paid in full by a credit named like its number (advance "1", sale "1"): loads as "1/25-26"', () => {
+      const total = party(built(buildInvoicePayload(invoiceState(), ctxFor('sales'), 1, TAX)))
+      const v = stored(built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'INV-7', amount: total, dueDate: null }] }, ctxFor('sales'), 1, TAX)))
+      expect(v.number).toBe('INV-7')
+      const rep = invoiceRepresentation(v, ctxFor('sales'), TAX)
+      if (!rep.ok) throw new Error(rep.reason)
+      // 1 May 2025 is in FY 2025-26.
+      expect(rep.state.billName).toBe('INV-7/25-26')
+      const more = built(buildInvoicePayload({ ...rep.state, rows: rep.state.rows.map((r, i) => (i === 0 ? { ...r, qtyText: '5' } : r)) }, ctxFor('sales'), 1, TAX))
+      expect(more.billRefs.map((r) => [r.kind, r.name])).toEqual([['against', 'INV-7'], ['new', 'INV-7/25-26']])
+      expect(more.billRefs.reduce((s, r) => s + r.amount, 0)).toBe(party(more))
+    })
     it('any other mix of refs stays in the accounting form (own bill first, two own bills)', () => {
       const part = built(buildInvoicePayload({ ...invoiceState(), advanceRefs: [{ kind: 'against', name: 'A', amount: 10_000, dueDate: null }] }, ctxFor('sales'), 1, TAX))
       const first = stored(part)

@@ -7,6 +7,7 @@ import type { LineSource, Voucher, VoucherBillRef, VoucherKind } from '../domain
 import { computeGst, addBreakups, type GstBreakup, type SupplyType } from '../gst/calc'
 import { billTaxClass, noteFollowsBill, zeroRatedClass, zeroRatedKind, type PartyExportType, type ZeroRatedClass } from '../gst/zeroRated'
 import { roundToRupee } from '../money'
+import { fyOf } from '../dates'
 import { chargesGstOn, type GstRegistrationFacts } from '../gst/registration'
 import type { TdsDeductionState } from './tds'
 import {
@@ -617,10 +618,13 @@ export function invoiceStateFromVoucher(
     if (own[0]) {
       billName = own[0].name
       billDueDate = own[0].dueDate ?? ''
-    } else if (!refs.some((r) => r.name === v.number)) {
+    } else {
       // Paid in full by the credits: no bill of its own yet — named after its number (unchanged, it
-      // still posts none), so a total raised later opens one for the rest.
-      billName = v.number
+      // still posts none), so a total raised later opens one for the rest. A credit of that name
+      // (a fresh company's first advance "1" and first sale "1") gets the year added, as a simple
+      // bill's name does (intents.ts uniqueName).
+      const fy = `${v.number}/${fyOf(v.date).label.slice(2)}`
+      billName = [v.number, fy].find((n) => !refs.some((r) => r.name === n)) ?? ''
     }
     advanceRefs = refs.filter((r) => r.kind === 'against').map((r) => ({ ...r }))
   }
