@@ -15,7 +15,7 @@ import { useNav, useToasts } from '../../state/stores'
 import { Banner, Button, EmptyState, Modal, Money, Panel, SkeletonRows } from '../../components/ui'
 import { DataTable, defineColumns } from '../../components/table'
 import { LedgerLink, VoucherLink } from '../../components/links'
-import { MonthBar, NoMonths, useMonth } from '../GstReturns'
+import { MonthBar, NoMonths, ReturnNotDue, useMonth, useReturnRegistration } from '../GstReturns'
 import { RunWithAi, runWithAi, useCanAct } from './common'
 import { CaCheck } from '../../components/CaCheck'
 
@@ -76,7 +76,9 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
   // Every row opens onto its suggestion until the user folds one (controlled, so a category
   // switch shows the new rows' suggestions too).
   const [folded, setFolded] = useState<Set<string>>(new Set())
-  const { data, isLoading, error } = useQuery({ queryKey: ['assistGst2b', period, showResolved], queryFn: () => assistantsApi.gst2b(period, showResolved), enabled: !!month })
+  // R3 / FIG-G-3: a month with no regular day has no credit to reconcile (s.10(4) CGST Act).
+  const registration = useReturnRegistration(month)
+  const { data, isLoading, error } = useQuery({ queryKey: ['assistGst2b', period, showResolved], queryFn: () => assistantsApi.gst2b(period, showResolved), enabled: !!month && registration === 'regular' })
   const refresh = (): Promise<void> => qc.invalidateQueries({ queryKey: ['assistGst2b'] })
 
   const store = async (jsonText: string, fileName?: string): Promise<void> => {
@@ -151,6 +153,16 @@ export function Gst2bTab({ initialPeriod }: { initialPeriod?: string }): React.J
   )
 
   if (!month) return <NoMonths />
+  if (registration !== 'regular') {
+    return (
+      <>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <MonthBar months={months} value={period} onChange={setMonthKey} testId="input-assistants-2b-month" />
+        </div>
+        <ReturnNotDue form="gstr2b" registration={registration} />
+      </>
+    )
+  }
   const rows = (data?.rows ?? []).filter((m) => category === 'all' || m.category === category)
   return (
     <>

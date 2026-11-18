@@ -27,9 +27,8 @@ const TABS: { id: ChecksTab; label: string }[] = [
  *  reconciles its registered months — WP 8.0 dates the registration). */
 export function useChecksTabs(): { id: ChecksTab; label: string }[] {
   const features = useFeatures()
-  const regType = useSession((s) => s.info?.gstRegistrationType)
-  const previous = useSession((s) => s.info?.gstPreviousRegistrationType)
-  const everRegistered = screenApplies({ requiresGstRegistration: true }, regType) || (previous != null && previous !== 'unregistered')
+  const info = useSession((s) => s.info)
+  const everRegistered = screenApplies({ requiresGstRegistration: true }, info)
   return TABS.filter((t) => (t.id !== 'stale' || features.orders) && (t.id !== 'gst2b' || everRegistered))
 }
 

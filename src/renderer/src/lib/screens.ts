@@ -3,6 +3,7 @@ import type { CompanyFeatures, ScreenFeatures } from '@shared/features'
 import type { MessageKey } from '@shared/i18n'
 import { SIMPLE_SECTION_IDS, type SimpleSectionId, type UiMode } from '@shared/simple/uiMode'
 import type { HelpArticleId } from '../help/articles'
+import { everGstRegistered, type GstRegistrationFacts } from '@shared/gst/registration'
 
 /**
  * The single screen registry — Shell's sidebar NAV, the Gateway cards, the CommandPalette's
@@ -1480,9 +1481,12 @@ export function invalidationFamilies(name: Screen['name']): string[] {
   return byName.get(name)?.invalidates ?? []
 }
 
-/** WP 8.0: is a registry entry shown for this company? */
-export const screenApplies = (s: { requiresGstRegistration?: boolean }, gstRegistrationType: string | undefined): boolean =>
-  !s.requiresGstRegistration || gstRegistrationType !== 'unregistered'
+/** WP 8.0: is a registry entry shown for this company? A GST screen shows while the business is
+ *  GST-registered or ever was (R3: registration.ts `everGstRegistered` — a cancelled registration
+ *  still reads and files its registered months; each return screen then says which months have
+ *  no return). No facts yet (no company open) = shown. */
+export const screenApplies = (s: { requiresGstRegistration?: boolean }, reg: GstRegistrationFacts | null | undefined): boolean =>
+  !s.requiresGstRegistration || !reg || everGstRegistered(reg)
 
 /** What a simple entry needs to show for this company (features on, a regular GST registration,
  *  the AI assistant ready). */
