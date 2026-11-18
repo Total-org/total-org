@@ -35,6 +35,8 @@ edit-log row, with plain messages when it is refused (SEC3-4).
 For developers: `<dataRoot>/screen-locks.json` (`services/screenLocks.ts`), `shared/pinRules.ts`,
 error codes `screen_locked_passphrase`, `owner_pin_short`, `owner_pin_needed`, `msme_acceptance_*`.
 
+## [0.12.6] - 2026-11-18
+
 **A bill uses the advance the customer already paid** (#288, readiness review FIG-G-1). When a
 customer pays ahead (Money in → "Is this for a bill you haven't made yet?" → Yes), their next bill
 in Make a bill now shows "Use what they paid ahead (₹X)", ticked: the bill takes that money first
