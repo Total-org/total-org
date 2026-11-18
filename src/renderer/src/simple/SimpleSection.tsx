@@ -95,6 +95,8 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
 }
 
 const taxesScreen = { name: 'simple-taxes' } as const // i18n-technical
+const GSTR1 = 'gstr1' as const // i18n-technical: SimpleTaxes.due key
+const GSTR3B = 'gstr3b' as const // i18n-technical: SimpleTaxes.due key
 
 /** UI-2: "this date has passed", beside a due date that has gone by for a return not marked filed
  *  (the Taxes screen's words and rule — `returnPassed`). */
@@ -137,12 +139,12 @@ function TaxesGstCard(): React.JSX.Element {
           <ul className="mt-2 space-y-0.5 text-detail text-muted">
             <li className="flex flex-wrap items-center gap-x-2">
               <span data-testid="simple-taxes-hub-due-gstr1">{t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) })}</span>
-              <DuePassed x={x} form="gstr1" />
+              <DuePassed x={x} form={GSTR1} />
               <CaCheck place="simple.taxes.dueGstr1" />
             </li>
             <li className="flex flex-wrap items-center gap-x-2">
               <span data-testid="simple-taxes-hub-due-gstr3b">{t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) })}</span>
-              <DuePassed x={x} form="gstr3b" />
+              <DuePassed x={x} form={GSTR3B} />
               <CaCheck place="simple.taxes.dueGstr3b" quarterly={x.period.quarterly} />
             </li>
           </ul>
