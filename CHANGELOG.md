@@ -32,8 +32,8 @@ registration hid the GST screens. A month the registration changed in counts as 
 other days are listed with a "Check with your CA" warning. A month before a new registration
 says when the registration took effect. **An advance from a customer with no GST rate is now
 pointed out** (FIG-G-2): GSTR-1 Table 11A leaves such an advance out, and the GSTR-1 checks and
-the simple Taxes screen (step 1) now say so and send you to your CA — Total does not add it by itself. No figure in any return or report
-changes. Marked "Check with your CA" (Q60, Q61).
+the simple Taxes screen (step 1) now say so and send you to your CA — Total does not add it by
+itself. No figure in any return or report changes. Marked "Check with your CA" (Q60, Q61).
 
 ## [0.12.6] - 2026-11-18
 
