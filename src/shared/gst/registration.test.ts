@@ -2,6 +2,7 @@
 // and the print title.
 import { describe, expect, it } from 'vitest'
 import { chargesGst, chargesGstOn, BILL_OF_SUPPLY_TITLE, everGstRegistered, gstNotChargedMessage, gstReturnNotDueMessage, nonTaxInvoiceTitle, registrationOn, returnRegistrationIn } from './registration'
+import { returnPeriodSpan } from './filing'
 import { nonClaimableCosts, rateForCost } from '../capture/nonClaimable'
 import { GST_STATE_LIST, GST_STATES } from './states'
 import { buildInvoicePayload, computeInvoice, emptyInvoiceState, invoiceRepresentation, type InvoiceContext, type TaxLedgerIds } from '../voucherEdit'
@@ -152,10 +153,47 @@ describe('returnRegistrationIn / everGstRegistered', () => {
     expect(everGstRegistered({ gstRegistrationType: 'unregistered', gstRegistrationSince: '2026-10-01', gstPreviousRegistrationType: null })).toBe(false)
   })
   it('the not-due words: composition names CMP-08 / GSTR-4; 2B says no credit (s.10(4)); a cancellation never says nothing more is due', () => {
-    expect(gstReturnNotDueMessage('gstr1', 'composition', true)).toContain('A composition dealer files CMP-08 and GSTR-4, not GSTR-1')
-    expect(gstReturnNotDueMessage('gstr3b', 'composition', true)).toContain('not GSTR-3B (s.37(1), s.39(1) and (2) CGST Act; rule 62 CGST Rules)')
-    expect(gstReturnNotDueMessage('gstr2b', 'composition', true)).toContain('can’t claim GST credit on purchases (s.10(4) CGST Act)')
-    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', true)).toContain('Ask your CA about the final return after a cancellation')
-    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', false)).toBe('This business is not registered for GST, so no GSTR-3B is due for it. If it registers, add the GSTIN under Company details.')
+    const comp = { gstRegistrationType: 'composition' as const }
+    expect(gstReturnNotDueMessage('gstr1', 'composition', comp, '2026-10-31')).toContain('A composition dealer files CMP-08 and GSTR-4, not GSTR-1')
+    expect(gstReturnNotDueMessage('gstr3b', 'composition', comp, '2026-10-31')).toContain('not GSTR-3B (s.37(1), s.39(1) and (2) CGST Act; rule 62 CGST Rules)')
+    // Review of #290: inward supplies go in GSTR-4 (rule 62(3)(a)); CMP-08 only for reverse charge.
+    expect(gstReturnNotDueMessage('gstr2b', 'composition', comp, '2026-10-31')).toContain('can’t claim GST credit on purchases (s.10(4) CGST Act) — so there is no GSTR-2B credit to reconcile. Supplier bills still count for GSTR-4 (and reverse-charge ones for CMP-08).')
+    const cancelled = { gstRegistrationType: 'unregistered' as const, gstRegistrationSince: '2026-11-01', gstPreviousRegistrationType: 'regular' as const }
+    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', cancelled, '2026-11-30')).toContain('Ask your CA about the final return after a cancellation')
+    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', { gstRegistrationType: 'unregistered' }, '2026-11-30')).toBe('This business is not registered for GST, so no GSTR-3B is due for it. If it registers, add the GSTIN under Company details.')
+  })
+
+  it('review of #290: a month before a NEW registration is never called a cancellation', () => {
+    // Registered (regular) from 15 Nov 2026, not registered before: October has no return.
+    const registered = { gstRegistrationType: 'regular' as const, gstRegistrationSince: '2026-11-15', gstPreviousRegistrationType: 'unregistered' as const }
+    expect(returnRegistrationIn(registered, ...oct)).toBe('unregistered')
+    for (const form of ['gstr1', 'gstr3b'] as const) {
+      expect(gstReturnNotDueMessage(form, 'unregistered', registered, '2026-10-31')).toBe(
+        `The business was not registered for GST in this period — its registration took effect on 15-Nov-26 — so no ${form === 'gstr1' ? 'GSTR-1' : 'GSTR-3B'} is due for it.`
+      )
+    }
+    expect(gstReturnNotDueMessage('gstr2b', 'unregistered', registered, '2026-10-31')).toBe(
+      'The business was not registered for GST in this period — its registration took effect on 15-Nov-26 — so there is no GSTR-2B credit to reconcile.'
+    )
+    // A composition registration from 15 Nov reads the same for the months before it.
+    expect(gstReturnNotDueMessage('gstr3b', 'unregistered', { ...registered, gstRegistrationType: 'composition' }, '2026-10-31')).not.toContain('cancellation')
+  })
+})
+
+// Review of #290: a quarterly (QRMP) filer files "for every quarter or part thereof" (proviso to s.39(1)).
+describe('returnPeriodSpan', () => {
+  it('monthly: the span itself; quarterly: the calendar quarter(s) holding it', () => {
+    expect(returnPeriodSpan('2026-07-01', '2026-07-31', 'monthly')).toEqual({ from: '2026-07-01', to: '2026-07-31' })
+    expect(returnPeriodSpan('2026-07-01', '2026-07-31', 'quarterly')).toEqual({ from: '2026-07-01', to: '2026-09-30' })
+    expect(returnPeriodSpan('2026-08-01', '2026-08-31', 'quarterly')).toEqual({ from: '2026-07-01', to: '2026-09-30' })
+    expect(returnPeriodSpan('2026-12-01', '2026-12-31', 'quarterly')).toEqual({ from: '2026-10-01', to: '2026-12-31' })
+    expect(returnPeriodSpan('2027-02-01', '2027-02-28', 'quarterly')).toEqual({ from: '2027-01-01', to: '2027-03-31' })
+    expect(returnPeriodSpan('2026-04-01', '2026-06-30', 'quarterly')).toEqual({ from: '2026-04-01', to: '2026-06-30' })
+  })
+  it('the quarter decides: composition until 14 Aug, regular from 15 Aug — July is in a regular return', () => {
+    const movedIn = { gstRegistrationType: 'regular' as const, gstRegistrationSince: '2026-08-15', gstPreviousRegistrationType: 'composition' as const }
+    expect(returnRegistrationIn(movedIn, '2026-07-01', '2026-07-31')).toBe('composition')
+    const q = returnPeriodSpan('2026-07-01', '2026-07-31', 'quarterly')
+    expect(returnRegistrationIn(movedIn, q.from, q.to)).toBe('regular')
   })
 })

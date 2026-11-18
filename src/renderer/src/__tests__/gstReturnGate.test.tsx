@@ -15,6 +15,7 @@ import { Gst2bTab } from '../screens/assistants/Gst2bTab'
 
 const invoke = vi.fn()
 let issues: GstIssue[] = []
+let filing: 'monthly' | 'quarterly' = 'monthly'
 const BASE: CompanyInfo = {
   name: 'Sharma Kirana', stateCode: '27', gstin: '27AAACT1234A1Z5', gstRegistrationType: 'regular',
   address: '', booksFrom: 2026, email: null, phone: null, pan: null, tan: null
@@ -38,7 +39,9 @@ function as(info: CompanyInfo): void {
 beforeEach(() => {
   localStorage.clear()
   issues = []
+  filing = 'monthly'
   invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'gstProfile:get') return { ok: true, data: { filing } }
     if (channel === 'gst:validate') return { ok: true, data: { issues, roundOff: [] } }
     if (channel === 'gst:gstr1') return { ok: true, data: { period: '102026', gstin: BASE.gstin, json: {}, summary: [] } }
     return { ok: false, error: `unmocked channel ${channel}` }
@@ -82,6 +85,27 @@ describe('GSTR-1 / GSTR-3B by the month’s registration', () => {
     const banner = await screen.findByTestId('gstr3b-unregistered')
     expect(banner.textContent).toContain('not registered for GST on any day of this period')
     expect(banner.textContent).toContain('Ask your CA about the final return after a cancellation')
+  })
+
+  it('review of #290: a quarterly filer’s July is part of a regular Jul–Sep return (regular from 15 Aug); a monthly filer’s July is not', async () => {
+    const movedIn: CompanyInfo = { ...BASE, gstRegistrationSince: '2026-08-15', gstPreviousRegistrationType: 'composition' }
+    as(movedIn)
+    renderUi(<Gstr3bScreen initialMonth="2026-07" />)
+    expect((await screen.findByTestId('gstr3b-composition')).textContent).toContain('not GSTR-3B')
+    cleanup()
+    invoke.mockClear()
+    filing = 'quarterly'
+    renderUi(<Gstr3bScreen initialMonth="2026-07" />)
+    await waitFor(() => expect(called('gst:gstr3b')).toBe(true))
+    expect(screen.queryByTestId('gstr3b-composition')).toBeNull()
+  })
+
+  it('review of #290: a month before a new registration says when the registration took effect — not a cancellation', async () => {
+    as({ ...BASE, gstRegistrationSince: '2026-11-15', gstPreviousRegistrationType: 'unregistered' })
+    renderUi(<Gstr1Screen initialMonth="2026-10" />)
+    const banner = await screen.findByTestId('gstr1-unregistered')
+    expect(banner.textContent).toContain('its registration took effect on 15-Nov-26 — so no GSTR-1 is due for it.')
+    expect(banner.textContent).not.toContain('cancellation')
   })
 
   it('the advance-without-a-rate warning on the GSTR-1 checks carries its "check with your CA" badge', async () => {
