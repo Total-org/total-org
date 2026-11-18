@@ -8,7 +8,7 @@ Use **Record a purchase** when a supplier gives you a bill — for goods you wil
 2. **Their bill number and date** — copy them from the bill. Total refuses the same bill number from the same supplier twice in a year, so nothing is entered twice.
 3. **What did you buy?** Products and how many, or **Just an amount** for an expense.
 4. **GST on the bill** — when you are registered for GST, Total works out the GST you paid; it comes off the GST you owe when you file. If your business cannot claim it back, Total adds it to the cost.
-5. **Paid now?** If you paid when you bought, say how. Otherwise the bill stays due to the supplier.
+5. **Paid now?** If you paid when you bought, say how. Otherwise the bill stays due to the supplier. If you paid the supplier ahead, **Use what you paid them ahead** shows above, ticked: the bill takes that money first, and Paid now? is about what is left. Untick it if the money was for another order.
 6. Press **Save**.
 
 ## Paying the supplier later

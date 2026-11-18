@@ -413,6 +413,10 @@ export function loadIntentContext(db: DB, company: CompanyInfo, n: NormalIntent)
     openCredits.set(refundParty, a.credits)
     heldCredit.set(refundParty, a.unappliedCredit)
   }
+  // R1 (FIG-G-1): a bill uses the party's open credits first (unless "Use their advance" is off).
+  if ((n.kind === 'sale' || n.kind === 'purchase') && partyId != null && partyId !== walkInId && n.useAdvance) {
+    openCredits.set(partyId, advanceCredits(db, partyId, n.date))
+  }
   return {
     invoice: {
       companyStateCode: company.stateCode,
@@ -442,6 +446,23 @@ export function loadIntentContext(db: DB, company: CompanyInfo, n: NormalIntent)
     takenNames,
     ...loadStockContext(db, n)
   }
+}
+
+/** R1 (FIG-G-1): the named credits a bill of `partyId` dated `date` can use — an advance received /
+ *  paid ahead, a return kept as credit (the Outstandings allocation's named credits) — oldest
+ *  first: those open on the bill's date, each at most what is still open over every date (a bill
+ *  dated later may already have used it; using it twice would leave that bill due again). */
+export function advanceCredits(db: DB, partyId: number, date: string): { name: string; amount: number }[] {
+  const left = new Map<string, number>()
+  for (const c of partyAllocationWithCredits(db, partyId, '9999-12-31').credits) left.set(c.name, (left.get(c.name) ?? 0) + c.amount)
+  const out: { name: string; amount: number }[] = []
+  for (const c of partyAllocationWithCredits(db, partyId, date).credits) {
+    const amount = Math.min(c.amount, left.get(c.name) ?? 0)
+    if (amount <= 0) continue
+    out.push({ name: c.name, amount })
+    left.set(c.name, (left.get(c.name) ?? 0) - amount)
+  }
+  return out
 }
 
 /** The GST / round-off ledgers an entry needs, created as the editor does on first use (named

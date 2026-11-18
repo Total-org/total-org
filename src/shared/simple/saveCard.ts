@@ -68,8 +68,9 @@ const ENTRY_KIND: Partial<Record<VoucherKind, string>> = {
 
 const money = (paise: number): string => formatPaise(paise, { symbol: true })
 
-/** The card's sentences, in order: what was saved, the money that moved, where the party stands. */
-export function saveCardSentences(summary: SaveSummary, t: Translate): string[] {
+/** The card's sentences, in order: what was saved, what of it the party's advance paid (R1 — the
+ *  amount simple:post's facts give, `advanceUsed`), the money that moved, where the party stands. */
+export function saveCardSentences(summary: SaveSummary, t: Translate, advance?: { amount: number; side: 'customer' | 'supplier' }): string[] {
   const out: string[] = []
   const [first, ...rest] = summary.entries
   if (!first) return out
@@ -79,6 +80,7 @@ export function saveCardSentences(summary: SaveSummary, t: Translate): string[] 
   const others = rest.filter((e) => !e.money && !e.gstToCost)
   out.push(t('simple.saveCard.entry', { kind: ENTRY_KIND[first.kind] ?? 'other', amount: money(first.amount) }))
   if (others.length) out.push(t('simple.saveCard.entryMore', { n: others.length }))
+  if (advance && advance.amount > 0) out.push(t(advance.side === 'customer' ? 'simple.intent.advanceUsed' : 'simple.intent.advanceUsedSupplier', { amount: money(advance.amount) }))
   for (const e of toCost) out.push(t('simple.saveCard.gstToCost', { amount: money(e.amount) }))
   for (const e of moneyOnly) {
     const m = e.money!

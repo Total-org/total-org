@@ -24,7 +24,8 @@ export function SaveCard({
   onUndone,
   skipParties = false,
   sentences: given,
-  printable = true
+  printable = true,
+  advance
 }: {
   voucherIds: number[]
   onNew: () => void
@@ -38,6 +39,8 @@ export function SaveCard({
   sentences?: string[]
   /** WP 9.7: false hides Print / PDF / Share (a stock entry is not a document anyone is sent). */
   printable?: boolean
+  /** R1: what of the bill the party's advance paid (simple:post's `facts.advanceUsed`); absent = none. */
+  advance?: { amount: number; side: 'customer' | 'supplier' }
 }): React.JSX.Element {
   const t = useT()
   const queryClient = useQueryClient()
@@ -59,7 +62,7 @@ export function SaveCard({
     queryFn: () => api.invoice.shareFacts(primary),
     enabled: printable && !undone
   })
-  const sentences = given ?? (data ? saveCardSentences(skipParties ? { ...data, parties: [] } : data, t) : [])
+  const sentences = given ?? (data ? saveCardSentences(skipParties ? { ...data, parties: [] } : data, t, advance) : [])
 
   const fail = (err: unknown): void => {
     // Refused because it changed since (or went to the bin): re-read, so the card says so.

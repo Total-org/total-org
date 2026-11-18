@@ -465,4 +465,67 @@ describe('Make a bill (WP 9.2)', () => {
     await screen.findByTestId('dialog-new-product')
     await waitFor(() => expect(screen.queryByTestId('select-product-unit')).toBeNull())
   })
+
+  describe('R1 (FIG-G-1): "Use their advance"', () => {
+    const withCredits = (list: { name: string; amount: number }[]): void => {
+      const base = invoke.getMockImplementation()!
+      invoke.mockImplementation(async (channel: string, payload: unknown) => (channel === 'simple:money:credits' ? { ok: true, data: list } : base(channel, payload)))
+    }
+    // Sugar (5 %) 10 × ₹1,000 = ₹10,000 + ₹500 = ₹10,500; advance ₹5,000 → ₹5,500 left to pay.
+    async function bill(): Promise<void> {
+      await pickCustomer('Ramesh')
+      await pickItem(0, 'Sugar')
+      typeIn('input-sell-qty-0', '10')
+      typeIn('input-sell-rate-0', '1000')
+      await waitFor(() => expect(screen.getByTestId('sell-total').getAttribute('data-paise')).toBe('1050000'))
+    }
+
+    it('ticked by default with what is left to pay; the intent leaves it on; the save card says it', async () => {
+      withCredits([{ name: 'R-1', amount: 500_000 }])
+      postReply = () => ({ ok: true, data: { voucherIds: [7], entries: [], replayed: false, summary: { entries: [], parties: [], undo: { undoable: true, reason: null } }, sentences: [], facts: { ...FACTS, total: 1_050_000, paid: 0, due: 550_000, advanceUsed: 500_000 }, warnings: { negativeStock: [], creditLimitExceeded: null } } satisfies SimplePostResult })
+      renderUi()
+      await ready()
+      await bill()
+      expect(text('sell-advance')).toContain('Use their advance of ₹5,000.00')
+      expect((screen.getByTestId('sell-advance-use') as HTMLInputElement).checked).toBe(true)
+      expect(screen.getByTestId('sell-advance-left').getAttribute('data-paise')).toBe('550000')
+      expect(calls('simple:money:credits')).toContainEqual({ partyId: 10, date: '2026-10-13' })
+      // A part payment is of what is left: ₹5,500 is all of it.
+      click('sell-paid-part')
+      typeIn('input-sell-part-amount', '5500')
+      click('btn-sell-save')
+      expect((await screen.findByTestId('field-error-payment')).textContent).toBeTruthy()
+      expect(calls('simple:post')).toHaveLength(0)
+      click('sell-paid-credit')
+      click('btn-sell-save')
+      await screen.findByTestId('save-card')
+      expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'sale', customerId: 10 } })
+      expect((calls('simple:post')[0] as { intent: object }).intent).not.toHaveProperty('useAdvance')
+      await waitFor(() => expect(text('save-card')).toContain('₹5,000.00 of their advance is used.'))
+      expect(bannedWordsIn(visibleText())).toEqual([])
+    })
+
+    it('unticked: the bill is sent with useAdvance false; the cash customer never sees it', async () => {
+      withCredits([{ name: 'R-1', amount: 500_000 }])
+      renderUi()
+      await ready()
+      expect(screen.queryByTestId('sell-advance')).toBeNull()
+      await bill()
+      await screen.findByTestId('sell-advance')
+      click('sell-advance-use')
+      expect(screen.queryByTestId('sell-advance-left')).toBeNull()
+      click('btn-sell-save')
+      await screen.findByTestId('save-card')
+      expect(calls('simple:post')[0]).toMatchObject({ intent: { kind: 'sale', customerId: 10, useAdvance: false } })
+    })
+
+    it('a customer holding nothing: no advance line', async () => {
+      withCredits([])
+      renderUi()
+      await ready()
+      await bill()
+      await waitFor(() => expect(calls('simple:money:credits').length).toBeGreaterThan(0))
+      expect(screen.queryByTestId('sell-advance')).toBeNull()
+    })
+  })
 })

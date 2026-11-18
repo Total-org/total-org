@@ -53,6 +53,11 @@ export interface InvoiceFormState {
   optional: boolean
   billName: string
   billDueDate: string
+  /** R1 (FIG-G-1), sales / purchases: the party's open credits (an advance) this bill uses, as
+   *  `against` refs posted before its own bill — `billName` then carries what is left. Set only by a
+   *  simple bill (and its Accountant-view hand-off); absent = none, the bill alone as before. A saved
+   *  bill with such refs opens in the accounting form, as any bill allocated against others does. */
+  advanceRefs?: VoucherBillRef[]
   /** Notes only: true = post one 'new' bill (billName) instead of allocating against bills. */
   manualNewBillMode: boolean
   noteBillRefs: VoucherBillRef[]
@@ -368,6 +373,29 @@ export function requiredTaxLedgers(c: InvoiceComputed): (keyof TaxLedgerIds)[] {
   return out
 }
 
+/** R1: what of `refs` (the advance a bill uses, oldest first) a bill of `amount` takes — never more
+ *  than the bill; the editor's total may have changed since they were taken. */
+export function advanceWithin(refs: readonly VoucherBillRef[], amount: number): VoucherBillRef[] {
+  const out: VoucherBillRef[] = []
+  let left = amount
+  for (const r of refs) {
+    const take = Math.min(r.amount, left)
+    if (take <= 0) break
+    out.push({ ...r, amount: take })
+    left -= take
+  }
+  return out
+}
+
+/** A bill's own refs: the advance it uses, then its own bill for the rest. */
+function billRefsOf(state: InvoiceFormState, billName: string, partyAmount: number): VoucherBillRef[] {
+  const own = (amount: number): VoucherBillRef => ({ kind: 'new', name: billName, amount, dueDate: state.billDueDate || null })
+  if (!state.advanceRefs?.length) return billName ? [own(partyAmount)] : []
+  const refs = advanceWithin(state.advanceRefs, partyAmount)
+  const left = partyAmount - refs.reduce((s, r) => s + r.amount, 0)
+  return billName && left > 0 ? [...refs, own(left)] : refs
+}
+
 /** The exact payload the invoice form posts. `taxLedgers` must name every ledger in
  *  requiredTaxLedgers (the form creates missing ones first; the representability check
  *  only passes existing ids). */
@@ -462,9 +490,7 @@ export function buildInvoicePayload(
       billRefs:
         isNoteKind(ctx.kind) && !state.manualNewBillMode
           ? state.noteBillRefs
-          : billName
-            ? [{ kind: 'new' as const, name: billName, amount: partyAmount, dueDate: state.billDueDate || null }]
-            : [],
+          : billRefsOf(state, billName, partyAmount),
       tds: tds
         ? {
             sectionId: tds.sectionId, baseAmount: tds.baseAmount, tdsAmount: tds.tdsAmount,

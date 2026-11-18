@@ -9,7 +9,7 @@ import { computeInvoice, emptyInvoiceState } from '../voucherEdit'
 import { mapIntent, normaliseIntent, type IntentContext, type IntentFacts, type IntentLedger } from './intents'
 import { bannedWordsIn } from './bannedWords'
 import {
-  addScannedProduct, billTitleKey, changeDue, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
+  addScannedProduct, billTitleKey, changeDue, emptySellForm, lineRateMissing, offBillByReturns, exclusiveLines, paidChoicesFor, saleIntentFrom, salePreviewLine, saleStatus, sellAdvance, sellFormErrors, sellTotals, shownRate, switchBasisRemembering, switchSellBasis, zeroTaxCustomer,
   type BasisMemo, type SellContext, type SellForm
 } from './sell'
 
@@ -402,5 +402,43 @@ describe('change due (A13, owner 8 Nov)', () => {
     expect(changeDue(30_000, 38_000)).toEqual({ short: 8_000 })
     expect(changeDue(null, 38_000)).toBeNull()
     expect(changeDue(50_000, 0)).toBeNull()
+  })
+})
+
+describe('R1 (FIG-G-1): "Use their advance"', () => {
+  const credits = [{ name: 'R-1', amount: 500_000 }]
+  // Widget (18 %) 10 × ₹1,000 = ₹10,000 + ₹900 + ₹900 = ₹11,800.
+  const bill = (patch: Partial<SellForm> = {}): SellForm => form({ customerId: 10, lines: [line(1, 1, '10', 100_000)], paid: 'credit', ...patch })
+
+  it('the form shows what main takes: ₹5,000 of an ₹11,800 bill, none when unticked or for the walk-in', () => {
+    expect(sellAdvance(bill(), credits, 1_180_000)).toBe(500_000)
+    expect(sellAdvance(bill(), [{ name: 'R-1', amount: 2_000_000 }], 1_180_000)).toBe(1_180_000)
+    expect(sellAdvance(bill({ useAdvance: false }), credits, 1_180_000)).toBe(0)
+    expect(sellAdvance(bill({ customerId: null }), credits, 1_180_000)).toBe(0)
+  })
+
+  it('ticked by default — the intent leaves it out; unticked it says so; what is posted uses it', () => {
+    const c = ctxFor()
+    expect(saleIntentFrom(bill(), c, DEFAULTS)).not.toHaveProperty('useAdvance')
+    expect(saleIntentFrom(bill({ useAdvance: false }), c, DEFAULTS)).toMatchObject({ useAdvance: false })
+    const withCredits = (f: SellForm) => mapIntent(normaliseIntent({ clientId: 'test-client-1', ...saleIntentFrom(f, c, DEFAULTS) }, DATE), { ...intentCtx(c), openCredits: new Map([[10, credits]]) })
+    expect(withCredits(bill()).facts).toMatchObject({ advanceUsed: 500_000, due: 680_000 })
+    expect(withCredits(bill({ useAdvance: false })).facts).toMatchObject({ due: 1_180_000 })
+  })
+
+  it('a part payment is of what is left after the advance (₹11,800 − ₹5,000 = ₹6,800)', () => {
+    const c = ctxFor()
+    expect(sellFormErrors(bill({ paid: 'part', partAmount: 680_000 }), c, { regular: true, advanceUsed: 500_000 }).payment).toBe('simple.sell.err.partTooMuch')
+    expect(sellFormErrors(bill({ paid: 'part', partAmount: 679_900 }), c, { regular: true, advanceUsed: 500_000 }).payment).toBeUndefined()
+    expect(sellFormErrors(bill({ paid: 'part', partAmount: 679_900 }), c, { regular: true }).payment).toBeUndefined()
+  })
+
+  it('the preview line says the advance first', () => {
+    const f = (p: Partial<IntentFacts>): IntentFacts => ({
+      kind: 'sale', partyName: 'Ramesh', total: 1_180_000, tax: 180_000, paid: 0, how: null, moneyAccount: null, due: 0, settled: [], advance: 0, fromName: null, toName: null, againstBill: null, offBill: 0, credit: 0, balance: null, noGst: null, side: 'customer', walkIn: false, ...p
+    })
+    expect(salePreviewLine(f({ advanceUsed: 1_180_000 }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹11,800.00 from their advance.')
+    expect(salePreviewLine(f({ advanceUsed: 500_000, due: 680_000, dueDate: '2026-10-28' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from their advance. ₹6,800.00 due by 28 Oct 2026.')
+    expect(salePreviewLine(f({ advanceUsed: 500_000, paid: 680_000, how: 'upi' }), t)).toBe('Bill ₹11,800.00 to Ramesh. ₹5,000.00 from their advance. ₹6,800.00 by UPI now.')
   })
 })

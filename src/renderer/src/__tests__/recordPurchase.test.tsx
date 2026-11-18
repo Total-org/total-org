@@ -436,4 +436,42 @@ describe('to-do §4: a viewer is told up front (Record a purchase)', () => {
       act(() => useSession.setState({ user: null }))
     }
   })
+
+  describe('R1 (FIG-G-1): what was paid the supplier ahead', () => {
+    // Steel bolt (18 %) 10 × ₹100 = ₹1,000 + ₹180 = ₹1,180; ₹500 paid ahead → ₹680 left to pay.
+    it('ticked by default with what is left; unticked is sent as such; the save card says it', async () => {
+      const base = invoke.getMockImplementation()!
+      invoke.mockImplementation(async (channel: string, payload: unknown) => (channel === 'simple:money:credits' ? { ok: true, data: [{ name: 'PY-1', amount: 50_000 }] } : base(channel, payload)))
+      postReply = () => ({ ok: true, data: { voucherIds: [7], entries: [], replayed: false, summary: { entries: [], parties: [], undo: { undoable: true, reason: null } }, sentences: [], facts: { ...FACTS, paid: 0, due: 68_000, advanceUsed: 50_000 }, warnings: { negativeStock: [], creditLimitExceeded: null } } satisfies SimplePostResult })
+      renderUi()
+      await ready()
+      expect(screen.queryByTestId('buy-advance')).toBeNull()
+      await pick('picker-buy-supplier', 'Bharat')
+      typeIn('input-buy-bill-no', 'BS/102')
+      await pick('picker-buy-item-0', 'Steel bolt')
+      typeIn('input-buy-qty-0', '10')
+      typeIn('input-buy-rate-0', '100')
+      await waitFor(() => expect(screen.getByTestId('buy-total').getAttribute('data-paise')).toBe('118000'))
+      expect(text('buy-advance')).toContain('Use what you paid them ahead (₹500.00)')
+      expect(screen.getByTestId('buy-advance-left').getAttribute('data-paise')).toBe('68000')
+      expect(bannedWordsIn(visibleText())).toEqual([])
+      click('btn-buy-save')
+      await screen.findByTestId('save-card')
+      expect((calls('simple:post')[0] as { intent: object }).intent).not.toHaveProperty('useAdvance')
+      await waitFor(() => expect(text('save-card')).toContain('₹500.00 of what you paid them ahead is used.'))
+      click('btn-save-card-new')
+      await ready()
+      await pick('picker-buy-supplier', 'Bharat')
+      typeIn('input-buy-bill-no', 'BS/103')
+      await pick('picker-buy-item-0', 'Steel bolt')
+      typeIn('input-buy-qty-0', '10')
+      typeIn('input-buy-rate-0', '100')
+      await screen.findByTestId('buy-advance')
+      click('buy-advance-use')
+      click('btn-buy-save')
+      await waitFor(() => expect(calls('simple:post')).toHaveLength(2))
+      expect(calls('simple:post')[1]).toMatchObject({ intent: { kind: 'purchase', supplierId: 10, useAdvance: false } })
+    })
+  })
 })
+

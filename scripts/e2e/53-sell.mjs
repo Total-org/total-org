@@ -10,7 +10,7 @@
 // list and the amount-only bill; WP92_SHOTS=<dir> copies them for the visual review.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { scenario, assert, assertEq, PICKER_OPTION, until } from '../lib/harness.mjs'
+import { scenario, assert, assertEq, localToday, PICKER_OPTION, until } from '../lib/harness.mjs'
 import { waitForSettled } from '../lib/a11y.mjs'
 
 // The plan §1 banned list (shared/simple/bannedWords.ts), as its patterns match it.
@@ -263,6 +263,36 @@ await scenario('53-sell', async (h) => {
   // WP 9.10: Back to simple lands on that bill's simple view (the same object).
   await h.click('btn-back-to-simple')
   await attached(h, '[data-testid="simple-sale"][data-bill]')
+
+  // R1 (FIG-G-1): a customer who paid ₹11,800 ahead (Money in, "for a bill you haven't made yet" —
+  // the same simple:post the Money in screen sends). Their next bill uses it: ₹10,000 + 18 % =
+  // ₹11,800, so nothing is left to pay, nothing is due, and GSTR-1 11B shows the adjustment
+  // (₹11,800 × 100 ÷ 118 = ₹10,000; tax ₹1,800 = ₹900 + ₹900).
+  const asha = await ledger('Asha Stores', 'Sundry Debtors', { stateCode: '27', creditDays: 7, gstRate: 18 })
+  await h.invoke('simple:post', { intent: { kind: 'money_in', clientId: 'e2e-53-advance-0001', amount: '11800', into: { how: 'cash' }, customerId: asha.id, advance: true } })
+  await product('Consulting hour', 1_000_000, 18)
+  await h.click('simple-nav-sell')
+  await h.click('simple-entry-make-bill')
+  await h.waitScreen('simple-sell')
+  await pick('picker-sell-customer', 'Asha')
+  await pick('picker-sell-item-0', 'Consulting hour')
+  await page.waitForFunction(() => document.querySelector('[data-testid="sell-total"]')?.getAttribute('data-paise') === '1180000', null, { timeout: 10000 })
+  await attached(h, '[data-testid="sell-advance-use"]:checked')
+  assert((await text('sell-advance')).includes('Use their advance of ₹11,800.00'), 'the advance is offered, ticked')
+  assertEq(await paise('sell-advance-left'), 0, 'the advance pays the whole bill')
+  await page.waitForFunction(() => (document.querySelector('[data-testid="sell-preview"]')?.textContent ?? '').includes('from their advance'), null, { timeout: 10000 })
+  assertEq(await text('sell-preview'), 'Bill ₹11,800.00 to Asha Stores. ₹11,800.00 from their advance.', 'the preview says the advance pays it')
+  await noBanned('the bill using an advance')
+  await shoot('07-advance-used')
+  await h.click('btn-sell-save')
+  await attached(h, '[data-testid="save-card"]')
+  await page.waitForFunction(() => (document.querySelector('[data-testid="save-card"]')?.textContent ?? '').includes('of their advance is used'), null, { timeout: 10000 })
+  const people = await h.invoke('simple:people:list', {})
+  const ashaRow = people.people.find((p) => p.ledgerId === asha.id)
+  assertEq(JSON.stringify([ashaRow.open, ashaRow.ahead]), JSON.stringify([0, 0]), 'Asha owes nothing and holds nothing')
+  const today = localToday()
+  const gstr1 = await h.invoke('gst:gstr1', { from: `${today.slice(0, 8)}01`, to: today, period: `${today.slice(5, 7)}${today.slice(0, 4)}` })
+  assertEq(JSON.stringify(gstr1.json.txpd), JSON.stringify([{ pos: '27', sply_ty: 'INTRA', itms: [{ rt: 18, ad_amt: 10000, iamt: 0, camt: 900, samt: 900, csamt: 0 }] }]), 'GSTR-1 11B carries the advance used')
 
   // ================= 3. a services company, stock off =================
   await h.click('btn-switch-company')

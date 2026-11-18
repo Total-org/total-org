@@ -25,7 +25,7 @@ import { chargesGstOn } from '../gst/registration'
 import { inclusiveLine, lineGross, solveTaxable } from '../pricing'
 import { computeInvoice, emptyInvoiceState, type InvoiceContext } from '../voucherEdit'
 import { qtyText } from '../voucherEdit/payload'
-import { foldGstIntoAmount, foldGstIntoLine, itemsCarryGst, type IntentFacts, type MoneyHow, type SimpleIntentInput } from './intents'
+import { advanceTake, foldGstIntoAmount, foldGstIntoLine, itemsCarryGst, type IntentFacts, type MoneyHow, type SimpleIntentInput } from './intents'
 import { amountToBasis, lineToExclusive, lineToInclusive, qtyMilliOf } from './sell'
 import { rateForCost } from '../capture/nonClaimable'
 
@@ -77,6 +77,9 @@ export interface BuyForm {
   /** The cash / bank account the money came from (null = the default for the way it was paid). */
   accountId: number | null
   note: string
+  /** R1: use what was paid the supplier ahead — ticked by default; unticked when it was for
+   *  another order. */
+  useAdvance: boolean
 }
 
 export const emptyBuyForm = (date: string, opts: { mode: BuyMode; ratesIncludeGst: boolean }): BuyForm => ({
@@ -94,7 +97,8 @@ export const emptyBuyForm = (date: string, opts: { mode: BuyMode; ratesIncludeGs
   partHow: 'cash',
   partAmount: null,
   accountId: null,
-  note: ''
+  note: '',
+  useAdvance: true
 })
 
 /** What the calculation needs: the editor's invoice context and the default purchase account. */
@@ -349,6 +353,7 @@ export function purchaseIntentFrom(form: BuyForm, ctx: BuyContext, defaults: Buy
     ...(form.note.trim() ? { narration: form.note.trim() } : {}),
     gstOnBill: intentGstOnBill(g),
     ...(g === 'claim' && form.gstBlocked ? { itcBlocked: true } : {}),
+    ...(form.useAdvance ? {} : { useAdvance: false }),
     payment
   }
   if (form.mode !== 'items') {
@@ -379,8 +384,16 @@ export function productsNeedGst(form: Pick<BuyForm, 'lines'>, ctx: BuyContext): 
 
 export type BuyField = 'date' | 'party' | 'billNo' | 'items' | 'account' | 'amount' | 'gstRate' | 'gstOnBill' | 'payment'
 
-/** Checks before main is asked (each message under its question). */
-export function buyFormErrors(form: BuyForm, ctx: BuyContext): Partial<Record<BuyField, MessageKey>> {
+/** R1: what the supplier's open credits (`simple:money:credits` — money paid them ahead) pay of a
+ *  bill of `total` while it is ticked — the take simple:post makes (advanceTake). A cash expense
+ *  with no supplier has none. */
+export function buyAdvance(form: Pick<BuyForm, 'supplierId' | 'useAdvance'>, credits: readonly { name: string; amount: number }[], total: number): number {
+  return form.supplierId != null && form.useAdvance ? advanceTake(credits, total).used : 0
+}
+
+/** Checks before main is asked (each message under its question). `advanceUsed` = what was paid
+ *  them ahead and is used (buyAdvance); a part payment is of what is left. Absent = none. */
+export function buyFormErrors(form: BuyForm, ctx: BuyContext, advanceUsed = 0): Partial<Record<BuyField, MessageKey>> {
   const out: Partial<Record<BuyField, MessageKey>> = {}
   const g = buyGst(form, ctx)
   if (form.supplierId == null && !isCashExpense(form, ctx)) {
@@ -403,7 +416,7 @@ export function buyFormErrors(form: BuyForm, ctx: BuyContext): Partial<Record<Bu
   if (form.paid === 'part') {
     const total = buyTotals(form, ctx).total
     if (form.partAmount == null || form.partAmount <= 0) out.payment = 'simple.buy.err.partAmount'
-    else if (total > 0 && form.partAmount >= total) out.payment = 'simple.buy.err.partTooMuch'
+    else if (total > 0 && form.partAmount >= total - advanceUsed) out.payment = 'simple.buy.err.partTooMuch'
   }
   return out
 }
@@ -415,7 +428,10 @@ const money = (p: number): string => formatPaise(p, { symbol: true })
 export function purchasePreviewLine(f: IntentFacts, t: Translate): string {
   // A cash expense with no supplier is Money out's entry: "Paid ₹X for Rent from Cash."
   if (f.kind === 'money_out') return t('simple.buy.preview.cashExpense', { amount: money(f.total), what: f.toName ?? '', account: f.moneyAccount ?? '' })
-  const head = t('simple.buy.preview.bill', { amount: money(f.total), name: f.partyName ?? '' })
+  const bill = t('simple.buy.preview.bill', { amount: money(f.total), name: f.partyName ?? '' })
+  // R1: what was paid them ahead comes first; the rest is paid now or owed.
+  const advance = f.advanceUsed ?? 0
+  const head = advance > 0 ? `${bill} ${t('simple.buy.preview.advance', { amount: money(advance) })}` : bill
   const how = f.how ?? 'cash'
   const due = f.dueDate ? toPlainDate(f.dueDate, t.lang) : ''
   const owed = f.due > 0 ? f.due : 0
