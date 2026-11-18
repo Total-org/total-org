@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { toPlainDate } from '@shared/dates'
+import { returnPassed } from '@shared/gst/filing'
 import { taxesPeriodLabel } from '@shared/simple/explain'
 import { api } from '../lib/client'
 import { useT } from '../lib/i18n'
@@ -95,6 +96,18 @@ export function SimpleSection({ section }: { section: SimpleSectionId }): React.
 
 const taxesScreen = { name: 'simple-taxes' } as const // i18n-technical
 
+/** UI-2: "this date has passed", beside a due date that has gone by for a return not marked filed
+ *  (the Taxes screen's words and rule — `returnPassed`). */
+function DuePassed({ x, form }: { x: Extract<SimpleTaxes, { kind: 'regular' }>; form: 'gstr1' | 'gstr3b' }): React.JSX.Element | null {
+  const t = useT()
+  if (!returnPassed(x.today, x.due[form], !!x.filed[form])) return null
+  return (
+    <span className="font-medium text-warning" data-testid={`simple-taxes-hub-due-${form}-passed`}>
+      {t('simple.taxes.due.passed')}
+    </span>
+  )
+}
+
 /**
  * A9 (audit UX-5): the Taxes hub's GST card for a regular registration — what the Home tile and
  * the Taxes screen show by default (simple:taxes with no period: dashGst's period), the cash to
@@ -124,10 +137,12 @@ function TaxesGstCard(): React.JSX.Element {
           <ul className="mt-2 space-y-0.5 text-detail text-muted">
             <li className="flex flex-wrap items-center gap-x-2">
               <span data-testid="simple-taxes-hub-due-gstr1">{t('simple.taxes.due.gstr1', { date: toPlainDate(x.due.gstr1, t.lang) })}</span>
+              <DuePassed x={x} form="gstr1" />
               <CaCheck place="simple.taxes.dueGstr1" />
             </li>
             <li className="flex flex-wrap items-center gap-x-2">
               <span data-testid="simple-taxes-hub-due-gstr3b">{t('simple.taxes.due.gstr3b', { date: toPlainDate(x.due.gstr3b, t.lang) })}</span>
+              <DuePassed x={x} form="gstr3b" />
               <CaCheck place="simple.taxes.dueGstr3b" quarterly={x.period.quarterly} />
             </li>
           </ul>

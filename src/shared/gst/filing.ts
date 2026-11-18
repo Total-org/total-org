@@ -174,6 +174,12 @@ export function gstr1DueDate(lastMonth: string, filing: GstFilingFrequency): str
   return nextMonthDay(lastMonth, filing === 'quarterly' ? 13 : 11)
 }
 
+/** A return's date has passed: today is after it and the return is not marked filed. The 20th
+ *  itself is not late (UI-1 / UI-2: the Gateway chip, the Taxes screen and the Taxes hub card). */
+export function returnPassed(today: string, due: string, filed: boolean): boolean {
+  return !filed && today > due
+}
+
 /** GSTR-3B for the period ending in 'YYYY-MM': the 20th of the next month (monthly, rule
  *  61(1)(i)); the 22nd / 24th after the quarter by the state of the principal place of business
  *  (quarterly, rule 61(1)(ii)). */
