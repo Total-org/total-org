@@ -20,6 +20,8 @@ Things to know about the version numbers:
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-11-19
+
 **The balance sheet says how much of its profit line is earlier years** ([#294](https://github.com/Total-org/total-org/pull/294),
 readiness review R7, FIG-B-2). In a year you have not closed, the one "Profit & Loss A/c" line on the
 liabilities side held the profit of earlier years and this year's together. It now has two lines under
