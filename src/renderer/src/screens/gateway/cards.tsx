@@ -36,13 +36,15 @@ export function daysUntil(date: string, today: string): number {
   return daysBetweenISO(today, date)
 }
 
-/** "in 5 days" / "tomorrow" / "today". */
+/** "in 5 days" / "tomorrow" / "today" / "3 days late" (UI-1: a date that has gone by used to read "today"). */
 export function dueIn(date: string, today: string): string {
   const d = daysUntil(date, today)
-  return d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`
+  if (d < 0) return `${-d} ${d === -1 ? 'day' : 'days'} late`
+  return d === 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`
 }
 
-const dueTone = (date: string, today: string): 'amber' | 'neutral' => (daysUntil(date, today) <= 5 ? 'amber' : 'neutral')
+const dueTone = (date: string, today: string): 'amber' | 'neutral' | 'danger' =>
+  daysUntil(date, today) < 0 ? 'danger' : daysUntil(date, today) <= 5 ? 'amber' : 'neutral'
 
 function monthCategories(w: DashboardWindow): ChartCategory[] {
   return w.periodMonths.map((m) => ({ key: m, label: toMonthLabel(m), long: toMonthLabel(m, 'long') }))
@@ -317,7 +319,11 @@ export function ComplianceCard({
                 <span className="flex flex-wrap gap-1">
                   {g.gstr1Due && (
                     <span title={COMPLIANCE_UNVERIFIED[0]} data-testid="chip-gstr1-note">
-                      <Badge tone={dueTone(g.gstr1Due, today)} testId="chip-gstr1">GSTR-1 {dueIn(g.gstr1Due, today)}</Badge>
+                      {g.gstr1Filed ? (
+                        <Badge tone="neutral" testId="chip-gstr1">GSTR-1 filed</Badge>
+                      ) : (
+                        <Badge tone={dueTone(g.gstr1Due, today)} testId="chip-gstr1">GSTR-1 {dueIn(g.gstr1Due, today)}</Badge>
+                      )}
                     </span>
                   )}
                   {g.gstr3bDue && <Badge tone={dueTone(g.gstr3bDue, today)} testId="chip-gstr3b">GSTR-3B {dueIn(g.gstr3bDue, today)}</Badge>}

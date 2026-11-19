@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { toMonthLabel, toPlainDate } from '@shared/dates'
+import { returnPassed } from '@shared/gst/filing'
 import { gstReturnMonth, type SimpleTaxes } from '@shared/simple/taxes'
 import { collectedWhy, compositionDueWhy, creditLeftWhy, creditStatus, dueWhy, onPurchasesWhy, shortDate, taxesPeriodLabel, toPayPartsWhy } from '@shared/simple/explain'
 import { api } from '../../lib/client'
@@ -208,7 +209,7 @@ function GstAnswer({ x }: { x: Regular }): React.JSX.Element {
                 <span data-testid={`taxes-due-${form}`}>
                   {label}
                   {/* Review fix: a date already gone by, for a return not noted as filed, says so. */}
-                  {x.today > x.due[form] && !x.filed[form] && (
+                  {returnPassed(x.today, x.due[form], !!x.filed[form]) && (
                     <span className="ml-2 font-medium text-warning" data-testid={`taxes-due-${form}-passed`}>
                       {t('simple.taxes.due.passed')}
                     </span>

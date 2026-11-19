@@ -99,8 +99,11 @@ export interface DashGst {
   to?: string
   quarterly?: boolean
   soFar?: boolean
+  /** The GSTR-1 date of the period named above (UI-1) — it may have passed. */
   gstr1Due: string | null
   gstr3bDue: string | null
+  /** Present (true) only when that period's GSTR-1 is marked filed — a passed date is then not late. */
+  gstr1Filed?: true
   /** Output tax + RCM liability for the period (3.1 + 3.1(d)). */
   liability: number
   /** WP 8.6: the part of `liability` charged on sales (3.1(a)–(c), zero-rated included) and the

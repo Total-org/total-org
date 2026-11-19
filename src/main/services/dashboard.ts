@@ -97,8 +97,11 @@ export interface GstDuePeriod {
   to: string
   quarterly: boolean
   soFar: boolean
+  /** The GSTR-1 date of THIS period (UI-1); null for a running quarter whose dates aren't listed yet. */
   gstr1Due: string | null
   gstr3bDue: string | null
+  /** Present (true) only when that period's GSTR-1 is marked filed. */
+  gstr1Filed?: true
 }
 
 export function gstDuePeriod(db: DB, company: CompanyInfo, today: string, notBefore?: string): GstDuePeriod | null {
@@ -107,7 +110,6 @@ export function gstDuePeriod(db: DB, company: CompanyInfo, today: string, notBef
   const filing = getGstProfile(db).filing
   const due = upcomingDeadlines(today, 'regular', false, 45, { gstFiling: filing, stateCode: company.stateCode }).filter((d) => d.kind === 'gst')
   const next3b = due.find((d) => d.form === 'GSTR-3B')
-  const next1 = due.find((d) => d.form === 'GSTR-1')
   let from: string
   let to: string
   let soFar = false
@@ -129,28 +131,37 @@ export function gstDuePeriod(db: DB, company: CompanyInfo, today: string, notBef
     from = `${month}-01`
     to = monthEnd(month)
   }
-  let gstr1Due = next1?.date ?? null
+  /** The last month of the period named now (a quarterly filer's period ends in its quarter's last
+   *  month, also while it is still running) — what `gstr1DueDate` / `gstr3bDueDate` take. */
+  const lastMonth = (): string => (filing === 'quarterly' ? addMonths(quarterStartOf(monthOf(to)), 2) : monthOf(to))
+  // UI-1: the GSTR-1 date is the named period's OWN (gstr1DueDate), not "the next GSTR-1 within 45
+  // days" — that one was the following period's, so an overdue GSTR-1 never showed. A running
+  // quarter (its GSTR-3B is more than 45 days off) lists its GSTR-1 only once that date is inside
+  // the same 45-day window, as before.
+  const ownGstr1 = gstr1DueDate(lastMonth(), filing)
+  let gstr1Due: string | null = soFar && !due.some((d) => d.form === 'GSTR-1' && d.date === ownGstr1) ? null : ownGstr1
   let gstr3bDue = next3b?.date ?? null
   /** The running period so far, with that period's own due dates. */
-  const running = (moveGstr1: boolean): void => {
+  const running = (): void => {
     from = filing === 'quarterly' ? `${quarterStartOf(monthOf(today))}-01` : `${monthOf(today)}-01`
     to = today
     soFar = true
-    const last = filing === 'quarterly' ? addMonths(quarterStartOf(monthOf(today)), 2) : monthOf(today)
-    gstr3bDue = gstr3bDueDate(last, filing, company.stateCode).date
-    if (moveGstr1 || !gstr1Due) gstr1Due = gstr1DueDate(last, filing)
+    gstr3bDue = gstr3bDueDate(lastMonth(), filing, company.stateCode).date
+    gstr1Due = gstr1DueDate(lastMonth(), filing)
   }
   // WP 10.8: a period that ended before the books (or the registration) began is not offered.
   // Audit A7 / UX-9: the running period then shows ITS due dates — it used to keep the skipped
   // period's ("Nothing to pay by 20 Nov" for November's tax, which is due on 20 December).
-  if (notBefore && to < notBefore) running(true)
+  if (notBefore && to < notBefore) running()
   // The Taxes screen's "I've filed" (meta gstFiled): once that period's GSTR-3B is marked filed it
   // is done — the tile (Gateway chip, simple Home, the Taxes screen's default period) moves on to
   // the running period so far, with that period's own due dates. A running period can't be marked
   // filed (setGstFiled refuses it), so this never skips twice. The figures are gstr3b()'s as ever.
-  const filedHere = readGstFiled(db)[monthOf(to)]
-  if (!soFar && filedHere?.gstr3b) running(!!filedHere.gstr1)
-  return { period: monthOf(to), from, to, quarterly: filing === 'quarterly', soFar, gstr1Due, gstr3bDue }
+  const marks = readGstFiled(db)[monthOf(to)]
+  if (!soFar && marks?.gstr3b) running()
+  // UI-1: a GSTR-1 already marked filed is not late — the period stays named while its 3B is open.
+  const gstr1Filed = !soFar && !!marks?.gstr1
+  return { period: monthOf(to), from, to, quarterly: filing === 'quarterly', soFar, gstr1Due, gstr3bDue, ...(gstr1Filed ? { gstr1Filed } : {}) }
 }
 
 /** meta `gstFiled` (the Taxes screen's "I've filed" marks, shared/simple/taxes.ts) as stored —

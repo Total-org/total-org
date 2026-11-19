@@ -181,7 +181,8 @@ describe('the simple shell', () => {
       kind: 'regular', today: '2026-10-05', filing: 'monthly',
       period: { period: '2026-09', from: '2026-09-01', to: '2026-09-30', quarterly: false, soFar: false },
       figures: { toPay: 1234500 },
-      due: { gstr1: '2026-10-11', gstr3b: '2026-10-20', gstr3bUnverified: false, pmt06: [] }
+      due: { gstr1: '2026-10-11', gstr3b: '2026-10-20', gstr3bUnverified: false, pmt06: [] },
+      filed: {}
     }
     render(withClient(<SimpleSection section="taxes" />))
     await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-to-pay').textContent).toBe('₹12,345.00'))
@@ -202,7 +203,8 @@ describe('the simple shell', () => {
       kind: 'regular', today: '2026-10-05', filing: 'quarterly',
       period: { period: '2026-09', from: '2026-07-01', to: '2026-09-30', quarterly: true, soFar: false },
       figures: { toPay: 500000 },
-      due: { gstr1: '2026-10-13', gstr3b: '2026-10-22', gstr3bUnverified: true, pmt06: ['2026-08-25', '2026-09-25'] }
+      due: { gstr1: '2026-10-13', gstr3b: '2026-10-22', gstr3bUnverified: true, pmt06: ['2026-08-25', '2026-09-25'] },
+      filed: {}
     }
     render(withClient(<SimpleSection section="taxes" />))
     await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-unverified').textContent).not.toBe(''))
@@ -218,6 +220,35 @@ describe('the simple shell', () => {
     expect(screen.queryByTestId('simple-taxes-gst-card')).toBeNull()
     const ca = screen.getByRole('heading', { name: 'For your CA' })
     expect(ca.compareDocumentPosition(screen.getByTestId('simple-entry-tds')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('UI-2: the Taxes hub card says a date has passed (as the Taxes screen does) — unless that return is marked filed', async () => {
+    setSession({ mode: 'simple' })
+    // 18 Nov: October's GSTR-1 (11 Nov) has gone by, its GSTR-3B (20 Nov) has not.
+    const answer = {
+      kind: 'regular', today: '2026-11-18', filing: 'monthly',
+      period: { period: '2026-10', from: '2026-10-01', to: '2026-10-31', quarterly: false, soFar: false },
+      figures: { toPay: 1234500 },
+      due: { gstr1: '2026-11-11', gstr3b: '2026-11-20', gstr3bUnverified: false, pmt06: [] },
+      filed: {}
+    }
+    taxesAnswer = answer
+    render(withClient(<SimpleSection section="taxes" />))
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-due-gstr1').textContent).toContain('by 11 Nov 2026'))
+    expect(screen.getByTestId('simple-taxes-hub-due-gstr1-passed').textContent).toBe('— this date has passed; file it as soon as you can')
+    expect(screen.queryByTestId('simple-taxes-hub-due-gstr3b-passed')).toBeNull()
+    cleanup()
+    // The 20th itself is not "passed" (the Taxes screen compares the same way: today > date).
+    taxesAnswer = { ...answer, today: '2026-11-20' }
+    render(withClient(<SimpleSection section="taxes" />))
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-due-gstr1-passed')).toBeTruthy())
+    expect(screen.queryByTestId('simple-taxes-hub-due-gstr3b-passed')).toBeNull()
+    cleanup()
+    // Marked filed: nothing to say.
+    taxesAnswer = { ...answer, filed: { gstr1: { arn: 'AA2710000001234', date: '2026-11-12', by: null, at: '2026-11-12T05:00:00.000Z' } } }
+    render(withClient(<SimpleSection section="taxes" />))
+    await waitFor(() => expect(screen.getByTestId('simple-taxes-hub-due-gstr1').textContent).toContain('by 11 Nov 2026'))
+    expect(screen.queryByTestId('simple-taxes-hub-due-gstr1-passed')).toBeNull()
   })
 
   it('composition: no GSTR-1 / 3B / 2B entries, the composition note instead; nothing GST while details load', async () => {

@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Gateway } from '../screens/Gateway'
 import { useNav, useSession } from '../state/stores'
 import { DEFAULT_FEATURES, type CompanyFeatures } from '@shared/features'
-import { fyOf, todayISO } from '@shared/dates'
+import { addDaysISO, fyOf, todayISO } from '@shared/dates'
 import { dashboardWindow, type DashboardSeries } from '@shared/dashboard'
 import type { CompanyInfo } from '@shared/domain'
 import { onboardingFromDashSetup } from '@shared/onboarding'
@@ -211,6 +211,34 @@ describe('Gateway dashboard', () => {
     await waitFor(() => expect(screen.getByTestId('dash-stock').textContent).toContain('Wireless Mouse'))
     expect(screen.getByTestId('dash-tds')).toBeTruthy()
     expect(screen.getByTestId('chip-gstr3b').textContent).toContain('GSTR-3B in')
+  })
+
+  // UI-1: the card names the period and carries that period's own GSTR-1 date; a date that has
+  // gone by reads as late unless the return is marked filed.
+  const gstWith = (over: Record<string, unknown>): DashboardSeries =>
+    series({ gst: { ok: true, data: { period: '2026-10', gstr1Due: addDaysISO(today, 3), gstr3bDue: addDaysISO(today, 12), liability: 1_460_000, itc: 280_000, payable: 1_180_000, ...over } } })
+
+  it('UI-1: a GSTR-1 date seven days gone reads "7 days late" in the danger tone; the GSTR-3B chip is unchanged', async () => {
+    setup({ series: gstWith({ gstr1Due: addDaysISO(today, -7) }) })
+    await waitFor(() => expect(screen.getByTestId('chip-gstr1')).toBeTruthy())
+    expect(screen.getByTestId('chip-gstr1').textContent).toBe('GSTR-1 7 days late')
+    expect(screen.getByTestId('chip-gstr1').getAttribute('data-tone')).toBe('danger')
+    expect(screen.getByTestId('chip-gstr3b').textContent).toBe('GSTR-3B in 12 days')
+  })
+
+  it('UI-1: one day late is singular; a date still ahead keeps its "in N days" wording and tone', async () => {
+    setup({ series: gstWith({ gstr1Due: addDaysISO(today, -1) }) })
+    await waitFor(() => expect(screen.getByTestId('chip-gstr1').textContent).toBe('GSTR-1 1 day late'))
+    cleanup()
+    setup({ series: gstWith({ gstr1Due: addDaysISO(today, 3) }) })
+    await waitFor(() => expect(screen.getByTestId('chip-gstr1').textContent).toBe('GSTR-1 in 3 days'))
+    expect(screen.getByTestId('chip-gstr1').getAttribute('data-tone')).toBe('amber')
+  })
+
+  it('UI-1: a GSTR-1 marked filed says so — a passed date is not late then', async () => {
+    setup({ series: gstWith({ gstr1Due: addDaysISO(today, -7), gstr1Filed: true }) })
+    await waitFor(() => expect(screen.getByTestId('chip-gstr1').textContent).toBe('GSTR-1 filed'))
+    expect(screen.getByTestId('chip-gstr1').getAttribute('data-tone')).toBe('neutral')
   })
 
   it('one failing section degrades only its own tile and card', async () => {
