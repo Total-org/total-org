@@ -107,6 +107,11 @@ describe('caPack.exportCaPack', () => {
     expect(tb).toContain('ABC Traders')
     expect(tb).toContain('Total,,1430.00,1430.00')
 
+    // Balance sheet: the profit line (sales 1000.00 - rent 250.00 = 750.00) is followed by its two
+    // parts, indented under it (R7).
+    const bs = readFileSync(join(dir, 'balance-sheet.csv'), 'utf8')
+    expect(bs).toContain('Profit & Loss A/c,750.00\r\n  Opening balance,0.00\r\n  Current period,750.00\r\n')
+
     // Ledger statements: one CSV per ledger with activity in the period (all six here).
     const ledgerFiles = readdirSync(join(dir, 'ledger-statements')).sort()
     expect(ledgerFiles).toEqual(['ABC Traders.csv', 'Cash.csv', 'Output CGST.csv', 'Output SGST.csv', 'Rent.csv', 'Sales.csv'])
