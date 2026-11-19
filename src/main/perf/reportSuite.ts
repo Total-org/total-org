@@ -152,10 +152,8 @@ const isBalanceSheetId = (id: string): boolean => id === 'bs' || id.startsWith('
 const additiveFieldsOf = (id: string): Record<string, unknown> | undefined =>
   ADDITIVE_FIELDS[id] ?? (isBalanceSheetId(id) ? BALANCE_SHEET_FIELDS : undefined)
 
-/** `value` without the additive fields still at their neutral value (anywhere in the tree). */
-export function withoutAdditive(id: string, value: unknown): unknown {
-  const fields = additiveFieldsOf(id)
-  if (!fields) return value
+/** `value` without `fields` still at their neutral value (anywhere in the tree). */
+function stripFields(fields: Record<string, unknown>, value: unknown): unknown {
   const strip = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(strip)
     if (v && typeof v === 'object') {
@@ -168,6 +166,18 @@ export function withoutAdditive(id: string, value: unknown): unknown {
     return v
   }
   return strip(value)
+}
+
+/** `value` without the additive fields of output `id` still at their neutral value. */
+export function withoutAdditive(id: string, value: unknown): unknown {
+  const fields = additiveFieldsOf(id)
+  return fields ? stripFields(fields, value) : value
+}
+
+/** A balance sheet output without `parts` and nothing else — for the older equality fixtures
+ *  (cutFeaturesRead), whose hashes also hold fields `withoutAdditive` would leave out. */
+export function withoutBalanceSheetParts(id: string, value: unknown): unknown {
+  return isBalanceSheetId(id) ? stripFields(BALANCE_SHEET_FIELDS, value) : value
 }
 
 /** What is wrong with the `parts` of the balance sheets in `outputs` (none = []): only the
