@@ -104,6 +104,18 @@ export interface StatementNode {
   /** Signed paise. Meaning depends on the statement side. */
   amount: number
   children: StatementNode[]
+  /** R7 / FIG-B-2: what a computed line is made of — the balance sheet's "Profit & Loss A/c" says
+   *  how much of it is earlier years' profit and how much this year's. They add up to `amount`.
+   *  Absent = the line is not split. Kept apart from `children` on purpose: a report read before
+   *  the split (the upgrade check, the simple screens, the AI tools) walks `children` and sees
+   *  exactly what it always did; the statement screen, its exports and the comparative view show
+   *  the parts beneath the line through `statementChildren`. */
+  parts?: StatementNode[]
+}
+
+/** The rows shown beneath a statement line: its children, else the parts of a split line. */
+export function statementChildren(n: StatementNode): StatementNode[] {
+  return n.children.length > 0 ? n.children : (n.parts ?? [])
 }
 
 export interface ProfitAndLoss {
