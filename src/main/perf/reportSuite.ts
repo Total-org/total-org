@@ -4,6 +4,7 @@
 import { createHash } from 'crypto'
 import type { DB } from '../db/connection'
 import type { CompanyInfo } from '@shared/domain'
+import type { BalanceSheet, StatementNode } from '@shared/reports'
 import * as reports from '../services/reports'
 import { outstandingsWithAdvances, registerByMonth } from '../services/analysis'
 import { stockSummary } from '../services/stockAnalysis'
@@ -137,16 +138,28 @@ export const ADDITIVE_FIELDS: Record<string, Record<string, unknown>> = {
   doing: { rounding: 0 }
 }
 
-/** `value` without the additive fields still at their neutral value (anywhere in the tree). */
-export function withoutAdditive(id: string, value: unknown): unknown {
-  const fields = ADDITIVE_FIELDS[id]
-  if (!fields) return value
+/** R7 / FIG-B-2: a field that always carries something new has no neutral value — the balance
+ *  sheet's `parts` (the "Profit & Loss A/c" line split into earlier years and this year) is on
+ *  every sheet that has a profit line. It is left out of every balance sheet hash (`bs`, `bs:<date>`) (whatever it holds),
+ *  so the hashes origin/main's code wrote still check each figure that existed; the field itself is
+ *  guarded by `bsPartsProblems`, which the equality test runs over the same outputs. */
+const ANY_VALUE = Symbol('any value')
+const BALANCE_SHEET_FIELDS: Record<string, unknown> = { parts: ANY_VALUE }
+
+/** `bs` (the budgeted screen call) and `bs:<date>` (one per year end). */
+const isBalanceSheetId = (id: string): boolean => id === 'bs' || id.startsWith('bs:')
+
+const additiveFieldsOf = (id: string): Record<string, unknown> | undefined =>
+  ADDITIVE_FIELDS[id] ?? (isBalanceSheetId(id) ? BALANCE_SHEET_FIELDS : undefined)
+
+/** `value` without `fields` still at their neutral value (anywhere in the tree). */
+function stripFields(fields: Record<string, unknown>, value: unknown): unknown {
   const strip = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(strip)
     if (v && typeof v === 'object') {
       return Object.fromEntries(
         Object.entries(v as Record<string, unknown>)
-          .filter(([k, x]) => !(Object.prototype.hasOwnProperty.call(fields, k) && Object.is(fields[k], x)))
+          .filter(([k, x]) => !(Object.prototype.hasOwnProperty.call(fields, k) && (fields[k] === ANY_VALUE || Object.is(fields[k], x))))
           .map(([k, x]) => [k, strip(x)])
       )
     }
@@ -155,7 +168,42 @@ export function withoutAdditive(id: string, value: unknown): unknown {
   return strip(value)
 }
 
-export async function reportHashes(db: DB, info: CompanyInfo, today: string): Promise<Record<string, string>> {
-  const outputs = await reportOutputs(db, info, today)
+/** `value` without the additive fields of output `id` still at their neutral value. */
+export function withoutAdditive(id: string, value: unknown): unknown {
+  const fields = additiveFieldsOf(id)
+  return fields ? stripFields(fields, value) : value
+}
+
+/** A balance sheet output without `parts` and nothing else — for the older equality fixtures
+ *  (cutFeaturesRead), whose hashes also hold fields `withoutAdditive` would leave out. */
+export function withoutBalanceSheetParts(id: string, value: unknown): unknown {
+  return isBalanceSheetId(id) ? stripFields(BALANCE_SHEET_FIELDS, value) : value
+}
+
+/** What is wrong with the `parts` of the balance sheets in `outputs` (none = []): only the
+ *  liabilities side's "Profit & Loss A/c" line may carry them, they are exactly "Opening balance"
+ *  and "Current period", and they add up to the line (also on each sheet's `prior`). */
+export function bsPartsProblems(outputs: Record<string, unknown>): string[] {
+  const problems: string[] = []
+  const visit = (where: string, n: StatementNode, onProfitLine: boolean): void => {
+    if (n.parts && !onProfitLine) problems.push(`${where}: "${n.name}" has parts`)
+    if (onProfitLine) {
+      const names = (n.parts ?? []).map((p) => p.name).join(' / ')
+      const sum = (n.parts ?? []).reduce((t, p) => t + p.amount, 0)
+      if (names !== 'Opening balance / Current period') problems.push(`${where}: the profit line's parts are "${names}"`)
+      else if (sum !== n.amount) problems.push(`${where}: the profit line's parts add up to ${sum}, the line is ${n.amount}`)
+    }
+    n.children.forEach((c) => visit(where, c, false))
+  }
+  const sheet = (where: string, b: BalanceSheet): void => {
+    b.liabilities.forEach((n) => visit(where, n, n.id === -3))
+    b.assets.forEach((n) => visit(where, n, false))
+    if (b.prior) sheet(`${where}.prior`, b.prior)
+  }
+  for (const [id, v] of Object.entries(outputs)) if (isBalanceSheetId(id)) sheet(id, v as BalanceSheet)
+  return problems
+}
+
+export function hashOutputs(outputs: Record<string, unknown>): Record<string, string> {
   return Object.fromEntries(Object.entries(outputs).map(([k, v]) => [k, hashOf(withoutAdditive(k, v))]))
 }

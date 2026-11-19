@@ -126,6 +126,18 @@ describe('comparing old and new report outputs', () => {
     expect(r.differences).toEqual([])
     expect(r.added).toEqual(['r.rounding', 'extra'])
   })
+  it('R7: the split of the balance sheet\'s profit line is an added field; the same split as children would be a difference', () => {
+    const line = { id: -3, kind: 'computed', name: 'Profit & Loss A/c', amount: 2000000, children: [] }
+    const parts = [
+      { id: -6, kind: 'computed', name: 'Opening balance', amount: 1500000, children: [] },
+      { id: -7, kind: 'computed', name: 'Current period', amount: 500000, children: [] }
+    ]
+    const sheet = (l: object): object => ({ 'c/bs:2027-03-31': { liabilities: [l], assets: [], totalLiabilities: 2000000 } })
+    const asField = compareOutputs(sheet(line), sheet({ ...line, parts }))
+    expect(asField.differences).toEqual([])
+    expect(asField.added).toEqual(['c/bs:2027-03-31.liabilities[0].parts'])
+    expect(compareOutputs(sheet(line), sheet({ ...line, children: parts })).differences.map((d) => d.path)).toEqual(['c/bs:2027-03-31.liabilities[0].children.length'])
+  })
   it('a lost field, a lost report, a changed row count and a type change are differences', () => {
     const r = compareOutputs({ r: { a: 1, b: [1, 2] }, gone: 1, t: [1] }, { r: { b: [1] }, t: { 0: 1 } })
     expect(r.differences.map((d) => d.path).sort()).toEqual(['gone', 'r.a', 'r.b.length', 't'])

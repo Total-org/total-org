@@ -119,6 +119,25 @@ describe('explain_figure with profit hidden (A3 / SEC-11)', () => {
     const stock = await registry.run('explain_figure', JSON.stringify({ groupName: 'Stock-in-Hand', asOn: '2026-03-31' }), ctxFor(b.db, false))
     expect(stock.ok).toBe(false)
   })
+
+  it('the parts of the balance sheet profit line are the profit: refused when hidden, explained otherwise (R7)', async () => {
+    const b = books()
+    const registry = createToolRegistry()
+    const run = (name: string, see: boolean) => registry.run('explain_figure', JSON.stringify({ groupName: name, asOn: '2026-03-31' }), ctxFor(b.db, see))
+    // The first year of these books: all of the profit line is the current period.
+    const line = await run('Profit & Loss A/c', true)
+    expect(line.ok).toBe(true)
+    const amountOf = (r: Awaited<ReturnType<typeof run>>): unknown => (r.ok ? (r.data as { amount: string }).amount : null)
+    for (const part of ['Current period', 'Opening balance']) {
+      const hidden = await run(part, false)
+      expect(hidden.ok, part).toBe(false)
+      if (!hidden.ok) expect(hidden.error).toMatch(HIDDEN)
+    }
+    const current = await run('Current period', true)
+    expect(current.ok).toBe(true)
+    expect(amountOf(current)).toBe(amountOf(line))
+    expect(amountOf(await run('Opening balance', true))).toMatch(/^₹?\s?0\.00$|^0\.00$/)
+  })
 })
 
 describe('manufacture_register with profit hidden (A3 / SEC-11)', () => {

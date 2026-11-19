@@ -842,6 +842,26 @@ export function balanceSheet(db: DB, booksFrom: string, asOn: string, comparePri
   return stockAnalysis.withStockPass(db, () => balanceSheetOf(db, booksFrom, asOn, comparePrior))
 }
 
+/** R7 / FIG-B-2: the balance sheet's "Profit & Loss A/c" (`total` = profitCurrentPeriod) split
+ *  into this financial year's profit and the earlier years' that no closing journal has carried
+ *  over. The current year is profitAndLoss over the FY containing `asOn` less the closing journals
+ *  dated in it (pnlLedgerAmounts' `closingTransfers`, as `total` itself is made); the earlier years
+ *  are what is left of `total`, so the two always add up to the line. Both stay exact because
+ *  income / expense ledgers start every year at nil (yearOpening.ts): profit over [booksFrom, asOn]
+ *  is the sum of the profit over the years in it. The first year of the books has no earlier years. */
+function profitParts(db: DB, booksFrom: string, asOn: string, total: number, closingStock: number): StatementNode[] {
+  const yearFrom = fyOf(asOn).from
+  let current = total
+  if (yearFrom > booksFrom) {
+    const year = profitAndLoss(db, yearFrom, asOn, { closingStock })
+    current = year.netProfit - pnlLedgerAmounts(db, yearFrom, asOn).closingTransfers
+  }
+  return [
+    { id: -6, kind: 'computed', name: 'Opening balance', amount: total - current, children: [] },
+    { id: -7, kind: 'computed', name: 'Current period', amount: current, children: [] }
+  ]
+}
+
 function balanceSheetOf(db: DB, booksFrom: string, asOn: string, comparePrior?: boolean): BalanceSheet {
   const balances = closingBalances(db, asOn)
   const amountOf = (id: number): number => balances.get(id) ?? 0
@@ -910,7 +930,10 @@ function balanceSheetOf(db: DB, booksFrom: string, asOn: string, comparePrior?: 
     totalLiabilities
   }
   if (profitCurrentPeriod !== 0) {
-    result.liabilities.push({ id: -3, kind: 'computed', name: 'Profit & Loss A/c', amount: profitCurrentPeriod, children: [] })
+    result.liabilities.push({
+      id: -3, kind: 'computed', name: 'Profit & Loss A/c', amount: profitCurrentPeriod, children: [],
+      parts: profitParts(db, booksFrom, asOn, profitCurrentPeriod, closingStock)
+    })
   }
   if (openingDiff !== 0) {
     result.liabilities.push({ id: -4, kind: 'computed', name: 'Difference in Opening Balances', amount: openingDiff, children: [] })

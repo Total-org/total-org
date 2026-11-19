@@ -16,7 +16,7 @@ import { createDemoCompany } from '../services/demo'
 import type { DB } from '../db/connection'
 import type { CompanyInfo } from '@shared/domain'
 import { PERF_COMPANY, PERF_TODAY, seedLargeAsync } from './seedLarge'
-import { canonical, hashOf, reportHashes, reportOutputs, withoutAdditive } from './reportSuite'
+import { bsPartsProblems, canonical, hashOf, hashOutputs, reportOutputs, withoutAdditive } from './reportSuite'
 
 const EXPECTED_PATH = join(__dirname, '__fixtures__', 'reportHashes.json')
 const WRITE = process.env.TOTAL_PERF_WRITE_EXPECTED === '1'
@@ -35,7 +35,8 @@ const ENTERED_ON = '2026-10-14 12:00:00'
 
 async function compare(name: string, db: DB, info: CompanyInfo): Promise<void> {
   db.prepare('UPDATE vouchers SET created_at = ?').run(ENTERED_ON)
-  const got = await reportHashes(db, info, PERF_TODAY)
+  const outputs = await reportOutputs(db, info, PERF_TODAY)
+  const got = hashOutputs(outputs)
   if (WRITE) {
     written[name] = got
     return
@@ -45,11 +46,12 @@ async function compare(name: string, db: DB, info: CompanyInfo): Promise<void> {
   const differ = Object.keys({ ...want, ...got }).filter((k) => want![k] !== got[k])
   if (differ.length) {
     const dir = mkdtempSync(join(tmpdir(), `total-report-diff-${name}-`))
-    const outputs = await reportOutputs(db, info, PERF_TODAY)
     for (const k of differ) writeFileSync(join(dir, `${k.replace(/[^\w.-]/g, '_')}.json`), canonical(outputs[k] ?? null))
     console.log(`[report equality] ${name}: outputs that differ written to ${dir}`)
   }
   expect(differ, `${name}: these outputs changed`).toEqual([])
+  // The one field the hashes leave out for every balance sheet (R7): checked on its own.
+  expect(bsPartsProblems(outputs), `${name}: the balance sheets' profit-line parts`).toEqual([])
 }
 
 describe('report outputs are unchanged by the performance work (WP 7.1)', () => {
@@ -64,6 +66,30 @@ describe('report outputs are unchanged by the performance work (WP 7.1)', () => 
     // A real round-off still changes the hash, and so does the field on any other output.
     expect(hashOf(withoutAdditive('doing', { lines: { ...before.lines, rounding: 50 } }))).not.toBe(hashOf(before))
     expect(hashOf(withoutAdditive('pnl:2025-04-01', { lines: { ...before.lines, rounding: 0 } }))).not.toBe(hashOf(before))
+  })
+
+  it('R7: a balance sheet hashes as it did before the profit line was split; the split has its own guard', () => {
+    const line = { id: -3, kind: 'computed', name: 'Profit & Loss A/c', amount: 20_000_00, children: [] }
+    const parts = [
+      { id: -6, kind: 'computed', name: 'Opening balance', amount: 15_000_00, children: [] },
+      { id: -7, kind: 'computed', name: 'Current period', amount: 5_000_00, children: [] }
+    ]
+    const sheet = (l: object): object => ({ asOn: '2027-03-31', liabilities: [l], assets: [], totalAssets: 0, totalLiabilities: 20_000_00, profitCurrentPeriod: 20_000_00 })
+    // Left out of `bs` and `bs:<date>` (and of the sheet's prior), at any value; kept on any other output.
+    for (const id of ['bs', 'bs:2027-03-31']) {
+      expect(hashOf(withoutAdditive(id, { ...sheet({ ...line, parts }), prior: sheet({ ...line, parts }) }))).toBe(hashOf({ ...sheet(line), prior: sheet(line) }))
+    }
+    expect(hashOf(withoutAdditive('pnl:2026-04-01', sheet({ ...line, parts })))).not.toBe(hashOf(sheet(line)))
+    // A changed figure still changes the hash.
+    expect(hashOf(withoutAdditive('bs', sheet({ ...line, amount: 20_000_01, parts })))).not.toBe(hashOf(sheet(line)))
+    // The guard: right parts pass; each way to be wrong is refused.
+    const problems = (l: object): string[] => bsPartsProblems({ 'bs:2027-03-31': sheet(l) })
+    expect(problems({ ...line, parts })).toEqual([])
+    expect(problems(line)).toHaveLength(1) // a profit line without its parts
+    expect(problems({ ...line, parts: [parts[0]!, { ...parts[1]!, amount: 5_000_01 }] })).toHaveLength(1) // not adding up
+    expect(problems({ ...line, parts: [parts[1]!, parts[0]!] })).toHaveLength(1) // not the two parts, in order
+    expect(problems({ ...line, id: -9, name: 'Reserves', parts })).toHaveLength(1) // parts on another line
+    expect(bsPartsProblems({ bs: { ...sheet({ ...line, parts }), prior: sheet({ ...line, parts: [parts[0]!] }) } })).toHaveLength(1) // the prior sheet is checked too
   })
 
   // The clock is pinned to the perf day in both cases, so nothing date-relative can drift.

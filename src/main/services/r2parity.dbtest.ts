@@ -16,6 +16,7 @@ import type { VoucherInput } from '@shared/schemas'
 import { trialBalance, profitAndLoss, balanceSheet, ledgerStatement, stockSummary, dashboard } from './reports'
 import { outstandings, openBills, registerByMonth } from './analysis'
 import { suggestLedgers, anomalyCheck } from './intel'
+import { withoutAdditive } from '../perf/reportSuite'
 
 const LEDGER_DEFAULTS = {
   gstin: null, stateCode: null, address: null, taxType: null, gstRate: null, hsn: null,
@@ -143,7 +144,8 @@ describe('R2 parity — statements', () => {
     const { db } = richBook()
     expect(trialBalance(db, '2025-06-30')).toMatchSnapshot('trialBalance')
     expect(profitAndLoss(db, '2025-04-01', '2025-06-30')).toMatchSnapshot('profitAndLoss')
-    expect(balanceSheet(db, '2025-04-01', '2025-06-30')).toMatchSnapshot('balanceSheet')
+    // R7: the profit line's `parts` came after the recording; everything it recorded still holds.
+    expect(withoutAdditive('bs', balanceSheet(db, '2025-04-01', '2025-06-30'))).toMatchSnapshot('balanceSheet')
     expect(stockSummary(db, '2025-06-30')).toMatchSnapshot('stockSummary')
   })
 

@@ -16,7 +16,7 @@ vi.mock('./pdf', () => ({ htmlToPdf: async (html: string) => Buffer.from(`%PDF-t
 import { testFileDb } from '../db/testdb'
 import { migrate } from '../db/migrate'
 import { readCompanyInfo } from '../db/seed'
-import { canonical, hashOf } from '../perf/reportSuite'
+import { bsPartsProblems, canonical, hashOf, withoutBalanceSheetParts } from '../perf/reportSuite'
 import { cutFeatureOutputs, CUT_TODAY, NO_PF_ESI, withoutPfEsiDeadlines } from './cutFeaturesSuite'
 
 const DIR = join(__dirname, '__fixtures__', 'cutFeatures')
@@ -48,7 +48,8 @@ describe('A13b: a book that used interest, fixed assets and PF / ESI / PT reads 
       const hashes: Record<string, string> = {}
       for (const [k, v] of Object.entries(got)) {
         if (expected[k + NO_PF_ESI]) hashes[k + NO_PF_ESI] = hashOf(withoutPfEsiDeadlines(v))
-        else hashes[k] = hashOf(v)
+        // R7: a balance sheet's `parts` came after the hashes; `bsPartsProblems` guards it below.
+        else hashes[k] = hashOf(withoutBalanceSheetParts(k, v))
       }
       const want = Object.fromEntries(Object.entries(expected).filter(([k]) => !expected[k + NO_PF_ESI]))
       const differ = Object.keys({ ...want, ...hashes }).filter((k) => want[k] !== hashes[k])
@@ -58,6 +59,7 @@ describe('A13b: a book that used interest, fixed assets and PF / ESI / PT reads 
         console.log(`[cut features] outputs that differ written to ${out}`)
       }
       expect(differ, 'these outputs changed').toEqual([])
+      expect(bsPartsProblems(got), "the balance sheets' profit-line parts").toEqual([])
     } finally {
       db.close()
       vi.useRealTimers()

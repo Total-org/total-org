@@ -1,6 +1,6 @@
 import { rowsToCsv } from '@shared/csv'
 import { formatPaise } from '@shared/money'
-import type { StatementNode } from '@shared/reports'
+import { statementChildren, type StatementNode } from '@shared/reports'
 import type { XlsxSheet } from '@shared/xlsx/writer'
 import { api, type ReportColumn, type ReportPdfInput, type ReportRow } from './client'
 import type { ToastState } from '../state/stores'
@@ -80,7 +80,8 @@ export function flattenNodes(nodes: StatementNode[], depth = 0): ReportRow[] {
       bold: n.kind !== 'ledger',
       indent: depth
     })
-    if (n.children.length) out.push(...flattenNodes(n.children, depth + 1))
+    const below = statementChildren(n)
+    if (below.length) out.push(...flattenNodes(below, depth + 1))
   }
   return out
 }
