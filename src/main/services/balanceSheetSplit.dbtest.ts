@@ -11,7 +11,7 @@
 //   FY2 (2026-27): sales 8,000 cash (1 May 2026), rent 3,000 cash (1 Jun 2026).
 //                  profit = 8,000 - 3,000 = 5,000
 //   FY3 (2027-28): rent 7,000 cash (1 May 2027).   profit = -7,000
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { seededDb, TEST_INFO } from '../db/testdb'
 import type { DB } from '../db/connection'
 import { createLedger } from './masters'
@@ -67,6 +67,8 @@ const pnlLine = (bs: BalanceSheet): StatementNode | undefined => bs.liabilities.
 const partsOf = (bs: BalanceSheet): Record<string, number> =>
   Object.fromEntries((pnlLine(bs)?.parts ?? []).map((p) => [p.name, p.amount]))
 
+afterEach(() => vi.useRealTimers())
+
 describe('balance sheet: Profit & Loss A/c split into Opening balance and Current period (FIG-B-2)', () => {
   it('an unclosed second year: 15,000 from FY1 + 5,000 from FY2', () => {
     const db = books()
@@ -84,6 +86,21 @@ describe('balance sheet: Profit & Loss A/c split into Opening balance and Curren
     const bs = balanceSheet(db, BOOKS_FROM, '2027-03-31')
     expect(pnlLine(bs)).toMatchObject({ id: -3, amount: 5_000_00, children: [] })
     expect(partsOf(bs)).toEqual({ 'Opening balance': 0, 'Current period': 5_000_00 })
+    expect(bs.totalAssets).toBe(bs.totalLiabilities)
+  })
+
+  it('this year closed but the year before left open: the closing journal comes off the current period only', () => {
+    // FY2's profit (5,000) was carried to Retained Earnings by its closing journal (dated 31 Mar 2027,
+    // inside the as-on year); FY1's 15,000 never was. Line = 20,000 - 5,000 = 15,000:
+    // current period = FY2's 5,000 - the 5,000 its journal carried over = 0; opening balance = 15,000.
+    // (Without taking the journal off, the parts would read 10,000 / 5,000.)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-06-01T10:00:00'))
+    const db = books()
+    postClose(db, TEST_INFO, 2026)
+    const bs = balanceSheet(db, BOOKS_FROM, '2027-03-31')
+    expect(pnlLine(bs)).toMatchObject({ amount: 15_000_00, children: [] })
+    expect(partsOf(bs)).toEqual({ 'Opening balance': 15_000_00, 'Current period': 0 })
     expect(bs.totalAssets).toBe(bs.totalLiabilities)
   })
 
