@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { BalanceSheet, ProfitAndLoss, StatementNode } from '@shared/reports'
+import { statementChildren, type BalanceSheet, type ProfitAndLoss, type StatementNode } from '@shared/reports'
 import { variance } from '@shared/ratios'
 import { toDisplayDate } from '@shared/dates'
 import { reportsApi, type ComparativeColumn } from '../lib/reportsClient'
@@ -26,7 +26,7 @@ export function unionTrees(lists: StatementNode[][]): StatementNode[] {
         order.push(k)
       }
       if (li === 0) e.first = n
-      e.childLists[li] = n.children
+      e.childLists[li] = statementChildren(n)
     }
   })
   return order.map((k) => {
@@ -39,7 +39,7 @@ export function unionTrees(lists: StatementNode[][]): StatementNode[] {
 export function amountIndex(nodes: StatementNode[], out = new Map<string, number>()): Map<string, number> {
   for (const n of nodes) {
     out.set(nodeKey(n), n.amount)
-    amountIndex(n.children, out)
+    amountIndex(statementChildren(n), out)
   }
   return out
 }

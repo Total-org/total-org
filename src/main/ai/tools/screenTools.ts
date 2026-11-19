@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import { formatQtyMilli } from '@shared/money'
 import type { AiSource } from '@shared/ai'
-import type { LedgerStatementRow as LedgerRow, StatementNode } from '@shared/reports'
+import { statementChildren, type LedgerStatementRow as LedgerRow, type StatementNode } from '@shared/reports'
 import { addDaysISO as addDays, buildForecast, forecastPeriods, SCENARIO_PRESETS } from '@shared/cashForecast'
 import { descendantIdsByName } from '../../services/masters'
 import { roleAllows } from '../../services/roles'
@@ -671,7 +671,7 @@ function isPnlGroupName(ctx: ToolContext, name: string): boolean {
 function findNode(nodes: readonly StatementNode[], name: string): StatementNode | null {
   for (const n of nodes) {
     if (n.name.toLowerCase() === name.toLowerCase()) return n
-    const c = findNode(n.children, name)
+    const c = findNode(statementChildren(n), name)
     if (c) return c
   }
   return null

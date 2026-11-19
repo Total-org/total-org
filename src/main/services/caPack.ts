@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { DB } from '../db/connection'
 import type { CompanyInfo } from '@shared/domain'
-import type { StatementNode } from '@shared/reports'
+import { statementChildren, type StatementNode } from '@shared/reports'
 import type { TallyGroup, TallyLedger, TallyUnit, TallyItem, TallyVoucher } from '@shared/tally'
 import { buildTallyMastersXml, buildTallyVouchersXml } from '@shared/tallyExport'
 import { rowsToCsv } from '@shared/csv'
@@ -106,7 +106,7 @@ function flattenStatement(nodes: StatementNode[], depth = 0): { name: string; am
   const out: { name: string; amount: number }[] = []
   for (const n of nodes) {
     out.push({ name: `${'  '.repeat(depth)}${n.name}`, amount: n.amount })
-    out.push(...flattenStatement(n.children, depth + 1))
+    out.push(...flattenStatement(statementChildren(n), depth + 1))
   }
   return out
 }

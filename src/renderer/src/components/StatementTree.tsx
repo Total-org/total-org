@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { StatementNode } from '@shared/reports'
+import { statementChildren, type StatementNode } from '@shared/reports'
 import { Money } from './ui'
 import { LedgerLink, drillRowProps } from './links'
 import { isRealId, openLedgerStatement } from '../lib/drill'
@@ -87,6 +87,7 @@ function StatementRow({
   )
   const [open, setOpen] = useState(depth === 0 || expandAll)
   const isLeafLedger = node.kind === 'ledger' && isRealId(node.id)
+  const shown = statementChildren(node)
   const style = { paddingLeft: `${8 + depth * 18}px` }
   const nameCls = `text-detail ${depth === 0 ? 'font-medium' : isLeafLedger ? 'text-muted' : ''}`
   const aiOn = useAiAffordances()
@@ -129,13 +130,13 @@ function StatementRow({
         type="button"
         className={ROW_CLS}
         style={style}
-        aria-expanded={node.children.length > 0 ? open : undefined}
+        aria-expanded={shown.length > 0 ? open : undefined}
         onClick={() => {
-          if (node.children.length) setOpen((v) => !v)
+          if (shown.length) setOpen((v) => !v)
         }}
       >
         <span className={nameCls}>
-          {node.children.length > 0 && (
+          {shown.length > 0 && (
             <span aria-hidden="true" className="mr-1.5 inline-block w-3 text-micro text-muted">
               {open ? '▾' : '▸'}
             </span>
@@ -144,7 +145,7 @@ function StatementRow({
         </span>
         {amount}
       </button>)}
-      {open && node.children.length > 0 && <StatementTree nodes={node.children} depth={depth + 1} expandAll={expandAll} hideZero={hideZero} columns={columns} />}
+      {open && shown.length > 0 && <StatementTree nodes={shown} depth={depth + 1} expandAll={expandAll} hideZero={hideZero} columns={columns} />}
     </>
   )
 }
